@@ -27,11 +27,15 @@ public class TestMailTlsBudgets {
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public async Task CancellationStopsMaterializingTheHostSequence(bool startTls, bool explicitTargets) {
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    public async Task CancellationStopsMaterializingTheHostSequence(bool startTls, bool explicitTargets, bool alreadyCanceled) {
         using var canceled = new CancellationTokenSource();
+        if (alreadyCanceled) { canceled.Cancel(); }
         int enumerated = 0;
         IEnumerable<string> Hosts() {
             enumerated++;
@@ -46,7 +50,7 @@ public class TestMailTlsBudgets {
                 ? new MailTlsAnalysis().AnalyzeServers(MailProtocol.Imap, Hosts().Select(host => new MailTransportEndpoint(host, 143)), new InternalLogger(), canceled.Token)
                 : new MailTlsAnalysis().AnalyzeServers(MailProtocol.Imap, Hosts(), 143, new InternalLogger(), canceled.Token);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(Run);
-        Assert.Equal(1, enumerated);
+        Assert.Equal(alreadyCanceled ? 0 : 1, enumerated);
     }
 
     [Fact]
