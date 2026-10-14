@@ -70,10 +70,23 @@ public class STARTTLSAnalysis : IHasAssessments {
             ServerResults.Clear();
             DowngradeDetected.Clear();
             ServerDetails.Clear();
-            var portList = ports.Distinct().ToArray();
-            var endpoints = hosts.Distinct(StringComparer.OrdinalIgnoreCase)
-                .SelectMany(host => portList.Select(port => new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily }))
-                .GroupBy(endpoint => endpoint.Key, StringComparer.OrdinalIgnoreCase).Select(group => group.First()).ToArray();
+            var portList = new List<int>();
+            foreach (var port in ports) {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!portList.Contains(port)) { portList.Add(port); }
+            }
+            var materialized = new List<MailTransportEndpoint>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var host in hosts) {
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var port in portList) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
+                    if (seen.Add(endpoint.Key)) { materialized.Add(endpoint); }
+                }
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var endpoints = materialized.ToArray();
             using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
             var details = await Task.WhenAll(endpoints.Select(async endpoint => {
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -100,7 +113,7 @@ public class STARTTLSAnalysis : IHasAssessments {
             TcpClient? client = null;
             var connection = MailTransportConnectionEvidence.FromTarget(endpoint);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(ConnectTimeout < Timeout ? ConnectTimeout : Timeout);
+            timeoutCts.CancelAfter(MailTransportConnector.GetConnectTimeout(ConnectTimeout, Timeout));
             bool connected = false;
             try {
                 client = await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, timeoutCts.Token).ConfigureAwait(false);
@@ -228,6 +241,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                     }
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,

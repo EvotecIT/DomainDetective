@@ -1,10 +1,88 @@
 using System.Net;
 using System.Net.Sockets;
+using System.IO;
 using MailProtocol = DomainDetective.MailTlsAnalysis.MailProtocol;
 
 namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InfiniteProtocolBudgetStillBoundsTheConnection(bool startTls) {
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>> resolver = async (_, token) => {
+            await Task.Delay(Timeout.Infinite, token);
+            return Array.Empty<IPAddress>();
+        };
+        if (startTls) {
+            var analysis = new STARTTLSAnalysis { Timeout = Timeout.InfiniteTimeSpan, ConnectTimeout = TimeSpan.FromMilliseconds(30), OutboundAddressResolver = resolver };
+            await analysis.AnalyzeServer("mail.example.test", 25, new InternalLogger(), guard.Token);
+            Assert.Contains(analysis.Assessments, item => item.Code == "MAILTLS.Service.NotOffered");
+        } else {
+            var analysis = new MailTlsAnalysis { Timeout = Timeout.InfiniteTimeSpan, ConnectTimeout = TimeSpan.FromMilliseconds(30), OutboundAddressResolver = resolver };
+            await analysis.AnalyzeServer(MailProtocol.Imap, "mail.example.test", 143, new InternalLogger(), guard.Token);
+            Assert.Equal(CertificateFailureKind.Timeout, Assert.Single(analysis.ServerResults).Value.FailureKind);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task CancellationStopsMaterializingTheHostSequence(bool startTls, bool explicitTargets) {
+        using var canceled = new CancellationTokenSource();
+        int enumerated = 0;
+        IEnumerable<string> Hosts() {
+            enumerated++;
+            canceled.Cancel();
+            yield return "mail.example.test";
+            enumerated++;
+            throw new InvalidOperationException("Enumeration continued after cancellation.");
+        }
+        Task Run() => startTls
+            ? new STARTTLSAnalysis().AnalyzeServers(Hosts(), new[] { 25 }, new InternalLogger(), canceled.Token)
+            : explicitTargets
+                ? new MailTlsAnalysis().AnalyzeServers(MailProtocol.Imap, Hosts().Select(host => new MailTransportEndpoint(host, 143)), new InternalLogger(), canceled.Token)
+                : new MailTlsAnalysis().AnalyzeServers(MailProtocol.Imap, Hosts(), 143, new InternalLogger(), canceled.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(Run);
+        Assert.Equal(1, enumerated);
+    }
+
+    [Fact]
+    public async Task CancellationDuringHiddenStartTlsHandshakePropagates() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var canceled = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var server = Task.Run(async () => {
+            using var client = await listener.AcceptTcpClientAsync();
+            using var stream = client.GetStream();
+            using var reader = new StreamReader(stream);
+            using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync("454 TLS required");
+            Assert.StartsWith("EHLO", await reader.ReadLineAsync());
+            await writer.WriteLineAsync("250 OK");
+            Assert.Equal("STARTTLS", await reader.ReadLineAsync());
+            await writer.WriteLineAsync("220 Begin TLS");
+            var handshake = new byte[1];
+            Assert.Equal(1, await stream.ReadAsync(handshake, 0, 1, canceled.Token));
+            canceled.Cancel();
+            await release.Task;
+        });
+        try {
+            var analysis = new STARTTLSAnalysis();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.AnalyzeServer(
+                new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), canceled.Token));
+            Assert.Empty(analysis.ServerDetails);
+        } finally {
+            release.TrySetResult(true);
+            listener.Stop();
+            await server;
+        }
+    }
+
     [Fact]
     public async Task StringHostsDeduplicateAfterEndpointNormalization() {
         int queries = 0;
@@ -39,6 +117,7 @@ public class TestMailTlsBudgets {
                 return Array.Empty<IPAddress>();
             } };
         await analysis.AnalyzeServer(MailProtocol.Imap, "mail.example.test", 143, new InternalLogger());
+        Assert.Equal(CertificateFailureKind.Timeout, Assert.Single(analysis.ServerResults).Value.FailureKind);
         Assert.Contains(analysis.Assessments, a => a.Code == "MAILTLS.Service.NotOffered");
         Assert.DoesNotContain(analysis.Assessments, a => a.Severity == AssessmentSeverity.Error);
         using var canceled = new CancellationTokenSource();

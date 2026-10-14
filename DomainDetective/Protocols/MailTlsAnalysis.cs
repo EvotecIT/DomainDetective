@@ -146,8 +146,16 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Analyzes multiple hosts.</summary>
     public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-        await AnalyzeServers(protocol, hosts.Select(host => new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily })
-            .GroupBy(endpoint => endpoint.Key, StringComparer.OrdinalIgnoreCase).Select(group => group.First()), logger, cancellationToken).ConfigureAwait(false);
+        if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+        var endpoints = new List<MailTransportEndpoint>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var host in hosts) {
+            cancellationToken.ThrowIfCancellationRequested();
+            var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
+            if (seen.Add(endpoint.Key)) { endpoints.Add(endpoint); }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await AnalyzeServers(protocol, endpoints, logger, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Analyzes multiple explicitly targeted mail endpoints.</summary>
@@ -155,7 +163,13 @@ public class MailTlsAnalysis : IHasAssessments {
         if (endpoints == null) {
             throw new ArgumentNullException(nameof(endpoints));
         }
-        var targets = endpoints.ToArray();
+        var materialized = new List<MailTransportEndpoint>();
+        foreach (var endpoint in endpoints) {
+            cancellationToken.ThrowIfCancellationRequested();
+            materialized.Add(endpoint);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var targets = materialized.ToArray();
         if (targets.Any(endpoint => endpoint == null)) {
             throw new ArgumentException("Endpoint collection cannot contain null values.", nameof(endpoints));
         }
@@ -205,7 +219,7 @@ public class MailTlsAnalysis : IHasAssessments {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
         var result = new TlsResult { Connection = MailTransportConnectionEvidence.FromTarget(endpoint) };
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(ConnectTimeout < Timeout ? ConnectTimeout : Timeout);
+        timeoutCts.CancelAfter(MailTransportConnector.GetConnectTimeout(ConnectTimeout, Timeout));
         bool connected = false;
         try {
             using var client = await ConnectAsync(endpoint, timeoutCts.Token).ConfigureAwait(false);
@@ -550,7 +564,7 @@ public class MailTlsAnalysis : IHasAssessments {
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
             throw;
         } catch (Exception ex) when (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
-            SetFailure(result, ex);
+            SetFailure(result, ex is OperationCanceledException ? new TimeoutException("Mail connection budget exhausted.", ex) : ex);
             logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
         } catch (Exception ex) {
             SetFailure(result, ex);
