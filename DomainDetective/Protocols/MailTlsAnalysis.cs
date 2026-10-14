@@ -113,7 +113,7 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Stores results for each server.</summary>
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
-    /// <summary>Timeout for connections.</summary>
+    /// <summary>Maximum duration of connected protocol and TLS work, including secondary probes.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
     /// <summary>Maximum time to establish a TCP connection, including address resolution.</summary>
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
