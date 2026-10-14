@@ -6,6 +6,20 @@ using MailProtocol = DomainDetective.MailTlsAnalysis.MailProtocol;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyTlsPolicyRequiresCompletedSupportProbes(bool completed) {
+        using var health = new DomainHealthCheck();
+        health.IMAPTLSAnalysis.ServerResults["mail.example.test:143"] = new MailTlsAnalysis.TlsResult { ProtocolSupportComplete = completed };
+        var result = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
+            new DomainDetective.DesiredState.DesiredStateProfile {
+                ImapTls = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy { DisallowLegacyProtocols = true }
+            });
+        Assert.Equal(completed, result.Conforms);
+        Assert.Equal(!completed, result.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
+    }
+
     [Fact]
     public async Task ExpiredProtocolProbeBudgetPreservesKnownSupportAndLeavesOtherVersionsUnknown() {
         var pending = new TaskCompletionSource<IReadOnlyList<IPAddress>>(TaskCreationOptions.RunContinuationsAsynchronously);

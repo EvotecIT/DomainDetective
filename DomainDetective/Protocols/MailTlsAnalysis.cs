@@ -207,6 +207,10 @@ public class MailTlsAnalysis : IHasAssessments {
 
     private static void PopulateNegotiatedTlsDetails(TlsResult result, SslStream ssl)
     {
+        // Capture before the post-handshake writer can close the stream.
+        result.Protocol = ssl.SslProtocol;
+        result.SupportsTls13 = (int)result.Protocol == 12288;
+        result.Tls13Used = result.SupportsTls13;
         var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
         result.CipherAlgorithm = tlsInfo.CipherAlgorithm;
         result.CipherStrength = tlsInfo.CipherStrength;
@@ -330,9 +334,6 @@ public class MailTlsAnalysis : IHasAssessments {
                     SetFailure(result, ioex);
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
-                    try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-                    result.SupportsTls13 = (int)result.Protocol == 12288;
-                    result.Tls13Used = result.SupportsTls13;
                     // Probe protocol support (best-effort)
                     await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                     if (result.SupportsTls10 || result.SupportsTls11) {   
@@ -546,9 +547,6 @@ public class MailTlsAnalysis : IHasAssessments {
                 SetFailure(result, ioex);
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
-                try { result.Protocol = sslStream.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-                result.SupportsTls13 = (int)result.Protocol == 12288;
-                result.Tls13Used = result.SupportsTls13;
                 // Probe protocol support (best-effort)
                 await ProbeProtocolSupport(endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                 if (result.SupportsTls10 || result.SupportsTls11) {       

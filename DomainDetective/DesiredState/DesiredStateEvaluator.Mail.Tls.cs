@@ -212,6 +212,13 @@ public static partial class DesiredStateEvaluator {
                     Message = $"Desired state disallows legacy TLS, but '{key}' offers or negotiated legacy protocols."
                 });
             }
+            else if (desired.DisallowLegacyProtocols == true && !r.ProtocolSupportComplete) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                    Code = "DesiredState.MailTls.ProtocolSupport.QueryFailed",
+                    Message = $"Legacy TLS support could not be fully verified for '{key}'."
+                });
+            }
 
             if (desired.MinimumGradeLevel.HasValue) {
                 var min = desired.MinimumGradeLevel.Value;
