@@ -36,6 +36,8 @@ namespace DomainDetective {
         /// leave this disabled; an owning host may enable reuse and dispose the configuration with its lifetime.
         /// </summary>
         public bool ReuseResolverClients { get; set; }
+        /// <summary>Maximum wall-clock time for one locally validated DNSSEC RRset query, including retries and validation.</summary>
+        public TimeSpan DnsSecQueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
         /// <remarks>Cancellation stops the library from waiting. The callback owner remains responsible for completing its work because this delegate does not receive a cancellation token.</remarks>

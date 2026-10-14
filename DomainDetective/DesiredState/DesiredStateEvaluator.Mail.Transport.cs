@@ -494,6 +494,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.DisallowCnameTargets == true && mx.CnameQueryFailed) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Cname.QueryFailed",
+                Message = "Desired MX alias state could not be verified because a CNAME query was incomplete."
+            });
+        }
         if (desired.DisallowCnameTargets == true && mx.PointsToCname) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,

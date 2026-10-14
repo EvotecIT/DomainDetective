@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Providers.Email;
 
@@ -49,6 +50,8 @@ namespace DomainDetective {
         public bool MxRecordExists { get; private set; } // should be true
         /// <summary>Indicates that a record incorrectly points to a CNAME.</summary>
         public bool PointsToCname { get; private set; } // should be false
+        /// <summary>True when at least one MX target's CNAME query could not complete.</summary>
+        public bool CnameQueryFailed { get; private set; }
 
         /// <summary>Indicates that a record incorrectly points to an IP address.</summary>
         public bool PointsToIpAddress { get; private set; } // should be false
@@ -93,12 +96,12 @@ namespace DomainDetective {
         /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken = default) {
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken);
             }
 
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
         }
 
         /// <summary>Analyzes mx records.</summary>
@@ -112,6 +115,7 @@ namespace DomainDetective {
             AvgMxTtl = null;
             MxRecordExists = false;
             PointsToCname = false;
+            CnameQueryFailed = false;
             PointsToIpAddress = false;
             PointsToNonExistentDomain = false;
             PointsToDomainWithoutAOrAaaaRecord = false;
@@ -199,25 +203,40 @@ namespace DomainDetective {
                 .OrderBy(p => p.Preference)
                 .ToList();
 
+            CnameQueryFailed = false;
             var hostsMissingAddress = new List<string>();
-            foreach (var (_, host) in evaluationList) {
-                var cnameResults = await QueryDns(host, DnsRecordType.CNAME);
-                PointsToCname = PointsToCname || (cnameResults != null && cnameResults.Any());
-
+            var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(evaluationList, async item => {
+                var aTask = QueryDns(item.Host, DnsRecordType.A);
+                var aaaaTask = QueryDns(item.Host, DnsRecordType.AAAA);
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                DnsAnswer[] cnames;
+                bool cnameSucceeded = true;
+                try { cnames = await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token); }
+                catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
+                    cnames = Array.Empty<DnsAnswer>();
+                    cnameSucceeded = false;
+                }
+                await Task.WhenAll(aTask, aaaaTask);
+                var ns = aTask.Result.Length == 0 && aaaaTask.Result.Length == 0
+                    ? await QueryDns(item.Host, DnsRecordType.NS) : Array.Empty<DnsAnswer>();
+                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: ns);
+            });
+            foreach (var item in hostResults) {
+                var host = item.Host;
+                if (!item.CnameSucceeded) {
+                    CnameQueryFailed = true;
+                    logger.WriteWarningCode("MX.Cname.QueryFailed", "CNAME query for MX target {0} did not complete; alias status is unknown.", host);
+                }
+                PointsToCname = PointsToCname || item.Cnames.Any();
                 PointsToIpAddress = PointsToIpAddress || IPAddress.TryParse(host, out _);
-
-                var aResults = await QueryDns(host, DnsRecordType.A);
-                var aaaaResults = await QueryDns(host, DnsRecordType.AAAA);
-                var noA = aResults == null || !aResults.Any();
-                var noAAAA = aaaaResults == null || !aaaaResults.Any();
+                var noA = item.A.Length == 0;
+                var noAAAA = item.Aaaa.Length == 0;
                 Ipv6Supported = Ipv6Supported || !noAAAA;
-
                 if (noA && noAAAA) {
-                    var nsResults = await QueryDns(host, DnsRecordType.NS);
-                    var nonExistent = nsResults == null || !nsResults.Any();
+                    var nonExistent = item.Ns.Length == 0;
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
-                    if (!nonExistent) hostsMissingAddress.Add(host);
+                    if (!nonExistent) { hostsMissingAddress.Add(host); }
                 }
             }
             // Emit assessments
@@ -312,6 +331,7 @@ namespace DomainDetective {
         /// </returns>
         public bool ValidMxConfiguration =>
             MxRecordExists
+            && !CnameQueryFailed
             && !PointsToCname
             && !PointsToIpAddress
             && !PointsToNonExistentDomain
@@ -352,14 +372,18 @@ namespace DomainDetective {
 
             // Query each NS for MX RRset
             var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var ip in nsIps) {
-                var resp = await QueryViaServer(ip, domain, DnsRecordType.MX);
+            var mxResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(nsIps, async ip => (Ip: ip, Response: await QueryViaServer(ip, domain, DnsRecordType.MX)));
+            foreach (var item in mxResponses) {
+                var ip = item.Ip;
+                var resp = item.Response;
+                if (resp == null) { continue; }
                 var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var ans in resp?.Answers ?? Array.Empty<DnsAnswer>()) {
                     set.Add(FormatMx(ans.Data));
                 }
                 mxByServer[ip] = set;
             }
+            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
             if (mxByServer.Count > 1) {
                 var first = mxByServer.First().Value;
                 foreach (var kv in mxByServer.Skip(1)) {
@@ -375,10 +399,18 @@ namespace DomainDetective {
             // Query each NS for A/AAAA of each MX host
             foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
                 var addrByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-                foreach (var ip in nsIps) {
+                var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(mxByServer.Keys, async ip => {
+                    var aTask = QueryViaServer(ip, host, DnsRecordType.A);
+                    var aaaaTask = QueryViaServer(ip, host, DnsRecordType.AAAA);
+                    await Task.WhenAll(aTask, aaaaTask);
+                    return (Ip: ip, A: aTask.Result, Aaaa: aaaaTask.Result);
+                });
+                foreach (var item in addressResponses) {
+                    if (item.A == null || item.Aaaa == null) { continue; }
+                    var ip = item.Ip;
                     var aset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var aResp = await QueryViaServer(ip, host, DnsRecordType.A);
-                    var aaaaResp = await QueryViaServer(ip, host, DnsRecordType.AAAA);
+                    var aResp = item.A;
+                    var aaaaResp = item.Aaaa;
                     foreach (var ans in aResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
                     foreach (var ans in aaaaResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
                     addrByServer[ip] = aset;
@@ -397,16 +429,9 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<DnsResponse?> QueryViaServer(string serverIp, string name, DnsRecordType type) {
-            try {
-                using var client = new ClientX(serverIp, DnsRequestFormat.DnsOverUDP, 53);
-                client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
-                var resp = await client.Resolve(name, type);
-                return resp;
-            } catch {
-                return null;
-            }
-        }
+        private static Task<DnsResponse?> QueryViaServer(string serverIp, string name, DnsRecordType type)
+            => DomainDetective.Helpers.AuthoritativeDnsProbes.QueryAsync(serverIp, name, type);
+
     }
 
 }

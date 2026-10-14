@@ -265,11 +265,19 @@ namespace DomainDetective {
                 return;
             }
 
+            // Probe each address once before scheduling the record matrix. A silent address
+            // must not consume a separate full timeout for every requested record type.
+            var reachability = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(nsIps, async ip =>
+                (Ip: ip, Response: await DomainDetective.Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), domainName, DnsRecordType.NS, timeoutMs, ct)),
+                concurrency: maxParallelism, cancellationToken: ct);
+            var reachable = new HashSet<System.Net.IPAddress>(reachability.Where(item => item.Response != null).Select(item => item.Ip));
+            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps.Select(ip => ip.ToString()), reachable.Select(ip => ip.ToString()), logger);
             async Task<int?> SafeQuery(System.Net.IPAddress server, string name, ushort qtype, string label) {
+                if (!reachable.Contains(server)) { return null; }
                 await semaphore.WaitAsync(ct);
                 try {
                     return await QueryTtlFromServer(server, name, qtype, ct, timeoutMs);
-                } catch (Exception ex) {
+                } catch (System.OperationCanceledException) when (ct.IsCancellationRequested) { throw; } catch (Exception ex) {
                     logger?.WriteDebug("TTL uniformity query failed: server={0} label={1} name={2} qtype={3} error={4}", server, label, name, qtype, ex.Message);
                     return null;
                 } finally {

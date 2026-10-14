@@ -14,18 +14,28 @@ public partial class DnsSecAnalysis {
     /// </summary>
     internal static async Task<DnsResponse> QueryValidatedSubjectResponseAsync(
         string name, DnsRecordType type, DnsConfiguration configuration, CancellationToken cancellationToken) {
-        if (configuration.QueryDnsResponseOverride != null) {
-            return await configuration.QueryDnsResponseOverride(name, type, cancellationToken).ConfigureAwait(false);
-        }
+        if (configuration.DnsSecQueryTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(configuration.DnsSecQueryTimeout)); }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(configuration.DnsSecQueryTimeout);
+        try {
+            if (configuration.QueryDnsResponseOverride != null) {
+                return await configuration.QueryDnsResponseOverride(name, type, deadline.Token).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+            }
 
-        if (configuration.QueryDnsOverride != null) {
-            throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
-        }
+            if (configuration.QueryDnsOverride != null) {
+                throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
+            }
 
-        DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
-            ? configuration.DnsEndpoints.Distinct().ToArray()
-            : new[] { configuration.DnsEndpoint };
-        using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
-        return await resolver.QueryAsync(name, type, cancellationToken).ConfigureAwait(false);
+            DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
+                ? configuration.DnsEndpoints.Distinct().ToArray()
+                : new[] { configuration.DnsEndpoint };
+            using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
+            return await resolver.QueryAsync(name, type, deadline.Token).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+            return new DnsResponse {
+                Status = DnsResponseCode.ServerFailure,
+                Error = "DNSSEC query budget exhausted; the RRset could not be validated."
+            };
+        }
     }
 }

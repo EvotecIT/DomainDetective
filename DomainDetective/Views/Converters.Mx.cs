@@ -104,6 +104,7 @@ public static partial class Converters
             AvgMxTtl = analysis.AvgMxTtl,
             MxRecordExists = analysis.MxRecordExists,
             PointsToCname = analysis.PointsToCname,
+            CnameQueryFailed = analysis.CnameQueryFailed,
             PointsToIpAddress = analysis.PointsToIpAddress,
             PointsToNonExistentDomain = analysis.PointsToNonExistentDomain,
             PointsToDomainWithoutAOrAaaaRecord = analysis.PointsToDomainWithoutAOrAaaaRecord,
@@ -205,6 +206,8 @@ public static partial class Converters
 /// </summary>
 public class MxInfo
 {
+    /// <summary>Whether a target alias lookup was incomplete, making the CNAME conclusion unknown.</summary>
+    public bool CnameQueryFailed { get; set; }
     /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
     /// <summary>Logical analysis area.</summary>
