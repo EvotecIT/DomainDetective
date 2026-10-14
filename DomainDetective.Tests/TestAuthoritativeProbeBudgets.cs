@@ -6,6 +6,18 @@ namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
     [Theory]
+    [InlineData(DnsResponseCode.NoError, false, true)]
+    [InlineData(DnsResponseCode.Refused, false, false)]
+    [InlineData(DnsResponseCode.Refused, true, true)]
+    [InlineData(DnsResponseCode.ServerFailure, true, false)]
+    public void RefusalEstablishesReachabilityOnlyForThePreflight(DnsResponseCode status, bool preflight, bool accepted) {
+        var response = new DnsResponse { Status = status };
+        Assert.Equal(accepted, AuthoritativeDnsProbes.IsUsableResponse(response, preflight));
+        response.Error = "Response was not decoded successfully.";
+        Assert.False(AuthoritativeDnsProbes.IsUsableResponse(response, preflight));
+    }
+
+    [Theory]
     [InlineData(DnsResponseCode.ServerFailure)]
     [InlineData(DnsResponseCode.Refused)]
     public async Task FailedMxAliasResponseCannotEstablishAnAliasFreeTarget(DnsResponseCode failure) {

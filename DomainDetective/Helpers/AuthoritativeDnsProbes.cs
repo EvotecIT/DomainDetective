@@ -22,7 +22,7 @@ internal static class AuthoritativeDnsProbes {
     }
 
     internal static async Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
-        int timeoutMs = 2000, CancellationToken cancellationToken = default) {
+        int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false) {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeoutMs);
         try {
@@ -30,13 +30,16 @@ internal static class AuthoritativeDnsProbes {
             var result = await DnsWireQueryClient.QueryUdpAsync(address, 53, query, timeoutMs,
                 useTcpFallback: true, cancellationToken: deadline.Token).ConfigureAwait(false);
             var response = result.Response;
-            return string.IsNullOrEmpty(response.Error) &&
-                (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain) ? response : null;
+            return IsUsableResponse(response, acceptRefused) ? response : null;
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException) {
             return null;
         }
     }
+
+    internal static bool IsUsableResponse(DnsResponse response, bool acceptRefused = false) =>
+        string.IsNullOrEmpty(response.Error) && (response.Status == DnsResponseCode.NoError ||
+            response.Status == DnsResponseCode.NXDomain || acceptRefused && response.Status == DnsResponseCode.Refused);
 
     internal static void ReportIpv6Reachability(IEnumerable<string> attempted, IEnumerable<string> reachable, InternalLogger logger) {
         var addresses = attempted.Select(value => IPAddress.TryParse(value, out var address) ? address : null).Where(address => address != null).ToArray();
