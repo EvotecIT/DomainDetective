@@ -5,6 +5,18 @@ namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
     [Fact]
+    public async Task CaseVariantAppendRetainsOneCoverageTarget() {
+        var analysis = new DNSBLAnalysis();
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "Mail.example.test" }, new InternalLogger());
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "MAIL.example.test" }, new InternalLogger(), false);
+        Assert.Equal(1, analysis.RecordChecked);
+        Assert.Single(Converters.Convert(analysis).HostSummaries);
+    }
+
+    [Fact]
     public async Task Ipv6ListingSurvivesTheOtherFamilyUsingTheWholeDeadline() {
         var analysis = new DNSBLAnalysis { ProviderTimeout = TimeSpan.FromMilliseconds(50) };
         analysis.ClearDNSBL();

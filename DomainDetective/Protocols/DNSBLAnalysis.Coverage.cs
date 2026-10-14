@@ -11,7 +11,8 @@ public partial class DNSBLAnalysis {
 
     /// <summary>Projects retained coverage while preserving Results as the latest result per target.</summary>
     internal IReadOnlyDictionary<string, DNSQueryResult> GetCoverageResults() {
-        var coverage = new Dictionary<string, DNSQueryResult>(Results, StringComparer.OrdinalIgnoreCase);
+        var coverage = new Dictionary<string, DNSQueryResult>(StringComparer.OrdinalIgnoreCase);
+        foreach (var result in Results) { coverage[result.Key] = result.Value; }
         foreach (var group in AllResults.Where(record => !string.IsNullOrWhiteSpace(GetRecordTargetKey(record)))
             .GroupBy(GetRecordTargetKey, StringComparer.OrdinalIgnoreCase)) {
             coverage[group.Key] = new DNSQueryResult { Host = group.Key, DNSBLRecords = group.ToArray() };

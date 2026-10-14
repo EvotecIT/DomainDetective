@@ -120,7 +120,7 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether any query returned a listing.</summary>
         public bool IsBlacklisted => GetCoverageResults().Values.Any(result => result.IsBlacklisted);
         /// <summary>Gets the number of hosts or addresses checked.</summary>
-        public int RecordChecked => Results.Count;
+        public int RecordChecked => GetCoverageResults().Count;
         /// <summary>Gets the count of hosts that were listed.</summary>
         public int Blacklisted => GetCoverageResults().Values.Count(result => result.IsBlacklisted);
         /// <summary>Gets the count of hosts that were not listed.</summary>
