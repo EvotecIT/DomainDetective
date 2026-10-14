@@ -11,8 +11,11 @@ namespace DomainDetective.Tests;
 
 public class TestDnsComparisonCompleteness {
     [Fact]
-    public void MissingMxReplyCannotSatisfyAnRrsetOnlyPolicy() {
+    public async Task MissingMxReplyCannotSatisfyAnRrsetOnlyPolicy() {
         using var health = new DomainHealthCheck();
+        health.MXAnalysis.QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.A
+            ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
+        await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
         health.MXAnalysis.RecordRrsetCompleteness(2, 1, "example.test", new InternalLogger());
         Assert.True(Converters.Convert(health.MXAnalysis).MxRrsetComparisonIncomplete);
         var result = DesiredStateEvaluator.Evaluate("example.test", health, new DesiredStateProfile {
