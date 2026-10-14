@@ -51,6 +51,8 @@ public class MailTlsAnalysis : IHasAssessments {
         public bool SupportsTls13 { get; set; }
         /// <summary>Gets or sets the supports tls12 value.</summary>
         public bool SupportsTls12 { get; set; }
+        /// <summary>Whether all auxiliary TLS protocol probes completed within their budget.</summary>
+        public bool ProtocolSupportComplete { get; set; }
         /// <summary>Gets or sets the supports tls11 value.</summary>
         public bool SupportsTls11 { get; set; }
         /// <summary>Gets or sets the supports tls10 value.</summary>
@@ -590,6 +592,11 @@ public class MailTlsAnalysis : IHasAssessments {
     }
 
     private async Task ProbeProtocolSupport(MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
+        result.SupportsTls12 |= result.Protocol == SslProtocols.Tls12;
+#pragma warning disable SYSLIB0039
+        result.SupportsTls11 |= result.Protocol == SslProtocols.Tls11;
+        result.SupportsTls10 |= result.Protocol == SslProtocols.Tls;
+#pragma warning restore SYSLIB0039
         async Task<bool> TryHandshake(SslProtocols proto) {
             token.ThrowIfCancellationRequested();
             try {
@@ -611,6 +618,7 @@ public class MailTlsAnalysis : IHasAssessments {
         result.SupportsTls12 = tls12;
         result.SupportsTls11 = tls11;
         result.SupportsTls10 = tls10;
+        result.ProtocolSupportComplete = true;
     }
 
     internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {

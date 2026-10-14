@@ -6,6 +6,48 @@ using MailProtocol = DomainDetective.MailTlsAnalysis.MailProtocol;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
+    [Fact]
+    public async Task ExpiredProtocolProbeBudgetRemainsUnknownAndRecordsATimeout() {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var auxiliaryStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var server = Task.Run(async () => {
+            using (var first = await listener.AcceptTcpClientAsync()) {
+                using var stream = first.GetStream();
+                using var reader = new StreamReader(stream);
+                using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 mail.example.test");
+                Assert.StartsWith("EHLO", await reader.ReadLineAsync());
+                await writer.WriteLineAsync("250 STARTTLS");
+                Assert.Equal("STARTTLS", await reader.ReadLineAsync());
+                await writer.WriteLineAsync("220 Begin TLS");
+                var handshake = new byte[1];
+                Assert.Equal(1, await stream.ReadAsync(handshake, 0, 1, guard.Token));
+            }
+            using var auxiliary = await listener.AcceptTcpClientAsync();
+            auxiliaryStarted.TrySetResult(true);
+            await release.Task;
+        });
+        try {
+            var analysis = new MailTlsAnalysis { Timeout = TimeSpan.FromMilliseconds(500) };
+            var run = analysis.AnalyzeServer(MailProtocol.Smtp,
+                new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
+            await auxiliaryStarted.Task.WaitWithCancellation(guard.Token);
+            await run;
+            var result = Assert.Single(analysis.ServerResults).Value;
+            Assert.Equal(CertificateFailureKind.Timeout, result.FailureKind);
+            Assert.False(result.ProtocolSupportComplete);
+            Assert.Contains(analysis.Assessments, item => item.Code == MailTlsCodes.TlsCheckFailed && item.Message.Contains("incomplete"));
+        } finally {
+            release.TrySetResult(true);
+            listener.Stop();
+            await server;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
