@@ -163,16 +163,20 @@ public class EdnsSupportAnalysis : IHasAssessments
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
         var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
+        using var discoveryGate = new SemaphoreSlim(4);
         var discoveries = await Task.WhenAll(ns.Select(record => record.Data.Trim('.')).Distinct(StringComparer.OrdinalIgnoreCase).Select(async host => {
-            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
-            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
-            try { await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is not OutOfMemoryException) { cancellationToken.ThrowIfCancellationRequested(); }
-            var a = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
-            var aaaa = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
-            return (Host: host, Addresses: a.Concat(aaaa).Select(answer => answer.Data ?? answer.DataRaw)
-                .Where(address => !string.IsNullOrWhiteSpace(address)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                Failed: aTask.Status != TaskStatus.RanToCompletion || aaaaTask.Status != TaskStatus.RanToCompletion);
+            await discoveryGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+                var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
+                try { await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false); }
+                catch (Exception ex) when (ex is not OutOfMemoryException) { cancellationToken.ThrowIfCancellationRequested(); }
+                var a = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
+                var aaaa = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
+                return (Host: host, Addresses: a.Concat(aaaa).Select(answer => answer.Data ?? answer.DataRaw)
+                    .Where(address => !string.IsNullOrWhiteSpace(address)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    Failed: aTask.Status != TaskStatus.RanToCompletion || aaaaTask.Status != TaskStatus.RanToCompletion);
+            } finally { discoveryGate.Release(); }
         })).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         foreach (var discovery in discoveries.Where(item => item.Failed)) {
@@ -202,45 +206,45 @@ public class EdnsSupportAnalysis : IHasAssessments
             var host = result.Host;
             var serverAddress = result.Address;
             var support = result.Support;
-                ServerSupport[$"{host} ({serverAddress})"] = support;
-                if (!support.QuerySucceeded)
+            ServerSupport[$"{host} ({serverAddress})"] = support;
+            if (!support.QuerySucceeded)
+            {
+                logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS query failed on {0} ({1}): {2}", host, serverAddress, support.Error);
+                continue;
+            }
+            logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
+            if (!support.Supported)
+            {
+                logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, serverAddress);
+            }
+            else
+            {
+                logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, serverAddress);
+                if (support.CookieSupported)
                 {
-                    logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS query failed on {0} ({1}): {2}", host, serverAddress, support.Error);
-                    continue;
-                }
-                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
-                if (!support.Supported)
-                {
-                    logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, serverAddress);
+                    logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, serverAddress);
                 }
                 else
                 {
-                    logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, serverAddress);
-                    if (support.CookieSupported)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, serverAddress);
-                    }
-                    else
-                    {
-                        logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, serverAddress);
-                    }
-                    if (support.UdpPayloadSize > 1232)
-                    {
-                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, serverAddress);
-                    }
-                    else
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, serverAddress);
-                    }
-                    if (support.Version == 0)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, serverAddress);
-                    }
-                    if (support.TruncatedUdp)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, serverAddress);
-                    }
+                    logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, serverAddress);
                 }
+                if (support.UdpPayloadSize > 1232)
+                {
+                    logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, serverAddress);
+                }
+                else
+                {
+                    logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, serverAddress);
+                }
+                if (support.Version == 0)
+                {
+                    logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, serverAddress);
+                }
+                if (support.TruncatedUdp)
+                {
+                    logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, serverAddress);
+                }
+            }
         }
     }
 
