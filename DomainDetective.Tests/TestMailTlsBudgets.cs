@@ -77,7 +77,11 @@ public class TestMailTlsBudgets {
                 Interlocked.Increment(ref prepared);
                 // A local runtime may reject a disabled TLS version before sending ClientHello.
                 // Either outcome is after the required mail exchange; no certificate/key is needed here.
-                if (!rejectUpgrade) { await stream.ReadAsync(new byte[1], 0, 1, guard.Token); }
+                if (!rejectUpgrade) {
+                    var header = new byte[1];
+                    int read = await stream.ReadAsync(header, 0, 1, guard.Token);
+                    if (read == 1) { Assert.Equal((byte)22, header[0]); } // TLS handshake record, after STARTTLS.
+                }
             }
         });
         try {
