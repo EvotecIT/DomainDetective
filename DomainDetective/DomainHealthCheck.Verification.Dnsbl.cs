@@ -101,8 +101,9 @@ namespace DomainDetective {
                 }
             }
 
+            var run = DNSBLAnalysis.BeginQueryRun(cancellationToken);
             if (ips.Count > 0) {
-                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true, cancellationToken: cancellationToken);
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true, cancellationToken: cancellationToken, queryRun: run);
             } else {
                 // ensure previous results are cleared
                 DNSBLAnalysis.Reset();
@@ -113,7 +114,7 @@ namespace DomainDetective {
                 // append domain+MX-IP results without clearing IP results
                 bool first = ips.Count == 0;
                 foreach (var d in domains) {
-                    await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(d, _logger, clearExisting: first, cancellationToken: cancellationToken, continueRun: !first);
+                    await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(d, _logger, clearExisting: first, cancellationToken: cancellationToken, queryRun: run);
                     first = false;
                 }
             }

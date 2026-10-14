@@ -34,11 +34,12 @@ namespace DomainDetective {
         /// <returns>Enumerable of individual DNSBL records.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
+            var run = BeginQueryRun(default);
             Logger = logger;
             Subject = domain;
             Logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
-            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, DnsblIpSource.Domain, sourceHost: domain)) {
+            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, run, DnsblIpSource.Domain, sourceHost: domain)) {
                 collected.Add(record);
                 yield return record;
             }
@@ -59,7 +60,7 @@ namespace DomainDetective {
             }
             Logger = logger;
             if (items.Count == 0) return;
-            BeginQueryRun(default);
+            var run = BeginQueryRun(default);
 
             Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 
@@ -68,7 +69,7 @@ namespace DomainDetective {
                 var d = domain; // capture
                 tasks.Add(Task.Run(async () => {
                     var list = new List<DNSBLRecord>();
-                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, DnsblIpSource.Domain, sourceHost: d)) {
+                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, run, DnsblIpSource.Domain, sourceHost: d)) {
                         list.Add(record);
                     }
                     return (d, list);

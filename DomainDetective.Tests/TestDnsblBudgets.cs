@@ -5,6 +5,37 @@ namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
     [Fact]
+    public async Task OverlappingAppendRunCannotReplaceTheFirstCallersCancellation() {
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<IEnumerable<DnsResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = new CancellationTokenSource();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var analysis = new DNSBLAnalysis { ProviderTimeout = TimeSpan.FromSeconds(5) };
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        analysis.QueryDnsFullOverride = (names, _) => {
+            if (names[0].StartsWith("1.2.0.192.", StringComparison.Ordinal)) {
+                entered.TrySetResult(true);
+                return release.Task;
+            }
+            return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        };
+        var logger = new InternalLogger();
+        var first = analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, logger, true, caller.Token);
+        try {
+            await entered.Task.WaitWithCancellation(guard.Token);
+            await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.2" }, logger, false);
+            caller.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+            Assert.False(analysis.Results.ContainsKey("192.0.2.1"));
+            Assert.True(analysis.Results.ContainsKey("192.0.2.2"));
+            Assert.DoesNotContain(analysis.Assessments, item => item.Code == DnsblCodes.ProviderTimeout);
+        } finally {
+            release.TrySetResult(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        }
+    }
+
+    [Fact]
     public async Task AppendingAnIpPreservesTheEarlierDomainsIncompleteDiscovery() {
         using var health = new DomainHealthCheck();
         var analysis = health.DNSBLAnalysis;

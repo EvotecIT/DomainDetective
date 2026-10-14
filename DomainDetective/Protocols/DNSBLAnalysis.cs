@@ -145,27 +145,28 @@ namespace DomainDetective {
             Logger = null;
             Subject = null;
             Assessments.Clear();
-            BeginQueryRun(default, clearCoverage: true);
+            DiscoverySucceeded = true;
+            DiscoveryErrors.Clear();
         }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true, DomainIpScanMode scanMode = DomainIpScanMode.MxThenApexFallback, System.Threading.CancellationToken cancellationToken = default, bool continueRun = false) {
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true, DomainIpScanMode scanMode = DomainIpScanMode.MxThenApexFallback, System.Threading.CancellationToken cancellationToken = default, QueryRun? queryRun = null) {
             if (clearExisting) {
                 Reset();
             }
             Logger = logger;
             Subject = domainName;
-            if (!continueRun) { BeginQueryRun(cancellationToken); }
+            var run = queryRun ?? BeginQueryRun(cancellationToken);
 
             DnsAnswer[] mxRecords;
             try {
                 mxRecords = scanMode == DomainIpScanMode.ApexOnly || scanMode == DomainIpScanMode.ApexAOnly || scanMode == DomainIpScanMode.ApexAAAAOnly
-                    ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(domainName, DnsRecordType.MX);
+                    ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(run, domainName, DnsRecordType.MX);
             } catch (System.OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; } catch {
                 mxRecords = System.Array.Empty<DnsClientX.DnsAnswer>();
             }
 
             Logger?.WriteVerbose($"Checking {domainName} against {DomainDNSBLLists.Count} domain blacklists");
-            var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, DnsblIpSource.Domain, sourceHost: domainName));
+            var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName));
             ConvertToResults(domainName, resultsDomain);
 
             bool anyIpChecked = false;
@@ -180,7 +181,7 @@ namespace DomainDetective {
                     var key = ip; var h = host; var src = source;
                     tasks.Add(Task.Run(async () => {
                         var list = new List<DNSBLRecord>();
-                        await foreach (var rec in QueryDNSBL(DNSBLLists, key, src, sourceHost: h)) list.Add(rec);
+                        await foreach (var rec in QueryDNSBL(DNSBLLists, key, run, src, sourceHost: h)) list.Add(rec);
                         return (key, list);
                     }));
                 }
@@ -213,7 +214,7 @@ namespace DomainDetective {
                 if (hosts.Count == 0) return pairs;
                 Logger?.WriteVerbose($"Found {hosts.Count} MX host(s): {string.Join(", ", hosts)}");
                 foreach (var host in hosts) {
-                    var answers = await QueryDiscoveryAsync(host, type);
+                    var answers = await QueryDiscoveryAsync(run, host, type);
                     pairs.AddRange(answers.Select(a => (a.Data, host)));
                 }
                 return pairs;
@@ -221,7 +222,7 @@ namespace DomainDetective {
 
             // Resolve apex (A/AAAA) as needed
             async Task<List<(string ip, string host)>> ResolveApexAsync(DnsRecordType type) {
-                var answers = await QueryDiscoveryAsync(domainName, type);
+                var answers = await QueryDiscoveryAsync(run, domainName, type);
                 return answers.Select(a => (a.Data, domainName)).ToList();
             }
 
@@ -285,13 +286,14 @@ namespace DomainDetective {
         /// <returns>Enumeration of <see cref="DNSBLRecord"/> objects.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
             Reset();
+            var run = BeginQueryRun(default);
             Logger = logger;
             Logger?.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var collected = new List<DNSBLRecord>();
             var isIp = System.Net.IPAddress.TryParse(ipAddressOrHostname, out _);
             DnsblIpSource? src = isIp ? DnsblIpSource.UserProvided : DnsblIpSource.Domain;
             string srcHost = isIp ? "UserProvided" : ipAddressOrHostname;
-            await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname, src, sourceHost: srcHost)) {
+            await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname, run, src, sourceHost: srcHost)) {
                 collected.Add(record);
                 yield return record;
             }
@@ -308,7 +310,10 @@ namespace DomainDetective {
             => AnalyzeDNSBLRecordsMany(ipAddressesOrHostnames, logger, clearExisting, default);
 
         /// <summary>Queries multiple inputs with caller cancellation and a shared provider budget.</summary>
-        public async Task AnalyzeDNSBLRecordsMany(IEnumerable<string> ipAddressesOrHostnames, InternalLogger logger, bool clearExisting, System.Threading.CancellationToken cancellationToken) {
+        public Task AnalyzeDNSBLRecordsMany(IEnumerable<string> ipAddressesOrHostnames, InternalLogger logger, bool clearExisting, System.Threading.CancellationToken cancellationToken)
+            => AnalyzeDNSBLRecordsMany(ipAddressesOrHostnames, logger, clearExisting, cancellationToken, null);
+
+        internal async Task AnalyzeDNSBLRecordsMany(IEnumerable<string> ipAddressesOrHostnames, InternalLogger logger, bool clearExisting, System.Threading.CancellationToken cancellationToken, QueryRun? queryRun) {
             if (ipAddressesOrHostnames == null) return;
             var items = ipAddressesOrHostnames.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (clearExisting) {
@@ -316,7 +321,7 @@ namespace DomainDetective {
             }
             Logger = logger;
             if (items.Count == 0) return;
-            BeginQueryRun(cancellationToken);
+            var run = queryRun ?? BeginQueryRun(cancellationToken);
 
             Logger?.WriteVerbose($"Checking {items.Count} input(s) against {DNSBLLists.Count} blacklists (parallel)…");
 
@@ -328,7 +333,7 @@ namespace DomainDetective {
                     var isIpInner = System.Net.IPAddress.TryParse(name, out _);
                     DnsblIpSource? srcInner = isIpInner ? DnsblIpSource.UserProvided : DnsblIpSource.Domain;
                     string srcHostInner = isIpInner ? "UserProvided" : name;
-                    await foreach (var record in QueryDNSBL(DNSBLLists, name, srcInner, sourceHost: srcHostInner)) {
+                    await foreach (var record in QueryDNSBL(DNSBLLists, name, run, srcInner, sourceHost: srcHostInner)) {
                         list.Add(record);
                     }
                     return (name, list);
