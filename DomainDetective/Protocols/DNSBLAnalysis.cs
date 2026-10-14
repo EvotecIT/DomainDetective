@@ -351,7 +351,7 @@ namespace DomainDetective {
                 DNSBLRecords = results,
             };
             if (Results.ContainsKey(ipAddressOrHostname)) {
-                Results.Remove(ipAddressOrHostname);
+                queryResult.DNSBLRecords = Results[ipAddressOrHostname].DNSBLRecords.Concat(results).ToArray();
             }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
