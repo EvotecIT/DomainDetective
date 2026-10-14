@@ -93,7 +93,8 @@ public static class DomainAssessmentBuilder {
         HealthCheckType? kind = reader.Check(view);
         // Views built by hand (for example in PowerShell) often leave Check at its default, DMARC; the view type then
         // tells which check it is. A non-DMARC view whose type names no check is kept as its own, unnamed check.
-        if (kind == default(HealthCheckType) && !view.GetType().Name.StartsWith("Dmarc", StringComparison.OrdinalIgnoreCase)) {
+        if (kind == default(HealthCheckType) && view is not DomainDetective.Views.CheckFailureInfo &&
+            !view.GetType().Name.StartsWith("Dmarc", StringComparison.OrdinalIgnoreCase)) {
             kind = InferCheck(view.GetType());
         }
         AnalysisArea area = reader.Area(view) ?? AnalysisArea.General;

@@ -134,18 +134,9 @@ namespace DomainDetective.PowerShell {
                             .Distinct()
                             .ToArray();
 
-                        // Mail classification is computed on demand; every other check converts through the
-                        // library's shared check-to-view conversion, in the order the checks were selected.
+                        // Convert existing results, including classification, without rerunning failed checks.
                         var conversionErrors = new System.Collections.Generic.List<string>();
-                        foreach (var kind in selection) {
-                            if (kind == DomainDetective.HealthCheckType.MAILCLASSIFICATION) {
-                                var classifier = new MailDomainClassifier(healthCheck, logger);
-                                var mc = await classifier.ClassifyAsync(domain);
-                                items.Add(DomainDetective.Views.Converters.Convert(mc));
-                            } else {
-                                items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, new[] { kind }, conversionErrors));
-                            }
-                        }
+                        items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, selection, conversionErrors));
                         foreach (var conversionError in conversionErrors) WriteWarning($"Report section skipped: {conversionError}");
 
                         try {
@@ -207,4 +198,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

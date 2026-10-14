@@ -13,6 +13,12 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public record EdnsSupportInfo
 {
+    /// <summary>Whether the capability query completed. Failed queries do not establish EDNS support.</summary>
+    public bool QuerySucceeded { get; init; } = true;
+
+    /// <summary>Failure details when the capability query could not complete.</summary>
+    public string? Error { get; init; }
+
     /// <summary>Whether EDNS is supported.</summary>
     public bool Supported { get; init; }
 
@@ -60,14 +66,17 @@ public class EdnsSupportAnalysis : IHasAssessments
         new StandardReference { Title = "Extension Mechanisms for DNS (EDNS(0))", Reference = "RFC 6891", Url = "https://datatracker.ietf.org/doc/html/rfc6891" }
     };
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (QueryDnsOverride != null)
         {
-            return await QueryDnsOverride(name, type);
+            var answers = await QueryDnsOverride(name, type);
+            cancellationToken.ThrowIfCancellationRequested();
+            return answers;
         }
 
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
     }
 
     private static (string Host, int Port) ParseServerEndpoint(string server)
@@ -109,7 +118,7 @@ public class EdnsSupportAnalysis : IHasAssessments
         return (trimmed, 53);
     }
 
-    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain)
+    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain, CancellationToken cancellationToken)
     {
         var (host, port) = ParseServerEndpoint(ip);
         byte[] cookie = new byte[8];
@@ -123,7 +132,7 @@ public class EdnsSupportAnalysis : IHasAssessments
             Options: new[] { new CookieOption(cookie) },
             RecursionDesired: false));
         DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
-            host, port, query, 3000, useTcpFallback: true).ConfigureAwait(false);
+            host, port, query, 3000, useTcpFallback: true, cancellationToken: cancellationToken).ConfigureAwait(false);
         DnsResponse response = result.Response;
         return new EdnsSupportInfo {
             Supported = response.EdnsUdpPayloadSize.HasValue,
@@ -141,25 +150,35 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// </summary>
     /// <param name="domainName">Domain name.</param>
     /// <param name="logger">Optional logger.</param>
-    public async Task Analyze(string domainName, InternalLogger logger)
+    public Task Analyze(string domainName, InternalLogger logger) => Analyze(domainName, logger, CancellationToken.None);
+
+    /// <summary>Queries authoritative servers, retaining failures per server and honoring caller cancellation.</summary>
+    /// <param name="domainName">Domain name.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="cancellationToken">Token to cancel discovery and capability queries.</param>
+    public async Task Analyze(string domainName, InternalLogger logger, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         Subject = domainName;
+        Assessments.Clear();
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
-        var ns = await QueryDns(domainName, DnsRecordType.NS);
+        var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
         foreach (var record in ns)
         {
             var host = record.Data.Trim('.');
-            var aTask = QueryDns(host, DnsRecordType.A);
-            var aaaaTask = QueryDns(host, DnsRecordType.AAAA);
+            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
             try
             {
                 await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Preserve whichever address family succeeded so EDNS probing can continue.
             }
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (aTask.IsFaulted)
             {
@@ -182,16 +201,30 @@ public class EdnsSupportAnalysis : IHasAssessments
             foreach (var serverAddress in addresses)
             {
                 EdnsSupportInfo support;
-                if (QueryServerOverride != null)
+                cancellationToken.ThrowIfCancellationRequested();
+                try
                 {
-                    support = await QueryServerOverride(serverAddress);
+                    support = QueryServerOverride != null
+                        ? await QueryServerOverride(serverAddress)
+                        : await QueryServerAsync(serverAddress, domainName, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
-                else
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    support = await QueryServerAsync(serverAddress, domainName);
+                    throw;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    support = new EdnsSupportInfo { QuerySucceeded = false, Error = $"{ex.GetType().Name}: {ex.Message}" };
                 }
 
                 ServerSupport[$"{host} ({serverAddress})"] = support;
+                if (!support.QuerySucceeded)
+                {
+                    logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS query failed on {0} ({1}): {2}", host, serverAddress, support.Error);
+                    continue;
+                }
                 logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
                 if (!support.Supported)
                 {

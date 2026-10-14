@@ -41,8 +41,7 @@ public sealed class HtmlReportGenerator : IReportGenerator
             Success = true,
             FilePath = path,
             Format = ReportFormat.Html,
-            ErrorMessage = errors.Count == 0 ? null : "Some checks could not be converted: " + string.Join("; ", errors)
+            ErrorMessage = errors.Count == 0 ? null : "Some checks failed or could not be converted: " + string.Join("; ", errors)
         });
     }
 }
-
