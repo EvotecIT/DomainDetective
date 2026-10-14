@@ -59,6 +59,7 @@ namespace DomainDetective {
             }
             Logger = logger;
             if (items.Count == 0) return;
+            BeginQueryRun(default);
 
             Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 

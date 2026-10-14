@@ -17,6 +17,7 @@ public static partial class Converters
         {
             Key = kv.Key,
             Total = kv.Value.Total,
+            NotChecked = kv.Value.NotChecked,
             Listed = kv.Value.Listed,
             Blacklists = kv.Value.ListedBlacklist
         }).ToList() ?? new List<DnsblHostSummary>();
@@ -49,10 +50,10 @@ public static partial class Converters
             ProvidersWithListings = listedProviders,
             ProviderSummaries = providerSummaries,
             Assessments = analysis.Assessments,
-            Status = status,
+            Status = (!analysis.DiscoverySucceeded || (analysis.Results?.Values.Any(result => result.NotChecked > 0) ?? false)) && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}",
+            Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}; provider queries not checked {allResults.Count(record => !record.QuerySucceeded)}",
             Recommendations = recs,
             Positives = positives,
             References = (narrative.References?.Count ?? 0) > 0
@@ -80,8 +81,8 @@ public static partial class Converters
             {
                 var first = group.First();
                 var providersChecked = results != null && results.TryGetValue(group.Key, out var summary)
-                    ? summary.Total
-                    : group.Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
+                    ? summary.Total - summary.NotChecked
+                    : group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
                 var listedProviders = group
                     .Where(static item => item.IsBlackListed)
                     .Select(static item => item.BlackList)
@@ -338,6 +339,8 @@ public class DnsblInfo
 /// </summary>
 public class DnsblHostSummary
 {
+    /// <summary>Provider records that could not be checked completely.</summary>
+    public int NotChecked { get; set; }
     /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
     /// <summary>Gets or sets the total value.</summary>

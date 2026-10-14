@@ -54,11 +54,13 @@ public static class DnsblNarrative
         hi.Add($"Hosts checked: {analysis.RecordChecked}");
         hi.Add(analysis.Blacklisted > 0
             ? $"Hosts listed: {analysis.Blacklisted}"
-            : "No hosts were listed on DNSBLs.");
+            : !analysis.DiscoverySucceeded || analysis.AllResults.Any(record => !record.QuerySucceeded)
+                ? "No listings observed; some DNSBL providers could not be checked."
+                : "No hosts were listed on DNSBLs.");
 
         foreach (var kv in analysis.Results)
         {
-            det.Add($"{kv.Key}: listed {kv.Value.Listed}/{kv.Value.Total}");
+            det.Add($"{kv.Key}: listed {kv.Value.Listed}/{kv.Value.Total}; not checked {kv.Value.NotChecked}");
         }
 
         var refs = new List<string> { "https://datatracker.ietf.org/doc/html/rfc5782" };
