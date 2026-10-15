@@ -108,7 +108,7 @@ public class TestMailTlsBudgets {
     public void LegacyTlsPolicyRequiresCompletedSupportProbes(bool completed) {
         using var health = new DomainHealthCheck();
         health.ImapTlsAnalysis.ServerResults["mail.example.test:143"] = new MailTlsAnalysis.TlsResult {
-            ProtocolSupportComplete = completed, CertificateValid = true, HostnameMatch = true, GradeLevel = GradeLevel.B
+            StartTlsAdvertised = true, ProtocolSupportComplete = completed, CertificateValid = true, HostnameMatch = true, GradeLevel = GradeLevel.B
         };
         var result = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
             new DomainDetective.DesiredState.DesiredStateProfile {
@@ -116,6 +116,22 @@ public class TestMailTlsBudgets {
             });
         Assert.Equal(completed, result.Conforms);
         Assert.Equal(!completed, result.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyOnlyPolicyDistinguishesAbsentStartTlsFromFailedDiscovery(bool failed) {
+        using var health = new DomainHealthCheck();
+        health.SmtpTlsAnalysis.ServerResults["mail.example.test:25"] = new MailTlsAnalysis.TlsResult {
+            FailureKind = failed ? CertificateFailureKind.Timeout : CertificateFailureKind.None
+        };
+        var profile = new DomainDetective.DesiredState.DesiredStateProfile {
+            SmtpTls = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy { DisallowLegacyProtocols = true,
+                RequireCertificateValid = false, RequireHostnameMatch = false, DisallowExpiredCertificates = false }
+        };
+        var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile);
+        Assert.Equal(failed, evaluated.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
     }
 
     [Fact]
