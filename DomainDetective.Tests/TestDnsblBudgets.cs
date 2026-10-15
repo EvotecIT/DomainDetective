@@ -1,9 +1,53 @@
 using DnsClientX;
 using DomainDetective.Views;
+using DomainDetective.DesiredState;
 
 namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetainedEvidenceRetractsAnOutdatedCleanPositive(bool listed) {
+        var analysis = new DNSBLAnalysis();
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        bool first = true;
+        analysis.QueryDnsFullOverride = (names, type) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+            first ? new DnsResponse { Status = DnsResponseCode.NXDomain } :
+            listed ? new DnsResponse { Answers = new[] { new DnsAnswer { Name = names[0], Type = type, DataRaw = "127.0.0.2" } } } :
+            new DnsResponse { Status = DnsResponseCode.ServerFailure }
+        });
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
+        Assert.Contains(analysis.Assessments, assessment => assessment.Code == DnsblCodes.NotListed);
+        first = false;
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), false);
+        Assert.DoesNotContain(analysis.Assessments, assessment => assessment.Code == DnsblCodes.NotListed);
+        Assert.DoesNotContain(Converters.Convert(analysis).Positives, advice => advice.Code == DnsblCodes.NotListed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DesiredDnsblPolicyCannotConformFromUnknownEvidence(bool discovery) {
+        using var health = new DomainHealthCheck();
+        health.DNSBLAnalysis.ClearDNSBL();
+        health.DNSBLAnalysis.AddDNSBL("provider.example.test");
+        health.DNSBLAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+            new DnsResponse { Status = discovery ? DnsResponseCode.NXDomain : DnsResponseCode.ServerFailure } });
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.ServerFailure });
+        if (discovery) { await health.VerifyDNSBLWithMode("example.test", DomainIpScanMode.MxOnly); }
+        else { await health.DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger()); }
+        var profile = new DesiredStateProfile { Dnsbl = new DesiredStateDnsblPolicy { RequireAtLeastOneResult = true, DisallowListings = true } };
+        var evaluated = DesiredStateEvaluator.Evaluate("example.test", health, profile);
+        Assert.False(evaluated.Conforms);
+        Assert.Contains(evaluated.Assessments, item => item.Code == "DesiredState.DNSBL.QueryFailed");
+        profile.Dnsbl.RequireAtLeastOneResult = false;
+        if (discovery) { profile.Dnsbl.IncludeQueryKinds = new[] { DnsblQueryKind.Domain }; }
+        else { profile.Dnsbl.IgnoredBlacklists = new[] { "provider.example.test" }; }
+        Assert.True(DesiredStateEvaluator.Evaluate("example.test", health, profile).Conforms);
+    }
+
     [Theory]
     [InlineData(DomainIpScanMode.MxOnly)]
     [InlineData(DomainIpScanMode.ApexAOnly)]
@@ -59,6 +103,7 @@ public class TestDnsblBudgets {
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
         var failed = Converters.Convert(analysis);
         Assert.Equal(0, failed.ProvidersChecked);
+        Assert.Contains("Providers checked: 0", DomainDetective.Narratives.DnsblNarrative.Build(analysis).Highlights);
         Assert.Equal(0, Assert.Single(failed.Pathways).ProvidersChecked);
         fails = false;
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), false);

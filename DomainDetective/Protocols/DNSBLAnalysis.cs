@@ -348,6 +348,15 @@ namespace DomainDetective {
             }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
+            bool incompleteCoverage = !DiscoverySucceeded || AllResults.Any(record => !record.QuerySucceeded);
+            bool retainedListing = AllResults.Any(record => record.IsBlackListed &&
+                string.Equals(GetRecordTargetKey(record), ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
+            if (incompleteCoverage) {
+                Assessments.RemoveAll(assessment => assessment.Code == DnsblCodes.NotListed);
+            } else if (retainedListing) {
+                Assessments.RemoveAll(assessment => assessment.Code == DnsblCodes.NotListed &&
+                    string.Equals(assessment.Target, ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
+            }
 
             // Emit assessments for any listed records
             foreach (var rec in results) {
@@ -363,8 +372,7 @@ namespace DomainDetective {
                 }
             }
 
-            if (!queryResult.IsBlacklisted && queryResult.NotChecked == 0 && queryResult.Total > 0 &&
-                DiscoverySucceeded && !AllResults.Any(record => !record.QuerySucceeded)) {
+            if (!retainedListing && !incompleteCoverage && queryResult.Total > 0) {
                 using var _collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: ipAddressOrHostname) : null;
                 _collector?.AddInfo("Not listed on any DNSBL", DnsblCodes.NotListed);
             }

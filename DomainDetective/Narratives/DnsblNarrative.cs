@@ -50,7 +50,7 @@ public static class DnsblNarrative
             };
         }
 
-        hi.Add($"Providers checked: {analysis.GetDNSBL().Count}");
+        hi.Add($"Providers checked: {analysis.AllResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count()}");
         hi.Add($"Hosts checked: {analysis.RecordChecked}");
         hi.Add(analysis.Blacklisted > 0
             ? $"Hosts listed: {analysis.Blacklisted}"
