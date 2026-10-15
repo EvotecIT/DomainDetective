@@ -81,7 +81,7 @@ public class TestMailTlsProbeEvidence {
     }
 
     [Fact]
-    public async Task LegacyPolicyDoesNotRequireSuccessfulModernVersionProbes() {
+    public async Task LegacyProbeWithoutRemoteVersionRejectionRetainsUnknownCoverage() {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -101,15 +101,13 @@ public class TestMailTlsProbeEvidence {
                 var firstByte = new byte[1];
                 int count = await stream.ReadAsync(firstByte, 0, 1, guard.Token);
                 if (count == 1 && firstByte[0] == 22) {
-                    // Drain the ClientHello record so closing the socket cannot reset an unread request
-                    // and hide the protocol-version rejection from the client.
+                    // Drain the ClientHello so closing the socket produces an orderly EOF.
                     var header = new byte[4];
                     await ReadFullyAsync(stream, header, guard.Token);
                     int length = (header[2] << 8) | header[3];
                     Assert.InRange(length, 1, 18432);
                     await ReadFullyAsync(stream, new byte[length], guard.Token);
-                    var protocolVersionAlert = new byte[] { 21, 3, 3, 0, 2, 2, 70 };
-                    await stream.WriteAsync(protocolVersionAlert, 0, protocolVersionAlert.Length, guard.Token);
+                    // Closing without a version-rejection alert is not proof that the version is absent.
                 }
             }
         });
@@ -120,6 +118,7 @@ public class TestMailTlsProbeEvidence {
             await (Task)probe.Invoke(analysis, new object[] { MailTlsAnalysis.MailProtocol.Smtp,
                 new MailTransportEndpoint("localhost", port) { ConnectAddress = IPAddress.Loopback }, result, guard.Token })!;
             Assert.False(result.ProtocolSupportComplete);
+            Assert.False(result.LegacyProtocolSupportComplete);
             Assert.False(result.SupportsTls10);
             Assert.False(result.SupportsTls11);
             using var health = new DomainHealthCheck();
@@ -129,14 +128,32 @@ public class TestMailTlsProbeEvidence {
                     DisallowLegacyProtocols = true, RequireCertificateValid = false, RequireChainValid = false,
                     RequireHostnameMatch = false, DisallowExpiredCertificates = false
                 } });
-            Assert.True(evaluated.Conforms, string.Join("; ", evaluated.Assessments.Select(item => item.Code)));
-            Assert.DoesNotContain(evaluated.Assessments, item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed");
+            Assert.False(evaluated.Conforms);
+            Assert.Contains(evaluated.Assessments, item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed");
         } finally {
             guard.Cancel();
             listener.Stop();
             try { await server; } catch (OperationCanceledException) when (guard.IsCancellationRequested) { }
             catch (SocketException) when (guard.IsCancellationRequested) { }
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyPolicyOnlyRequiresLegacyCoverage(bool complete) {
+        using var health = new DomainHealthCheck();
+        health.SmtpTlsAnalysis.ServerResults["mail.example.test:25"] = new MailTlsAnalysis.TlsResult {
+            Protocol = SslProtocols.Tls12, GradeLevel = GradeLevel.B, StartTlsAdvertised = true,
+            ProtocolSupportComplete = false, LegacyProtocolSupportComplete = complete
+        };
+        var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
+            new DomainDetective.DesiredState.DesiredStateProfile { SmtpTls = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy {
+                DisallowLegacyProtocols = true, RequireCertificateValid = false, RequireChainValid = false,
+                RequireHostnameMatch = false, DisallowExpiredCertificates = false
+            } });
+        Assert.Equal(complete, evaluated.Conforms);
+        Assert.Equal(!complete, evaluated.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
     }
 
     private static async Task ReadFullyAsync(Stream stream, byte[] bytes, CancellationToken token) {

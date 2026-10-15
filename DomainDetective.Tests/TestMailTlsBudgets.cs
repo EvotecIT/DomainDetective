@@ -30,8 +30,7 @@ public class TestMailTlsBudgets {
                 ? protocol == MailProtocol.Smtp ? "451 Try later" : protocol == MailProtocol.Imap ? "A1 NO Try later" : "-ERR Try later"
                 : protocol == MailProtocol.Smtp ? "250 SIZE 1024" : protocol == MailProtocol.Imap ? "* CAPABILITY IMAP4rev1\r\nA1 OK" : "+OK\r\nUIDL\r\n.");
             if (!reject) {
-                Assert.Equal(protocol == MailProtocol.Imap ? "A3 LOGOUT" : "QUIT", await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
-                await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "221 Bye" : protocol == MailProtocol.Imap ? "A3 OK Bye" : "+OK Bye");
+                Assert.Null(await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
             }
         });
         try {

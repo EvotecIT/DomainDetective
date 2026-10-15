@@ -344,7 +344,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     // Probe protocol support (best-effort)
                     await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
-                        await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                        await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -353,7 +353,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
 
             var preparation = await NegotiateStartTlsAsync(protocol, network, logger, timeoutCts.Token, result).ConfigureAwait(false);
             result.StartTlsAdvertised = preparation.Advertised;
-            if (!preparation.Ready) { return result; }
+            if (!preparation.Ready) { cancellationToken.ThrowIfCancellationRequested(); return result; }
             using var sslStream = new SslStream(network, false, (sender, certificate, chain, errors) => {
                 result.CertificateValid = errors == SslPolicyErrors.None;
                 result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -453,8 +453,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 }
                 // Probe protocol support (best-effort)
                 await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
-                if (OutboundAddressResolver == null) {
-                    await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
+                    await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                 }
             }
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
@@ -463,7 +463,9 @@ public partial class MailTlsAnalysis : IHasAssessments {
             SetFailure(result, ex is OperationCanceledException ? new TimeoutException("Mail connection budget exhausted.", ex) : ex);
             logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
         } catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested) {
-            SetFailure(result, new TimeoutException("Connected mail TLS budget exhausted; protocol support is incomplete.", ex));
+            if (result.FailureKind == CertificateFailureKind.None) {
+                SetFailure(result, new TimeoutException("Connected mail TLS budget exhausted; protocol support is incomplete.", ex));
+            }
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "Connected TLS checks timed out for {0}:{1}; protocol support is incomplete.", host, port);
         } catch (Exception ex) {
             SetFailure(result, ex);
@@ -514,6 +516,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
 #pragma warning restore SYSLIB0039
         async Task<bool> TryHandshake(SslProtocols proto) {
             token.ThrowIfCancellationRequested();
+            Helpers.TlsAlertEvidenceStream? evidence = null;
             try {
                 using var client = await ConnectAsync(endpoint, token).ConfigureAwait(false);
                 using var transport = client.GetStream();
@@ -521,11 +524,15 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     var preparation = await NegotiateStartTlsAsync(protocol, transport, null, token).ConfigureAwait(false);
                     if (!preparation.Ready) { MarkIncomplete(proto); return false; }
                 }
-                using var ssl = new SslStream(transport, false, static (_, _, _, _) => true);
+                using var observed = new Helpers.TlsAlertEvidenceStream(transport, leaveOpen: true);
+                evidence = observed;
+                using var ssl = new SslStream(observed, false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
-            } catch (AuthenticationException) when (!token.IsCancellationRequested) { return false; }
-            catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) { MarkIncomplete(proto); return false; }
+            } catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) {
+                if (evidence?.SawProtocolVersionRejection != true) { MarkIncomplete(proto); }
+                return false;
+            }
         }
         result.SupportsTls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
         result.SupportsTls12 = result.SupportsTls12 || await TryHandshake(SslProtocols.Tls12);
@@ -550,7 +557,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         return await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, deadline.Token).ConfigureAwait(false);
     }
 
-    private static async Task ProbeOcspStaplingWithOpenSsl(MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
+    private static async Task ProbeOcspStaplingWithOpenSsl(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
         try {
             token.ThrowIfCancellationRequested();
             var host = endpoint.HostName;
@@ -567,7 +574,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             var psi = new System.Diagnostics.ProcessStartInfo {
                 FileName = "openssl",
-                Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host} -starttls {(port == 25 ? "smtp" : port == 110 ? "pop3" : port == 143 ? "imap" : "smtp")} -status -brief",
+                Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
+                    (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status -brief",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

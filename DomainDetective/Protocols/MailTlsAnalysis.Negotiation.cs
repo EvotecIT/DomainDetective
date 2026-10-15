@@ -10,7 +10,7 @@ namespace DomainDetective;
 
 public partial class MailTlsAnalysis {
     private static bool UsesDirectTls(MailProtocol protocol, int port) =>
-        protocol == MailProtocol.Imap && port == 993 || protocol == MailProtocol.Pop3 && port == 995;
+        protocol == MailProtocol.Smtp && port == 465 || protocol == MailProtocol.Imap && port == 993 || protocol == MailProtocol.Pop3 && port == 995;
 
     /// <summary>Performs the mail exchange required before a TLS handshake without closing the transport.</summary>
     private static async Task<(bool Advertised, bool Ready)> NegotiateStartTlsAsync(MailProtocol protocol,
@@ -75,8 +75,8 @@ public partial class MailTlsAnalysis {
         if (result != null) { result.StartTlsAdvertised = advertised; }
         if (!discoveryComplete) { throw new IOException("Mail capability discovery was rejected or incomplete."); }
         if (!advertised) {
-            await WriteAsync(GetQuitCommand(protocol)).ConfigureAwait(false);
-            await ReadAsync().ConfigureAwait(false);
+            // Completed capability discovery is sufficient. Closing the owned connection avoids
+            // turning an optional, unanswered QUIT exchange into a failed capability check.
             return (false, false);
         }
         await WriteAsync(protocol == MailProtocol.Imap ? "A2 STARTTLS" : protocol == MailProtocol.Pop3 ? "STLS" : "STARTTLS").ConfigureAwait(false);
