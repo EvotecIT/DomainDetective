@@ -329,7 +329,7 @@ namespace DomainDetective {
             RecordSummary(logger);
         }
 
-        private void ConvertToResults(string ipAddressOrHostname, IEnumerable<DNSBLRecord> results, InternalLogger logger) {
+        private void ConvertToResults(string ipAddressOrHostname, IEnumerable<DNSBLRecord> results, InternalLogger? logger) {
             var warnings = new List<(string Code, string Message)>();
             lock (SyncRoot) {
                 DNSQueryResult queryResult = new DNSQueryResult {

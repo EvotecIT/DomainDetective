@@ -33,7 +33,7 @@ public partial class DNSBLAnalysis {
 
     internal QueryRun BeginQueryRun(CancellationToken caller) => new(caller);
 
-    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger logger, params DnsblIpSource[] sources) {
+    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
         var remaining = AnalysisTimeout - run.Budget.Elapsed;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
