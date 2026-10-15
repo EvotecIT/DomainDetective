@@ -31,8 +31,8 @@ public class TestAuthoritativeProbeBudgets {
         using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "MX");
         analysis.RecordRrsetCompleteness(2, 1, "example.test", logger, collector);
         analysis.RecordTargetAddressEvidence("mail.example.test", Array.Empty<(DnsResponse? A, DnsResponse? Aaaa)>(), logger, collector);
-        Assert.Equal("example.test", Assert.Single(analysis.Assessments.Where(item => item.Code == "MX.Rrset.ComparisonIncomplete")).Target);
-        Assert.Equal("mail.example.test", Assert.Single(analysis.Assessments.Where(item => item.Code == "MX.TargetAddress.ComparisonIncomplete")).Target);
+        Assert.Equal("example.test", Assert.Single(analysis.Assessments, item => item.Code == "MX.Rrset.ComparisonIncomplete").Target);
+        Assert.Equal("mail.example.test", Assert.Single(analysis.Assessments, item => item.Code == "MX.TargetAddress.ComparisonIncomplete").Target);
     }
 
     [Theory]
