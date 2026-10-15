@@ -51,6 +51,8 @@ namespace DomainDetective {
         public List<Assessment> Assessments { get; } = new();
         /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+        /// <summary>Whether the authoritative TTL comparison lacks a value for any intended server or record set.</summary>
+        public bool UniformityIncomplete { get; private set; }
 
         /// <summary>Provides DNS query implementation details.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -127,20 +129,22 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
-        private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
+        private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
             var query = new DnsMessage(name, (DnsRecordType)qtype, new DnsMessageOptions(RecursionDesired: false));
             DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
                 ip.ToString(), 53, query, timeoutMs > 0 ? timeoutMs : 4000, useTcpFallback: true,
                 cancellationToken: ct).ConfigureAwait(false);
-            int? answerTtl = result.Response.Answers
+            if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(result.Response)) { return (null, false); }
+            var answers = result.Response.Answers ?? Array.Empty<DnsAnswer>();
+            int? answerTtl = answers
                 .Where(item => item.Type == (DnsRecordType)qtype)
                 .Select(item => (int?)item.TTL)
                 .FirstOrDefault();
-            if (answerTtl.HasValue) return answerTtl;
-            return result.Response.Answers
+            if (answerTtl.HasValue) return (answerTtl, true);
+            return (answers
                 .Where(item => item.Type == DnsRecordType.CNAME)
                 .Select(item => (int?)item.TTL)
-                .FirstOrDefault();
+                .FirstOrDefault(), true);
         }
 
         /// <summary>
@@ -151,6 +155,7 @@ namespace DomainDetective {
         public async Task Analyze(string domainName, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNS", target: domainName);
             Subject = domainName;
+            UniformityIncomplete = false;
             _warnings.Clear();
             ATtls = Array.Empty<int>();
             AaaaTtls = Array.Empty<int>();
@@ -235,6 +240,8 @@ namespace DomainDetective {
 	        /// Compares TTLs across authoritative name servers for core RRsets (A, AAAA, NS, CNAME).
 	        /// </summary>
 	        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
+            using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TTL", target: domainName);
+            UniformityIncomplete = false;
 	            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
 	            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtMtasts = new(); ServerTtlTxtTlsRpt = new(); ServerTtlTxtPerName = new();
 	            AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
@@ -262,15 +269,30 @@ namespace DomainDetective {
                 }
             }
             if (nsIps.Count == 0) {
+                UniformityIncomplete = true;
+                AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = false;
+                logger?.WriteInformationCode("TTL.Uniformity.Incomplete", "TTL uniformity could not be verified; no authoritative addresses were discovered.");
                 return;
             }
 
+            // Probe each address once before scheduling the record matrix. A silent address
+            // must not consume a separate full timeout for every requested record type.
+            var reachability = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(nsIps, async ip =>
+                (Ip: ip, Response: await DomainDetective.Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), domainName, DnsRecordType.NS, timeoutMs, ct, acceptRefused: true)),
+                concurrency: maxParallelism, cancellationToken: ct);
+            var reachable = new HashSet<System.Net.IPAddress>(reachability.Where(item => item.Response != null).Select(item => item.Ip));
+            var unavailableLabels = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps.Select(ip => ip.ToString()), reachable.Select(ip => ip.ToString()), logger);
             async Task<int?> SafeQuery(System.Net.IPAddress server, string name, ushort qtype, string label) {
+                if (!reachable.Contains(server)) { unavailableLabels.TryAdd(label, 0); return null; }
                 await semaphore.WaitAsync(ct);
                 try {
-                    return await QueryTtlFromServer(server, name, qtype, ct, timeoutMs);
-                } catch (Exception ex) {
+                    var response = await QueryTtlFromServer(server, name, qtype, ct, timeoutMs);
+                    if (!response.Succeeded) { unavailableLabels.TryAdd(label, 0); }
+                    return response.Ttl;
+                } catch (System.OperationCanceledException) when (ct.IsCancellationRequested) { throw; } catch (Exception ex) {
                     logger?.WriteDebug("TTL uniformity query failed: server={0} label={1} name={2} qtype={3} error={4}", server, label, name, qtype, ex.Message);
+                    unavailableLabels.TryAdd(label, 0);
                     return null;
                 } finally {
                     semaphore.Release();
@@ -289,10 +311,10 @@ namespace DomainDetective {
                 var aaaaTask = SafeQuery(ip, domainName, 28, "AAAA");
 	                var nsTask = SafeQuery(ip, domainName, 2, "NS");
 	                var cnameTask = SafeQuery(ip, domainName, 5, "CNAME");
-	                var txtSpfTask = SafeQuery(ip, domainName, 16, "TXT(SPF)");
-	                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "TXT(DMARC)");
-	                var txtMtastsTask = SafeQuery(ip, $"_mta-sts.{domainName}", 16, "TXT(MTA-STS)");
-	                var txtTlsRptTask = SafeQuery(ip, $"_smtp._tls.{domainName}", 16, "TXT(TLS-RPT)");
+	                var txtSpfTask = SafeQuery(ip, domainName, 16, "SPF TXT");
+	                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "DMARC TXT");
+	                var txtMtastsTask = SafeQuery(ip, $"_mta-sts.{domainName}", 16, "MTA-STS TXT");
+	                var txtTlsRptTask = SafeQuery(ip, $"_smtp._tls.{domainName}", 16, "TLS-RPT TXT");
 
 	                await Task.WhenAll(aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask, txtMtastsTask, txtTlsRptTask);
 
@@ -301,7 +323,7 @@ namespace DomainDetective {
 	                    var dkimTasks = dkimSelectors
 	                        .Select(async sel => {
                             var name = $"{sel}._domainkey.{domainName}";
-                            var ttl = await SafeQuery(ip, name, 16, "TXT(DKIM)");
+                            var ttl = await SafeQuery(ip, name, 16, $"DKIM TXT ({name})");
                             return (Name: name, Ttl: ttl);
                         })
 	                        .ToArray();
@@ -316,6 +338,7 @@ namespace DomainDetective {
 	            }).ToArray();
 
 	            var results = await Task.WhenAll(ipTasks);
+            UniformityIncomplete = !unavailableLabels.IsEmpty;
 
 	            foreach (var r in results) {
 	                ServerTtlA[r.Key] = r.A;
@@ -336,68 +359,46 @@ namespace DomainDetective {
                 }
             }
 
-            static bool IsUniform(Dictionary<string, int?> map) {
-                var vals = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
-                return vals.Length <= 1;
-            }
+            EvaluateUniformity(unavailableLabels.Keys, logger);
+        }
+
+        internal void EvaluateUniformity(IEnumerable<string> failedLabels, InternalLogger logger) {
+            var unavailableLabels = new HashSet<string>(failedLabels, StringComparer.Ordinal);
+            UniformityIncomplete = unavailableLabels.Count > 0;
+            static bool IsUniform(Dictionary<string, int?> map) =>
+                map.Count > 0 && map.Values.All(value => value.HasValue) && map.Values.Distinct().Count() <= 1;
             AUniformAcrossServers = IsUniform(ServerTtlA);
             AaaaUniformAcrossServers = IsUniform(ServerTtlAaaa);
             NsUniformAcrossServers = IsUniform(ServerTtlNs);
             CnameUniformAcrossServers = IsUniform(ServerTtlCname);
 
-            if (!AUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_A, "A TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_A, "A TTL consistent across authoritative name servers.");
-            }
-            if (!AaaaUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_AAAA, "AAAA TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_AAAA, "AAAA TTL consistent across authoritative name servers.");
-            }
-            if (!NsUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_NS, "NS TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_NS, "NS TTL consistent across authoritative name servers.");
-            }
-            if (!CnameUniformAcrossServers) {
-                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_CNAME, "CNAME TTL differs across authoritative name servers");
-            } else {
-                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_CNAME, "CNAME TTL consistent across authoritative name servers.");
-            }
-
-            // TXT apex (SPF)
-            var txtSpfUniform = IsUniform(ServerTtlTxtSpf);
-            if (!txtSpfUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_SPF, "SPF TXT TTL differs across authoritative name servers");
-            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_SPF, "SPF TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _dmarc
-	            var txtDmarcUniform = IsUniform(ServerTtlTxtDmarc);
-	            if (!txtDmarcUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DMARC, "DMARC TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DMARC, "DMARC TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _mta-sts
-	            var txtMtastsUniform = IsUniform(ServerTtlTxtMtasts);
-	            if (!txtMtastsUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL consistent across authoritative name servers.");
-
-	            // TXT _smtp._tls (TLS-RPT)
-	            var txtTlsRptUniform = IsUniform(ServerTtlTxtTlsRpt);
-	            if (!txtTlsRptUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL differs across authoritative name servers");
-	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL consistent across authoritative name servers.");
-
-	            // DKIM selectors per name
-	            if (ServerTtlTxtPerName.Count > 0)
-	            {
-	                foreach (var kv in ServerTtlTxtPerName)
-	                {
-                    var uniform = IsUniform(kv.Value);
-                    if (!uniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL differs across authoritative servers for {kv.Key}");
-                    else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL consistent across authoritative servers for {kv.Key}");
+            void ReportUniformity(string label, Dictionary<string, int?> map, string uniformCode, string differentCode) {
+                var observed = map.Values.Where(value => value.HasValue).Distinct().ToArray();
+                if (observed.Length > 1) {
+                    logger?.WriteWarningCode(differentCode, "{0} TTL differs across authoritative name servers.", label);
+                }
+                if (unavailableLabels.Contains(label)) {
+                    logger?.WriteInformationCode("TTL.Uniformity.Incomplete", "{0} TTL uniformity could not be fully verified; authoritative TTL evidence is missing.", label);
+                } else if (observed.Length == 0) {
+                    logger?.WriteInformationCode("TTL.Uniformity.NoRecord", "Authoritative replies contain no {0} TTL to compare.", label);
+                } else if (observed.Length == 1 && map.Values.Any(value => !value.HasValue)) {
+                    logger?.WriteWarningCode(differentCode, "Authoritative name servers disagree on {0} record presence.", label);
+                } else if (observed.Length <= 1) {
+                    logger?.WriteInformationCode(uniformCode, "{0} TTL consistent across authoritative name servers.", label);
                 }
             }
+            ReportUniformity("A", ServerTtlA, TtlCodes.UniformAcrossNS_A, TtlCodes.NonUniformAcrossNS_A);
+            ReportUniformity("AAAA", ServerTtlAaaa, TtlCodes.UniformAcrossNS_AAAA, TtlCodes.NonUniformAcrossNS_AAAA);
+            ReportUniformity("NS", ServerTtlNs, TtlCodes.UniformAcrossNS_NS, TtlCodes.NonUniformAcrossNS_NS);
+            ReportUniformity("CNAME", ServerTtlCname, TtlCodes.UniformAcrossNS_CNAME, TtlCodes.NonUniformAcrossNS_CNAME);
+            ReportUniformity("SPF TXT", ServerTtlTxtSpf, TtlCodes.UniformAcrossNS_TXT_SPF, TtlCodes.NonUniformAcrossNS_TXT_SPF);
+            ReportUniformity("DMARC TXT", ServerTtlTxtDmarc, TtlCodes.UniformAcrossNS_TXT_DMARC, TtlCodes.NonUniformAcrossNS_TXT_DMARC);
+            ReportUniformity("MTA-STS TXT", ServerTtlTxtMtasts, TtlCodes.UniformAcrossNS_TXT_MTASTS, TtlCodes.NonUniformAcrossNS_TXT_MTASTS);
+            ReportUniformity("TLS-RPT TXT", ServerTtlTxtTlsRpt, TtlCodes.UniformAcrossNS_TXT_TLSRPT, TtlCodes.NonUniformAcrossNS_TXT_TLSRPT);
+            foreach (var item in ServerTtlTxtPerName) {
+                ReportUniformity($"DKIM TXT ({item.Key})", item.Value, TtlCodes.UniformAcrossNS_TXT_DKIM, TtlCodes.NonUniformAcrossNS_TXT_DKIM);
+            }
         }
-
         private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned, InternalLogger logger) {
             var list = ttls?.ToArray() ?? Array.Empty<int>();
             var allGood = true;

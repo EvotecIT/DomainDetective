@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective.Providers.Email;
 
@@ -18,7 +19,7 @@ namespace DomainDetective {
     /// 5.	The MX record should not point to a domain that doesn't have an A or AAAA record.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MXAnalysis : IHasAssessments {
+    public partial class MXAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
@@ -49,6 +50,12 @@ namespace DomainDetective {
         public bool MxRecordExists { get; private set; } // should be true
         /// <summary>Indicates that a record incorrectly points to a CNAME.</summary>
         public bool PointsToCname { get; private set; } // should be false
+        /// <summary>True when at least one MX target's CNAME query could not complete.</summary>
+        public bool CnameQueryFailed { get; private set; }
+        /// <summary>Whether any recursive address or existence lookup for an MX target failed.</summary>
+        public bool AddressQueryFailed { get; private set; }
+        internal bool AddressExistenceQueryFailed { get; private set; }
+        internal bool Ipv6QueryFailed { get; private set; }
 
         /// <summary>Indicates that a record incorrectly points to an IP address.</summary>
         public bool PointsToIpAddress { get; private set; } // should be false
@@ -81,6 +88,10 @@ namespace DomainDetective {
         public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
         /// <summary>Gets or sets the target address consistent across ns value.</summary>
         public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
+        /// <summary>Whether unavailable authoritative responses prevented complete MX address comparison.</summary>
+        public bool TargetAddressComparisonIncomplete { get; private set; }
+        /// <summary>Whether authoritative MX RRset replies were missing from the comparison.</summary>
+        public bool MxRrsetComparisonIncomplete { get; private set; } = true;
 
         /// <summary>Relevant standards for MX analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
@@ -93,12 +104,12 @@ namespace DomainDetective {
         /// <summary>Represents the recommendations value.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken = default) {
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken);
             }
 
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
         }
 
         /// <summary>Analyzes mx records.</summary>
@@ -112,6 +123,10 @@ namespace DomainDetective {
             AvgMxTtl = null;
             MxRecordExists = false;
             PointsToCname = false;
+            CnameQueryFailed = false;
+            AddressQueryFailed = false;
+            AddressExistenceQueryFailed = false;
+            Ipv6QueryFailed = false;
             PointsToIpAddress = false;
             PointsToNonExistentDomain = false;
             PointsToDomainWithoutAOrAaaaRecord = false;
@@ -122,7 +137,9 @@ namespace DomainDetective {
             Ipv6Supported = false;
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
+            MxRrsetComparisonIncomplete = true;
             TargetAddressConsistentAcrossNs = true;
+            TargetAddressComparisonIncomplete = true;
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -170,6 +187,13 @@ namespace DomainDetective {
                         // Do not evaluate host lookups for null MX
                         continue;
                     }
+                    if (string.IsNullOrWhiteSpace(host)) {
+                        CnameQueryFailed = AddressQueryFailed = AddressExistenceQueryFailed = Ipv6QueryFailed = true;
+                        using (_collector.PushTarget(Subject ?? string.Empty)) {
+                            logger.WriteWarningCode("MX.Target.Invalid", "MX record with preference {0} has no usable target hostname.", pref);
+                        }
+                        continue;
+                    }
                     parsed.Add((pref, host));
                     var lowerHost = host.ToLowerInvariant();
                     if (lowerHost == "localhost" || lowerHost == "localhost.localdomain" || lowerHost == "127.0.0.1") {
@@ -200,24 +224,63 @@ namespace DomainDetective {
                 .ToList();
 
             var hostsMissingAddress = new List<string>();
-            foreach (var (_, host) in evaluationList) {
-                var cnameResults = await QueryDns(host, DnsRecordType.CNAME);
-                PointsToCname = PointsToCname || (cnameResults != null && cnameResults.Any());
-
+            var cnameResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(evaluationList, async item => {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                DnsAnswer[] cnames;
+                bool cnameSucceeded = true;
+                bool cnameNxDomain = false;
+                try {
+                    if (QueryDnsOverride != null) {
+                        cnames = FilterRecursiveAnswers(await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token), DnsRecordType.CNAME);
+                    } else {
+                        var response = await DnsConfiguration.QueryDNSResponse(item.Host, DnsRecordType.CNAME, cancellationToken: deadline.Token);
+                        cnameSucceeded = string.IsNullOrEmpty(response.Error) &&
+                            (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
+                        cnames = cnameSucceeded ? FilterRecursiveAnswers(response.Answers, DnsRecordType.CNAME) : Array.Empty<DnsAnswer>();
+                        cnameNxDomain = cnameSucceeded && response.Status == DnsResponseCode.NXDomain;
+                    }
+                    deadline.Token.ThrowIfCancellationRequested();
+                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException ||
+                    ex is System.Net.Sockets.SocketException || ex is System.IO.IOException || ex is System.Net.Http.HttpRequestException ||
+                    ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
+                    cnames = Array.Empty<DnsAnswer>();
+                    cnameSucceeded = false;
+                }
+                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded, CnameNxDomain: cnameNxDomain);
+            }, concurrency: Math.Max(1, Math.Min(8, DnsConfiguration.ResolverMaxConcurrency ?? 8)));
+            // Complete bounded alias checks before adding competing address work to the resolver queue.
+            var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
+                var aTask = QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.A);
+                var aaaaTask = QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.AAAA);
+                await Task.WhenAll(aTask, aaaaTask);
+                var ns = aTask.Result.Answers?.Length == 0 && aaaaTask.Result.Answers?.Length == 0 &&
+                    !aTask.Result.NxDomain && !aaaaTask.Result.NxDomain
+                    ? await QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.NS) : (Answers: (DnsAnswer[]?)Array.Empty<DnsAnswer>(), NxDomain: false);
+                return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result.Answers, Aaaa: aaaaTask.Result.Answers,
+                    Ns: ns.Answers, NxDomain: item.CnameNxDomain || aTask.Result.NxDomain || aaaaTask.Result.NxDomain || ns.NxDomain);
+            });
+            foreach (var item in hostResults) {
+                var host = item.Host;
+                if (!item.CnameSucceeded) {
+                    CnameQueryFailed = true;
+                    logger.WriteWarningCode("MX.Cname.QueryFailed", "CNAME query for MX target {0} did not complete; alias status is unknown.", host);
+                }
+                PointsToCname = PointsToCname || item.Cnames.Any();
                 PointsToIpAddress = PointsToIpAddress || IPAddress.TryParse(host, out _);
-
-                var aResults = await QueryDns(host, DnsRecordType.A);
-                var aaaaResults = await QueryDns(host, DnsRecordType.AAAA);
-                var noA = aResults == null || !aResults.Any();
-                var noAAAA = aaaaResults == null || !aaaaResults.Any();
+                if (item.A == null || item.Aaaa == null || item.Ns == null) {
+                    AddressQueryFailed = true;
+                    logger.WriteWarningCode("MX.Address.QueryFailed", "Address or existence lookup for MX target {0} did not complete; its address evidence is incomplete.", host);
+                }
+                var noA = item.A == null || item.A.Length == 0;
+                var noAAAA = item.Aaaa == null || item.Aaaa.Length == 0;
+                Ipv6QueryFailed |= item.Aaaa == null;
+                AddressExistenceQueryFailed |= noA && noAAAA && !item.NxDomain && (item.A == null || item.Aaaa == null || item.Ns == null);
                 Ipv6Supported = Ipv6Supported || !noAAAA;
-
-                if (noA && noAAAA) {
-                    var nsResults = await QueryDns(host, DnsRecordType.NS);
-                    var nonExistent = nsResults == null || !nsResults.Any();
+                if (noA && noAAAA && (item.NxDomain || item.A != null && item.Aaaa != null && item.Ns != null)) {
+                    var nonExistent = item.NxDomain;
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
-                    if (!nonExistent) hostsMissingAddress.Add(host);
+                    if (!nonExistent) { hostsMissingAddress.Add(host); }
                 }
             }
             // Emit assessments
@@ -283,9 +346,10 @@ namespace DomainDetective {
             }
 
             // TTL uniformity across A/AAAA per MX host
-            foreach (var (_, host) in evaluationList) {
-                var a = await QueryDns(host, DnsRecordType.A);
-                var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+            foreach (var item in hostResults) {
+                var host = item.Host;
+                var a = item.A;
+                var aaaa = item.Aaaa;
                 var addrTtls = (a ?? Array.Empty<DnsAnswer>()).Concat(aaaa ?? Array.Empty<DnsAnswer>())
                     .Select(x => x.TTL).Distinct().ToList();
                 if (addrTtls.Count > 1) {
@@ -297,9 +361,11 @@ namespace DomainDetective {
             // Cross-NS RRset and address consistency (best-effort)
             try {
                 if (!string.IsNullOrWhiteSpace(Subject)) {
-                    await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger);
+                    await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger, _collector);
                 }
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                RecordRrsetCompleteness(0, 0, Subject ?? string.Empty, logger, _collector, discoveryIncomplete: true);
+                TargetAddressComparisonIncomplete = true;
                 logger.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
             }
         }
@@ -312,6 +378,8 @@ namespace DomainDetective {
         /// </returns>
         public bool ValidMxConfiguration =>
             MxRecordExists
+            && !CnameQueryFailed
+            && !AddressQueryFailed
             && !PointsToCname
             && !PointsToIpAddress
             && !PointsToNonExistentDomain
@@ -330,83 +398,51 @@ namespace DomainDetective {
             return data?.Trim() ?? string.Empty;
         }
 
-        private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger) {
+        private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger, AssessmentCollector collector) {
             if (DnsConfiguration.QueryDnsOverride != null) {
                 logger.WriteVerbose("Skipping MX cross-NS consistency checks because DNS queries are running through an override.");
                 return;
             }
 
-            // Discover NS and their IPs
-            var nsAnswers = await QueryDns(domain, DnsRecordType.NS) ?? Array.Empty<DnsAnswer>();
-            var nsHosts = nsAnswers.Select(a => NormalizeHost(a.Data)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (nsHosts.Count == 0) return;
-            var nsIps = new List<string>();
-            foreach (var ns in nsHosts) {
-                var a = await QueryDns(ns, DnsRecordType.A);
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                nsIps.AddRange((a ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
-                nsIps.AddRange((aaaa ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
-            }
-            nsIps = nsIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (nsIps.Count == 0) return;
+            var targets = mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var authorities = await DiscoverComparisonAuthoritiesAsync(domain, targets);
+            var discovery = authorities[NormalizeHost(domain)];
+            var nsIps = discovery.Addresses;
 
             // Query each NS for MX RRset
             var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var ip in nsIps) {
-                var resp = await QueryViaServer(ip, domain, DnsRecordType.MX);
+            var mxResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(nsIps, async ip => (Ip: ip, Response: await QueryViaServer(ip, domain, DnsRecordType.MX)));
+            foreach (var item in mxResponses) {
+                var ip = item.Ip;
+                var resp = item.Response;
+                if (!Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(resp)) { continue; }
                 var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var ans in resp?.Answers ?? Array.Empty<DnsAnswer>()) {
                     set.Add(FormatMx(ans.Data));
                 }
                 mxByServer[ip] = set;
             }
-            if (mxByServer.Count > 1) {
-                var first = mxByServer.First().Value;
-                foreach (var kv in mxByServer.Skip(1)) {
-                    if (!first.SetEquals(kv.Value)) {
-                        MxRrsetConsistentAcrossNs = false;
-                        using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: domain))
-                            logger.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
-                        break;
-                    }
-                }
-            }
+            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
+            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector, discovery.Incomplete);
+            RecordRrsetConsistency(domain, mxByServer.Values, logger, collector);
 
-            // Query each NS for A/AAAA of each MX host
-            foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
-                var addrByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-                foreach (var ip in nsIps) {
-                    var aset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var aResp = await QueryViaServer(ip, host, DnsRecordType.A);
-                    var aaaaResp = await QueryViaServer(ip, host, DnsRecordType.AAAA);
-                    foreach (var ans in aResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
-                    foreach (var ans in aaaaResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
-                    addrByServer[ip] = aset;
-                }
-                if (addrByServer.Count > 1) {
-                    var firstAddr = addrByServer.First().Value;
-                    foreach (var kv in addrByServer.Skip(1)) {
-                        if (!firstAddr.SetEquals(kv.Value)) {
-                            TargetAddressConsistentAcrossNs = false;
-                            using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: host))
-                                logger.WriteWarningCode(MxCodes.TargetAddressInconsistentAcrossNs, "A/AAAA differs across name servers");
-                            break;
-                        }
-                    }
-                }
+            // MX targets can belong to a different zone or a delegated child of the subject.
+            TargetAddressComparisonIncomplete = false;
+            foreach (var host in targets) {
+                var targetDiscovery = authorities[host];
+                var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(targetDiscovery.Addresses, async ip => {
+                    var aTask = QueryViaServer(ip, host, DnsRecordType.A);
+                    var aaaaTask = QueryViaServer(ip, host, DnsRecordType.AAAA);
+                    await Task.WhenAll(aTask, aaaaTask);
+                    return (Ip: ip, A: aTask.Result, Aaaa: aaaaTask.Result);
+                });
+                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger, collector, targetDiscovery.Incomplete);
             }
         }
 
-        private static async Task<DnsResponse?> QueryViaServer(string serverIp, string name, DnsRecordType type) {
-            try {
-                using var client = new ClientX(serverIp, DnsRequestFormat.DnsOverUDP, 53);
-                client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
-                var resp = await client.Resolve(name, type);
-                return resp;
-            } catch {
-                return null;
-            }
-        }
+        private static Task<DnsResponse?> QueryViaServer(string serverIp, string name, DnsRecordType type)
+            => DomainDetective.Helpers.AuthoritativeDnsProbes.QueryAsync(serverIp, name, type);
+
     }
 
 }

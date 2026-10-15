@@ -459,8 +459,10 @@ public static partial class DesiredStateEvaluator {
 
     private static bool IsUniform(Dictionary<string, int?>? map) {
         if (map == null || map.Count == 0) {
-            return true;
+            return false;
         }
+
+        if (map.Values.Any(value => !value.HasValue)) { return false; }
 
         var observed = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
         if (observed.Length == 0) {

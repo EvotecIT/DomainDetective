@@ -223,20 +223,15 @@ namespace DomainDetective {
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var asnLookupTimeoutMs = AsnLookupTimeoutMs > 0 ? AsnLookupTimeoutMs : 5000;
-            foreach (var ip in allIps)
-            {
+            var asnResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(allIps, async ip => {
                 try {
-                    int? asn;
-                    if (LookupAsnOverride != null) {
-                        asn = await LookupAsnOverride(ip);
-                    } else {
-                        using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
-                        asn = await LookupAsnAsync(ip, cts.Token);
-                    }
-                    if (asn.HasValue) {
-                        AsnByIp[ip] = asn.Value;
-                    }
-                } catch { /* ignore lookup failures */ }
+                    if (LookupAsnOverride != null) { return (Ip: ip, Asn: await LookupAsnOverride(ip)); }
+                    using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
+                    return (Ip: ip, Asn: await LookupAsnAsync(ip, cts.Token));
+                } catch { return (Ip: ip, Asn: (int?)null); }
+            }, concurrency: 16);
+            foreach (var item in asnResults) {
+                if (item.Asn.HasValue) { AsnByIp[item.Ip] = item.Asn.Value; }
             }
             AsnDistinctCount = AsnByIp.Values.Distinct().Count();
 
@@ -419,7 +414,7 @@ namespace DomainDetective {
                     .Select(answer => answer.Data ?? answer.DataRaw)
                     .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 throw;
             }
@@ -450,36 +445,25 @@ namespace DomainDetective {
                 .Take(limit)
                 .ToList();
 
-            foreach (var s in list)
-            {
-                token.ThrowIfCancellationRequested();
-
-                var version = await QueryChaosTxtAsync(s.Ip, "version.bind", logger, token);
-                if (version != null)
-                {
-                    var trimmed = version.Trim();
-                    if (trimmed.Length > 0)
-                    {
-                        ChaosVersionByServer[s.Key] = trimmed;
-                        using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", trimmed);
+            var fingerprints = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(list, async server => {
+                var version = QueryChaosTxtAsync(server.Ip, "version.bind", logger, token);
+                var hostname = QueryChaosTxtAsync(server.Ip, "hostname.bind", logger, token);
+                await Task.WhenAll(version, hostname);
+                return (server.Key, Version: version.Result, Hostname: hostname.Result);
+            }, cancellationToken: token);
+            foreach (var result in fingerprints) {
+                using (collector.PushTarget(result.Key)) {
+                    if (!string.IsNullOrWhiteSpace(result.Version)) {
+                        ChaosVersionByServer[result.Key] = result.Version!.Trim();
+                        logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", result.Version.Trim());
                     }
-                }
-
-                var hostname = await QueryChaosTxtAsync(s.Ip, "hostname.bind", logger, token);
-                if (hostname != null)
-                {
-                    var trimmed = hostname.Trim();
-                    if (trimmed.Length > 0)
-                    {
-                        ChaosHostnameByServer[s.Key] = trimmed;
-                        using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", trimmed);
+                    if (!string.IsNullOrWhiteSpace(result.Hostname)) {
+                        ChaosHostnameByServer[result.Key] = result.Hostname!.Trim();
+                        logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", result.Hostname.Trim());
                     }
                 }
             }
         }
-
         private async Task<bool> CheckRecursionAsync(string server, InternalLogger logger) {
             var recursionTestOverride = RecursionTestOverride;
             if (recursionTestOverride != null) {

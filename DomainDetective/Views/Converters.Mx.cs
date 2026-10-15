@@ -104,6 +104,8 @@ public static partial class Converters
             AvgMxTtl = analysis.AvgMxTtl,
             MxRecordExists = analysis.MxRecordExists,
             PointsToCname = analysis.PointsToCname,
+            CnameQueryFailed = analysis.CnameQueryFailed,
+            AddressQueryFailed = analysis.AddressQueryFailed,
             PointsToIpAddress = analysis.PointsToIpAddress,
             PointsToNonExistentDomain = analysis.PointsToNonExistentDomain,
             PointsToDomainWithoutAOrAaaaRecord = analysis.PointsToDomainWithoutAOrAaaaRecord,
@@ -114,12 +116,14 @@ public static partial class Converters
             Ipv6Supported = analysis.Ipv6Supported,
             MxTtlUniform = analysis.MxTtlUniform,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
+            MxRrsetComparisonIncomplete = analysis.MxRrsetComparisonIncomplete,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
+            TargetAddressComparisonIncomplete = analysis.TargetAddressComparisonIncomplete,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
-            Status = status,
+            Status = analysis.MxRecordExists && (analysis.CnameQueryFailed || analysis.AddressQueryFailed || analysis.MxRrsetComparisonIncomplete || analysis.TargetAddressComparisonIncomplete) && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
+            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetComparisonIncomplete ? "incomplete" : analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
@@ -205,6 +209,10 @@ public static partial class Converters
 /// </summary>
 public class MxInfo
 {
+    /// <summary>Whether recursive MX target address or existence evidence is incomplete.</summary>
+    public bool AddressQueryFailed { get; set; }
+    /// <summary>Whether a target alias lookup was incomplete, making the CNAME conclusion unknown.</summary>
+    public bool CnameQueryFailed { get; set; }
     /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
     /// <summary>Logical analysis area.</summary>
@@ -245,8 +253,12 @@ public class MxInfo
     public bool MxTtlUniform { get; set; }
     /// <summary>True when MX RRsets are consistent across authoritative NS.</summary>
     public bool MxRrsetConsistentAcrossNs { get; set; }
+    /// <summary>Whether authoritative MX RRset consistency lacks complete reply evidence.</summary>
+    public bool MxRrsetComparisonIncomplete { get; set; }
     /// <summary>True when target A/AAAA answers are consistent across authoritative NS.</summary>
     public bool TargetAddressConsistentAcrossNs { get; set; }
+    /// <summary>Whether failed authoritative probes left the MX address comparison incomplete.</summary>
+    public bool TargetAddressComparisonIncomplete { get; set; }
     /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
     /// <summary>Overall status (OK/Warning/Error).</summary>
