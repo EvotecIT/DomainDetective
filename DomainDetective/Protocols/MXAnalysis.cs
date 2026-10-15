@@ -432,17 +432,7 @@ namespace DomainDetective {
             }
             DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
             RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector);
-            if (mxByServer.Count > 1) {
-                var first = mxByServer.First().Value;
-                foreach (var kv in mxByServer.Skip(1)) {
-                    if (!first.SetEquals(kv.Value)) {
-                        MxRrsetConsistentAcrossNs = false;
-                        using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: domain))
-                            logger.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
-                        break;
-                    }
-                }
-            }
+            RecordRrsetConsistency(domain, mxByServer.Values, logger, collector);
 
             // Query each NS for A/AAAA of each MX host
             TargetAddressComparisonIncomplete = mxByServer.Count < nsIps.Count;

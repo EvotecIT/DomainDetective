@@ -16,6 +16,15 @@ public partial class MXAnalysis {
         }
     }
 
+    internal void RecordRrsetConsistency(string domain, IEnumerable<HashSet<string>> rrsets, InternalLogger logger, AssessmentCollector? collector = null) {
+        var sets = rrsets.ToArray();
+        if (sets.Length < 2 || sets.Skip(1).All(set => sets[0].SetEquals(set))) { return; }
+        MxRrsetConsistentAcrossNs = false;
+        using var ownedCollector = collector == null ? AssessmentCollector.ForAnalysis(logger, this, category: "MX") : null;
+        using var scope = (collector ?? ownedCollector!).PushTarget(domain);
+        logger.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
+    }
+
     internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger, AssessmentCollector? collector = null) {
         var rows = responses.ToArray();
         bool incomplete = rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);

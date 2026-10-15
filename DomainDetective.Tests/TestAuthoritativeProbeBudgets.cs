@@ -42,8 +42,13 @@ public class TestAuthoritativeProbeBudgets {
         using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "MX");
         analysis.RecordRrsetCompleteness(2, 1, "example.test", logger, collector);
         analysis.RecordTargetAddressEvidence("mail.example.test", Array.Empty<(DnsResponse? A, DnsResponse? Aaaa)>(), logger, collector);
+        analysis.RecordRrsetConsistency("example.test", new[] {
+            new HashSet<string> { "10 first.example.test" }, new HashSet<string> { "20 second.example.test" }
+        }, logger, collector);
         Assert.Equal("example.test", Assert.Single(analysis.Assessments, item => item.Code == "MX.Rrset.ComparisonIncomplete").Target);
         Assert.Equal("mail.example.test", Assert.Single(analysis.Assessments, item => item.Code == "MX.TargetAddress.ComparisonIncomplete").Target);
+        Assert.Equal("example.test", Assert.Single(analysis.Assessments, item => item.Code == MxCodes.RrsetInconsistentAcrossNs).Target);
+        Assert.Equal(1, DomainDetective.Views.Converters.Convert(analysis).WarningCount);
     }
 
     [Theory]
