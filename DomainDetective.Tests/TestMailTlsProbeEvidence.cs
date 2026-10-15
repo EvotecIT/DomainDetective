@@ -92,7 +92,7 @@ public class TestMailTlsProbeEvidence {
         });
         try {
             var analysis = new MailTlsAnalysis();
-            var result = new MailTlsAnalysis.TlsResult { Protocol = SslProtocols.Tls12, StartTlsAdvertised = true };
+            var result = new MailTlsAnalysis.TlsResult { Protocol = SslProtocols.Tls12, StartTlsAdvertised = true, GradeLevel = GradeLevel.B };
             var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
             await (Task)probe.Invoke(analysis, new object[] { MailTlsAnalysis.MailProtocol.Smtp,
                 new MailTransportEndpoint("localhost", port) { ConnectAddress = IPAddress.Loopback }, result, guard.Token })!;
