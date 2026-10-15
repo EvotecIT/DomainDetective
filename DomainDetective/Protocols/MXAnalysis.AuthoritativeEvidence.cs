@@ -2,12 +2,46 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace DomainDetective;
 
 public partial class MXAnalysis {
-    internal void RecordRrsetCompleteness(int intendedServers, int respondingServers, string domain, InternalLogger logger, AssessmentCollector? collector = null) {
-        MxRrsetComparisonIncomplete = intendedServers == 0 || respondingServers < intendedServers;
+    private async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryRecursiveEvidenceAsync(string owner, DnsRecordType type) {
+        try {
+            if (QueryDnsOverride != null) { return (await QueryDns(owner, type), false); }
+            var response = await DnsConfiguration.QueryDNSResponse(owner, type);
+            if (response == null || !string.IsNullOrEmpty(response.Error) ||
+                response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return (null, false); }
+            return (response.Answers ?? Array.Empty<DnsAnswer>(), response.Status == DnsResponseCode.NXDomain);
+        } catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
+            ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
+    }
+
+    internal async Task<(List<string> Addresses, bool Incomplete)> DiscoverAuthoritativeServersAsync(string domain) {
+        var ns = await QueryRecursiveEvidenceAsync(domain, DnsRecordType.NS);
+        var hosts = (ns.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == DnsRecordType.NS)
+            .Select(answer => NormalizeHost(answer.Data)).Where(host => host.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        bool incomplete = ns.Answers == null || hosts.Length == 0;
+        var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var host in hosts) {
+            var a = QueryRecursiveEvidenceAsync(host, DnsRecordType.A);
+            var aaaa = QueryRecursiveEvidenceAsync(host, DnsRecordType.AAAA);
+            await Task.WhenAll(a, aaaa);
+            incomplete |= a.Result.Answers == null || aaaa.Result.Answers == null;
+            bool resolved = false;
+            foreach (var answer in (a.Result.Answers ?? Array.Empty<DnsAnswer>()).Concat(aaaa.Result.Answers ?? Array.Empty<DnsAnswer>())) {
+                if (IPAddress.TryParse(answer.Data, out var ip)) { addresses.Add(ip.ToString()); resolved = true; }
+                else { incomplete = true; }
+            }
+            incomplete |= !resolved;
+        }
+        return (addresses.ToList(), incomplete);
+    }
+
+    internal void RecordRrsetCompleteness(int intendedServers, int respondingServers, string domain, InternalLogger logger, AssessmentCollector? collector = null, bool discoveryIncomplete = false) {
+        MxRrsetComparisonIncomplete = discoveryIncomplete || intendedServers == 0 || respondingServers < intendedServers;
         if (MxRrsetComparisonIncomplete) {
             using var ownedCollector = collector == null ? AssessmentCollector.ForAnalysis(logger, this, category: "MX") : null;
             using ((collector ?? ownedCollector!).PushTarget(domain)) {

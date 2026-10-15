@@ -19,7 +19,8 @@ public class TestAuthoritativeProbeBudgets {
     [Theory]
     [InlineData(DnsRecordType.A)]
     [InlineData(DnsRecordType.AAAA)]
-    public async Task NxDomainRemainsConclusiveWhenTheOtherAddressFamilyFails(DnsRecordType negativeFamily) {
+    [InlineData(DnsRecordType.CNAME)]
+    public async Task NxDomainRemainsConclusiveWhenAddressQueriesFail(DnsRecordType negativeFamily) {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
             Status = type == negativeFamily ? DnsResponseCode.NXDomain :

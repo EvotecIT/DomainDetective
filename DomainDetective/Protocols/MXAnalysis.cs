@@ -228,6 +228,7 @@ namespace DomainDetective {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 DnsAnswer[] cnames;
                 bool cnameSucceeded = true;
+                bool cnameNxDomain = false;
                 try {
                     if (QueryDnsOverride != null) {
                         cnames = await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token);
@@ -236,35 +237,25 @@ namespace DomainDetective {
                         cnameSucceeded = string.IsNullOrEmpty(response.Error) &&
                             (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
                         cnames = cnameSucceeded ? response.Answers ?? Array.Empty<DnsAnswer>() : Array.Empty<DnsAnswer>();
+                        cnameNxDomain = cnameSucceeded && response.Status == DnsResponseCode.NXDomain;
                     }
                     deadline.Token.ThrowIfCancellationRequested();
                 } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException || ex is System.Net.Sockets.SocketException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
                     cnames = Array.Empty<DnsAnswer>();
                     cnameSucceeded = false;
                 }
-                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded);
+                return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded, CnameNxDomain: cnameNxDomain);
             }, concurrency: Math.Max(1, Math.Min(8, DnsConfiguration.ResolverMaxConcurrency ?? 8)));
             // Complete bounded alias checks before adding competing address work to the resolver queue.
             var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
-                async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryAddressAsync(DnsRecordType type) {
-                    try {
-                        if (QueryDnsOverride != null) { return (await QueryDns(item.Host, type), false); }
-                        var response = await DnsConfiguration.QueryDNSResponse(item.Host, type);
-                        if (response == null || !string.IsNullOrEmpty(response.Error) ||
-                            response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return (null, false); }
-                        return (response.Answers ?? Array.Empty<DnsAnswer>(), response.Status == DnsResponseCode.NXDomain);
-                    }
-                    catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
-                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
-                }
-                var aTask = QueryAddressAsync(DnsRecordType.A);
-                var aaaaTask = QueryAddressAsync(DnsRecordType.AAAA);
+                var aTask = QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.A);
+                var aaaaTask = QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.AAAA);
                 await Task.WhenAll(aTask, aaaaTask);
                 var ns = aTask.Result.Answers?.Length == 0 && aaaaTask.Result.Answers?.Length == 0 &&
                     !aTask.Result.NxDomain && !aaaaTask.Result.NxDomain
-                    ? await QueryAddressAsync(DnsRecordType.NS) : (Answers: (DnsAnswer[]?)Array.Empty<DnsAnswer>(), NxDomain: false);
+                    ? await QueryRecursiveEvidenceAsync(item.Host, DnsRecordType.NS) : (Answers: (DnsAnswer[]?)Array.Empty<DnsAnswer>(), NxDomain: false);
                 return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result.Answers, Aaaa: aaaaTask.Result.Answers,
-                    Ns: ns.Answers, NxDomain: aTask.Result.NxDomain || aaaaTask.Result.NxDomain || ns.NxDomain);
+                    Ns: ns.Answers, NxDomain: item.CnameNxDomain || aTask.Result.NxDomain || aaaaTask.Result.NxDomain || ns.NxDomain);
             });
             foreach (var item in hostResults) {
                 var host = item.Host;
@@ -370,7 +361,9 @@ namespace DomainDetective {
                 if (!string.IsNullOrWhiteSpace(Subject)) {
                     await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger, _collector);
                 }
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                RecordRrsetCompleteness(0, 0, Subject ?? string.Empty, logger, _collector, discoveryIncomplete: true);
+                TargetAddressComparisonIncomplete = true;
                 logger.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
             }
         }
@@ -409,19 +402,13 @@ namespace DomainDetective {
                 return;
             }
 
-            // Discover NS and their IPs
-            var nsAnswers = await QueryDns(domain, DnsRecordType.NS) ?? Array.Empty<DnsAnswer>();
-            var nsHosts = nsAnswers.Select(a => NormalizeHost(a.Data)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (nsHosts.Count == 0) return;
-            var nsIps = new List<string>();
-            foreach (var ns in nsHosts) {
-                var a = await QueryDns(ns, DnsRecordType.A);
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                nsIps.AddRange((a ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
-                nsIps.AddRange((aaaa ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
+            var discovery = await DiscoverAuthoritativeServersAsync(domain);
+            var nsIps = discovery.Addresses;
+            if (nsIps.Count == 0) {
+                RecordRrsetCompleteness(0, 0, domain, logger, collector, discoveryIncomplete: true);
+                TargetAddressComparisonIncomplete = true;
+                return;
             }
-            nsIps = nsIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (nsIps.Count == 0) return;
 
             // Query each NS for MX RRset
             var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -437,11 +424,11 @@ namespace DomainDetective {
                 mxByServer[ip] = set;
             }
             DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
-            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector);
+            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector, discovery.Incomplete);
             RecordRrsetConsistency(domain, mxByServer.Values, logger, collector);
 
             // Query each NS for A/AAAA of each MX host
-            TargetAddressComparisonIncomplete = mxByServer.Count < nsIps.Count;
+            TargetAddressComparisonIncomplete = MxRrsetComparisonIncomplete;
             foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
                 var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(mxByServer.Keys, async ip => {
                     var aTask = QueryViaServer(ip, host, DnsRecordType.A);
