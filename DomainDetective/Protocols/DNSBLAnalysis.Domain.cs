@@ -34,15 +34,15 @@ namespace DomainDetective {
         /// <returns>Enumerable of individual DNSBL records.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
-            Logger = logger;
+            var run = BeginQueryRun(default);
             Subject = domain;
-            Logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
+            logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
-            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, DnsblIpSource.Domain, sourceHost: domain)) {
+            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, run, DnsblIpSource.Domain, sourceHost: domain)) {
                 collected.Add(record);
                 yield return record;
             }
-            ConvertToResults(domain, collected);
+            ConvertToResults(domain, collected, logger);
         }
 
         /// <summary>
@@ -57,26 +57,20 @@ namespace DomainDetective {
             if (clearExisting) {
                 Reset();
             }
-            Logger = logger;
             if (items.Count == 0) return;
+            var run = BeginQueryRun(default);
 
-            Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
+            logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 
-            var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
-            foreach (var domain in items) {
-                var d = domain; // capture
-                tasks.Add(Task.Run(async () => {
+            var results = await Helpers.BoundedAsync.RunAsync(items, async d => {
                     var list = new List<DNSBLRecord>();
-                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, DnsblIpSource.Domain, sourceHost: d)) {
+                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, run, DnsblIpSource.Domain, sourceHost: d)) {
                         list.Add(record);
                     }
                     return (d, list);
-                }));
-            }
-
-            var results = await Task.WhenAll(tasks);
+            }, 16, run.CallerToken);
             foreach (var (key, records) in results) {
-                ConvertToResults(key, records);
+                ConvertToResults(key, records, logger);
             }
         }
 

@@ -20,7 +20,7 @@ namespace DomainDetective {
             if (IsPublicSuffix) {
                 return;
             }
-            await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
+            await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -39,7 +39,7 @@ namespace DomainDetective {
             if (IsPublicSuffix) {
                 return;
             }
-            await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger, clearExisting: clearExisting, scanMode: scanMode);
+            await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger, clearExisting: clearExisting, scanMode: scanMode, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace DomainDetective {
             }
 
             if (IPAddress.TryParse(nameOrIpAddress, out _)) {
-                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { nameOrIpAddress }, _logger, clearExisting: true);
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { nameOrIpAddress }, _logger, clearExisting: true, cancellationToken: cancellationToken);
             } else {
                 // Validate domain and normalize; throws ArgumentException for invalid names
                 var normalized = NormalizeDomain(nameOrIpAddress);
@@ -66,7 +66,7 @@ namespace DomainDetective {
                     throw new ArgumentException("Invalid IPv4 address.", nameof(nameOrIpAddress));
                 }
                 // For domain: include domain blacklists and resolve MX to check IP-based lists
-                await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(normalized, _logger, clearExisting: true);
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(normalized, _logger, clearExisting: true, cancellationToken: cancellationToken);
             }
             cancellationToken.ThrowIfCancellationRequested();
         }
@@ -101,19 +101,19 @@ namespace DomainDetective {
                 }
             }
 
+            var run = DNSBLAnalysis.BeginQueryRun(cancellationToken);
             if (ips.Count > 0) {
-                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true);
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true, cancellationToken: cancellationToken, queryRun: run);
             } else {
                 // ensure previous results are cleared
                 DNSBLAnalysis.Reset();
-                DNSBLAnalysis.Logger = _logger;
             }
 
             if (domains.Count > 0) {
                 // append domain+MX-IP results without clearing IP results
                 bool first = ips.Count == 0;
                 foreach (var d in domains) {
-                    await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(d, _logger, clearExisting: first);
+                    await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(d, _logger, clearExisting: first, cancellationToken: cancellationToken, queryRun: run);
                     first = false;
                 }
             }

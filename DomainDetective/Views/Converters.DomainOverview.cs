@@ -392,7 +392,7 @@ public static partial class Converters {
         Key = "dnsbl",
         Label = "DNSBL",
         State = info.HostsListed > 0 ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.HostsListed > 0 ? $"{info.HostsListed} listed" : "Clear",
+        Value = info.HostsListed > 0 ? $"{info.HostsListed} listed" : info.Status == "Incomplete" ? "Incomplete" : "Clear",
         Detail = $"{info.Targets.Count} target(s), {info.Listings.Count} listing(s)"
     };
 
