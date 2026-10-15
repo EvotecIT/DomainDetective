@@ -9,6 +9,29 @@ using System.Security.Cryptography.X509Certificates;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsProbeEvidence {
+    [Fact]
+    public async Task KnownLegacySupportIsReportedWhenTheRemainingProbeIsCanceled() {
+        var pending = new TaskCompletionSource<IReadOnlyList<IPAddress>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new MailTlsAnalysis { OutboundAddressResolver = (_, _) => { started.TrySetResult(true); return pending.Task; } };
+        var result = new MailTlsAnalysis.TlsResult { Protocol = SslProtocols.Tls12, SupportsTls11 = true };
+        var logger = new InternalLogger();
+        using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "SMTPTLS");
+        using var deadline = new CancellationTokenSource();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var probe = typeof(MailTlsAnalysis).GetMethod("ProbeAndReportProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var run = (Task)probe.Invoke(analysis, new object[] { MailTlsAnalysis.MailProtocol.Smtp, new MailTransportEndpoint("mail.example.test", 25), result, logger, deadline.Token })!;
+        try {
+            await started.Task.WaitWithCancellation(guard.Token);
+            deadline.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            Assert.True(result.SupportsTls11);
+            Assert.False(result.ProtocolSupportComplete);
+            var assessment = Assert.Single(analysis.Assessments, item => item.Code == TlsCodes.LegacyOffered);
+            Assert.Equal(AssessmentSeverity.Warning, assessment.Severity);
+        } finally { pending.TrySetResult(Array.Empty<IPAddress>()); }
+    }
+
     [EphemeralTlsFact]
     public async Task PrimarySessionGradeSurvivesAnAuxiliaryProbeDeadline() {
         using var rsa = RSA.Create(2048);

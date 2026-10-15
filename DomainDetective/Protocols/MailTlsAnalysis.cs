@@ -342,13 +342,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                         logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
                     // Probe protocol support (best-effort)
-                    await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
-                    if (result.SupportsTls10 || result.SupportsTls11) {   
-                        logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
-                            result.SupportsTls10 ? "1.0" : string.Empty,
-                            result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                            host, port);
-                    }
+                    await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
                         await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     }
@@ -458,13 +452,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
                 // Probe protocol support (best-effort)
-                await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
-                if (result.SupportsTls10 || result.SupportsTls11) {       
-                    logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
-                        result.SupportsTls10 ? "1.0" : string.Empty,
-                        result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                        host, port);
-                }
+                await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                 if (OutboundAddressResolver == null) {
                     await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                 }
@@ -493,6 +481,19 @@ public partial class MailTlsAnalysis : IHasAssessments {
 
         result.FailureReason = CertificateAnalysis.BuildFailureReason(exception);
         result.FailureKind = CertificateFailureClassifier.Classify(exception);
+    }
+
+    private async Task ProbeAndReportProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
+        try {
+            await ProbeProtocolSupport(protocol, endpoint, result, token).ConfigureAwait(false);
+        } finally {
+            if (result.SupportsTls10 || result.SupportsTls11) {
+                logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
+                    result.SupportsTls10 ? "1.0" : string.Empty,
+                    result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
+                    endpoint.HostName, endpoint.Port);
+            }
+        }
     }
 
     private async Task ProbeProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
