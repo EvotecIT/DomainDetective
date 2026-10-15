@@ -52,6 +52,8 @@ namespace DomainDetective {
         public bool PointsToCname { get; private set; } // should be false
         /// <summary>True when at least one MX target's CNAME query could not complete.</summary>
         public bool CnameQueryFailed { get; private set; }
+        /// <summary>Whether any recursive address or existence lookup for an MX target failed.</summary>
+        public bool AddressQueryFailed { get; private set; }
 
         /// <summary>Indicates that a record incorrectly points to an IP address.</summary>
         public bool PointsToIpAddress { get; private set; } // should be false
@@ -120,6 +122,7 @@ namespace DomainDetective {
             MxRecordExists = false;
             PointsToCname = false;
             CnameQueryFailed = false;
+            AddressQueryFailed = false;
             PointsToIpAddress = false;
             PointsToNonExistentDomain = false;
             PointsToDomainWithoutAOrAaaaRecord = false;
@@ -233,11 +236,16 @@ namespace DomainDetective {
             });
             // Complete bounded alias checks before adding competing address work to the resolver queue.
             var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
-                var aTask = QueryDns(item.Host, DnsRecordType.A);
-                var aaaaTask = QueryDns(item.Host, DnsRecordType.AAAA);
+                async Task<DnsAnswer[]?> QueryAddressAsync(DnsRecordType type) {
+                    try { return await QueryDns(item.Host, type); }
+                    catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
+                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException) { return null; }
+                }
+                var aTask = QueryAddressAsync(DnsRecordType.A);
+                var aaaaTask = QueryAddressAsync(DnsRecordType.AAAA);
                 await Task.WhenAll(aTask, aaaaTask);
-                var ns = aTask.Result.Length == 0 && aaaaTask.Result.Length == 0
-                    ? await QueryDns(item.Host, DnsRecordType.NS) : Array.Empty<DnsAnswer>();
+                var ns = aTask.Result?.Length == 0 && aaaaTask.Result?.Length == 0
+                    ? await QueryAddressAsync(DnsRecordType.NS) : Array.Empty<DnsAnswer>();
                 return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: ns);
             });
             foreach (var item in hostResults) {
@@ -248,10 +256,14 @@ namespace DomainDetective {
                 }
                 PointsToCname = PointsToCname || item.Cnames.Any();
                 PointsToIpAddress = PointsToIpAddress || IPAddress.TryParse(host, out _);
-                var noA = item.A.Length == 0;
-                var noAAAA = item.Aaaa.Length == 0;
+                if (item.A == null || item.Aaaa == null || item.Ns == null) {
+                    AddressQueryFailed = true;
+                    logger.WriteWarningCode("MX.Address.QueryFailed", "Address or existence lookup for MX target {0} did not complete; its address evidence is incomplete.", host);
+                }
+                var noA = item.A == null || item.A.Length == 0;
+                var noAAAA = item.Aaaa == null || item.Aaaa.Length == 0;
                 Ipv6Supported = Ipv6Supported || !noAAAA;
-                if (noA && noAAAA) {
+                if (noA && noAAAA && item.A != null && item.Aaaa != null && item.Ns != null) {
                     var nonExistent = item.Ns.Length == 0;
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
@@ -351,6 +363,7 @@ namespace DomainDetective {
         public bool ValidMxConfiguration =>
             MxRecordExists
             && !CnameQueryFailed
+            && !AddressQueryFailed
             && !PointsToCname
             && !PointsToIpAddress
             && !PointsToNonExistentDomain

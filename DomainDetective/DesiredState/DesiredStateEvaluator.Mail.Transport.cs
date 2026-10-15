@@ -484,6 +484,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (mx.AddressQueryFailed && (desired.RequireIpv6Supported == true ||
+            desired.DisallowNonExistentTargets == true || desired.DisallowNoAddressTargets == true)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Address.QueryFailed", Message = "Desired state could not verify MX target addresses because recursive lookup evidence is incomplete."
+            });
+        }
         if (desired.RequireIpv6Supported == true && !mx.HasNullMx && !mx.Ipv6Supported) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,

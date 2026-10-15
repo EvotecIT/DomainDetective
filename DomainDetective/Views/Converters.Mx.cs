@@ -105,6 +105,7 @@ public static partial class Converters
             MxRecordExists = analysis.MxRecordExists,
             PointsToCname = analysis.PointsToCname,
             CnameQueryFailed = analysis.CnameQueryFailed,
+            AddressQueryFailed = analysis.AddressQueryFailed,
             PointsToIpAddress = analysis.PointsToIpAddress,
             PointsToNonExistentDomain = analysis.PointsToNonExistentDomain,
             PointsToDomainWithoutAOrAaaaRecord = analysis.PointsToDomainWithoutAOrAaaaRecord,
@@ -119,7 +120,7 @@ public static partial class Converters
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
             TargetAddressComparisonIncomplete = analysis.TargetAddressComparisonIncomplete,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
-            Status = analysis.MxRecordExists && (analysis.MxRrsetComparisonIncomplete || analysis.TargetAddressComparisonIncomplete) && errCount == 0 ? "Incomplete" : status,
+            Status = analysis.MxRecordExists && (analysis.AddressQueryFailed || analysis.MxRrsetComparisonIncomplete || analysis.TargetAddressComparisonIncomplete) && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetComparisonIncomplete ? "incomplete" : analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
@@ -208,6 +209,8 @@ public static partial class Converters
 /// </summary>
 public class MxInfo
 {
+    /// <summary>Whether recursive MX target address or existence evidence is incomplete.</summary>
+    public bool AddressQueryFailed { get; set; }
     /// <summary>Whether a target alias lookup was incomplete, making the CNAME conclusion unknown.</summary>
     public bool CnameQueryFailed { get; set; }
     /// <summary>Type of health check.</summary>

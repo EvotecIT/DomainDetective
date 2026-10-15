@@ -6,6 +6,33 @@ namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
     [Theory]
+    [InlineData(DnsRecordType.A)]
+    [InlineData(DnsRecordType.AAAA)]
+    [InlineData(DnsRecordType.NS)]
+    public async Task FailedRecursiveMxLookupsRemainUnknownWithoutLosingOtherHosts(DnsRecordType failedType) {
+        using var health = new DomainHealthCheck();
+        var analysis = health.MXAnalysis;
+        analysis.Subject = "example.test";
+        analysis.QueryDnsOverride = (host, type) => {
+            if (host == "bad.example.test" && type == failedType) { throw new TimeoutException("Target query failed."); }
+            bool address = type == DnsRecordType.A && (host == "good.example.test" || failedType != DnsRecordType.NS);
+            return Task.FromResult(address ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
+        };
+        await analysis.AnalyzeMxRecords(new[] {
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 bad.example.test" },
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "20 good.example.test" }
+        }, new InternalLogger());
+        Assert.True(analysis.AddressQueryFailed);
+        Assert.False(analysis.ValidMxConfiguration);
+        Assert.False(analysis.PointsToNonExistentDomain);
+        Assert.Contains(analysis.Assessments, item => item.Code == "MX.Address.QueryFailed");
+        Assert.True(DomainDetective.Views.Converters.Convert(analysis).AddressQueryFailed);
+        var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
+            new DomainDetective.DesiredState.DesiredStateProfile { Mx = new DomainDetective.DesiredState.DesiredStateMxPolicy { DisallowNonExistentTargets = true } });
+        Assert.Contains(evaluated.Assessments, item => item.Code == "DesiredState.MX.Address.QueryFailed");
+    }
+
+    [Theory]
     [InlineData(DnsResponseCode.NoError, false, true)]
     [InlineData(DnsResponseCode.Refused, false, false)]
     [InlineData(DnsResponseCode.Refused, true, true)]

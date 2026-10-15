@@ -414,7 +414,7 @@ namespace DomainDetective {
                     .Select(answer => answer.Data ?? answer.DataRaw)
                     .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 throw;
             }
