@@ -26,7 +26,8 @@ public class TestDnsblConcurrentCoverage {
         Assert.Contains(original.Assessments, item => item.Code == DnsblCodes.NotListed);
         var current = Converters.Convert(analysis);
         Assert.Equal("Incomplete", current.Status);
-        Assert.DoesNotContain(current.Assessments, item => item.Code == DnsblCodes.NotListed);
+        Assert.Contains(current.Assessments, item => item.Code == DnsblCodes.NotListed && item.Target == "192.0.2.1");
+        Assert.DoesNotContain(current.Assessments, item => item.Code == DnsblCodes.NotListed && item.Target == "192.0.2.2");
         Assert.Contains(current.Assessments, item => item.Code == DnsblCodes.QueryFailed);
     }
 

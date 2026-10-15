@@ -341,12 +341,11 @@ namespace DomainDetective {
                 }
                 Results[ipAddressOrHostname] = queryResult;
                 AllResults.AddRange(results);
-                bool incompleteCoverage = !DiscoverySucceeded || AllResults.Any(record => !record.QuerySucceeded);
+                bool incompleteCoverage = AllResults.Any(record => !record.QuerySucceeded &&
+                    string.Equals(GetRecordTargetKey(record), ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
                 bool retainedListing = AllResults.Any(record => record.IsBlackListed &&
                     string.Equals(GetRecordTargetKey(record), ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
-                if (incompleteCoverage) {
-                    Assessments.RemoveAll(assessment => assessment.Code == DnsblCodes.NotListed);
-                } else if (retainedListing) {
+                if (incompleteCoverage || retainedListing) {
                     Assessments.RemoveAll(assessment => assessment.Code == DnsblCodes.NotListed &&
                         string.Equals(assessment.Target, ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
                 }
@@ -382,7 +381,6 @@ namespace DomainDetective {
 
         private void RecordSummary(InternalLogger? logger, string? target = null) {
             lock (SyncRoot) {
-                if (!DiscoverySucceeded) { Assessments.RemoveAll(assessment => assessment.Code == DnsblCodes.NotListed); }
                 using var collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: target) : null;
                 var providers = AllResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(StringComparer.OrdinalIgnoreCase).Count();
                 collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.", DnsblCodes.Summary);

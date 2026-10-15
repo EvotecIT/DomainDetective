@@ -35,17 +35,17 @@ public partial class DNSBLAnalysis {
 
     private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
-        var remaining = AnalysisTimeout - run.Budget.Elapsed;
+        var remaining = RemainingBudget(run);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
         try {
-            if (remaining <= TimeSpan.Zero) { throw new TimeoutException("Analysis budget exhausted."); }
-            deadline.CancelAfter(remaining);
+            if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { throw new TimeoutException("Analysis budget exhausted."); }
+            if (remaining.HasValue) { deadline.CancelAfter(remaining.Value); }
             var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token)
                 .WaitWithCancellation(deadline.Token).ConfigureAwait(false);
             var response = responses.FirstOrDefault();
             if (response == null || !string.IsNullOrEmpty(response.Error) ||
                 response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
-                throw new InvalidOperationException(response?.Error ?? $"DNS discovery response: {response?.Status.ToString() ?? "missing"}.");
+                throw new InvalidOperationException(ResponseFailure(response));
             }
             return response.Answers ?? Array.Empty<DnsAnswer>();
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
@@ -70,18 +70,27 @@ public partial class DNSBLAnalysis {
     /// <summary>Total provider-query budget for one analysis run. Exhaustion retains incomplete records.</summary>
     public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(8);
 
-    private async Task<(List<DnsAnswer> Answers, string? Error)> QueryProviderAsync(QueryRun run, string query, bool ipv6) {
+    private TimeSpan? RemainingBudget(QueryRun run) => AnalysisTimeout == Timeout.InfiniteTimeSpan ? null : AnalysisTimeout - run.Budget.Elapsed;
+
+    private static string ResponseFailure(DnsResponse? response) => !string.IsNullOrEmpty(response?.Error)
+        ? response!.Error : $"DNS response: {response?.Status.ToString() ?? "missing"}.";
+
+    private async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)[]> QueryProviderAsync(QueryRun run, string query, bool ipv6) {
         run.CallerToken.ThrowIfCancellationRequested();
-        var remaining = AnalysisTimeout - run.Budget.Elapsed;
-        if (remaining <= TimeSpan.Zero) { return (new List<DnsAnswer>(), "Analysis budget exhausted."); }
+        var types = ipv6 ? new[] { DnsRecordType.A, DnsRecordType.AAAA } : new[] { DnsRecordType.A };
+        (DnsRecordType Type, DnsAnswer[] Answers, string? Error)[] Failed(string error) =>
+            types.Select(type => (type, Array.Empty<DnsAnswer>(), (string?)error)).ToArray();
+        var remaining = RemainingBudget(run);
+        if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
         await _queryGate.WaitAsync(run.CallerToken).ConfigureAwait(false);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
-        var answers = new List<DnsAnswer>();
         try {
-            remaining = AnalysisTimeout - run.Budget.Elapsed;
-            if (remaining <= TimeSpan.Zero) { return (answers, "Analysis budget exhausted."); }
-            deadline.CancelAfter(ProviderTimeout == Timeout.InfiniteTimeSpan || ProviderTimeout > remaining ? remaining : ProviderTimeout);
-            async Task<(DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
+            remaining = RemainingBudget(run);
+            if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
+            TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
+                remaining.HasValue && remaining.Value < ProviderTimeout ? remaining : ProviderTimeout;
+            if (timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
+            async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
                 try {
                     var responseTask = QueryDnsFullOverride != null
                         ? QueryDnsFullOverride(new[] { query }, type)
@@ -89,22 +98,20 @@ public partial class DNSBLAnalysis {
                     var response = (await responseTask.WaitWithCancellation(deadline.Token).ConfigureAwait(false)).FirstOrDefault();
                     if (response == null || !string.IsNullOrEmpty(response.Error) ||
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
-                        return (Array.Empty<DnsAnswer>(), response?.Error ?? $"DNS response: {response?.Status.ToString() ?? "missing"}.");
+                        return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));
                     }
-                    return ((response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray(), null);
+                    return (type, (response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray(), null);
                 } catch (Exception ex) when (ex is not OutOfMemoryException) {
                     run.CallerToken.ThrowIfCancellationRequested();
-                    return (Array.Empty<DnsAnswer>(), ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
+                    return (type, Array.Empty<DnsAnswer>(), ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
                 }
             }
-            var responses = await Task.WhenAll((ipv6 ? new[] { DnsRecordType.A, DnsRecordType.AAAA } : new[] { DnsRecordType.A }).Select(QueryTypeAsync)).ConfigureAwait(false);
+            var responses = await Task.WhenAll(types.Select(QueryTypeAsync)).ConfigureAwait(false);
             run.CallerToken.ThrowIfCancellationRequested();
-            foreach (var response in responses) { answers.AddRange(response.Answers); }
-            var errors = responses.Where(response => response.Error != null).Select(response => response.Error).ToArray();
-            return (answers, errors.Length == 0 ? null : string.Join("; ", errors));
+            return responses;
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is SocketException || ex is InvalidOperationException || ex is UriFormatException) {
-            return (answers, ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
+            return Failed(ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
         } finally {
             _queryGate.Release();
         }
@@ -120,18 +127,30 @@ public partial class DNSBLAnalysis {
         var responses = await Helpers.BoundedAsync.RunAsync(zones, zone => QueryProviderAsync(run, $"{name}.{zone}", ipv6), 16, run.CallerToken).ConfigureAwait(false);
         for (int i = 0; i < zones.Length; i++) {
             run.CallerToken.ThrowIfCancellationRequested();
-            var response = responses[i];
-            foreach (var answer in response.Answers.Count == 0 ? new DnsAnswer?[] { null } : response.Answers.Cast<DnsAnswer?>()) {
-                string? decoded = answer?.Data;
-                string value = string.IsNullOrWhiteSpace(decoded) ? answer?.DataRaw ?? string.Empty : decoded!;
+            DNSBLRecord Record(string value, string? error, bool hasAnswer) {
                 var meaning = GetReplyCodeMeaning(zones[i], value);
-                var error = value.StartsWith("127.255.", StringComparison.Ordinal) ? $"Provider returned error response {value}." : response.Error;
-                yield return new DNSBLRecord {
+                return new DNSBLRecord {
                     Query = name, IpAddress = isIp ? ipAddressOrHostname : null, IpSource = ipSource, SourceHost = sourceHost,
                     QueryKind = kind, FQDN = $"{name}.{zones[i]}", BlackList = zones[i], Answer = value,
                     QuerySucceeded = error == null, Error = error,
-                    IsBlackListed = answer != null && meaning.IsListed, ReplyMeaning = meaning.Meaning
+                    IsBlackListed = hasAnswer && meaning.IsListed, ReplyMeaning = meaning.Meaning
                 };
+            }
+            foreach (var response in responses[i]) {
+                if (response.Error != null) {
+                    yield return Record(string.Empty, $"{response.Type}: {response.Error}", false);
+                    continue;
+                }
+                if (response.Answers.Length == 0) { yield return Record(string.Empty, null, false); }
+                var reserved = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var answer in response.Answers) {
+                    var value = string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw ?? string.Empty : answer.Data;
+                    if (value.StartsWith("127.255.", StringComparison.Ordinal)) { reserved.Add(value); }
+                    else { yield return Record(value, null, true); }
+                }
+                if (reserved.Count > 0) {
+                    yield return Record(reserved.First(), $"{response.Type}: Provider returned error response {string.Join(", ", reserved)}.", false);
+                }
             }
         }
     }
