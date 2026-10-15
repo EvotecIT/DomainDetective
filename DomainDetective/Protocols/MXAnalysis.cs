@@ -278,7 +278,7 @@ namespace DomainDetective {
                 AddressExistenceQueryFailed |= noA && noAAAA && !item.NxDomain && (item.A == null || item.Aaaa == null || item.Ns == null);
                 Ipv6Supported = Ipv6Supported || !noAAAA;
                 if (noA && noAAAA && (item.NxDomain || item.A != null && item.Aaaa != null && item.Ns != null)) {
-                    var nonExistent = item.NxDomain || item.Ns!.Length == 0;
+                    var nonExistent = item.NxDomain;
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
                     if (!nonExistent) { hostsMissingAddress.Add(host); }

@@ -5,6 +5,17 @@ using System.Net;
 namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
+    [Fact]
+    public async Task SuccessfulEmptyAddressAndNsResponsesDoNotEstablishNonexistence() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        health.MXAnalysis.Subject = "example.test";
+        await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 empty.example.test" } }, new InternalLogger());
+        Assert.False(health.MXAnalysis.PointsToNonExistentDomain);
+        Assert.True(health.MXAnalysis.PointsToDomainWithoutAOrAaaaRecord);
+        Assert.False(health.MXAnalysis.AddressQueryFailed);
+    }
+
     [Theory]
     [InlineData(DnsRecordType.A)]
     [InlineData(DnsRecordType.AAAA)]
