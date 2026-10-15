@@ -402,13 +402,10 @@ namespace DomainDetective {
                 return;
             }
 
-            var discovery = await DiscoverAuthoritativeServersAsync(domain);
+            var targets = mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var authorities = await DiscoverComparisonAuthoritiesAsync(domain, targets);
+            var discovery = authorities[NormalizeHost(domain)];
             var nsIps = discovery.Addresses;
-            if (nsIps.Count == 0) {
-                RecordRrsetCompleteness(0, 0, domain, logger, collector, discoveryIncomplete: true);
-                TargetAddressComparisonIncomplete = true;
-                return;
-            }
 
             // Query each NS for MX RRset
             var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -427,16 +424,17 @@ namespace DomainDetective {
             RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector, discovery.Incomplete);
             RecordRrsetConsistency(domain, mxByServer.Values, logger, collector);
 
-            // Query each NS for A/AAAA of each MX host
-            TargetAddressComparisonIncomplete = MxRrsetComparisonIncomplete;
-            foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
-                var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(mxByServer.Keys, async ip => {
+            // MX targets can belong to a different zone or a delegated child of the subject.
+            TargetAddressComparisonIncomplete = false;
+            foreach (var host in targets) {
+                var targetDiscovery = authorities[host];
+                var addressResponses = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(targetDiscovery.Addresses, async ip => {
                     var aTask = QueryViaServer(ip, host, DnsRecordType.A);
                     var aaaaTask = QueryViaServer(ip, host, DnsRecordType.AAAA);
                     await Task.WhenAll(aTask, aaaaTask);
                     return (Ip: ip, A: aTask.Result, Aaaa: aaaaTask.Result);
                 });
-                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger, collector);
+                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger, collector, targetDiscovery.Incomplete);
             }
         }
 

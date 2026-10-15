@@ -21,10 +21,8 @@ public partial class MXAnalysis {
 
     private async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryRecursiveEvidenceAsync(string owner, DnsRecordType type) {
         try {
-            if (QueryDnsOverride != null) { return (FilterRecursiveAnswers(await QueryDns(owner, type), type), false); }
-            var response = await DnsConfiguration.QueryDNSResponse(owner, type);
-            if (response == null || !string.IsNullOrEmpty(response.Error) ||
-                response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return (null, false); }
+            var response = await QueryRecursiveResponseAsync(owner, type);
+            if (response == null) { return (null, false); }
             return (FilterRecursiveAnswers(response.Answers, type), response.Status == DnsResponseCode.NXDomain);
         } catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
             ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
@@ -70,11 +68,11 @@ public partial class MXAnalysis {
         logger.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
     }
 
-    internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger, AssessmentCollector? collector = null) {
+    internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger, AssessmentCollector? collector = null, bool discoveryIncomplete = false) {
         var rows = responses.Select(row => (
             A: Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(row.A) ? row.A : null,
             Aaaa: Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(row.Aaaa) ? row.Aaaa : null)).ToArray();
-        bool incomplete = rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);
+        bool incomplete = discoveryIncomplete || rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);
         TargetAddressComparisonIncomplete |= incomplete;
         bool consistent = true;
         foreach (var type in new[] { DnsRecordType.A, DnsRecordType.AAAA }) {
