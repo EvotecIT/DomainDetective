@@ -231,12 +231,12 @@ namespace DomainDetective {
                 bool cnameNxDomain = false;
                 try {
                     if (QueryDnsOverride != null) {
-                        cnames = await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token);
+                        cnames = FilterRecursiveAnswers(await QueryDns(item.Host, DnsRecordType.CNAME, deadline.Token), DnsRecordType.CNAME);
                     } else {
                         var response = await DnsConfiguration.QueryDNSResponse(item.Host, DnsRecordType.CNAME, cancellationToken: deadline.Token);
                         cnameSucceeded = string.IsNullOrEmpty(response.Error) &&
                             (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
-                        cnames = cnameSucceeded ? response.Answers ?? Array.Empty<DnsAnswer>() : Array.Empty<DnsAnswer>();
+                        cnames = cnameSucceeded ? FilterRecursiveAnswers(response.Answers, DnsRecordType.CNAME) : Array.Empty<DnsAnswer>();
                         cnameNxDomain = cnameSucceeded && response.Status == DnsResponseCode.NXDomain;
                     }
                     deadline.Token.ThrowIfCancellationRequested();
@@ -416,7 +416,7 @@ namespace DomainDetective {
             foreach (var item in mxResponses) {
                 var ip = item.Ip;
                 var resp = item.Response;
-                if (resp == null) { continue; }
+                if (!Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(resp)) { continue; }
                 var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var ans in resp?.Answers ?? Array.Empty<DnsAnswer>()) {
                     set.Add(FormatMx(ans.Data));

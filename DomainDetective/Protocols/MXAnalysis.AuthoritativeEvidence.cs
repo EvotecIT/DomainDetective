@@ -8,13 +8,24 @@ using System.Threading.Tasks;
 namespace DomainDetective;
 
 public partial class MXAnalysis {
+    private static DnsAnswer[] FilterRecursiveAnswers(DnsAnswer[]? answers, DnsRecordType type) {
+        var selected = (answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray();
+        if (type == DnsRecordType.A || type == DnsRecordType.AAAA) {
+            var family = type == DnsRecordType.A ? System.Net.Sockets.AddressFamily.InterNetwork : System.Net.Sockets.AddressFamily.InterNetworkV6;
+            if (selected.Any(answer => !IPAddress.TryParse(answer.Data, out var ip) || ip.AddressFamily != family)) {
+                throw new FormatException($"DNS {type} lookup returned an invalid address.");
+            }
+        }
+        return selected;
+    }
+
     private async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryRecursiveEvidenceAsync(string owner, DnsRecordType type) {
         try {
-            if (QueryDnsOverride != null) { return (await QueryDns(owner, type), false); }
+            if (QueryDnsOverride != null) { return (FilterRecursiveAnswers(await QueryDns(owner, type), type), false); }
             var response = await DnsConfiguration.QueryDNSResponse(owner, type);
             if (response == null || !string.IsNullOrEmpty(response.Error) ||
                 response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return (null, false); }
-            return (response.Answers ?? Array.Empty<DnsAnswer>(), response.Status == DnsResponseCode.NXDomain);
+            return (FilterRecursiveAnswers(response.Answers, type), response.Status == DnsResponseCode.NXDomain);
         } catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
             ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
     }
@@ -60,7 +71,9 @@ public partial class MXAnalysis {
     }
 
     internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger, AssessmentCollector? collector = null) {
-        var rows = responses.ToArray();
+        var rows = responses.Select(row => (
+            A: Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(row.A) ? row.A : null,
+            Aaaa: Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(row.Aaaa) ? row.Aaaa : null)).ToArray();
         bool incomplete = rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);
         TargetAddressComparisonIncomplete |= incomplete;
         bool consistent = true;

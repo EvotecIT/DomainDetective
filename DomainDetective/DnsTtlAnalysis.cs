@@ -134,7 +134,7 @@ namespace DomainDetective {
             DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
                 ip.ToString(), 53, query, timeoutMs > 0 ? timeoutMs : 4000, useTcpFallback: true,
                 cancellationToken: ct).ConfigureAwait(false);
-            if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsUsableResponse(result.Response)) { return (null, false); }
+            if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(result.Response)) { return (null, false); }
             var answers = result.Response.Answers ?? Array.Empty<DnsAnswer>();
             int? answerTtl = answers
                 .Where(item => item.Type == (DnsRecordType)qtype)

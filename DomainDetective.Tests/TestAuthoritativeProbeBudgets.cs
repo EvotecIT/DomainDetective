@@ -130,6 +130,7 @@ public class TestAuthoritativeProbeBudgets {
     [InlineData(true, true)]
     public async Task PartialAuthoritativeResponsesRetainSuccessfulFamilyEvidence(bool failA, bool different) {
         DnsResponse Reply(DnsRecordType type, string value) => new() {
+            IsAuthoritativeAnswer = true,
             Answers = new[] { new DnsAnswer { Type = type, DataRaw = value } }
         };
         using var health = new DomainHealthCheck();
@@ -141,7 +142,7 @@ public class TestAuthoritativeProbeBudgets {
         var type = failA ? DnsRecordType.AAAA : DnsRecordType.A;
         var first = Reply(type, failA ? "2001:db8::1" : "192.0.2.1");
         var second = different ? Reply(type, failA ? "2001:db8::2" : "192.0.2.2") : first;
-        var empty = new DnsResponse();
+        var empty = new DnsResponse { IsAuthoritativeAnswer = true };
         analysis.RecordTargetAddressEvidence("mail.example.test", failA
             ? new (DnsResponse? A, DnsResponse? Aaaa)[] { (null, first), (empty, second) }
             : new (DnsResponse? A, DnsResponse? Aaaa)[] { (first, null), (second, empty) }, new InternalLogger());
