@@ -33,14 +33,15 @@ public partial class DNSBLAnalysis {
             deadline.CancelAfter(remaining);
             var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token)
                 .WaitWithCancellation(deadline.Token).ConfigureAwait(false);
-            var response = responses[0];
+            var response = responses.FirstOrDefault();
             if (response == null || !string.IsNullOrEmpty(response.Error) ||
                 response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                 throw new InvalidOperationException(response?.Error ?? $"DNS discovery response: {response?.Status.ToString() ?? "missing"}.");
             }
             return response.Answers ?? Array.Empty<DnsAnswer>();
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
-        catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is SocketException || ex is InvalidOperationException) {
+        catch (Exception ex) when (ex is not OutOfMemoryException) {
+            run.CallerToken.ThrowIfCancellationRequested();
             DiscoverySucceeded = false;
             var message = $"{owner} {type}: {ex.Message}";
             DiscoveryErrors.Add(message);

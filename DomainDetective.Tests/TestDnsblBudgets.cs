@@ -4,6 +4,22 @@ using DomainDetective.Views;
 namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
+    [Theory]
+    [InlineData(DomainIpScanMode.MxOnly)]
+    [InlineData(DomainIpScanMode.ApexAOnly)]
+    [InlineData(DomainIpScanMode.MxThenApexFallback)]
+    public async Task UnexpectedDiscoveryExceptionsRetainUnknownCoverage(DomainIpScanMode scanMode) {
+        using var health = new DomainHealthCheck();
+        health.DNSBLAnalysis.ClearDNSBL();
+        health.DNSBLAnalysis.AddDNSBL("provider.example.test");
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => throw new FormatException("Malformed discovery reply.");
+        await health.VerifyDNSBLWithMode("example.test", scanMode);
+        Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
+        Assert.Contains(health.DNSBLAnalysis.DiscoveryErrors, error => error.Contains("Malformed discovery reply."));
+        Assert.Equal("Incomplete", Converters.Convert(health.DNSBLAnalysis).Status);
+        Assert.DoesNotContain(health.DNSBLAnalysis.Assessments, assessment => assessment.Code == DnsblCodes.NotListed);
+    }
+
     [Fact]
     public async Task CaseVariantAppendRetainsOneCoverageTarget() {
         var analysis = new DNSBLAnalysis();
@@ -52,6 +68,8 @@ public class TestDnsblBudgets {
         Assert.Equal(0, analysis.Results["192.0.2.1"].NotChecked); // Raw Results retains the latest-result contract.
         Assert.Equal(1, repeated.ProvidersChecked);
         Assert.Contains(analysis.AllResults, record => !record.QuerySucceeded);
+        Assert.Contains(DomainDetective.Narratives.DnsblNarrative.Build(analysis).Details,
+            detail => detail.Contains("192.0.2.1: listed 0/2; not checked 1"));
     }
 
     [Fact]
@@ -142,7 +160,7 @@ public class TestDnsblBudgets {
 
     [Fact]
     public async Task AppendingResultsStartsAFreshBudgetAfterIdleTime() {
-        var analysis = new DNSBLAnalysis { AnalysisTimeout = TimeSpan.FromMilliseconds(50) };
+        var analysis = new DNSBLAnalysis { AnalysisTimeout = TimeSpan.FromSeconds(1) };
         analysis.ClearDNSBL();
         analysis.AddDNSBL("provider.example.test");
         int queries = 0;
@@ -151,7 +169,7 @@ public class TestDnsblBudgets {
             return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
         };
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
-        await Task.Delay(100);
+        await Task.Delay(1200);
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.2" }, new InternalLogger(), false);
         Assert.Equal(2, queries);
         Assert.Equal(2, analysis.Results.Count);

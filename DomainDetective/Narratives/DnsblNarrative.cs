@@ -58,7 +58,7 @@ public static class DnsblNarrative
                 ? "No listings observed; some DNSBL providers could not be checked."
                 : "No hosts were listed on DNSBLs.");
 
-        foreach (var kv in analysis.Results)
+        foreach (var kv in analysis.GetCoverageResults())
         {
             det.Add($"{kv.Key}: listed {kv.Value.Listed}/{kv.Value.Total}; not checked {kv.Value.NotChecked}");
         }

@@ -157,13 +157,8 @@ namespace DomainDetective {
             Subject = domainName;
             var run = queryRun ?? BeginQueryRun(cancellationToken);
 
-            DnsAnswer[] mxRecords;
-            try {
-                mxRecords = scanMode == DomainIpScanMode.ApexOnly || scanMode == DomainIpScanMode.ApexAOnly || scanMode == DomainIpScanMode.ApexAAAAOnly
-                    ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(run, domainName, DnsRecordType.MX);
-            } catch (System.OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; } catch {
-                mxRecords = System.Array.Empty<DnsClientX.DnsAnswer>();
-            }
+            var mxRecords = scanMode == DomainIpScanMode.ApexOnly || scanMode == DomainIpScanMode.ApexAOnly || scanMode == DomainIpScanMode.ApexAAAAOnly
+                ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(run, domainName, DnsRecordType.MX);
 
             Logger?.WriteVerbose($"Checking {domainName} against {DomainDNSBLLists.Count} domain blacklists");
             var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName));
@@ -256,10 +251,8 @@ namespace DomainDetective {
                     await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.AAAA), DnsblIpSource.MxAAAA, "MX AAAA");
                     if (!anyIpChecked) {
                         Logger?.WriteVerbose($"No IPs resolved from MX hosts; falling back to apex A/AAAA.");
-                        try {
-                            await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
-                            await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
-                        } catch (System.OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; } catch { /* Discovery failures retain incomplete evidence. */ }
+                        await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
+                        await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
                     }
                     break;
             }
