@@ -55,6 +55,7 @@ public class STARTTLSAnalysis : IHasAssessments {
             ServerResults.Clear();
             DowngradeDetected.Clear();
             ServerDetails.Clear();
+            Assessments.Clear();
             cancellationToken.ThrowIfCancellationRequested();
             var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
             var key = endpoint.Key;
@@ -69,10 +70,11 @@ public class STARTTLSAnalysis : IHasAssessments {
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
             if (ports == null) { throw new ArgumentNullException(nameof(ports)); }
-            cancellationToken.ThrowIfCancellationRequested();
             ServerResults.Clear();
             DowngradeDetected.Clear();
             ServerDetails.Clear();
+            Assessments.Clear();
+            cancellationToken.ThrowIfCancellationRequested();
             var portList = new List<int>();
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();

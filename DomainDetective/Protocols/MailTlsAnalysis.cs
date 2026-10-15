@@ -143,7 +143,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         if (endpoint == null) {
             throw new ArgumentNullException(nameof(endpoint));
         }
-        ServerResults.Clear();
+        ResetEvidence();
         var result = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
         ServerResults[endpoint.Key] = result;
     }
@@ -151,6 +151,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
     /// <summary>Analyzes multiple hosts.</summary>
     public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
         if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+        ResetEvidence();
         cancellationToken.ThrowIfCancellationRequested();
         var endpoints = new List<MailTransportEndpoint>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -168,6 +169,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         if (endpoints == null) {
             throw new ArgumentNullException(nameof(endpoints));
         }
+        ResetEvidence();
         cancellationToken.ThrowIfCancellationRequested();
         var materialized = new List<MailTransportEndpoint>();
         foreach (var endpoint in endpoints) {
@@ -187,7 +189,6 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 $"Endpoint collection contains duplicate logical result key '{duplicateKey}'. Analyze each backend separately to retain its connection evidence.",
                 nameof(endpoints));
         }
-        ServerResults.Clear();
         using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
         var results = await Task.WhenAll(targets.Select(async endpoint => {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -200,6 +201,11 @@ public partial class MailTlsAnalysis : IHasAssessments {
         for (int i = 0; i < targets.Length; i++) {
             ServerResults[targets[i].Key] = results[i];
         }
+    }
+
+    private void ResetEvidence() {
+        ServerResults.Clear();
+        Assessments.Clear();
     }
 
     private static string GetQuitCommand(MailProtocol protocol) => protocol switch {
