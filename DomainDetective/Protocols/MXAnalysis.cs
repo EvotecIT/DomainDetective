@@ -241,7 +241,13 @@ namespace DomainDetective {
             // Complete bounded alias checks before adding competing address work to the resolver queue.
             var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
                 async Task<DnsAnswer[]?> QueryAddressAsync(DnsRecordType type) {
-                    try { return await QueryDns(item.Host, type); }
+                    try {
+                        if (QueryDnsOverride != null) { return await QueryDns(item.Host, type); }
+                        var response = await DnsConfiguration.QueryDNSResponse(item.Host, type);
+                        if (response == null || !string.IsNullOrEmpty(response.Error) ||
+                            response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return null; }
+                        return response.Answers ?? Array.Empty<DnsAnswer>();
+                    }
                     catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
                         ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException) { return null; }
                 }

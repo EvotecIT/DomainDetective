@@ -6,10 +6,13 @@ namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
     [Theory]
-    [InlineData(DnsRecordType.A)]
-    [InlineData(DnsRecordType.AAAA)]
-    [InlineData(DnsRecordType.NS)]
-    public async Task FailedRecursiveMxLookupsRemainUnknownWithoutLosingOtherHosts(DnsRecordType failedType) {
+    [InlineData(DnsRecordType.A, false)]
+    [InlineData(DnsRecordType.AAAA, false)]
+    [InlineData(DnsRecordType.NS, false)]
+    [InlineData(DnsRecordType.A, true)]
+    [InlineData(DnsRecordType.AAAA, true)]
+    [InlineData(DnsRecordType.NS, true)]
+    public async Task FailedRecursiveMxLookupsRemainUnknownWithoutLosingOtherHosts(DnsRecordType failedType, bool envelope) {
         using var health = new DomainHealthCheck();
         var analysis = health.MXAnalysis;
         analysis.Subject = "example.test";
@@ -18,6 +21,14 @@ public class TestAuthoritativeProbeBudgets {
             bool address = type == DnsRecordType.A && (host == "good.example.test" || failedType != DnsRecordType.NS);
             return Task.FromResult(address ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
         };
+        if (envelope) {
+            var answers = analysis.QueryDnsOverride;
+            analysis.QueryDnsOverride = null;
+            health.DnsConfiguration.QueryDnsResponseOverride = async (host, type, _) => {
+                try { return new DnsResponse { Status = DnsResponseCode.NoError, Answers = await answers(host, type) }; }
+                catch (TimeoutException) { return new DnsResponse { Status = DnsResponseCode.ServerFailure }; }
+            };
+        }
         await analysis.AnalyzeMxRecords(new[] {
             new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 bad.example.test" },
             new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "20 good.example.test" }
