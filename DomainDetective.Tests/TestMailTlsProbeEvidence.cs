@@ -78,6 +78,13 @@ public class TestMailTlsProbeEvidence {
                 var firstByte = new byte[1];
                 int count = await stream.ReadAsync(firstByte, 0, 1, guard.Token);
                 if (count == 1 && firstByte[0] == 22) {
+                    // Drain the ClientHello record so closing the socket cannot reset an unread request
+                    // and hide the protocol-version rejection from the client.
+                    var header = new byte[4];
+                    await ReadFullyAsync(stream, header, guard.Token);
+                    int length = (header[2] << 8) | header[3];
+                    Assert.InRange(length, 1, 18432);
+                    await ReadFullyAsync(stream, new byte[length], guard.Token);
                     var protocolVersionAlert = new byte[] { 21, 3, 3, 0, 2, 2, 70 };
                     await stream.WriteAsync(protocolVersionAlert, 0, protocolVersionAlert.Length, guard.Token);
                 }
@@ -99,13 +106,22 @@ public class TestMailTlsProbeEvidence {
                     DisallowLegacyProtocols = true, RequireCertificateValid = false, RequireChainValid = false,
                     RequireHostnameMatch = false, DisallowExpiredCertificates = false
                 } });
-            Assert.True(evaluated.Conforms);
+            Assert.True(evaluated.Conforms, string.Join("; ", evaluated.Assessments.Select(item => item.Code)));
             Assert.DoesNotContain(evaluated.Assessments, item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed");
         } finally {
             guard.Cancel();
             listener.Stop();
             try { await server; } catch (OperationCanceledException) when (guard.IsCancellationRequested) { }
             catch (SocketException) when (guard.IsCancellationRequested) { }
+        }
+    }
+
+    private static async Task ReadFullyAsync(Stream stream, byte[] bytes, CancellationToken token) {
+        int offset = 0;
+        while (offset < bytes.Length) {
+            int read = await stream.ReadAsync(bytes, offset, bytes.Length - offset, token);
+            if (read == 0) { throw new EndOfStreamException("TLS record ended before its declared length."); }
+            offset += read;
         }
     }
 }
