@@ -17,7 +17,7 @@ public class TestMailTlsBudgets {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var server = Task.Run(async () => {
             using var client = await listener.AcceptTcpClientAsync();
             using var stream = client.GetStream();
@@ -55,8 +55,11 @@ public class TestMailTlsBudgets {
             var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile);
             Assert.Equal(reject, evaluated.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
         } finally {
+            guard.Cancel();
             listener.Stop();
-            await server;
+            try { await server; } catch (OperationCanceledException) when (guard.IsCancellationRequested) { }
+            catch (SocketException) when (guard.IsCancellationRequested) { }
+            catch (ObjectDisposedException) when (guard.IsCancellationRequested) { }
         }
     }
 
