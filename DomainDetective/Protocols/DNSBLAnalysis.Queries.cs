@@ -141,7 +141,6 @@ public partial class DNSBLAnalysis {
                     yield return Record(string.Empty, $"{response.Type}: {response.Error}", false);
                     continue;
                 }
-                if (response.Answers.Length == 0) { yield return Record(string.Empty, null, false); }
                 var reserved = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var answer in response.Answers) {
                     var value = string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw ?? string.Empty : answer.Data;
@@ -151,6 +150,9 @@ public partial class DNSBLAnalysis {
                 if (reserved.Count > 0) {
                     yield return Record(reserved.First(), $"{response.Type}: Provider returned error response {string.Join(", ", reserved)}.", false);
                 }
+            }
+            if (responses[i].All(response => response.Error == null && response.Answers.Length == 0)) {
+                yield return Record(string.Empty, null, false);
             }
         }
     }
