@@ -5,6 +5,46 @@ using DomainDetective.DesiredState;
 namespace DomainDetective.Tests;
 
 public class TestDnsblBudgets {
+    [Fact]
+    public async Task InfiniteProviderTimeoutStillHonorsTheAnalysisBudget() {
+        var pending = new TaskCompletionSource<IEnumerable<DnsResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new DNSBLAnalysis { ProviderTimeout = Timeout.InfiniteTimeSpan, AnalysisTimeout = TimeSpan.FromMilliseconds(100) };
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        analysis.QueryDnsFullOverride = (_, _) => pending.Task;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try {
+            await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), true, guard.Token);
+            Assert.False(guard.IsCancellationRequested);
+            Assert.False(Assert.Single(analysis.AllResults).QuerySucceeded);
+            Assert.Equal("Incomplete", Converters.Convert(analysis).Status);
+        } finally { pending.TrySetResult(Array.Empty<DnsResponse>()); }
+    }
+
+    [Theory]
+    [InlineData(DnsblIpSource.UserProvided)]
+    [InlineData(DnsblIpSource.ApexA)]
+    [InlineData(DnsblIpSource.MxA)]
+    public async Task DesiredDnsblCoverageFollowsTheSelectedDiscoverySources(DnsblIpSource selectedSource) {
+        using var health = new DomainHealthCheck();
+        health.DNSBLAnalysis.ClearDNSBL();
+        health.DNSBLAnalysis.AddDNSBL("provider.example.test");
+        health.DNSBLAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Status = type == DnsRecordType.MX ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError,
+            Answers = type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.2" } } : Array.Empty<DnsAnswer>()
+        });
+        await health.DNSBLAnalysis.AnalyzeDNSBLRecordsMX("example.test", new InternalLogger(), scanMode: DomainIpScanMode.MxAndApex);
+        await health.DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), false);
+        Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
+        var profile = new DesiredStateProfile { Dnsbl = new DesiredStateDnsblPolicy {
+            DisallowListings = true, RequireAtLeastOneResult = false, IncludeIpSources = new[] { selectedSource }
+        } };
+        var evaluated = DesiredStateEvaluator.Evaluate("example.test", health, profile);
+        Assert.Equal(selectedSource == DnsblIpSource.MxA, evaluated.Assessments.Any(item => item.Code == "DesiredState.DNSBL.QueryFailed"));
+        Assert.Equal(selectedSource != DnsblIpSource.MxA, evaluated.Conforms);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

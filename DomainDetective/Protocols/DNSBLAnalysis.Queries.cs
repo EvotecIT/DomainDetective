@@ -21,10 +21,16 @@ public partial class DNSBLAnalysis {
     public bool DiscoverySucceeded { get; private set; } = true;
     /// <summary>Failures that prevented discovering every intended DNSBL target.</summary>
     public List<string> DiscoveryErrors { get; } = new();
+    private readonly HashSet<DnsblIpSource> _failedDiscoverySources = new();
+
+    internal bool HasDiscoveryFailure(ISet<DnsblIpSource>? sources, ISet<DnsblQueryKind>? kinds) =>
+        _failedDiscoverySources.Any(source => (sources == null || sources.Contains(source)) &&
+            (kinds == null || kinds.Contains(source == DnsblIpSource.MxAAAA || source == DnsblIpSource.ApexAAAA
+                ? DnsblQueryKind.IpAddressV6 : DnsblQueryKind.IpAddressV4)));
 
     internal QueryRun BeginQueryRun(CancellationToken caller) => new(caller);
 
-    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type) {
+    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
         var remaining = AnalysisTimeout - run.Budget.Elapsed;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
@@ -43,6 +49,7 @@ public partial class DNSBLAnalysis {
         catch (Exception ex) when (ex is not OutOfMemoryException) {
             run.CallerToken.ThrowIfCancellationRequested();
             DiscoverySucceeded = false;
+            foreach (var source in sources) { _failedDiscoverySources.Add(source); }
             var message = $"{owner} {type}: {ex.Message}";
             DiscoveryErrors.Add(message);
             using var collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: owner) : null;
@@ -66,7 +73,7 @@ public partial class DNSBLAnalysis {
         try {
             remaining = AnalysisTimeout - run.Budget.Elapsed;
             if (remaining <= TimeSpan.Zero) { return (answers, "Analysis budget exhausted."); }
-            deadline.CancelAfter(ProviderTimeout < remaining ? ProviderTimeout : remaining);
+            deadline.CancelAfter(ProviderTimeout == Timeout.InfiniteTimeSpan || ProviderTimeout > remaining ? remaining : ProviderTimeout);
             async Task<(DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
                 try {
                     var responseTask = QueryDnsFullOverride != null
@@ -108,7 +115,8 @@ public partial class DNSBLAnalysis {
             run.CallerToken.ThrowIfCancellationRequested();
             var response = responses[i];
             foreach (var answer in response.Answers.Count == 0 ? new DnsAnswer?[] { null } : response.Answers.Cast<DnsAnswer?>()) {
-                string value = answer?.Data ?? answer?.DataRaw ?? string.Empty;
+                string? decoded = answer?.Data;
+                string value = string.IsNullOrWhiteSpace(decoded) ? answer?.DataRaw ?? string.Empty : decoded!;
                 var meaning = GetReplyCodeMeaning(zones[i], value);
                 var error = value.StartsWith("127.255.", StringComparison.Ordinal) ? $"Provider returned error response {value}." : response.Error;
                 yield return new DNSBLRecord {

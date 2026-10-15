@@ -319,9 +319,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
         if (desired.DisallowListings != true) { return; }
-        bool requiresIpDiscovery = (includeKinds == null || includeKinds.Any(kind => kind != DnsblQueryKind.Domain)) &&
-            (includeSources == null || includeSources.Any(source => source != DnsblIpSource.Domain));
-        if (applicable.Any(r => !r.QuerySucceeded) || !dnsbl.DiscoverySucceeded && requiresIpDiscovery) {
+        if (applicable.Any(r => !r.QuerySucceeded) || dnsbl.HasDiscoveryFailure(includeSources, includeKinds)) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
                 Code = "DesiredState.DNSBL.QueryFailed",

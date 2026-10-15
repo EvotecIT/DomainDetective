@@ -147,6 +147,7 @@ namespace DomainDetective {
             Assessments.Clear();
             DiscoverySucceeded = true;
             DiscoveryErrors.Clear();
+            _failedDiscoverySources.Clear();
         }
 
         internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true, DomainIpScanMode scanMode = DomainIpScanMode.MxThenApexFallback, System.Threading.CancellationToken cancellationToken = default, QueryRun? queryRun = null) {
@@ -158,7 +159,7 @@ namespace DomainDetective {
             var run = queryRun ?? BeginQueryRun(cancellationToken);
 
             var mxRecords = scanMode == DomainIpScanMode.ApexOnly || scanMode == DomainIpScanMode.ApexAOnly || scanMode == DomainIpScanMode.ApexAAAAOnly
-                ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(run, domainName, DnsRecordType.MX);
+                ? Array.Empty<DnsAnswer>() : await QueryDiscoveryAsync(run, domainName, DnsRecordType.MX, DnsblIpSource.MxA, DnsblIpSource.MxAAAA);
 
             Logger?.WriteVerbose($"Checking {domainName} against {DomainDNSBLLists.Count} domain blacklists");
             var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName));
@@ -205,7 +206,7 @@ namespace DomainDetective {
                 if (hosts.Count == 0) return pairs;
                 Logger?.WriteVerbose($"Found {hosts.Count} MX host(s): {string.Join(", ", hosts)}");
                 foreach (var host in hosts) {
-                    var answers = await QueryDiscoveryAsync(run, host, type);
+                    var answers = await QueryDiscoveryAsync(run, host, type, type == DnsRecordType.A ? DnsblIpSource.MxA : DnsblIpSource.MxAAAA);
                     pairs.AddRange(answers.Select(a => (a.Data, host)));
                 }
                 return pairs;
@@ -213,7 +214,7 @@ namespace DomainDetective {
 
             // Resolve apex (A/AAAA) as needed
             async Task<List<(string ip, string host)>> ResolveApexAsync(DnsRecordType type) {
-                var answers = await QueryDiscoveryAsync(run, domainName, type);
+                var answers = await QueryDiscoveryAsync(run, domainName, type, type == DnsRecordType.A ? DnsblIpSource.ApexA : DnsblIpSource.ApexAAAA);
                 return answers.Select(a => (a.Data, domainName)).ToList();
             }
 
