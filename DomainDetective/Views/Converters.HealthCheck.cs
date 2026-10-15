@@ -25,7 +25,7 @@ public static partial class Converters {
         foreach (HealthCheckType check in (checks ?? health.LastVerifiedChecks).Distinct()) {
             Assessment? failure = health.GetCheckFailure(check);
             if (failure != null) {
-                errors?.Add(failure.Message);
+                if (failure.Severity == AssessmentSeverity.Error) { errors?.Add(failure.Message); }
                 items.Add(new CheckFailureInfo(check, failure));
                 continue;
             }

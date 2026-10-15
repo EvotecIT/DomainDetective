@@ -31,4 +31,16 @@ public partial class DomainHealthCheck : IHasAssessments {
         }
         _logger.WriteErrorCode(failure.Code, "{0}", failure.Message);
     }
+
+    private void RecordCheckCancellation(HealthCheckType check, string domain) {
+        var incomplete = new Assessment {
+            Severity = AssessmentSeverity.Warning, Code = "Verification.Check.Canceled",
+            Category = check.ToString(), Source = nameof(Verify), Target = domain,
+            Message = $"{check}: caller cancellation interrupted the check; its result is incomplete."
+        };
+        lock (_executionLock) {
+            _checkFailures[check] = incomplete;
+            Assessments.Add(incomplete);
+        }
+    }
 }

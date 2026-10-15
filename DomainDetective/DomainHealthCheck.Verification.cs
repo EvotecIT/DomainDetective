@@ -233,6 +233,7 @@ public partial class DomainHealthCheck {
             ApplyExecutionOptions(exec);
             _logger.WriteVerbose("Running health checks for {0}", domainName);
             var admitted = new HashSet<HealthCheckType>();
+            var completed = new HashSet<HealthCheckType>();
             void MarkAdmitted(HealthCheckType check) {
                 lock (_executionLock) {
                     admitted.Add(check);
@@ -293,6 +294,7 @@ public partial class DomainHealthCheck {
                 } finally {
                     sw.Stop();
                 }
+                lock (_executionLock) { completed.Add(healthCheckType); }
                 _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
             }
 
@@ -342,6 +344,15 @@ public partial class DomainHealthCheck {
                     } catch {
                         // Observe the prestarted task without replacing the original failure. Without one, the DANE
                         // check ran and its failure is already recorded as that check's result.
+                    }
+                }
+                if (executionFailure is OperationCanceledException && cancellationToken.IsCancellationRequested) {
+                    // A prestarted DANE task can finish before its gated check is reached.
+                    if (prestartedDaneTask?.Status == TaskStatus.RanToCompletion) {
+                        completed.Add(HealthCheckType.DANE);
+                    }
+                    foreach (var check in admitted.Where(check => !completed.Contains(check))) {
+                        RecordCheckCancellation(check, domainName);
                     }
                 }
             }

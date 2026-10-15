@@ -18,12 +18,12 @@ public sealed class CheckFailureInfo {
     public string? Subject { get; }
     /// <summary>Execution failure recorded by the verification run.</summary>
     public IReadOnlyList<Assessment> Assessments { get; }
-    /// <summary>Error status for the incomplete check.</summary>
-    public string Status => "Error";
+    /// <summary>Error status for a failed check, or incomplete status after caller cancellation.</summary>
+    public string Status => ErrorCount > 0 ? "Error" : "Incomplete";
     /// <summary>Number of errors in this projection.</summary>
-    public int ErrorCount => 1;
+    public int ErrorCount => Assessments[0].Severity == AssessmentSeverity.Error ? 1 : 0;
     /// <summary>Number of warnings in this projection.</summary>
-    public int WarningCount => 0;
+    public int WarningCount => Assessments[0].Severity == AssessmentSeverity.Warning ? 1 : 0;
     /// <summary>Execution failure details.</summary>
     public string Summary => Assessments[0].Message;
     /// <summary>Catalog advice for the failure assessment, when available.</summary>

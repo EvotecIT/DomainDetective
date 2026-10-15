@@ -64,6 +64,18 @@ public class TestVerificationRunState {
         Assert.DoesNotContain(HealthCheckType.CAA, health.LastVerifiedChecks);
         Assert.DoesNotContain(Converters.ConvertChecks(health), view => view is CaaInfo);
         Assert.Equal(preCanceled ? 0 : 1, health.LastVerifiedChecks.Count);
+        var errors = new System.Collections.Generic.List<string>();
+        var views = Converters.ConvertChecks(health, errors: errors);
+        Assert.Empty(errors);
+        if (preCanceled) { Assert.Empty(views); }
+        else {
+            var incomplete = Assert.IsType<CheckFailureInfo>(Assert.Single(views));
+            Assert.Equal("Incomplete", incomplete.Status);
+            Assert.Equal("current.test", incomplete.Subject);
+            Assert.Equal(0, incomplete.ErrorCount);
+            Assert.Equal(1, incomplete.WarningCount);
+            Assert.Equal("Verification.Check.Canceled", Assert.Single(incomplete.Assessments).Code);
+        }
     }
 
     [Theory]
