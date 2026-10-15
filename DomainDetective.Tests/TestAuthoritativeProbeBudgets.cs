@@ -28,7 +28,7 @@ public class TestAuthoritativeProbeBudgets {
         Assert.Contains(analysis.Assessments, item => item.Code == "MX.Address.QueryFailed");
         Assert.True(DomainDetective.Views.Converters.Convert(analysis).AddressQueryFailed);
         var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
-            new DomainDetective.DesiredState.DesiredStateProfile { Mx = new DomainDetective.DesiredState.DesiredStateMxPolicy { DisallowNonExistentTargets = true } });
+            new DomainDetective.DesiredState.DesiredStateProfile { Mx = new DomainDetective.DesiredState.DesiredStateMxPolicy { DisallowNonExistentTargets = true, RequireIpv6Supported = true } });
         Assert.Contains(evaluated.Assessments, item => item.Code == "DesiredState.MX.Address.QueryFailed");
     }
 

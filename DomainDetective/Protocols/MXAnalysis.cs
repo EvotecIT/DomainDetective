@@ -54,6 +54,8 @@ namespace DomainDetective {
         public bool CnameQueryFailed { get; private set; }
         /// <summary>Whether any recursive address or existence lookup for an MX target failed.</summary>
         public bool AddressQueryFailed { get; private set; }
+        internal bool AddressExistenceQueryFailed { get; private set; }
+        internal bool Ipv6QueryFailed { get; private set; }
 
         /// <summary>Indicates that a record incorrectly points to an IP address.</summary>
         public bool PointsToIpAddress { get; private set; } // should be false
@@ -123,6 +125,8 @@ namespace DomainDetective {
             PointsToCname = false;
             CnameQueryFailed = false;
             AddressQueryFailed = false;
+            AddressExistenceQueryFailed = false;
+            Ipv6QueryFailed = false;
             PointsToIpAddress = false;
             PointsToNonExistentDomain = false;
             PointsToDomainWithoutAOrAaaaRecord = false;
@@ -262,6 +266,8 @@ namespace DomainDetective {
                 }
                 var noA = item.A == null || item.A.Length == 0;
                 var noAAAA = item.Aaaa == null || item.Aaaa.Length == 0;
+                Ipv6QueryFailed |= item.Aaaa == null;
+                AddressExistenceQueryFailed |= noA && noAAAA && (item.A == null || item.Aaaa == null || item.Ns == null);
                 Ipv6Supported = Ipv6Supported || !noAAAA;
                 if (noA && noAAAA && item.A != null && item.Aaaa != null && item.Ns != null) {
                     var nonExistent = item.Ns.Length == 0;
@@ -333,9 +339,10 @@ namespace DomainDetective {
             }
 
             // TTL uniformity across A/AAAA per MX host
-            foreach (var (_, host) in evaluationList) {
-                var a = await QueryDns(host, DnsRecordType.A);
-                var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+            foreach (var item in hostResults) {
+                var host = item.Host;
+                var a = item.A;
+                var aaaa = item.Aaaa;
                 var addrTtls = (a ?? Array.Empty<DnsAnswer>()).Concat(aaaa ?? Array.Empty<DnsAnswer>())
                     .Select(x => x.TTL).Distinct().ToList();
                 if (addrTtls.Count > 1) {
