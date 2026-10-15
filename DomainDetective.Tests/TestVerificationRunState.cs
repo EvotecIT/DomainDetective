@@ -75,7 +75,25 @@ public class TestVerificationRunState {
             Assert.Equal(0, incomplete.ErrorCount);
             Assert.Equal(1, incomplete.WarningCount);
             Assert.Equal("Verification.Check.Canceled", Assert.Single(incomplete.Assessments).Code);
+            using var filtered = health.FilterAnalyses(new[] { HealthCheckType.EDNSSUPPORT });
+            Assert.Equal("Incomplete", Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(filtered))).Status);
         }
+    }
+
+    [Fact]
+    public async Task CancellationKeepsCompletedViewsAndMarksInterruptedViews() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        using var caller = new CancellationTokenSource();
+        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => { caller.Cancel(); return Task.FromResult(Array.Empty<DnsAnswer>()); };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.test",
+            new[] { HealthCheckType.CAA, HealthCheckType.EDNSSUPPORT }, cancellationToken: caller.Token,
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = false }));
+        var views = Converters.ConvertChecks(health);
+        Assert.IsType<CaaInfo>(views[0]);
+        Assert.Equal("Incomplete", Assert.IsType<CheckFailureInfo>(views[1]).Status);
+        Assert.Equal(2, views.Count);
+        Assert.DoesNotContain(health.Assessments, item => item.Code == "Verification.Check.Failed");
     }
 
     [Theory]
