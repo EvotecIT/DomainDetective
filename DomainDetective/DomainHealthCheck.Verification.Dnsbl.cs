@@ -107,7 +107,6 @@ namespace DomainDetective {
             } else {
                 // ensure previous results are cleared
                 DNSBLAnalysis.Reset();
-                DNSBLAnalysis.Logger = _logger;
             }
 
             if (domains.Count > 0) {

@@ -74,6 +74,11 @@ public sealed class AssessmentCollector : IDisposable {
         Add(AssessmentSeverity.Info, message, code, category, target, source);
     }
 
+    /// <summary>Adds a warning directly so an owner can publish evidence before invoking external logger callbacks.</summary>
+    internal void AddWarning(string message, string? code = null, string? category = null, string? target = null, string? source = null) {
+        Add(AssessmentSeverity.Warning, message, code, category, target, source);
+    }
+
     private readonly HashSet<string> _seen = new();
 
     private void Add(AssessmentSeverity severity, string message, string? code = null, string? category = null, string? target = null, string? source = null) {

@@ -35,15 +35,14 @@ namespace DomainDetective {
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
             var run = BeginQueryRun(default);
-            Logger = logger;
             Subject = domain;
-            Logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
+            logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
             await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, run, DnsblIpSource.Domain, sourceHost: domain)) {
                 collected.Add(record);
                 yield return record;
             }
-            ConvertToResults(domain, collected);
+            ConvertToResults(domain, collected, logger);
         }
 
         /// <summary>
@@ -58,11 +57,10 @@ namespace DomainDetective {
             if (clearExisting) {
                 Reset();
             }
-            Logger = logger;
             if (items.Count == 0) return;
             var run = BeginQueryRun(default);
 
-            Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
+            logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 
             var results = await Helpers.BoundedAsync.RunAsync(items, async d => {
                     var list = new List<DNSBLRecord>();
@@ -72,7 +70,7 @@ namespace DomainDetective {
                     return (d, list);
             }, 16, run.CallerToken);
             foreach (var (key, records) in results) {
-                ConvertToResults(key, records);
+                ConvertToResults(key, records, logger);
             }
         }
 

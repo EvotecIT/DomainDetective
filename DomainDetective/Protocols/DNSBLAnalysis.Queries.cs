@@ -33,7 +33,7 @@ public partial class DNSBLAnalysis {
 
     internal QueryRun BeginQueryRun(CancellationToken caller) => new(caller);
 
-    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, params DnsblIpSource[] sources) {
+    private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
         var remaining = AnalysisTimeout - run.Budget.Elapsed;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
@@ -51,14 +51,16 @@ public partial class DNSBLAnalysis {
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is not OutOfMemoryException) {
             run.CallerToken.ThrowIfCancellationRequested();
+            var message = $"{owner} {type}: {ex.Message}";
+            var warning = $"DNSBL target discovery was incomplete: {message}";
             lock (SyncRoot) {
                 DiscoverySucceeded = false;
                 foreach (var source in sources) { _failedDiscoverySources.Add(source); }
-                var message = $"{owner} {type}: {ex.Message}";
                 DiscoveryErrors.Add(message);
-                using var collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: owner) : null;
-                Logger?.WriteWarningCode(DnsblCodes.QueryFailed, "DNSBL target discovery was incomplete: {0}", message);
+                using var collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: owner) : null;
+                collector?.AddWarning(warning, DnsblCodes.QueryFailed);
             }
+            logger?.WriteWarningCode(DnsblCodes.QueryFailed, warning);
             return Array.Empty<DnsAnswer>();
         }
     }
