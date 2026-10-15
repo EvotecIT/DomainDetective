@@ -9,7 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsProbeEvidence {
-    [Fact]
+    [EphemeralTlsFact]
     public async Task PrimarySessionGradeSurvivesAnAuxiliaryProbeDeadline() {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
