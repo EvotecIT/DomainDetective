@@ -26,13 +26,18 @@ internal static class AuthoritativeDnsProbes {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeoutMs);
         try {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Callers supply addresses from authoritative A/AAAA records. Invalid data must
+            // remain unavailable rather than starting a new recursive server-name lookup.
+            if (!IPAddress.TryParse(address, out _)) { return null; }
             var query = new DnsMessage(owner, type, new DnsMessageOptions(RecursionDesired: false));
             var result = await DnsWireQueryClient.QueryUdpAsync(address, 53, query, timeoutMs,
                 useTcpFallback: true, cancellationToken: deadline.Token).ConfigureAwait(false);
             var response = result.Response;
             return IsUsableResponse(response, acceptRefused) ? response : null;
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException || ex is ArgumentException || ex is FormatException) {
+        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
+            cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
     }

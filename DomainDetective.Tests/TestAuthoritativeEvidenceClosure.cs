@@ -63,4 +63,12 @@ public class TestAuthoritativeEvidenceClosure {
         var response = await AuthoritativeDnsProbes.QueryAsync(address, owner, DnsRecordType.A, timeoutMs: 25);
         Assert.Null(response);
     }
+
+    [Fact]
+    public async Task InvalidAuthoritativeAddressDoesNotHideCallerCancellation() {
+        using var caller = new CancellationTokenSource();
+        caller.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            AuthoritativeDnsProbes.QueryAsync("not an IP address", "example.test", DnsRecordType.A, cancellationToken: caller.Token));
+    }
 }
