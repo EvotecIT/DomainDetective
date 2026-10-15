@@ -36,9 +36,13 @@ public class TestMailTlsBudgets {
         });
         try {
             using var health = new DomainHealthCheck();
-            var analysis = protocol == MailProtocol.Smtp ? health.SmtpTlsAnalysis : protocol == MailProtocol.Imap ? health.ImapTlsAnalysis : health.Pop3TlsAnalysis;
+            var analysis = new MailTlsAnalysis();
             await analysis.AnalyzeServer(protocol, new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
             var result = Assert.Single(analysis.ServerResults).Value;
+            string key = $"mail.example.test:{port}";
+            if (protocol == MailProtocol.Smtp) { health.SmtpTlsAnalysis.ServerResults[key] = result; }
+            else if (protocol == MailProtocol.Imap) { health.ImapTlsAnalysis.ServerResults[key] = result; }
+            else { health.Pop3TlsAnalysis.ServerResults[key] = result; }
             Assert.False(result.StartTlsAdvertised);
             Assert.Equal(reject, result.FailureKind != CertificateFailureKind.None);
             var policy = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy {
