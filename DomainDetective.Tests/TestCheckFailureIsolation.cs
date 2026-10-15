@@ -44,12 +44,17 @@ public class TestCheckFailureIsolation {
     [Fact]
     public async Task DiscoveryUsesTheConfiguredBudgetWithoutRequiringALogger() {
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reply = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         var analysis = new EdnsSupportAnalysis { DiscoveryTimeout = TimeSpan.FromMilliseconds(20),
-            QueryDnsOverride = async (_, _) => { started.TrySetResult(true); await Task.Delay(100); return Array.Empty<DnsAnswer>(); } };
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", null));
-        Assert.True(started.Task.IsCompleted);
+            QueryDnsOverride = (_, _) => { started.TrySetResult(true); return reply.Task; } };
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", null, guard.Token));
+            Assert.False(guard.IsCancellationRequested);
+            Assert.True(started.Task.IsCompleted);
+        } finally { reply.TrySetResult(Array.Empty<DnsAnswer>()); }
         analysis.DiscoveryTimeout = TimeSpan.FromSeconds(1);
-        await analysis.Analyze("example.test", null);
+        await analysis.Analyze("example.test", null, guard.Token);
         Assert.Empty(analysis.ServerSupport);
     }
 
