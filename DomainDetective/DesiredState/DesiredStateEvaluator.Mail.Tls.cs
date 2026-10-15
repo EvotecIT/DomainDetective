@@ -212,7 +212,7 @@ public static partial class DesiredStateEvaluator {
                     Message = $"Desired state disallows legacy TLS, but '{key}' offers or negotiated legacy protocols."
                 });
             }
-            else if (desired.DisallowLegacyProtocols == true && !r.ProtocolSupportComplete &&
+            else if (desired.DisallowLegacyProtocols == true && !r.ProtocolSupportComplete && !r.LegacyProtocolSupportComplete &&
                 (r.StartTlsAdvertised || r.Protocol != System.Security.Authentication.SslProtocols.None || r.FailureKind != CertificateFailureKind.None)) {
                 sink.Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,

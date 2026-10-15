@@ -53,6 +53,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
         public bool SupportsTls12 { get; set; }
         /// <summary>Whether all auxiliary TLS protocol probes completed within their budget.</summary>
         public bool ProtocolSupportComplete { get; set; }
+        /// <summary>Whether TLS 1.0 and TLS 1.1 support were both conclusively probed.</summary>
+        public bool LegacyProtocolSupportComplete { get; set; }
         /// <summary>Gets or sets the supports tls11 value.</summary>
         public bool SupportsTls11 { get; set; }
         /// <summary>Gets or sets the supports tls10 value.</summary>
@@ -334,6 +336,11 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     SetFailure(result, ioex);
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
+                    result.StartTlsAdvertised = true;
+                    ComputeGrade(result);
+                    if (result.LegacyEnabled) {
+                        logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
+                    }
                     // Probe protocol support (best-effort)
                     await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                     if (result.SupportsTls10 || result.SupportsTls11) {   
@@ -341,12 +348,6 @@ public partial class MailTlsAnalysis : IHasAssessments {
                             result.SupportsTls10 ? "1.0" : string.Empty,
                             result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
                             host, port);
-                    }
-                    result.StartTlsAdvertised = true;
-                    // Grade and legacy detection
-                    ComputeGrade(result);
-                    if (result.LegacyEnabled) {
-                        logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
                         await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
@@ -452,6 +453,10 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 SetFailure(result, ioex);
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
+                ComputeGrade(result);
+                if (result.LegacyEnabled) {
+                    logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
+                }
                 // Probe protocol support (best-effort)
                 await ProbeProtocolSupport(protocol, endpoint, result, timeoutCts.Token).ConfigureAwait(false);
                 if (result.SupportsTls10 || result.SupportsTls11) {       
@@ -459,10 +464,6 @@ public partial class MailTlsAnalysis : IHasAssessments {
                         result.SupportsTls10 ? "1.0" : string.Empty,
                         result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
                         host, port);
-                }
-                ComputeGrade(result);
-                if (result.LegacyEnabled) {
-                    logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
                 if (OutboundAddressResolver == null) {
                     await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
@@ -496,6 +497,15 @@ public partial class MailTlsAnalysis : IHasAssessments {
 
     private async Task ProbeProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
         bool complete = true;
+        bool legacyComplete = true;
+        result.ProtocolSupportComplete = false;
+        result.LegacyProtocolSupportComplete = false;
+        void MarkIncomplete(SslProtocols proto) {
+            complete = false;
+#pragma warning disable SYSLIB0039
+            if (proto == SslProtocols.Tls || proto == SslProtocols.Tls11) { legacyComplete = false; }
+#pragma warning restore SYSLIB0039
+        }
         result.SupportsTls12 |= result.Protocol == SslProtocols.Tls12;
 #pragma warning disable SYSLIB0039
         result.SupportsTls11 |= result.Protocol == SslProtocols.Tls11;
@@ -508,26 +518,23 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 using var transport = client.GetStream();
                 if (!UsesDirectTls(protocol, endpoint.Port)) {
                     var preparation = await NegotiateStartTlsAsync(protocol, transport, null, token).ConfigureAwait(false);
-                    if (!preparation.Ready) { complete = false; return false; }
+                    if (!preparation.Ready) { MarkIncomplete(proto); return false; }
                 }
                 using var ssl = new SslStream(transport, false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
             } catch (AuthenticationException) when (!token.IsCancellationRequested) { return false; }
-            catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) { complete = false; return false; }
+            catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) { MarkIncomplete(proto); return false; }
         }
-        var tls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
-        var tls12 = result.Protocol == SslProtocols.Tls12 || await TryHandshake(SslProtocols.Tls12);
+        result.SupportsTls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
+        result.SupportsTls12 = result.SupportsTls12 || await TryHandshake(SslProtocols.Tls12);
         // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
 #pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
-        var tls11 = result.Protocol == SslProtocols.Tls11 || await TryHandshake(SslProtocols.Tls11);
-        var tls10 = result.Protocol == SslProtocols.Tls || await TryHandshake(SslProtocols.Tls);
+        result.SupportsTls11 = result.SupportsTls11 || await TryHandshake(SslProtocols.Tls11);
+        result.SupportsTls10 = result.SupportsTls10 || await TryHandshake(SslProtocols.Tls);
 #pragma warning restore SYSLIB0039
+        result.LegacyProtocolSupportComplete = legacyComplete;
         token.ThrowIfCancellationRequested();
-        result.SupportsTls13 = tls13;
-        result.SupportsTls12 = tls12;
-        result.SupportsTls11 = tls11;
-        result.SupportsTls10 = tls10;
         result.ProtocolSupportComplete = complete;
     }
 
