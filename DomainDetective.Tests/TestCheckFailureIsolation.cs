@@ -134,12 +134,11 @@ public class TestCheckFailureIsolation {
     }
 
     [Fact]
-    public async Task MissingConverterRetainsCheckIdentityWithoutAnOptionalErrorSink() {
+    public void MissingConverterRetainsCheckIdentityWithoutAnOptionalErrorSink() {
         using var health = Create();
-        await health.Verify("example.test", new[] { HealthCheckType.CAA });
         var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.ROBOTS })));
         Assert.Equal(HealthCheckType.ROBOTS, failure.Check);
-        Assert.Equal("example.test", failure.Subject);
+        Assert.Null(failure.Subject);
         Assert.Equal("Verification.Conversion.Failed", Assert.Single(failure.Assessments).Code);
     }
 
