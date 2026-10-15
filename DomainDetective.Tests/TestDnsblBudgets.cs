@@ -102,7 +102,8 @@ public class TestDnsblBudgets {
         Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
         Assert.Contains(health.DNSBLAnalysis.DiscoveryErrors, error => error.Contains("Malformed discovery reply."));
         Assert.Equal("Incomplete", Converters.Convert(health.DNSBLAnalysis).Status);
-        Assert.DoesNotContain(health.DNSBLAnalysis.Assessments, assessment => assessment.Code == DnsblCodes.NotListed);
+        Assert.All(health.DNSBLAnalysis.Assessments.Where(assessment => assessment.Code == DnsblCodes.NotListed),
+            assessment => Assert.Equal("example.test", assessment.Target));
     }
 
     [Fact]
@@ -112,9 +113,13 @@ public class TestDnsblBudgets {
         analysis.AddDNSBL("provider.example.test");
         analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "Mail.example.test" }, new InternalLogger());
+        analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.ServerFailure } });
         await analysis.AnalyzeDNSBLRecordsMany(new[] { "MAIL.example.test" }, new InternalLogger(), false);
         Assert.Equal(1, analysis.RecordChecked);
         Assert.Single(Converters.Convert(analysis).HostSummaries);
+        Assert.Single(analysis.Results);
+        Assert.Equal(1, analysis.Results["Mail.example.test"].NotChecked);
+        Assert.Equal(2, analysis.AllResults.Count);
     }
 
     [Fact]

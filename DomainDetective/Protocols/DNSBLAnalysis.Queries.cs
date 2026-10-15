@@ -47,7 +47,14 @@ public partial class DNSBLAnalysis {
                 response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                 throw new InvalidOperationException(ResponseFailure(response));
             }
-            return response.Answers ?? Array.Empty<DnsAnswer>();
+            var answers = (response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray();
+            if (type == DnsRecordType.A || type == DnsRecordType.AAAA) {
+                var family = type == DnsRecordType.A ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
+                if (answers.Any(answer => !IPAddress.TryParse(answer.Data, out var ip) || ip.AddressFamily != family)) {
+                    throw new FormatException($"DNS {type} discovery returned an invalid address.");
+                }
+            }
+            return answers;
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is not OutOfMemoryException) {
             run.CallerToken.ThrowIfCancellationRequested();

@@ -4,6 +4,52 @@ using DomainDetective.Views;
 namespace DomainDetective.Tests;
 
 public class TestDnsblQueryOutcomes {
+    [Theory]
+    [InlineData(DomainIpScanMode.ApexAOnly, false)]
+    [InlineData(DomainIpScanMode.ApexAOnly, true)]
+    [InlineData(DomainIpScanMode.MxThenApexFallback, false)]
+    [InlineData(DomainIpScanMode.MxThenApexFallback, true)]
+    public async Task AliasAnswersDoNotBecomeIpCoverageOrPreventApexFallback(DomainIpScanMode mode, bool terminalAddress) {
+        using var health = new DomainHealthCheck();
+        var analysis = health.DNSBLAnalysis;
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        var queries = new List<string>();
+        analysis.QueryDnsFullOverride = (names, _) => {
+            queries.AddRange(names);
+            return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        };
+        health.DnsConfiguration.QueryDnsResponseOverride = (owner, type, _) => {
+            if (type == DnsRecordType.MX) { return Task.FromResult(new DnsResponse { Answers = new[] { new DnsAnswer { Type = type, DataRaw = "10 mail.example.test" } } }); }
+            var answers = new List<DnsAnswer> { new() { Type = DnsRecordType.CNAME, DataRaw = "alias.example.test" } };
+            if (type == DnsRecordType.A && (terminalAddress || mode == DomainIpScanMode.MxThenApexFallback && owner == "example.test")) {
+                answers.Add(new DnsAnswer { Type = type, DataRaw = owner == "mail.example.test" ? "192.0.2.1" : "192.0.2.2" });
+            }
+            return Task.FromResult(new DnsResponse { Answers = answers.ToArray() });
+        };
+        await health.VerifyDNSBLWithMode("example.test", mode);
+        Assert.True(analysis.DiscoverySucceeded);
+        Assert.DoesNotContain(queries, query => query.StartsWith("alias.", StringComparison.Ordinal));
+        Assert.DoesNotContain(analysis.Results.Keys, target => target == "alias.example.test");
+        var ips = analysis.AllResults.Where(record => record.QueryKind != DnsblQueryKind.Domain).ToArray();
+        if (mode == DomainIpScanMode.ApexAOnly && !terminalAddress) { Assert.Empty(ips); }
+        else { Assert.Equal(mode == DomainIpScanMode.MxThenApexFallback && terminalAddress ? "192.0.2.1" : "192.0.2.2", Assert.Single(ips).IpAddress); }
+    }
+
+    [Fact]
+    public async Task WrongFamilyAddressCannotBecomeCompletedDiscoveryEvidence() {
+        using var health = new DomainHealthCheck();
+        health.DNSBLAnalysis.ClearDNSBL();
+        health.DNSBLAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Answers = new[] { new DnsAnswer { Type = type, DataRaw = "2001:db8::1" } }
+        });
+        await health.VerifyDNSBLWithMode("example.test", DomainIpScanMode.ApexAOnly);
+        Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
+        Assert.DoesNotContain(health.DNSBLAnalysis.AllResults, record => record.IpAddress != null);
+        Assert.Equal("Incomplete", Converters.Convert(health.DNSBLAnalysis).Status);
+    }
+
     private static DNSBLAnalysis Analysis() {
         var analysis = new DNSBLAnalysis();
         analysis.ClearDNSBL();
@@ -78,7 +124,8 @@ public class TestDnsblQueryOutcomes {
         using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try {
             var run = analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger(), true, caller.Token);
-            await entered.Task;
+            await Task.WhenAny(entered.Task, run);
+            Assert.True(entered.Task.IsCompleted, "An infinite analysis budget must permit the provider query to start.");
             if (infiniteProvider) { caller.Cancel(); await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run); }
             else { await run; Assert.False(caller.IsCancellationRequested); Assert.False(Assert.Single(analysis.AllResults).QuerySucceeded); }
         } finally { pending.TrySetResult(Array.Empty<DnsResponse>()); }

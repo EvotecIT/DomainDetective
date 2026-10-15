@@ -129,7 +129,7 @@ namespace DomainDetective {
         public int NotBlacklisted => GetCoverageResults().Values.Count(result => !result.IsBlacklisted && result.NotChecked == 0);
 
         /// <summary>Gets the per-host DNSBL query results.</summary>
-        public Dictionary<string, DNSQueryResult> Results { get; set; } = new Dictionary<string, DNSQueryResult>();
+        public Dictionary<string, DNSQueryResult> Results { get; set; } = new Dictionary<string, DNSQueryResult>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Gets a flattened list of all DNSBL records returned.</summary>
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
@@ -141,7 +141,7 @@ namespace DomainDetective {
         /// </summary>
         public void Reset() {
             lock (SyncRoot) {
-                Results = new Dictionary<string, DNSQueryResult>();
+                Results = new Dictionary<string, DNSQueryResult>(StringComparer.OrdinalIgnoreCase);
                 AllResults = new List<DNSBLRecord>();
                 Subject = null;
                 Assessments.Clear();
