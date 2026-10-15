@@ -12,6 +12,7 @@ public class TestDnsblBudgets {
         using var health = new DomainHealthCheck();
         health.DNSBLAnalysis.ClearDNSBL();
         health.DNSBLAnalysis.AddDNSBL("provider.example.test");
+        health.DNSBLAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Status = DnsResponseCode.NXDomain } });
         health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => throw new FormatException("Malformed discovery reply.");
         await health.VerifyDNSBLWithMode("example.test", scanMode);
         Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
