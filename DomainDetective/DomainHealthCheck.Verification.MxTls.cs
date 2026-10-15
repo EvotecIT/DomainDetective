@@ -17,9 +17,10 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
+            StartTlsAnalysis.ResetEvidence();
+            StartTlsAnalysis.Subject = domainName;
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
-            StartTlsAnalysis.Subject = domainName;
             ApplyOutboundAddressResolver(StartTlsAnalysis);
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
             if (StartTlsAnalysis.ServerResults.Count > 0 && StartTlsAnalysis.ServerResults.Values.All(v => v)) {
@@ -40,9 +41,10 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
+            SmtpTlsAnalysis.ResetEvidence();
+            SmtpTlsAnalysis.Subject = domainName;
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
-            SmtpTlsAnalysis.Subject = domainName;
             ApplyOutboundAddressResolver(SmtpTlsAnalysis);
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
 
@@ -94,9 +96,10 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            ImapTlsAnalysis.ResetEvidence();
+            ImapTlsAnalysis.Subject = domainName;
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 143, string.Join(", ", tlsHosts));
-            ImapTlsAnalysis.Subject = domainName;
             ApplyOutboundAddressResolver(ImapTlsAnalysis);
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
         }
@@ -110,9 +113,10 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            Pop3TlsAnalysis.ResetEvidence();
+            Pop3TlsAnalysis.Subject = domainName;
             var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 110, string.Join(", ", tlsHosts));
-            Pop3TlsAnalysis.Subject = domainName;
             ApplyOutboundAddressResolver(Pop3TlsAnalysis);
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }

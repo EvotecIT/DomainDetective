@@ -203,7 +203,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         }
     }
 
-    private void ResetEvidence() {
+    internal void ResetEvidence() {
         ServerResults.Clear();
         Assessments.Clear();
     }

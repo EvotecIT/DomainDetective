@@ -14,6 +14,13 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public class STARTTLSAnalysis : IHasAssessments {
+        internal void ResetEvidence() {
+            ServerResults.Clear();
+            DowngradeDetected.Clear();
+            ServerDetails.Clear();
+            Assessments.Clear();
+        }
+
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the server results value.</summary>
@@ -52,10 +59,7 @@ public class STARTTLSAnalysis : IHasAssessments {
             if (endpoint == null) {
                 throw new ArgumentNullException(nameof(endpoint));
             }
-            ServerResults.Clear();
-            DowngradeDetected.Clear();
-            ServerDetails.Clear();
-            Assessments.Clear();
+            ResetEvidence();
             cancellationToken.ThrowIfCancellationRequested();
             var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
             var key = endpoint.Key;
@@ -70,10 +74,7 @@ public class STARTTLSAnalysis : IHasAssessments {
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
             if (ports == null) { throw new ArgumentNullException(nameof(ports)); }
-            ServerResults.Clear();
-            DowngradeDetected.Clear();
-            ServerDetails.Clear();
-            Assessments.Clear();
+            ResetEvidence();
             cancellationToken.ThrowIfCancellationRequested();
             var portList = new List<int>();
             foreach (var port in ports) {
