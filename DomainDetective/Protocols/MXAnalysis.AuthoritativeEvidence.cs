@@ -6,16 +6,17 @@ using System.Linq;
 namespace DomainDetective;
 
 public partial class MXAnalysis {
-    internal void RecordRrsetCompleteness(int intendedServers, int respondingServers, string domain, InternalLogger logger) {
+    internal void RecordRrsetCompleteness(int intendedServers, int respondingServers, string domain, InternalLogger logger, AssessmentCollector? collector = null) {
         MxRrsetComparisonIncomplete = intendedServers == 0 || respondingServers < intendedServers;
         if (MxRrsetComparisonIncomplete) {
-            using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: domain)) {
+            using var ownedCollector = collector == null ? AssessmentCollector.ForAnalysis(logger, this, category: "MX") : null;
+            using ((collector ?? ownedCollector!).PushTarget(domain)) {
                 logger.WriteInformationCode("MX.Rrset.ComparisonIncomplete", "Authoritative MX RRset comparison was incomplete.");
             }
         }
     }
 
-    internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger) {
+    internal void RecordTargetAddressEvidence(string host, IEnumerable<(DnsResponse? A, DnsResponse? Aaaa)> responses, InternalLogger logger, AssessmentCollector? collector = null) {
         var rows = responses.ToArray();
         bool incomplete = rows.Length == 0 || rows.Any(row => row.A == null || row.Aaaa == null);
         TargetAddressComparisonIncomplete |= incomplete;
@@ -31,7 +32,8 @@ public partial class MXAnalysis {
                 else if (!first.SetEquals(answers)) { consistent = false; }
             }
         }
-        using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: host);
+        using var ownedCollector = collector == null ? AssessmentCollector.ForAnalysis(logger, this, category: "MX") : null;
+        using var scope = (collector ?? ownedCollector!).PushTarget(host);
         if (!consistent) {
             TargetAddressConsistentAcrossNs = false;
             logger.WriteWarningCode(MxCodes.TargetAddressInconsistentAcrossNs, "A/AAAA differs across name servers");

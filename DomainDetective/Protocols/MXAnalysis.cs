@@ -240,23 +240,25 @@ namespace DomainDetective {
             });
             // Complete bounded alias checks before adding competing address work to the resolver queue.
             var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
-                async Task<DnsAnswer[]?> QueryAddressAsync(DnsRecordType type) {
+                async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryAddressAsync(DnsRecordType type) {
                     try {
-                        if (QueryDnsOverride != null) { return await QueryDns(item.Host, type); }
+                        if (QueryDnsOverride != null) { return (await QueryDns(item.Host, type), false); }
                         var response = await DnsConfiguration.QueryDNSResponse(item.Host, type);
                         if (response == null || !string.IsNullOrEmpty(response.Error) ||
-                            response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return null; }
-                        return response.Answers ?? Array.Empty<DnsAnswer>();
+                            response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) { return (null, false); }
+                        return (response.Answers ?? Array.Empty<DnsAnswer>(), response.Status == DnsResponseCode.NXDomain);
                     }
                     catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
-                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException) { return null; }
+                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException) { return (null, false); }
                 }
                 var aTask = QueryAddressAsync(DnsRecordType.A);
                 var aaaaTask = QueryAddressAsync(DnsRecordType.AAAA);
                 await Task.WhenAll(aTask, aaaaTask);
-                var ns = aTask.Result?.Length == 0 && aaaaTask.Result?.Length == 0
-                    ? await QueryAddressAsync(DnsRecordType.NS) : Array.Empty<DnsAnswer>();
-                return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: ns);
+                var ns = aTask.Result.Answers?.Length == 0 && aaaaTask.Result.Answers?.Length == 0 &&
+                    !aTask.Result.NxDomain && !aaaaTask.Result.NxDomain
+                    ? await QueryAddressAsync(DnsRecordType.NS) : (Answers: (DnsAnswer[]?)Array.Empty<DnsAnswer>(), NxDomain: false);
+                return (item.Host, item.Cnames, item.CnameSucceeded, A: aTask.Result.Answers, Aaaa: aaaaTask.Result.Answers,
+                    Ns: ns.Answers, NxDomain: aTask.Result.NxDomain || aaaaTask.Result.NxDomain || ns.NxDomain);
             });
             foreach (var item in hostResults) {
                 var host = item.Host;
@@ -273,10 +275,10 @@ namespace DomainDetective {
                 var noA = item.A == null || item.A.Length == 0;
                 var noAAAA = item.Aaaa == null || item.Aaaa.Length == 0;
                 Ipv6QueryFailed |= item.Aaaa == null;
-                AddressExistenceQueryFailed |= noA && noAAAA && (item.A == null || item.Aaaa == null || item.Ns == null);
+                AddressExistenceQueryFailed |= noA && noAAAA && !item.NxDomain && (item.A == null || item.Aaaa == null || item.Ns == null);
                 Ipv6Supported = Ipv6Supported || !noAAAA;
-                if (noA && noAAAA && item.A != null && item.Aaaa != null && item.Ns != null) {
-                    var nonExistent = item.Ns.Length == 0;
+                if (noA && noAAAA && (item.NxDomain || item.A != null && item.Aaaa != null && item.Ns != null)) {
+                    var nonExistent = item.NxDomain || item.Ns!.Length == 0;
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
                     if (!nonExistent) { hostsMissingAddress.Add(host); }
@@ -360,7 +362,7 @@ namespace DomainDetective {
             // Cross-NS RRset and address consistency (best-effort)
             try {
                 if (!string.IsNullOrWhiteSpace(Subject)) {
-                    await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger);
+                    await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger, _collector);
                 }
             } catch (Exception ex) {
                 logger.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
@@ -395,7 +397,7 @@ namespace DomainDetective {
             return data?.Trim() ?? string.Empty;
         }
 
-        private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger) {
+        private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger, AssessmentCollector collector) {
             if (DnsConfiguration.QueryDnsOverride != null) {
                 logger.WriteVerbose("Skipping MX cross-NS consistency checks because DNS queries are running through an override.");
                 return;
@@ -429,7 +431,7 @@ namespace DomainDetective {
                 mxByServer[ip] = set;
             }
             DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps, mxByServer.Keys, logger);
-            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger);
+            RecordRrsetCompleteness(nsIps.Count, mxByServer.Count, domain, logger, collector);
             if (mxByServer.Count > 1) {
                 var first = mxByServer.First().Value;
                 foreach (var kv in mxByServer.Skip(1)) {
@@ -451,7 +453,7 @@ namespace DomainDetective {
                     await Task.WhenAll(aTask, aaaaTask);
                     return (Ip: ip, A: aTask.Result, Aaaa: aaaaTask.Result);
                 });
-                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger);
+                RecordTargetAddressEvidence(host, addressResponses.Select(item => (item.A, item.Aaaa)), logger, collector);
             }
         }
 

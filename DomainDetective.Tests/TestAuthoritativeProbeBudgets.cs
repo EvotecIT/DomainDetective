@@ -6,6 +6,36 @@ namespace DomainDetective.Tests;
 
 public class TestAuthoritativeProbeBudgets {
     [Theory]
+    [InlineData(DnsRecordType.A)]
+    [InlineData(DnsRecordType.AAAA)]
+    public async Task NxDomainRemainsConclusiveWhenTheOtherAddressFamilyFails(DnsRecordType negativeFamily) {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => Task.FromResult(new DnsResponse {
+            Status = type == negativeFamily ? DnsResponseCode.NXDomain :
+                type == DnsRecordType.A || type == DnsRecordType.AAAA ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError
+        });
+        health.MXAnalysis.Subject = "example.test";
+        await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 missing.example.test" } }, new InternalLogger());
+        Assert.True(health.MXAnalysis.PointsToNonExistentDomain);
+        Assert.True(health.MXAnalysis.AddressQueryFailed);
+        var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health,
+            new DomainDetective.DesiredState.DesiredStateProfile { Mx = new DomainDetective.DesiredState.DesiredStateMxPolicy { DisallowNonExistentTargets = true } });
+        Assert.Contains(evaluated.Assessments, item => item.Code == DomainDetective.DesiredState.DesiredStateCodes.MxTargetNonExistent);
+        Assert.DoesNotContain(evaluated.Assessments, item => item.Code == "DesiredState.MX.Address.QueryFailed");
+    }
+
+    [Fact]
+    public void MxCompletenessUsesTheExistingCollectorWithoutDuplicateAssessments() {
+        var analysis = new MXAnalysis();
+        var logger = new InternalLogger();
+        using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "MX");
+        analysis.RecordRrsetCompleteness(2, 1, "example.test", logger, collector);
+        analysis.RecordTargetAddressEvidence("mail.example.test", Array.Empty<(DnsResponse? A, DnsResponse? Aaaa)>(), logger, collector);
+        Assert.Equal("example.test", Assert.Single(analysis.Assessments.Where(item => item.Code == "MX.Rrset.ComparisonIncomplete")).Target);
+        Assert.Equal("mail.example.test", Assert.Single(analysis.Assessments.Where(item => item.Code == "MX.TargetAddress.ComparisonIncomplete")).Target);
+    }
+
+    [Theory]
     [InlineData(DnsRecordType.A, false)]
     [InlineData(DnsRecordType.AAAA, false)]
     [InlineData(DnsRecordType.NS, false)]
@@ -68,6 +98,10 @@ public class TestAuthoritativeProbeBudgets {
         analysis.Subject = "example.test";
         await analysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
         Assert.True(analysis.CnameQueryFailed);
+        // Isolate alias coverage from independently completed authoritative comparisons.
+        analysis.RecordRrsetCompleteness(1, 1, "example.test", new InternalLogger());
+        typeof(MXAnalysis).GetProperty(nameof(MXAnalysis.TargetAddressComparisonIncomplete))!.SetValue(analysis, false);
+        Assert.Equal("Incomplete", DomainDetective.Views.Converters.Convert(analysis).Status);
         Assert.False(analysis.ValidMxConfiguration);
         Assert.False(analysis.PointsToNonExistentDomain);
     }
