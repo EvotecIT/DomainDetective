@@ -32,7 +32,7 @@ internal static class AuthoritativeDnsProbes {
             var response = result.Response;
             return IsUsableResponse(response, acceptRefused) ? response : null;
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException) {
+        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException || ex is ArgumentException || ex is FormatException) {
             return null;
         }
     }

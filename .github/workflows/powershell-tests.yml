@@ -136,6 +136,9 @@ jobs:
             - name: Install PowerShell modules
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+                    Register-PSRepository -Default -ErrorAction Stop
+                }
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: powershell
 
@@ -206,6 +209,9 @@ jobs:
             - name: Install PowerShell modules
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+                    Register-PSRepository -Default -ErrorAction Stop
+                }
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
                 Install-Module -Name PSPublishModule -MinimumVersion 3.0.158 -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
@@ -286,6 +292,9 @@ jobs:
             - name: Install PowerShell modules
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+                    Register-PSRepository -Default -ErrorAction Stop
+                }
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 
@@ -361,6 +370,9 @@ jobs:
             - name: Install PowerShell modules
               run: |
                 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+                    Register-PSRepository -Default -ErrorAction Stop
+                }
                 Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
               shell: pwsh
 

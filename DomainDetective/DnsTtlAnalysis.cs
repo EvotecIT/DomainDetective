@@ -382,7 +382,7 @@ namespace DomainDetective {
                 } else if (observed.Length == 0) {
                     logger?.WriteInformationCode("TTL.Uniformity.NoRecord", "Authoritative replies contain no {0} TTL to compare.", label);
                 } else if (map.Values.Any(value => !value.HasValue)) {
-                    logger?.WriteInformationCode("TTL.Uniformity.RecordAbsent", "Some authoritative replies contain no {0} record; TTL uniformity cannot be confirmed.", label);
+                    logger?.WriteWarningCode(differentCode, "Authoritative name servers disagree on {0} record presence.", label);
                 } else if (observed.Length <= 1) {
                     logger?.WriteInformationCode(uniformCode, "{0} TTL consistent across authoritative name servers.", label);
                 }

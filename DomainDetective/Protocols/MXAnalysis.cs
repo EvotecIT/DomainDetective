@@ -237,7 +237,7 @@ namespace DomainDetective {
                     cnameSucceeded = false;
                 }
                 return (item.Host, Cnames: cnames, CnameSucceeded: cnameSucceeded);
-            });
+            }, concurrency: Math.Max(1, Math.Min(8, DnsConfiguration.ResolverMaxConcurrency ?? 8)));
             // Complete bounded alias checks before adding competing address work to the resolver queue.
             var hostResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(cnameResults, async item => {
                 async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryAddressAsync(DnsRecordType type) {
