@@ -18,9 +18,11 @@ public class TestCheckFailureIsolation {
         using var health = Create();
         var delegation = Assert.IsType<NsInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.DELEGATION })));
         Assert.Equal(HealthCheckType.DELEGATION, delegation.Check);
+        Assert.Equal(AnalysisArea.DNS, delegation.Area);
         var views = Converters.ConvertChecks(health, new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }).Cast<NsInfo>().ToArray();
         Assert.Equal(new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }, views.Select(view => view.Check));
         Assert.NotSame(views[0], views[1]);
+        Assert.All(views, view => Assert.Equal(AnalysisArea.DNS, view.Area));
     }
 
     [Theory]
