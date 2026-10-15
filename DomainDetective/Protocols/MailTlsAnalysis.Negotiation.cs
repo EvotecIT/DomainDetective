@@ -24,8 +24,14 @@ public partial class MailTlsAnalysis {
         }
         Task WriteAsync(string command) => writer.WriteLineAsync(command).WaitWithCancellation(token);
 
-        if (await ReadAsync().ConfigureAwait(false) == null) { throw new IOException("Mail server closed before its greeting."); }
+        var greeting = await ReadAsync().ConfigureAwait(false);
+        bool greetingAccepted = protocol == MailProtocol.Smtp ? greeting?.StartsWith("220", StringComparison.Ordinal) == true :
+            protocol == MailProtocol.Imap ? greeting?.StartsWith("* OK", StringComparison.OrdinalIgnoreCase) == true ||
+                greeting?.StartsWith("* PREAUTH", StringComparison.OrdinalIgnoreCase) == true :
+            greeting?.StartsWith("+OK", StringComparison.OrdinalIgnoreCase) == true;
+        if (!greetingAccepted) { throw new IOException("Mail server did not provide a successful greeting."); }
         var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool discoveryComplete = false;
         switch (protocol) {
             case MailProtocol.Smtp:
                 await WriteAsync("EHLO example.com").ConfigureAwait(false);
@@ -35,7 +41,7 @@ public partial class MailTlsAnalysis {
                     if (line.StartsWith("250", StringComparison.Ordinal)) {
                         string values = line.Length > 4 ? line.Substring(4) : string.Empty;
                         foreach (var value in values.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) { capabilities.Add(value); }
-                        if (!line.StartsWith("250-", StringComparison.Ordinal)) { break; }
+                        if (!line.StartsWith("250-", StringComparison.Ordinal)) { discoveryComplete = true; break; }
                     } else if (line.StartsWith("4", StringComparison.Ordinal) || line.StartsWith("5", StringComparison.Ordinal)) { break; }
                 }
                 break;
@@ -45,14 +51,19 @@ public partial class MailTlsAnalysis {
                     logger?.WriteVerbose("CAPABILITY response: {0}", line);
                     if (line.StartsWith("* CAPABILITY ", StringComparison.OrdinalIgnoreCase)) {
                         foreach (var value in line.Substring(13).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) { capabilities.Add(value); }
-                    } else if (line.StartsWith("A1 ", StringComparison.OrdinalIgnoreCase)) { break; }
+                    } else if (line.StartsWith("A1 ", StringComparison.OrdinalIgnoreCase)) {
+                        discoveryComplete = line.StartsWith("A1 OK", StringComparison.OrdinalIgnoreCase); break;
+                    }
                 }
                 break;
             case MailProtocol.Pop3:
                 await WriteAsync("CAPA").ConfigureAwait(false);
+                bool capaAccepted = false;
                 while ((line = await ReadAsync().ConfigureAwait(false)) != null) {
                     logger?.WriteVerbose("CAPA response: {0}", line);
-                    if (line == "." || line.StartsWith("-ERR", StringComparison.OrdinalIgnoreCase)) { break; }
+                    if (line == ".") { discoveryComplete = capaAccepted; break; }
+                    if (line.StartsWith("-ERR", StringComparison.OrdinalIgnoreCase)) { break; }
+                    if (line.StartsWith("+OK", StringComparison.OrdinalIgnoreCase)) { capaAccepted = true; }
                     capabilities.Add(line.Trim());
                 }
                 break;
@@ -62,6 +73,7 @@ public partial class MailTlsAnalysis {
 
         bool advertised = capabilities.Contains(protocol == MailProtocol.Pop3 ? "STLS" : "STARTTLS");
         if (result != null) { result.StartTlsAdvertised = advertised; }
+        if (!discoveryComplete) { throw new IOException("Mail capability discovery was rejected or incomplete."); }
         if (!advertised) {
             await WriteAsync(GetQuitCommand(protocol)).ConfigureAwait(false);
             await ReadAsync().ConfigureAwait(false);

@@ -6,6 +6,57 @@ using MailProtocol = DomainDetective.MailTlsAnalysis.MailProtocol;
 namespace DomainDetective.Tests;
 
 public class TestMailTlsBudgets {
+    [Theory]
+    [InlineData(MailProtocol.Smtp, false)]
+    [InlineData(MailProtocol.Imap, false)]
+    [InlineData(MailProtocol.Pop3, false)]
+    [InlineData(MailProtocol.Smtp, true)]
+    [InlineData(MailProtocol.Imap, true)]
+    [InlineData(MailProtocol.Pop3, true)]
+    public async Task CapabilityDiscoveryDistinguishesKnownAbsenceFromRejectedCommands(MailProtocol protocol, bool reject) {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var server = Task.Run(async () => {
+            using var client = await listener.AcceptTcpClientAsync();
+            using var stream = client.GetStream();
+            using var reader = new StreamReader(stream);
+            using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+            await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "220 mail.example.test" : protocol == MailProtocol.Imap ? "* OK ready" : "+OK ready");
+            Assert.Equal(protocol == MailProtocol.Smtp ? "EHLO example.com" : protocol == MailProtocol.Imap ? "A1 CAPABILITY" : "CAPA",
+                await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
+            await writer.WriteLineAsync(reject
+                ? protocol == MailProtocol.Smtp ? "451 Try later" : protocol == MailProtocol.Imap ? "A1 NO Try later" : "-ERR Try later"
+                : protocol == MailProtocol.Smtp ? "250 SIZE 1024" : protocol == MailProtocol.Imap ? "* CAPABILITY IMAP4rev1\r\nA1 OK" : "+OK\r\nUIDL\r\n.");
+            if (!reject) {
+                Assert.Equal(protocol == MailProtocol.Imap ? "A3 LOGOUT" : "QUIT", await reader.ReadLineAsync().WaitWithCancellation(guard.Token));
+                await writer.WriteLineAsync(protocol == MailProtocol.Smtp ? "221 Bye" : protocol == MailProtocol.Imap ? "A3 OK Bye" : "+OK Bye");
+            }
+        });
+        try {
+            using var health = new DomainHealthCheck();
+            var analysis = protocol == MailProtocol.Smtp ? health.SmtpTlsAnalysis : protocol == MailProtocol.Imap ? health.ImapTlsAnalysis : health.Pop3TlsAnalysis;
+            await analysis.AnalyzeServer(protocol, new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, new InternalLogger(), guard.Token);
+            var result = Assert.Single(analysis.ServerResults).Value;
+            Assert.False(result.StartTlsAdvertised);
+            Assert.Equal(reject, result.FailureKind != CertificateFailureKind.None);
+            var policy = new DomainDetective.DesiredState.DesiredStateMailTlsPolicy {
+                DisallowLegacyProtocols = true, RequireCertificateValid = false, RequireChainValid = false,
+                RequireHostnameMatch = false, DisallowExpiredCertificates = false
+            };
+            var profile = new DomainDetective.DesiredState.DesiredStateProfile();
+            if (protocol == MailProtocol.Smtp) { profile.SmtpTls = policy; }
+            else if (protocol == MailProtocol.Imap) { profile.ImapTls = policy; }
+            else { profile.Pop3Tls = policy; }
+            var evaluated = DomainDetective.DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile);
+            Assert.Equal(reject, evaluated.Assessments.Any(item => item.Code == "DesiredState.MailTls.ProtocolSupport.QueryFailed"));
+        } finally {
+            listener.Stop();
+            await server;
+        }
+    }
+
     [Fact]
     public async Task UpgradeTimeoutPreservesTheObservedStartTlsAdvertisement() {
         var listener = new TcpListener(IPAddress.Loopback, 0);
