@@ -65,8 +65,8 @@ public class TestDnsComparisonCompleteness {
     public void IncompleteMxAddressDiagnosticsNameOnlyTheAffectedHost() {
         var analysis = new MXAnalysis();
         var logger = new InternalLogger();
-        analysis.RecordTargetAddressEvidence("failed.example.test", new[] { ((DnsResponse?)null, (DnsResponse?)new DnsResponse()) }, logger);
-        analysis.RecordTargetAddressEvidence("complete.example.test", new[] { ((DnsResponse?)new DnsResponse(), (DnsResponse?)new DnsResponse()) }, logger);
+        analysis.RecordTargetAddressEvidence("failed.example.test", new[] { ((DnsResponse?)null, (DnsResponse?)new DnsResponse { IsAuthoritativeAnswer = true }) }, logger);
+        analysis.RecordTargetAddressEvidence("complete.example.test", new[] { ((DnsResponse?)new DnsResponse { IsAuthoritativeAnswer = true }, (DnsResponse?)new DnsResponse { IsAuthoritativeAnswer = true }) }, logger);
         Assert.True(analysis.TargetAddressComparisonIncomplete);
         var message = Assert.Single(analysis.Assessments, item => item.Code == "MX.TargetAddress.ComparisonIncomplete");
         Assert.Contains("failed.example.test", message.Message);
