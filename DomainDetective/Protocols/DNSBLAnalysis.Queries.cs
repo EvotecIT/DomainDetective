@@ -78,8 +78,8 @@ public partial class DNSBLAnalysis {
                         return (Array.Empty<DnsAnswer>(), response?.Error ?? $"DNS response: {response?.Status.ToString() ?? "missing"}.");
                     }
                     return ((response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray(), null);
-                } catch (Exception ex) when (!run.CallerToken.IsCancellationRequested &&
-                    (ex is OperationCanceledException || ex is TimeoutException || ex is SocketException || ex is InvalidOperationException || ex is UriFormatException)) {
+                } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                    run.CallerToken.ThrowIfCancellationRequested();
                     return (Array.Empty<DnsAnswer>(), ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
                 }
             }

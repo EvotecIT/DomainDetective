@@ -120,9 +120,11 @@ public class TestDnsblBudgets {
         Assert.Equal("Incomplete", Converters.Convert(analysis).Status);
     }
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Ipv6KeepsListingsWhenTheOtherRecordTypeFails(bool failA) {
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task Ipv6KeepsListingsWhenTheOtherRecordTypeFails(bool failA, bool throws) {
         var analysis = new DNSBLAnalysis();
         analysis.ClearDNSBL();
         analysis.AddDNSBL("provider.example.test");
@@ -130,6 +132,7 @@ public class TestDnsblBudgets {
         analysis.QueryDnsFullOverride = (names, type) => {
             types.Add(type);
             bool fails = failA == (type == DnsRecordType.A);
+            if (fails && throws) { throw new FormatException("Malformed provider response."); }
             return Task.FromResult<IEnumerable<DnsResponse>>(new[] { fails
                 ? new DnsResponse { Status = DnsResponseCode.ServerFailure }
                 : new DnsResponse { Answers = new[] { new DnsAnswer { Name = names[0], Type = type, DataRaw = "127.0.0.2" } } } });
