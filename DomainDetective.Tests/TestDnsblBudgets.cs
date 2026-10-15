@@ -298,18 +298,19 @@ public class TestDnsblBudgets {
     }
     [Fact]
     public async Task TimedOutProviderIsIncompleteRatherThanCleanAndOtherListingsSurvive() {
-        var analysis = new DNSBLAnalysis { ProviderTimeout = TimeSpan.FromMilliseconds(50) };
+        var analysis = new DNSBLAnalysis { ProviderTimeout = TimeSpan.FromSeconds(1) };
+        var pending = new TaskCompletionSource<IEnumerable<DnsResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
         analysis.ClearDNSBL();
         analysis.AddDNSBL("slow.example.test");
         analysis.AddDNSBL("listed.example.test");
-        analysis.QueryDnsFullOverride = async (names, type) => {
+        analysis.QueryDnsFullOverride = (names, type) => {
             if (names[0].EndsWith("slow.example.test", StringComparison.Ordinal)) {
-                await Task.Delay(150);
-                return new[] { new DnsResponse() };
+                return pending.Task;
             }
-            return new[] { new DnsResponse { Answers = new[] { new DnsAnswer { Name = names[0], Type = type, DataRaw = "127.0.0.2" } } } };
+            return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse { Answers = new[] { new DnsAnswer { Name = names[0], Type = type, DataRaw = "127.0.0.2" } } } });
         };
-        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
+        try { await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger()); }
+        finally { pending.TrySetResult(Array.Empty<DnsResponse>()); }
         var result = analysis.Results["192.0.2.1"];
         Assert.Equal(1, result.Listed);
         Assert.Equal(1, result.NotChecked);

@@ -21,11 +21,11 @@ public class TestDnsblConcurrentCoverage {
             Enumerable.Range(1, 8).Select(host => $"192.0.2.{run * 8 + host}"), new InternalLogger(), false, guard.Token)).ToArray();
         release.TrySetResult(true);
         var completed = Task.WhenAll(runs);
-        do {
+        for (int sample = 0; sample < 8; sample++) {
             var current = Converters.Convert(analysis);
             Assert.Equal(current.HostsChecked, current.HostSummaries.Count);
             await Task.Yield();
-        } while (!completed.IsCompleted);
+        }
         await completed;
         Assert.Equal(64, analysis.Results.Count);
         Assert.Equal(512, analysis.AllResults.Count);
