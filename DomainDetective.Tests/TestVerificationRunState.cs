@@ -1,5 +1,6 @@
 using DnsClientX;
 using DomainDetective.Views;
+using DomainDetective.DesiredState;
 using System;
 using System.Linq;
 using System.Threading;
@@ -64,6 +65,14 @@ public class TestVerificationRunState {
         Assert.DoesNotContain(HealthCheckType.CAA, health.LastVerifiedChecks);
         Assert.DoesNotContain(Converters.ConvertChecks(health), view => view is CaaInfo);
         Assert.Equal(preCanceled ? 0 : 1, health.LastVerifiedChecks.Count);
+        var explicitViews = Converters.ConvertChecks(health, new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
+        Assert.All(explicitViews, view => Assert.Equal("Incomplete", Assert.IsType<CheckFailureInfo>(view).Status));
+        using var unstarted = health.FilterAnalyses(new[] { HealthCheckType.CAA });
+        var unstartedView = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(unstarted, new[] { HealthCheckType.CAA })));
+        Assert.Equal("Verification.Check.NotRun", Assert.Single(unstartedView.Assessments).Code);
+        var profile = new DesiredStateProfile { Caa = new DesiredStateCaaPolicy { Enabled = true } };
+        Assert.False(DesiredStateEvaluator.Evaluate("current.test", health, profile).Conforms);
+        Assert.False(DesiredStateEvaluator.Evaluate("current.test", unstarted, profile).Conforms);
         var errors = new System.Collections.Generic.List<string>();
         var views = Converters.ConvertChecks(health, errors: errors);
         Assert.Empty(errors);
@@ -78,6 +87,23 @@ public class TestVerificationRunState {
             using var filtered = health.FilterAnalyses(new[] { HealthCheckType.EDNSSUPPORT });
             Assert.Equal("Incomplete", Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(filtered))).Status);
         }
+    }
+
+    [Fact]
+    public async Task PrestartedDaneFailureSurvivesCancellationBeforeItsGatedWrapper() {
+        using var health = new DomainHealthCheck();
+        using var caller = new CancellationTokenSource();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        health.DaneDnsOverride = (_, _) => throw new InvalidOperationException("DANE failed before cancellation.");
+        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => { caller.Cancel(); throw new OperationCanceledException(caller.Token); };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.test",
+            new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.DANE, HealthCheckType.MTASTS },
+            daneServiceType: new[] { ServiceType.HTTPS }, cancellationToken: caller.Token,
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = true, MaxParallelism = 1 }));
+        var failure = Assert.Single(Converters.ConvertChecks(health).OfType<CheckFailureInfo>(), view => view.Check == HealthCheckType.DANE);
+        Assert.Equal("Error", failure.Status);
+        Assert.Contains("DANE failed before cancellation.", failure.Summary);
+        Assert.Single(health.Assessments, item => item.Code == "Verification.Check.Failed" && item.Category == "DANE");
     }
 
     [Fact]

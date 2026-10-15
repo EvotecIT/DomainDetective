@@ -240,14 +240,28 @@ public partial class DomainHealthCheck {
                     LastVerifiedChecks = healthCheckTypes.Where(admitted.Contains).ToArray();
                 }
             }
+            void MarkCompleted(HealthCheckType check) {
+                lock (_executionLock) { completed.Add(check); }
+            }
 
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
-                var daneTask = new Lazy<Task>(() => {
+                async Task RunDaneAsync() {
                     cancellationToken.ThrowIfCancellationRequested();
                     MarkAdmitted(HealthCheckType.DANE);
-                    return EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken);
-                });
+                    try {
+                        await EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (Exception ex) when (ex is not OutOfMemoryException) {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        RecordCheckFailure(HealthCheckType.DANE, domainName, ex);
+                        MarkCompleted(HealthCheckType.DANE);
+                        throw;
+                    }
+                    MarkCompleted(HealthCheckType.DANE);
+                }
+                var daneTask = new Lazy<Task>(RunDaneAsync);
                 actions[HealthCheckType.DANE] = () => daneTask.Value;
                 if (!exec.EnableParallelism && actions.TryGetValue(HealthCheckType.SMTPTLS, out var smtpAction)) {
                     actions[HealthCheckType.SMTPTLS] = async () => {
@@ -290,11 +304,13 @@ public partial class DomainHealthCheck {
                     throw;
                 } catch (Exception ex) when (ex is not OutOfMemoryException) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    RecordCheckFailure(healthCheckType, domainName, ex);
+                    if (healthCheckType != HealthCheckType.DANE || GetCheckFailure(healthCheckType) == null) {
+                        RecordCheckFailure(healthCheckType, domainName, ex);
+                    }
                 } finally {
                     sw.Stop();
                 }
-                lock (_executionLock) { completed.Add(healthCheckType); }
+                MarkCompleted(healthCheckType);
                 _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
             }
 
@@ -342,15 +358,11 @@ public partial class DomainHealthCheck {
                         // Every task already started still belongs to this verification lifetime.
                         await prestartedDaneTask.ConfigureAwait(false);
                     } catch {
-                        // Observe the prestarted task without replacing the original failure. Without one, the DANE
-                        // check ran and its failure is already recorded as that check's result.
+                        // Observe the task without replacing caller cancellation. DANE records its own terminal
+                        // failure even when cancellation prevents its gated wrapper from running.
                     }
                 }
                 if (executionFailure is OperationCanceledException && cancellationToken.IsCancellationRequested) {
-                    // A prestarted DANE task can finish before its gated check is reached.
-                    if (prestartedDaneTask?.Status == TaskStatus.RanToCompletion) {
-                        completed.Add(HealthCheckType.DANE);
-                    }
                     foreach (var check in admitted.Where(check => !completed.Contains(check))) {
                         RecordCheckCancellation(check, domainName);
                     }

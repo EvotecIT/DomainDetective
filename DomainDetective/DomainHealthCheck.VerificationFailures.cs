@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective;
 
@@ -12,7 +13,14 @@ public partial class DomainHealthCheck : IHasAssessments {
 
     internal Assessment? GetCheckFailure(HealthCheckType check) {
         lock (_executionLock) {
-            return _checkFailures.TryGetValue(check, out var failure) ? failure : null;
+            if (_checkFailures.TryGetValue(check, out var failure)) { return failure; }
+            // Explicit view selections and policies may name a check that this run never admitted.
+            // A manually assembled health object has no verification domain and remains convertible.
+            return VerificationDomain != null && !LastVerifiedChecks.Contains(check) ? new Assessment {
+                Severity = AssessmentSeverity.Warning, Code = "Verification.Check.NotRun",
+                Category = check.ToString(), Source = nameof(Verify), Target = VerificationDomain,
+                Message = $"{check}: no current result is available because this verification run did not admit the check."
+            } : null;
         }
     }
 
