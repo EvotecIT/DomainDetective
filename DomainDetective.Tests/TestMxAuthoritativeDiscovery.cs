@@ -31,19 +31,28 @@ public class TestMxAuthoritativeDiscovery {
     [InlineData(DnsResponseCode.NoError, true)]
     [InlineData(DnsResponseCode.NXDomain, false)]
     [InlineData(DnsResponseCode.NXDomain, true)]
-    public async Task NonAuthoritativeRepliesCannotCompleteAddressComparison(DnsResponseCode status, bool authoritative) {
+    public void NonAuthoritativeRepliesCannotCompleteAddressComparison(DnsResponseCode status, bool authoritative) {
+        var analysis = new MXAnalysis();
+        var response = new DnsResponse { Status = status, IsAuthoritativeAnswer = authoritative };
+        Assert.True(Helpers.AuthoritativeDnsProbes.IsUsableResponse(response));
+        Assert.Equal(authoritative, Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(response));
+        analysis.RecordTargetAddressEvidence("mail.example.test", new[] { (A: (DnsResponse?)response, Aaaa: (DnsResponse?)response) }, new InternalLogger());
+        Assert.Equal(!authoritative, analysis.TargetAddressComparisonIncomplete);
+    }
+
+    [Fact]
+    public async Task ReferralCannotConformForAnExistingMxTarget() {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.A
             ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
         health.MXAnalysis.Subject = "example.test";
         await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 mail.example.test" } }, new InternalLogger());
-        var response = new DnsResponse { Status = status, IsAuthoritativeAnswer = authoritative };
-        Assert.True(Helpers.AuthoritativeDnsProbes.IsUsableResponse(response));
-        Assert.Equal(authoritative, Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(response));
+        var response = new DnsResponse { Status = DnsResponseCode.NoError, IsAuthoritativeAnswer = false };
         health.MXAnalysis.RecordTargetAddressEvidence("mail.example.test", new[] { (A: (DnsResponse?)response, Aaaa: (DnsResponse?)response) }, new InternalLogger());
-        Assert.Equal(!authoritative, health.MXAnalysis.TargetAddressComparisonIncomplete);
         var profile = new DesiredState.DesiredStateProfile { Mx = new DesiredState.DesiredStateMxPolicy { RequireTargetAddressConsistentAcrossNs = true } };
-        Assert.Equal(authoritative, DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile).Conforms);
+        var evaluated = DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile);
+        Assert.False(evaluated.Conforms);
+        Assert.Contains(evaluated.Assessments, item => item.Code == "DesiredState.MX.TargetAddress.QueryFailed");
     }
 
     [Theory]
