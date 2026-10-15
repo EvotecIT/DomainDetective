@@ -41,13 +41,13 @@ public class TestMxAuthoritativeDiscovery {
     }
 
     [Fact]
-    public async Task ReferralCannotConformForAnExistingMxTarget() {
+    public async Task CompleteTargetRepliesCannotEraseEarlierDiscoveryGaps() {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.A
             ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
         health.MXAnalysis.Subject = "example.test";
         await health.MXAnalysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 mail.example.test" } }, new InternalLogger());
-        var response = new DnsResponse { Status = DnsResponseCode.NoError, IsAuthoritativeAnswer = false };
+        var response = new DnsResponse { Status = DnsResponseCode.NoError, IsAuthoritativeAnswer = true };
         health.MXAnalysis.RecordTargetAddressEvidence("mail.example.test", new[] { (A: (DnsResponse?)response, Aaaa: (DnsResponse?)response) }, new InternalLogger());
         var profile = new DesiredState.DesiredStateProfile { Mx = new DesiredState.DesiredStateMxPolicy { RequireTargetAddressConsistentAcrossNs = true } };
         var evaluated = DesiredState.DesiredStateEvaluator.Evaluate("example.test", health, profile);
