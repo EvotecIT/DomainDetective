@@ -50,7 +50,7 @@ public static partial class Converters
                 Pathways = pathways,
                 ProvidersWithListings = listedProviders,
                 ProviderSummaries = providerSummaries,
-                Assessments = analysis.Assessments,
+                Assessments = analysis.Assessments.ToArray(),
                 Status = (!analysis.DiscoverySucceeded || allResults.Any(record => !record.QuerySucceeded)) && errCount == 0 ? "Incomplete" : status,
                 WarningCount = warnCount,
                 ErrorCount = errCount,

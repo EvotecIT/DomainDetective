@@ -6,6 +6,31 @@ namespace DomainDetective.Tests;
 
 public class TestDnsblConcurrentCoverage {
     [Fact]
+    public async Task ReturnedViewKeepsItsAssessmentsWhenLaterCoverageChanges() {
+        var analysis = new DNSBLAnalysis();
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        bool fail = false;
+        analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+            new DnsResponse { Status = fail ? DnsResponseCode.ServerFailure : DnsResponseCode.NXDomain }
+        });
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.1" }, new InternalLogger());
+        var original = Converters.Convert(analysis);
+        var codes = original.Assessments.Select(item => item.Code).ToArray();
+        using var reader = original.Assessments.GetEnumerator();
+        Assert.True(reader.MoveNext());
+        fail = true;
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "192.0.2.2" }, new InternalLogger(), false);
+        while (reader.MoveNext()) { }
+        Assert.Equal(codes, original.Assessments.Select(item => item.Code));
+        Assert.Contains(original.Assessments, item => item.Code == DnsblCodes.NotListed);
+        var current = Converters.Convert(analysis);
+        Assert.Equal("Incomplete", current.Status);
+        Assert.DoesNotContain(current.Assessments, item => item.Code == DnsblCodes.NotListed);
+        Assert.Contains(current.Assessments, item => item.Code == DnsblCodes.QueryFailed);
+    }
+
+    [Fact]
     public async Task ConcurrentAppendsRetainEveryProviderAndConsistentViews() {
         var analysis = new DNSBLAnalysis { AnalysisTimeout = TimeSpan.FromSeconds(20) };
         analysis.ClearDNSBL();
