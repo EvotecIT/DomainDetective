@@ -15,7 +15,8 @@ public partial class MXAnalysis {
             return response != null && string.IsNullOrEmpty(response.Error) &&
                 (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain) ? response : null;
         } catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
-            ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return null; }
+            ex is System.Net.Sockets.SocketException || ex is System.IO.IOException || ex is System.Net.Http.HttpRequestException ||
+            ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return null; }
     }
 
     /// <summary>Uses the closest enclosing SOA in the recursive response to identify the owner's authoritative zone.</summary>

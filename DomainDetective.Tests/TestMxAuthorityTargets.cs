@@ -68,4 +68,65 @@ public class TestMxAuthorityTargets {
         Assert.True(analysis.TargetAddressComparisonIncomplete);
         Assert.Single(analysis.Assessments, item => item.Code == "MX.TargetAddress.ComparisonIncomplete");
     }
+
+    [Theory]
+    [InlineData(DnsRecordType.SOA, false)]
+    [InlineData(DnsRecordType.SOA, true)]
+    [InlineData(DnsRecordType.NS, false)]
+    [InlineData(DnsRecordType.NS, true)]
+    [InlineData(DnsRecordType.A, false)]
+    [InlineData(DnsRecordType.A, true)]
+    [InlineData(DnsRecordType.AAAA, false)]
+    [InlineData(DnsRecordType.AAAA, true)]
+    public async Task TransportFailureRetainsOtherOwnersAndKnownAuthorityAddresses(DnsRecordType failingType, bool httpFailure) {
+        var analysis = new MXAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (owner, type, _) => {
+            if (owner.EndsWith("other.test", StringComparison.Ordinal) && type == failingType) {
+                throw httpFailure ? new System.Net.Http.HttpRequestException("Synthetic transport failure")
+                    : new System.IO.IOException("Synthetic transport failure");
+            }
+            string zone = owner.EndsWith("other.test", StringComparison.Ordinal) ? "other.test" : "example.test";
+            DnsAnswer[] answers = type == DnsRecordType.SOA ? new[] { new DnsAnswer { Type = type, Name = zone } }
+                : type == DnsRecordType.NS ? new[] { new DnsAnswer { Type = type, DataRaw = "ns." + zone } }
+                : type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } }
+                : type == DnsRecordType.AAAA ? new[] { new DnsAnswer { Type = type, DataRaw = "2001:db8::1" } }
+                : Array.Empty<DnsAnswer>();
+            return Task.FromResult(new DnsResponse { Answers = answers });
+        };
+        var plan = await analysis.DiscoverComparisonAuthoritiesAsync("example.test", new[] { "mx.example.test", "mx.other.test" });
+        Assert.False(plan["example.test"].Incomplete);
+        Assert.Equal(new[] { "192.0.2.1", "2001:db8::1" }, plan["mx.example.test"].Addresses.OrderBy(value => value));
+        var affected = plan["mx.other.test"];
+        Assert.True(affected.Incomplete);
+        if (failingType == DnsRecordType.A) { Assert.Equal("2001:db8::1", Assert.Single(affected.Addresses)); }
+        else if (failingType == DnsRecordType.AAAA) { Assert.Equal("192.0.2.1", Assert.Single(affected.Addresses)); }
+        else { Assert.Empty(affected.Addresses); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AliasTransportFailureRetainsHealthySiblingEvidence(bool httpFailure) {
+        var analysis = new MXAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (owner, type, _) => {
+            if (owner == "unavailable.example.test" && type == DnsRecordType.CNAME) {
+                throw httpFailure ? new System.Net.Http.HttpRequestException("Synthetic transport failure")
+                    : new System.IO.IOException("Synthetic transport failure");
+            }
+            var answers = type == DnsRecordType.CNAME
+                ? new[] { new DnsAnswer { Type = type, DataRaw = "alias.example.test" } }
+                : type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } }
+                : Array.Empty<DnsAnswer>();
+            return Task.FromResult(new DnsResponse { Answers = answers });
+        };
+        await analysis.AnalyzeMxRecords(new[] {
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "10 unavailable.example.test" },
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "20 healthy.example.test" }
+        }, new InternalLogger());
+        Assert.True(analysis.CnameQueryFailed);
+        Assert.True(analysis.PointsToCname);
+        Assert.False(analysis.AddressQueryFailed);
+        Assert.Contains(analysis.Assessments, item => item.Code == "MX.Cname.QueryFailed");
+        Assert.Contains(analysis.Assessments, item => item.Code == "MX.CNAME.Target");
+    }
 }

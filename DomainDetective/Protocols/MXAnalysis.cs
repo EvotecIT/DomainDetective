@@ -240,7 +240,9 @@ namespace DomainDetective {
                         cnameNxDomain = cnameSucceeded && response.Status == DnsResponseCode.NXDomain;
                     }
                     deadline.Token.ThrowIfCancellationRequested();
-                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException || ex is System.Net.Sockets.SocketException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
+                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException ||
+                    ex is System.Net.Sockets.SocketException || ex is System.IO.IOException || ex is System.Net.Http.HttpRequestException ||
+                    ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
                     cnames = Array.Empty<DnsAnswer>();
                     cnameSucceeded = false;
                 }
