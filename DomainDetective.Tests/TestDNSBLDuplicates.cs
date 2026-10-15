@@ -11,9 +11,9 @@ namespace DomainDetective.Tests {
             var method = typeof(DNSBLAnalysis).GetMethod("ConvertToResults", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?? throw new InvalidOperationException("ConvertToResults not found");
             var first = new[] { new DNSBLRecord { Query = "1.2.3.4", FQDN = "1.2.3.4.test", BlackList = "first", IsBlackListed = true, Answer = "127.0.0.2" } };
-            method.Invoke(analysis, new object[] { "1.2.3.4", first });
+            method.Invoke(analysis, new object[] { "1.2.3.4", first, new InternalLogger() });
             var second = new[] { new DNSBLRecord { Query = "1.2.3.4", FQDN = "1.2.3.4.test2", BlackList = "second", IsBlackListed = false, Answer = string.Empty } };
-            method.Invoke(analysis, new object[] { "1.2.3.4", second });
+            method.Invoke(analysis, new object[] { "1.2.3.4", second, new InternalLogger() });
 
             Assert.Single(analysis.Results);
             Assert.Equal("second", analysis.Results["1.2.3.4"].DNSBLRecords.First().BlackList);
