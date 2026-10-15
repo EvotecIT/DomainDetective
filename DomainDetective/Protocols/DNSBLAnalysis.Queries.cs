@@ -23,10 +23,13 @@ public partial class DNSBLAnalysis {
     public List<string> DiscoveryErrors { get; } = new();
     private readonly HashSet<DnsblIpSource> _failedDiscoverySources = new();
 
-    internal bool HasDiscoveryFailure(ISet<DnsblIpSource>? sources, ISet<DnsblQueryKind>? kinds) =>
-        _failedDiscoverySources.Any(source => (sources == null || sources.Contains(source)) &&
-            (kinds == null || kinds.Contains(source == DnsblIpSource.MxAAAA || source == DnsblIpSource.ApexAAAA
-                ? DnsblQueryKind.IpAddressV6 : DnsblQueryKind.IpAddressV4)));
+    internal bool HasDiscoveryFailure(ISet<DnsblIpSource>? sources, ISet<DnsblQueryKind>? kinds) {
+        lock (SyncRoot) {
+            return _failedDiscoverySources.Any(source => (sources == null || sources.Contains(source)) &&
+                (kinds == null || kinds.Contains(source == DnsblIpSource.MxAAAA || source == DnsblIpSource.ApexAAAA
+                    ? DnsblQueryKind.IpAddressV6 : DnsblQueryKind.IpAddressV4)));
+        }
+    }
 
     internal QueryRun BeginQueryRun(CancellationToken caller) => new(caller);
 
@@ -48,12 +51,14 @@ public partial class DNSBLAnalysis {
         } catch (OperationCanceledException) when (run.CallerToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is not OutOfMemoryException) {
             run.CallerToken.ThrowIfCancellationRequested();
-            DiscoverySucceeded = false;
-            foreach (var source in sources) { _failedDiscoverySources.Add(source); }
-            var message = $"{owner} {type}: {ex.Message}";
-            DiscoveryErrors.Add(message);
-            using var collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: owner) : null;
-            Logger?.WriteWarningCode(DnsblCodes.QueryFailed, "DNSBL target discovery was incomplete: {0}", message);
+            lock (SyncRoot) {
+                DiscoverySucceeded = false;
+                foreach (var source in sources) { _failedDiscoverySources.Add(source); }
+                var message = $"{owner} {type}: {ex.Message}";
+                DiscoveryErrors.Add(message);
+                using var collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: owner) : null;
+                Logger?.WriteWarningCode(DnsblCodes.QueryFailed, "DNSBL target discovery was incomplete: {0}", message);
+            }
             return Array.Empty<DnsAnswer>();
         }
     }

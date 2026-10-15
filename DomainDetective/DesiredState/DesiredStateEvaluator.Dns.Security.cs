@@ -288,7 +288,7 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        var records = dnsbl.AllResults ?? new List<DNSBLRecord>();
+        var records = dnsbl.GetRecordsSnapshot();
         var ignored = desired.IgnoredBlacklists != null && desired.IgnoredBlacklists.Length > 0
             ? new HashSet<string>(
                 desired.IgnoredBlacklists

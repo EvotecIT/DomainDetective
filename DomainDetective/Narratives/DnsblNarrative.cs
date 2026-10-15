@@ -12,7 +12,12 @@ public static class DnsblNarrative
     public sealed class Sections : NarrativeSections { }
 
     /// <summary>Executes the build operation.</summary>
-    public static Sections Build(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments = null) {
+        if (analysis == null) { return BuildCore(null, assessments); }
+        lock (analysis.SyncRoot) { return BuildCore(analysis, assessments); }
+    }
+
+    private static Sections BuildCore(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments)
     {
         var subjCandidate = analysis?.Subject;
         string subj;
