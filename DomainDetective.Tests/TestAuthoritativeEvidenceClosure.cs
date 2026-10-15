@@ -38,18 +38,21 @@ public class TestAuthoritativeEvidenceClosure {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void MixedRecordPresenceIsReportedAsNonUniform(bool allAbsent) {
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void MixedRecordPresenceIsReportedAsNonUniform(bool allAbsent, bool differentTtls) {
         var analysis = new DnsTtlAnalysis();
         analysis.ServerTtlA["192.0.2.1"] = allAbsent ? null : 3600;
         analysis.ServerTtlA["192.0.2.2"] = null;
+        if (differentTtls) { analysis.ServerTtlA["192.0.2.3"] = 1800; }
         var logger = new InternalLogger();
         using var collector = AssessmentCollector.ForAnalysis(logger, analysis, category: "TTL", target: "example.test");
         analysis.EvaluateUniformity(Array.Empty<string>(), logger);
         Assert.False(analysis.AUniformAcrossServers);
         Assert.False(analysis.UniformityIncomplete);
         Assert.Equal(!allAbsent, analysis.Assessments.Any(item => item.Code == TtlCodes.NonUniformAcrossNS_A));
+        Assert.Equal(allAbsent ? 0 : 1, analysis.Assessments.Count(item => item.Code == TtlCodes.NonUniformAcrossNS_A));
         Assert.Equal(!allAbsent, Converters.Convert(analysis).WarningCount > 0);
     }
 

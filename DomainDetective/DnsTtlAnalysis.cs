@@ -381,7 +381,7 @@ namespace DomainDetective {
                     logger?.WriteInformationCode("TTL.Uniformity.Incomplete", "{0} TTL uniformity could not be fully verified; authoritative TTL evidence is missing.", label);
                 } else if (observed.Length == 0) {
                     logger?.WriteInformationCode("TTL.Uniformity.NoRecord", "Authoritative replies contain no {0} TTL to compare.", label);
-                } else if (map.Values.Any(value => !value.HasValue)) {
+                } else if (observed.Length == 1 && map.Values.Any(value => !value.HasValue)) {
                     logger?.WriteWarningCode(differentCode, "Authoritative name servers disagree on {0} record presence.", label);
                 } else if (observed.Length <= 1) {
                     logger?.WriteInformationCode(uniformCode, "{0} TTL consistent across authoritative name servers.", label);
