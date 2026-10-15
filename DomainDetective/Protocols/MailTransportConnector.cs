@@ -13,6 +13,12 @@ namespace DomainDetective;
 /// Establishes mail transport connections while preserving logical-host and address-family constraints.
 /// </summary>
 internal static class MailTransportConnector {
+    internal static TimeSpan GetConnectTimeout(TimeSpan connectTimeout, TimeSpan operationTimeout) {
+        if (connectTimeout == Timeout.InfiniteTimeSpan) { return operationTimeout; }
+        if (operationTimeout == Timeout.InfiniteTimeSpan) { return connectTimeout; }
+        return connectTimeout < operationTimeout ? connectTimeout : operationTimeout;
+    }
+
     internal static async Task<TcpClient> ConnectAsync(
         MailTransportEndpoint endpoint,
         Func<string, CancellationToken, Task<IReadOnlyList<IPAddress>>>? outboundAddressResolver,
@@ -53,7 +59,7 @@ internal static class MailTransportConnector {
             ? null
             : NormalizeAddress(endpoint.ConnectAddress);
         if (outboundAddressResolver != null) {
-            var approved = await outboundAddressResolver(endpoint.HostName, cancellationToken).ConfigureAwait(false)
+            var approved = await outboundAddressResolver(endpoint.HostName, cancellationToken).WaitWithCancellation(cancellationToken).ConfigureAwait(false)
                 ?? Array.Empty<IPAddress>();
             IPAddress[] normalizedApproved = approved
                 .Where(address => address != null)

@@ -24,7 +24,8 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
                 var result = analysis.ServerResults[$"localhost:{port}"];
                 Assert.True(result.StartTlsAdvertised);
-                Assert.Equal(SslProtocols.None, result.Protocol);
+                Assert.Equal(SslProtocols.Tls12, result.Protocol);
+                Assert.True(result.SupportsTls12);
                 Assert.False(result.SupportsTls13);
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
