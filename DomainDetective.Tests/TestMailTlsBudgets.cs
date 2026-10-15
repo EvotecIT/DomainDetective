@@ -80,7 +80,8 @@ public class TestMailTlsBudgets {
                 if (!rejectUpgrade) {
                     var header = new byte[1];
                     int read = await stream.ReadAsync(header, 0, 1, guard.Token);
-                    if (read == 1) { Assert.Equal((byte)22, header[0]); } // TLS handshake record, after STARTTLS.
+                    // OpenSSL can send an alert immediately when the requested legacy version is disabled.
+                    if (read == 1) { Assert.Contains(header[0], new byte[] { 21, 22 }); }
                 }
             }
         });
