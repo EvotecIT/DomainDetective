@@ -5,6 +5,38 @@ using DomainDetective.Views;
 namespace DomainDetective.Tests;
 
 public class TestAuthoritativeEvidenceClosure {
+    [Theory]
+    [InlineData(".")]
+    [InlineData("malformed.example.test")]
+    public async Task MalformedMxTargetCannotDiscardValidSiblingEvidence(string target) {
+        using var health = new DomainHealthCheck();
+        int goodAddressQueries = 0;
+        health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            Assert.False(string.IsNullOrWhiteSpace(name));
+            if (name == "malformed.example.test") { throw new ArgumentException("Malformed target."); }
+            if (name == "good.example.test" && (type == DnsRecordType.A || type == DnsRecordType.AAAA)) {
+                Interlocked.Increment(ref goodAddressQueries);
+                return Task.FromResult(new DnsResponse { Answers = new[] { new DnsAnswer {
+                    Type = type, DataRaw = type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1", TTL = 3600
+                } } });
+            }
+            return Task.FromResult(new DnsResponse());
+        };
+        var analysis = health.MXAnalysis;
+        analysis.Subject = "example.test";
+        await analysis.AnalyzeMxRecords(new[] {
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = $"10 {target}" },
+            new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "20 good.example.test" }
+        }, new InternalLogger());
+        Assert.True(analysis.Ipv6Supported);
+        Assert.True(analysis.CnameQueryFailed);
+        Assert.True(analysis.AddressQueryFailed);
+        Assert.False(analysis.HasNullMx);
+        Assert.False(analysis.ValidMxConfiguration);
+        Assert.False(analysis.PointsToNonExistentDomain);
+        Assert.Equal(2, goodAddressQueries);
+    }
+
     [Fact]
     public async Task AliasBatchRespectsASingleResolverSlotAndRetainsAllAnswers() {
         using var health = new DomainHealthCheck();

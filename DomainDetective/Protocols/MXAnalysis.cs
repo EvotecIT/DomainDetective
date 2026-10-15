@@ -187,6 +187,13 @@ namespace DomainDetective {
                         // Do not evaluate host lookups for null MX
                         continue;
                     }
+                    if (string.IsNullOrWhiteSpace(host)) {
+                        CnameQueryFailed = AddressQueryFailed = AddressExistenceQueryFailed = Ipv6QueryFailed = true;
+                        using (_collector.PushTarget(Subject ?? string.Empty)) {
+                            logger.WriteWarningCode("MX.Target.Invalid", "MX record with preference {0} has no usable target hostname.", pref);
+                        }
+                        continue;
+                    }
                     parsed.Add((pref, host));
                     var lowerHost = host.ToLowerInvariant();
                     if (lowerHost == "localhost" || lowerHost == "localhost.localdomain" || lowerHost == "127.0.0.1") {
@@ -216,7 +223,6 @@ namespace DomainDetective {
                 .OrderBy(p => p.Preference)
                 .ToList();
 
-            CnameQueryFailed = false;
             var hostsMissingAddress = new List<string>();
             var cnameResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(evaluationList, async item => {
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -232,7 +238,7 @@ namespace DomainDetective {
                         cnames = cnameSucceeded ? response.Answers ?? Array.Empty<DnsAnswer>() : Array.Empty<DnsAnswer>();
                     }
                     deadline.Token.ThrowIfCancellationRequested();
-                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException || ex is System.Net.Sockets.SocketException) {
+                } catch (Exception ex) when (ex is OperationCanceledException && deadline.IsCancellationRequested || ex is TimeoutException || ex is System.Net.Sockets.SocketException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
                     cnames = Array.Empty<DnsAnswer>();
                     cnameSucceeded = false;
                 }
@@ -249,7 +255,7 @@ namespace DomainDetective {
                         return (response.Answers ?? Array.Empty<DnsAnswer>(), response.Status == DnsResponseCode.NXDomain);
                     }
                     catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
-                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException) { return (null, false); }
+                        ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
                 }
                 var aTask = QueryAddressAsync(DnsRecordType.A);
                 var aaaaTask = QueryAddressAsync(DnsRecordType.AAAA);
