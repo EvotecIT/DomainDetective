@@ -16,13 +16,13 @@ public class TestAuthoritativeProbeBudgets {
         using var health = new DomainHealthCheck();
         var analysis = health.MXAnalysis;
         analysis.Subject = "example.test";
-        analysis.QueryDnsOverride = (host, type) => {
+        Func<string, DnsRecordType, Task<DnsAnswer[]>> answers = (host, type) => {
             if (host == "bad.example.test" && type == failedType) { throw new TimeoutException("Target query failed."); }
             bool address = type == DnsRecordType.A && (host == "good.example.test" || failedType != DnsRecordType.NS);
             return Task.FromResult(address ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
         };
+        analysis.QueryDnsOverride = answers;
         if (envelope) {
-            var answers = analysis.QueryDnsOverride;
             analysis.QueryDnsOverride = null;
             health.DnsConfiguration.QueryDnsResponseOverride = async (host, type, _) => {
                 try { return new DnsResponse { Status = DnsResponseCode.NoError, Answers = await answers(host, type) }; }
