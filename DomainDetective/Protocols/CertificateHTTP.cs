@@ -87,7 +87,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
-        /// <summary>Whole-analysis cancellation budget, including redirects, protocol probes and certificate enrichment.</summary>
+        /// <summary>Whole URL-analysis cancellation budget, including redirects, protocol probes and certificate enrichment.</summary>
         public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
         /// <summary>Budget for one auxiliary TLS version probe, including address resolution and connection.</summary>
         public TimeSpan ProtocolProbeTimeout { get; set; } = TimeSpan.FromSeconds(5);

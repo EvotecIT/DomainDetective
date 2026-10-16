@@ -137,21 +137,32 @@ namespace DomainDetective {
                         Environment.GetEnvironmentVariable("HTTP_PROXY") ??
                         Environment.GetEnvironmentVariable("http_proxy");
             if (!string.IsNullOrEmpty(proxy)) {
-                TcpClient tcp = new();
                 var p = new Uri(proxy);
-                await tcp.ConnectAsync(p.Host, p.Port).WaitWithCancellation(token);
-                var stream = tcp.GetStream();
-                var connectCmd = $"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n";
-                var buffer = System.Text.Encoding.ASCII.GetBytes(connectCmd);
-                await stream.WriteAsync(buffer, 0, buffer.Length, token);
-                await stream.FlushAsync(token);
-                using var reader = new StreamReader(stream, System.Text.Encoding.ASCII, false, 1024, true);
-                string? line = await reader.ReadLineAsync();
-                if (line == null || (!line.StartsWith("HTTP/1.1 200") && !line.StartsWith("HTTP/1.0 200"))) {
-                    throw new IOException($"Proxy CONNECT failed: {line}");
+                token.ThrowIfCancellationRequested();
+                TcpClient tcp = new();
+                try {
+                    // Closing the owned socket interrupts Framework's non-cancelable
+                    // connect/read overloads. Await them through completion before returning.
+                    using var registration = token.Register(() => tcp.Dispose());
+                    await tcp.ConnectAsync(p.Host, p.Port).ConfigureAwait(false);
+                    var stream = tcp.GetStream();
+                    var connectCmd = $"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n";
+                    var buffer = System.Text.Encoding.ASCII.GetBytes(connectCmd);
+                    await stream.WriteAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
+                    await stream.FlushAsync(token).ConfigureAwait(false);
+                    using var reader = new StreamReader(stream, System.Text.Encoding.ASCII, false, 1024, true);
+                    string? line = await reader.ReadLineAsync().ConfigureAwait(false);
+                    if (line == null || (!line.StartsWith("HTTP/1.1 200") && !line.StartsWith("HTTP/1.0 200"))) {
+                        throw new IOException($"Proxy CONNECT failed: {line}");
+                    }
+                    while (!string.IsNullOrEmpty(await reader.ReadLineAsync().ConfigureAwait(false))) { }
+                    token.ThrowIfCancellationRequested();
+                    return tcp;
+                } catch {
+                    tcp.Dispose();
+                    token.ThrowIfCancellationRequested();
+                    throw;
                 }
-                while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
-                return tcp;
             }
             return await ConnectDirectAsync(
                     host,
@@ -284,7 +295,8 @@ namespace DomainDetective {
                 token.ThrowIfCancellationRequested();
                 if (TlsProtocol == proto) { return (proto, true, true); }
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                timeoutCts.CancelAfter(ProtocolProbeTimeout < Timeout ? ProtocolProbeTimeout : Timeout);
+                timeoutCts.CancelAfter(Timeout == System.Threading.Timeout.InfiniteTimeSpan || ProtocolProbeTimeout < Timeout
+                    ? ProtocolProbeTimeout : Timeout);
                 Helpers.TlsAlertEvidenceStream? evidence = null;
                 try {
                     using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);

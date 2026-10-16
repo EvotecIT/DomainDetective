@@ -251,6 +251,7 @@ namespace DomainDetective {
                     effectiveLogger.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
                 }
             } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) {
+                _metadataQueryFailures.Add($"{domainName} NSEC3/NSEC3PARAM: {ex.Message}");
                 effectiveLogger.WriteDebug("NSEC3 Opt-Out check skipped: {0}", ex.Message);
             }
 
@@ -269,13 +270,16 @@ namespace DomainDetective {
                 }
             } catch (Exception ex) when (IsNonFatalDnssecProbeException(ex, ct)) { /* non-fatal */ }
 
+            ct.ThrowIfCancellationRequested();
+            MetadataQueriesComplete = _metadataQueryFailures.Count == 0;
+
         }
 
         private void ResetValidationState() {
             _mismatchSummary.Clear();
             _warnings.Clear();
             _metadataQueryFailures.Clear();
-            MetadataQueriesComplete = true;
+            MetadataQueriesComplete = false;
             KeyExpiresSoon = false;
             RootAnchorExpiration = null;
             ChainValid = false;
@@ -470,6 +474,8 @@ namespace DomainDetective {
                     Status = DnsResponseCode.ServerFailure,
                     Error = "DNSSEC query budget exhausted; the RRset could not be validated."
                 };
+            } catch (Exception ex) when (!isSubject && IsNonFatalDnssecProbeException(ex, ct)) {
+                response = new DnsResponse { Status = DnsResponseCode.ServerFailure, Error = ex.Message };
             }
             if (!isSubject && (!string.IsNullOrEmpty(response.Error)
                 || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain)) {

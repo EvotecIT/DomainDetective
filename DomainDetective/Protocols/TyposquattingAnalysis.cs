@@ -114,6 +114,7 @@ public partial class TyposquattingAnalysis : IHasAssessments
         if (AnalysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(AnalysisTimeout)); }
         if (MaxDnsParallelism <= 0) { throw new ArgumentOutOfRangeException(nameof(MaxDnsParallelism)); }
         AnalysisComplete = false;
+        using var collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "TYPOSQUAT", target: domainName) : null;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(AnalysisTimeout);
         try {
@@ -126,7 +127,7 @@ public partial class TyposquattingAnalysis : IHasAssessments
         }
     }
 
-    private async Task AnalyzeCore(string domainName, InternalLogger logger, CancellationToken ct) {
+    private async Task AnalyzeCore(string domainName, InternalLogger? logger, CancellationToken ct) {
         if (string.IsNullOrWhiteSpace(domainName))
         {
             throw new ArgumentNullException(nameof(domainName));
@@ -134,7 +135,6 @@ public partial class TyposquattingAnalysis : IHasAssessments
 
         Subject = domainName.Trim();
         var list = PublicSuffixList ?? new PublicSuffixList();
-        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "TYPOSQUAT", target: domainName) : null;
         ContainsHomoglyphs = DetectHomoglyphs && StringAlgorithms.ContainsHomoglyphs(domainName);
         if (ContainsHomoglyphs)
         {

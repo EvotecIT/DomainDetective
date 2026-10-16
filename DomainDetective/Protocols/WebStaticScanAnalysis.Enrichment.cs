@@ -43,11 +43,21 @@ public partial class WebStaticScanAnalysis
         var dnsWork = Helpers.AuthoritativeDnsProbes.RunAsync(Hosts, async kv => {
             try
             {
-                var aTask = DnsConfiguration.QueryPolicyDNS(kv.Key, DnsRecordType.A, cancellationToken: cancellationToken);
-                var aaaaTask = DnsConfiguration.QueryPolicyDNS(kv.Key, DnsRecordType.AAAA, cancellationToken: cancellationToken);
+                async Task<(DnsAnswer[] Answers, string? Error)> QueryAddressesAsync(DnsRecordType type) {
+                    try {
+                        return (await DnsConfiguration.QueryPolicyDNS(kv.Key, type, cancellationToken: cancellationToken).ConfigureAwait(false), null);
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (Exception ex) when (ex is not OutOfMemoryException) { return (Array.Empty<DnsAnswer>(), $"{type}: {ex.Message}"); }
+                }
+                var aTask = QueryAddressesAsync(DnsRecordType.A);
+                var aaaaTask = QueryAddressesAsync(DnsRecordType.AAAA);
                 await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
-                var answers4 = await aTask;
-                var answers6 = await aaaaTask;
+                var ipv4 = await aTask;
+                var ipv6 = await aaaaTask;
+                var failures = new[] { ipv4.Error, ipv6.Error }.Where(error => !string.IsNullOrEmpty(error)).ToArray();
+                if (failures.Length > 0) { kv.Value.DnsEnrichmentError = string.Join("; ", failures); }
+                var answers4 = ipv4.Answers;
+                var answers6 = ipv6.Answers;
                 foreach (var a in answers4.Concat(answers6))
                 {
                     var ip = a.Data ?? a.DataRaw;
@@ -109,7 +119,10 @@ public partial class WebStaticScanAnalysis
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (Exception ex) { kv.Value.DnsEnrichmentError = ex.Message; }
+            catch (Exception ex) {
+                kv.Value.DnsEnrichmentError = string.IsNullOrEmpty(kv.Value.DnsEnrichmentError)
+                    ? ex.Message : kv.Value.DnsEnrichmentError + "; " + ex.Message;
+            }
             return true;
         }, dnsCap, cancellationToken);
         await Task.WhenAll(tlsWork, dnsWork).ConfigureAwait(false);
