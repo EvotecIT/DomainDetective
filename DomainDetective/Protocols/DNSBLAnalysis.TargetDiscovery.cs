@@ -10,7 +10,7 @@ namespace DomainDetective;
 public partial class DNSBLAnalysis {
     /// <summary>Checks resolved targets as discovery progresses, retaining evidence when another family is slow.</summary>
     private async Task<List<(string Ip, string Host, DnsblIpSource Source, List<DNSBLRecord> Records)>> DiscoverAndQueryTargetsAsync(
-        string domainName, DomainIpScanMode mode, QueryRun run, InternalLogger? logger, Action discoveryScheduled) {
+        string domainName, DomainIpScanMode mode, QueryRun run, InternalLogger? logger, Action startDomainProviders) {
         if (!Enum.IsDefined(typeof(DomainIpScanMode), mode)) { mode = DomainIpScanMode.MxThenApexFallback; }
         bool includeMx = mode != DomainIpScanMode.ApexOnly && mode != DomainIpScanMode.ApexAOnly && mode != DomainIpScanMode.ApexAAAAOnly;
         bool includeApex = !includeMx || mode == DomainIpScanMode.MxAndApex;
@@ -32,11 +32,12 @@ public partial class DNSBLAnalysis {
             // Start or queue every discovery lookup before attaching provider continuations.
             // The two phases use separate bounds so slow provider work cannot hold discovery workers.
             var queries = requests.Select(QueryAddressAsync).ToArray();
-            if (mx || !includeMx) { discoveryScheduled(); }
             var batches = requests.Select(async (request, index) => {
                 var answers = await queries[index].ConfigureAwait(false);
                 return await Helpers.BoundedAsync.RunAsync(answers, async answer => {
-                    var records = await ToListAsync(QueryDNSBL(DNSBLLists, answer.Data, run, request.Source, request.Host)).ConfigureAwait(false);
+                    var recordsTask = ToListAsync(QueryDNSBL(DNSBLLists, answer.Data, run, request.Source, request.Host));
+                    startDomainProviders();
+                    var records = await recordsTask.ConfigureAwait(false);
                     return (Ip: answer.Data, Host: request.Host, Source: request.Source, Records: records);
                 }, 16, run.CallerToken).ConfigureAwait(false);
             }).ToArray();
@@ -75,7 +76,7 @@ public partial class DNSBLAnalysis {
             return targets;
         } finally {
             // Release the owned domain branch even when discovery fails or is canceled.
-            discoveryScheduled();
+            startDomainProviders();
         }
     }
 }

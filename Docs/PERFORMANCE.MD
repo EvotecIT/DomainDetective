@@ -58,6 +58,8 @@ health.DNSBLAnalysis.DiscoveryTimeout = TimeSpan.FromSeconds(3);
 
 DNSBL checks resolved targets while other discovery continues. Slow or unavailable providers can still consume its overall budget. Compare completed provider coverage and discovery errors when comparing scan times; a shorter incomplete scan is not equivalent to a completed scan.
 
+With a single resolver slot, DNSBL caps each discovery lookup at half the remaining overall budget so that a slow address family leaves time to check an already-resolved target. An IPv6 provider's A and AAAA requests share one provider execution deadline, starting when the first request obtains recursive admission.
+
 ## HTTP transport and reference data
 
 Anonymous HTTP posture probes reuse connections. Requests with explicit headers, cookies, proxy settings, custom handlers, or certificate-validation changes retain isolated transport. Cookies received during an anonymous request stay within that request's redirect chain.

@@ -5,12 +5,14 @@ namespace DomainDetective.Tests;
 [Collection("Performance proxy environment")]
 public class TestDnsblPerformance {
     [Theory]
-    [InlineData(1)]
-    [InlineData(32)]
-    public async Task SlowDiscoveryRetainsListingForAnAlreadyResolvedFamily(int dnsParallelism) {
+    [InlineData(1, 3)]
+    [InlineData(32, 3)]
+    [InlineData(1, 1)]
+    public async Task SlowDiscoveryRetainsListingForAnAlreadyResolvedFamily(int dnsParallelism, int analysisSeconds) {
         using var admission = new SemaphoreSlim(dnsParallelism);
         using var configuration = new DnsConfiguration {
             QueryAdmissionGate = admission,
+            ResolverMaxConcurrency = dnsParallelism,
             QueryDnsResponseOverride = async (owner, type, ct) => {
                 if (owner == "example.com") {
                     if (type == DnsRecordType.A) { return Answer(type, "192.0.2.1"); }
@@ -19,12 +21,61 @@ public class TestDnsblPerformance {
                 return Answer(DnsRecordType.A, "127.0.0.2");
             }
         };
-        var analysis = new DNSBLAnalysis { DnsConfiguration = configuration, AnalysisTimeout = TimeSpan.FromSeconds(3) };
+        var analysis = new DNSBLAnalysis { DnsConfiguration = configuration, AnalysisTimeout = TimeSpan.FromSeconds(analysisSeconds) };
         analysis.ClearDNSBL();
         analysis.AddDNSBL("provider.example.test");
         await analysis.AnalyzeDNSBLRecordsMX("example.com", new InternalLogger(), scanMode: DomainIpScanMode.ApexOnly);
         Assert.False(analysis.DiscoverySucceeded);
         Assert.Contains(analysis.AllResults, record => record.IpAddress == "192.0.2.1" && record.IsBlackListed && record.QuerySucceeded);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FallbackDiscoveryIsQueuedBeforeDomainProviders(bool emptyMx) {
+        using var health = new DomainHealthCheck();
+        var analysis = health.DNSBLAnalysis;
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        analysis.AnalysisTimeout = TimeSpan.FromMilliseconds(500);
+        health.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, ct) => {
+            if (owner == "example.com") {
+                if (type == DnsRecordType.MX) {
+                    await Task.Delay(10, ct);
+                    return emptyMx ? new DnsResponse { Status = DnsResponseCode.NoError } : Answer(type, "10 mail.example.com");
+                }
+                return Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1");
+            }
+            if (owner == "mail.example.com") {
+                await Task.Delay(30, ct);
+                return new DnsResponse { Status = DnsResponseCode.NoError };
+            }
+            if (owner.StartsWith("example.com.", StringComparison.Ordinal)) { await Task.Delay(Timeout.Infinite, ct); }
+            return new DnsResponse { Status = DnsResponseCode.NXDomain };
+        };
+        await health.Verify("example.com", new[] { HealthCheckType.DNSBL }, executionOptions: new HealthCheckExecutionOptions { DnsParallelism = 1 });
+        Assert.True(analysis.DiscoverySucceeded);
+        Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.ApexA);
+        Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.ApexAAAA);
+    }
+
+    [Fact]
+    public async Task Ipv6RecordTypesShareOneProviderExecutionDeadline() {
+        using var admission = new SemaphoreSlim(1);
+        using var configuration = new DnsConfiguration {
+            QueryAdmissionGate = admission,
+            QueryDnsResponseOverride = async (_, type, ct) => {
+                await Task.Delay(70, ct);
+                return Answer(type, type == DnsRecordType.A ? "127.0.0.2" : "::1");
+            }
+        };
+        var analysis = new DNSBLAnalysis {
+            DnsConfiguration = configuration, ProviderTimeout = TimeSpan.FromMilliseconds(100), AnalysisTimeout = TimeSpan.FromSeconds(2)
+        };
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        await analysis.AnalyzeDNSBLRecordsMany(new[] { "2001:db8::1" }, new InternalLogger());
+        Assert.Contains(analysis.AllResults, record => !record.QuerySucceeded);
     }
 
     [Fact]

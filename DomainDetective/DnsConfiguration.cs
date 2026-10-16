@@ -192,23 +192,19 @@ namespace DomainDetective {
             return results;
         }
 
-        /// <summary>Applies a query execution budget after shared admission, while the caller budget also bounds queue time.</summary>
-        internal Task<DnsResponse> QueryDNSResponseWithExecutionTimeout(string name, DnsRecordType recordType,
-            TimeSpan executionTimeout, CancellationToken cancellationToken) {
+        /// <summary>Notifies the owning operation after shared admission so related queries can share one execution deadline.</summary>
+        internal Task<DnsResponse> QueryDNSResponseAfterAdmission(string name, DnsRecordType recordType,
+            CancellationToken cancellationToken, Action queryAdmitted) {
             ValidateName(name, recordType);
-            return QueryResponseAsync(name, recordType, cancellationToken, executionTimeout);
+            return QueryResponseAsync(name, recordType, cancellationToken, queryAdmitted);
         }
 
-        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken, TimeSpan? executionTimeout = null) {
+        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken, Action? queryAdmitted = null) {
             var admissionGate = QueryAdmissionGate;
             if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
             try {
-                if (!executionTimeout.HasValue) {
-                    return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
-                }
-                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                if (executionTimeout.Value != Timeout.InfiniteTimeSpan) { deadline.CancelAfter(executionTimeout.Value); }
-                return await QueryResponseCoreAsync(name, recordType, deadline.Token).ConfigureAwait(false);
+                queryAdmitted?.Invoke();
+                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
             } finally { admissionGate?.Release(); }
         }
 

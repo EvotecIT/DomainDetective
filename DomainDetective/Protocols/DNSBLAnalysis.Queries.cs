@@ -52,8 +52,12 @@ public partial class DNSBLAnalysis {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
         try {
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { throw new TimeoutException("Analysis budget exhausted."); }
-            TimeSpan? timeout = DiscoveryTimeout == Timeout.InfiniteTimeSpan ? remaining :
-                remaining.HasValue && remaining.Value < DiscoveryTimeout ? remaining : DiscoveryTimeout;
+            // With one resolver slot, leave time for already-resolved targets instead
+            // of allowing a slow family to occupy that slot for the entire run.
+            var discoveryBudget = run.MaxParallelism == 1 && remaining.HasValue
+                ? TimeSpan.FromTicks(Math.Max(1, remaining.Value.Ticks / 2)) : remaining;
+            TimeSpan? timeout = DiscoveryTimeout == Timeout.InfiniteTimeSpan ? discoveryBudget :
+                discoveryBudget.HasValue && discoveryBudget.Value < DiscoveryTimeout ? discoveryBudget : DiscoveryTimeout;
             if (timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
             var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
@@ -119,13 +123,20 @@ public partial class DNSBLAnalysis {
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
             TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
                 remaining.HasValue && remaining.Value < ProviderTimeout ? remaining : ProviderTimeout;
-            if (QueryDnsFullOverride != null && timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
+            using var executionDeadline = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+            int executionStarted = 0;
+            void StartExecution() {
+                if (Interlocked.CompareExchange(ref executionStarted, 1, 0) == 0 && timeout.HasValue) {
+                    executionDeadline.CancelAfter(timeout.Value);
+                }
+            }
             async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
                 try {
+                    if (QueryDnsFullOverride != null) { StartExecution(); }
                     var response = QueryDnsFullOverride != null
-                        ? (await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)).FirstOrDefault()
-                        : await DnsConfiguration.QueryDNSResponseWithExecutionTimeout(query, type, ProviderTimeout, deadline.Token).ConfigureAwait(false);
-                    deadline.Token.ThrowIfCancellationRequested();
+                        ? (await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(executionDeadline.Token).ConfigureAwait(false)).FirstOrDefault()
+                        : await DnsConfiguration.QueryDNSResponseAfterAdmission(query, type, executionDeadline.Token, StartExecution).ConfigureAwait(false);
+                    executionDeadline.Token.ThrowIfCancellationRequested();
                     if (response == null || !string.IsNullOrEmpty(response.Error) ||
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                         return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));

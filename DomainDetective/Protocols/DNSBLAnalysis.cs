@@ -158,15 +158,21 @@ namespace DomainDetective {
             Subject = domainName;
             using var ownedRun = queryRun == null ? BeginQueryRun(cancellationToken) : null;
             var run = queryRun ?? ownedRun!;
-            var discoveryScheduled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var ipRecords = DiscoverAndQueryTargetsAsync(domainName, scanMode, run, logger, () => discoveryScheduled.TrySetResult(true));
+            var domainRecordsReady = new TaskCompletionSource<Task<List<DNSBLRecord>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            int domainStarted = 0;
             async Task<List<DNSBLRecord>> QueryDomainAsync() {
-                // Queue initial discovery before domain providers can occupy a small DNS cap.
-                await discoveryScheduled.Task.ConfigureAwait(false);
                 run.CallerToken.ThrowIfCancellationRequested();
                 return await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName)).ConfigureAwait(false);
             }
-            var domainRecords = QueryDomainAsync();
+            void StartDomainProviders() {
+                if (System.Threading.Interlocked.CompareExchange(ref domainStarted, 1, 0) == 0) {
+                    // Start synchronously after the first resolved target's provider work
+                    // is queued, before later targets can fill the provider admission queue.
+                    domainRecordsReady.TrySetResult(QueryDomainAsync());
+                }
+            }
+            var ipRecords = DiscoverAndQueryTargetsAsync(domainName, scanMode, run, logger, StartDomainProviders);
+            var domainRecords = domainRecordsReady.Task.Unwrap();
             // Observe both owned branches even if discovery or a provider callback fails.
             await Task.WhenAll(domainRecords, ipRecords).ConfigureAwait(false);
             ConvertToResults(domainName, await domainRecords, logger);
