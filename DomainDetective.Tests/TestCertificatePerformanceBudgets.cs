@@ -1,9 +1,84 @@
 using System.Net;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.Tests;
 
 public class TestCertificatePerformanceBudgets {
+    [Fact]
+    public async Task CtDeadlineRetainsCertificateAndNextInspectionResetsCoverage() {
+        using var rsa = RSA.Create();
+        var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var delayed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var analysis = new CertificateAnalysis {
+            SkipRevocation = true, CaptureExtendedMetadata = false, CaptureCtMetadata = true,
+            CtLookupTimeout = TimeSpan.FromMilliseconds(30), CtLogQueryOverride = _ => delayed.Task
+        };
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try {
+            await analysis.AnalyzeCertificateWithEnrichment(certificate, guard.Token);
+            Assert.NotNull(analysis.Certificate);
+            Assert.False(analysis.AnalysisComplete);
+            Assert.False(analysis.CtLookupComplete);
+            Assert.False(Views.Converters.Convert(analysis).CtLookupComplete);
+            analysis.CtLogQueryOverride = _ => Task.FromResult("[]");
+            await analysis.AnalyzeCertificateWithEnrichment(certificate, guard.Token);
+            Assert.True(analysis.AnalysisComplete);
+            Assert.True(analysis.CtLookupComplete);
+        } finally { delayed.TrySetResult("[]"); }
+    }
+
+    [Fact]
+    public async Task CallerCancellationStopsCtConsumptionAndLateResultCannotReplaceNewEvidence() {
+        using var rsa = RSA.Create();
+        var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var delayed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var analysis = new CertificateAnalysis {
+            SkipRevocation = true, CaptureExtendedMetadata = false, CaptureCtMetadata = true,
+            CtLookupTimeout = TimeSpan.FromSeconds(5), CtLogQueryOverride = _ => delayed.Task
+        };
+        using var caller = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        try {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.AnalyzeCertificateWithEnrichment(certificate, caller.Token));
+            Assert.False(analysis.AnalysisComplete);
+            analysis.CtLogQueryOverride = _ => Task.FromResult("[{\"id\":1}]");
+            await analysis.AnalyzeCertificateWithEnrichment(certificate);
+            delayed.TrySetResult("[]");
+            await Task.Yield();
+            Assert.True(analysis.CtLookupComplete);
+            Assert.True(analysis.PresentInCtLogs);
+            Assert.Single(analysis.CtLogEntries);
+        } finally { delayed.TrySetResult("[]"); }
+    }
+
+    [Fact]
+    public async Task CtDiscoveryStartsBeforeIndependentProtocolProbesFinish() {
+        using var rsa = RSA.Create();
+        var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var ctStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int protocolCalls = 0;
+        using var analysis = new CertificateAnalysis { SkipRevocation = true, CaptureExtendedMetadata = false };
+        await analysis.AnalyzeCertificate(certificate);
+        analysis.CaptureExtendedMetadata = true;
+        analysis.CtLogQueryOverride = _ => { ctStarted.TrySetResult(true); return Task.FromResult("[]"); };
+        analysis.OutboundAddressResolver = async (_, ct) => {
+            Interlocked.Increment(ref protocolCalls);
+            await ctStarted.Task.WaitWithCancellation(ct);
+            return Array.Empty<IPAddress>();
+        };
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var finalize = typeof(CertificateAnalysis).GetMethod("FinalizeCapturedCertificateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        try {
+            await (Task)finalize.Invoke(analysis, new object[] { "https://127.0.0.1", 1, new InternalLogger(), guard.Token })!;
+            Assert.Equal(4, protocolCalls);
+            Assert.True(analysis.CtLookupComplete);
+        } finally { ctStarted.TrySetResult(true); }
+    }
+
     [Fact]
     public async Task AuxiliaryVersionsOverlapAndTimeoutDoesNotMeanUnsupported() {
         int active = 0;

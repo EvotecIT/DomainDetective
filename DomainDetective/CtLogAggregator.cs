@@ -147,7 +147,8 @@ public sealed class CtLogAggregator
         if (QueryOverride != null)
         {
             _lastQueriedSources = new[] { "override" };
-            var json = await QueryOverride(fingerprint).ConfigureAwait(false);
+            // The legacy override owns its task; cancellation stops consuming its result.
+            var json = await QueryOverride(fingerprint).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
             AppendEntries(ParseEntries(json, CtResponseParserKind.Standard), results);
             return results;
         }

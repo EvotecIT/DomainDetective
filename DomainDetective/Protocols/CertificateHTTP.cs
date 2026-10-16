@@ -171,6 +171,10 @@ namespace DomainDetective {
         public bool CaptureExtendedMetadata { get; set; } = true;
         /// <summary>Enable CT lookup even when the rest of extended HTTPS metadata is disabled.</summary>
         public bool CaptureCtMetadata { get; set; }
+        /// <summary>Total time budget for certificate-transparency discovery, including retries. Use an infinite timespan to rely on the enclosing analysis or caller budget.</summary>
+        public TimeSpan CtLookupTimeout { get; set; } = TimeSpan.FromSeconds(10);
+        /// <summary>Whether CT discovery finished within its time budget. False does not establish absence from CT logs.</summary>
+        public bool CtLookupComplete { get; private set; }
         /// <summary>Prefer a certificate-only TLS handshake instead of a full HTTP request when the caller only needs certificate evidence.</summary>
         public bool PreferTlsHandshakeOnlyProbe { get; set; }
         /// <summary>Skip certificate revocation checks.</summary>
@@ -695,32 +699,6 @@ namespace DomainDetective {
             }
 
             return exception;
-        }
-
-        private async Task FinalizeCapturedCertificateAsync(string url, int port, InternalLogger logger, CancellationToken cancellationToken)
-        {
-            EnsureChainBuilt(Certificate!);
-            PopulateKeyInfo();
-            if (CaptureTlsDetails) {
-                await PopulateTlsInfo(new Uri(url), port, cancellationToken).ConfigureAwait(false);
-            }
-            DaysToExpire = (int)(Certificate!.NotAfter - DateTime.Now).TotalDays;
-            DaysValid = (int)(Certificate!.NotAfter - Certificate!.NotBefore).TotalDays;
-            IsExpired = Certificate!.NotAfter < DateTime.Now;
-            if (CaptureExtendedMetadata && !SkipRevocation) {
-                await QueryRevocationEndpoints(cancellationToken).ConfigureAwait(false);
-            }
-            PopulateSubjectAlternativeNames();
-            if (CaptureExtendedMetadata) {
-                PopulateSctAndTlsFeature(logger);
-                await ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
-                await ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
-                // Compute grade once we have basic data (and optional TLS details)
-                ComputeGrade(logger);
-            }
-            if (CaptureExtendedMetadata || CaptureCtMetadata) {
-                await QueryCtLogs(cancellationToken).ConfigureAwait(false);
-            }
         }
 
         internal static string? BuildFailureReason(Exception? exception)

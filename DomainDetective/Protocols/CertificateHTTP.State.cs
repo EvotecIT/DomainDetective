@@ -52,6 +52,7 @@ public partial class CertificateAnalysis {
         CipherAlgorithm = CipherSuite = string.Empty;
         CipherStrength = DhKeyBits = 0;
         PresentInCtLogs = false;
+        CtLookupComplete = _ctLookupBudgetExhausted = false;
         _ctLogEntries.Clear();
         _ctDiscoverySources = _ctTemplateFormatErrors = Array.Empty<string>();
         Assessments.Clear();

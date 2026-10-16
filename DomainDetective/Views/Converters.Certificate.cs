@@ -36,6 +36,7 @@ public static partial class Converters {
             SupportsTls12 = analysis.SupportsTls12,
             SupportsTls13 = analysis.SupportsTls13,
             AnalysisComplete = analysis.AnalysisComplete,
+            CtLookupComplete = analysis.CtLookupComplete,
             ProtocolSupportComplete = analysis.ProtocolSupportComplete,
             LegacyProtocolSupportComplete = analysis.LegacyProtocolSupportComplete,
             TlsProtocol = analysis.TlsProtocol.ToString(),
@@ -143,6 +144,8 @@ public class CertificateInfo {
     public bool SupportsTls13 { get; set; }
     /// <summary>Whether all configured analysis phases finished within the whole-analysis budget.</summary>
     public bool AnalysisComplete { get; set; }
+    /// <summary>Whether certificate transparency discovery finished within its budget.</summary>
+    public bool CtLookupComplete { get; set; }
     /// <summary>Whether auxiliary TLS version results are conclusive.</summary>
     public bool ProtocolSupportComplete { get; set; }
     /// <summary>Whether legacy TLS version results are conclusive.</summary>

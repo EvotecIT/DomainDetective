@@ -4,12 +4,16 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace DomainDetective {
     public partial class CertificateAnalysis {
-        private async Task QueryCtLogs(CancellationToken cancellationToken)
+        private bool _ctLookupBudgetExhausted;
+
+        private async Task QueryCtLogs(CancellationToken cancellationToken, InternalLogger? logger = null)
         {
             PresentInCtLogs = false;
+            CtLookupComplete = false;
             _ctLogEntries.Clear();
             _ctDiscoverySources = Array.Empty<string>();
             _ctTemplateFormatErrors = Array.Empty<string>();
@@ -34,7 +38,20 @@ namespace DomainDetective {
             _ctLogAggregator.CensysApiSecret = FirstNonEmpty(CensysApiSecret, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_SECRET"));
             _ctLogAggregator.ShodanApiKey = FirstNonEmpty(ShodanApiKey, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_SHODAN_API_KEY"));
 
-            var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
+            if (CtLookupTimeout <= TimeSpan.Zero && CtLookupTimeout != System.Threading.Timeout.InfiniteTimeSpan) {
+                throw new ArgumentOutOfRangeException(nameof(CtLookupTimeout));
+            }
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (CtLookupTimeout != System.Threading.Timeout.InfiniteTimeSpan) { deadline.CancelAfter(CtLookupTimeout); }
+            IReadOnlyList<JsonElement> entries;
+            try {
+                entries = await _ctLogAggregator.QueryAsync(fingerprint, deadline.Token).ConfigureAwait(false);
+                deadline.Token.ThrowIfCancellationRequested();
+            } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+                _ctLookupBudgetExhausted = true;
+                logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency lookup budget exhausted; absence from CT logs was not established.");
+                return;
+            }
             _ctLogEntries.AddRange(entries);
             _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
                 .Where(source => !string.IsNullOrWhiteSpace(source))
@@ -45,6 +62,7 @@ namespace DomainDetective {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
+            CtLookupComplete = true;
         }
 
         private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {

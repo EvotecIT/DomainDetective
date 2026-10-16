@@ -23,7 +23,7 @@ namespace DomainDetective {
                 await AnalyzeUrlCore(url, port, logger, deadline.Token).ConfigureAwait(false);
                 deadline.Token.ThrowIfCancellationRequested();
                 cancellationToken.ThrowIfCancellationRequested();
-                AnalysisComplete = true;
+                AnalysisComplete = !_ctLookupBudgetExhausted;
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
                 logger.WriteInformationCode("CERT.Analysis.Incomplete", "Certificate analysis budget exhausted; remaining enrichment was not checked.");
                 if (Certificate == null) {
