@@ -34,7 +34,7 @@ namespace DomainDetective {
         /// <returns>Enumerable of individual DNSBL records.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
-            var run = BeginQueryRun(default);
+            using var run = BeginQueryRun(default);
             Subject = domain;
             logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
@@ -58,7 +58,7 @@ namespace DomainDetective {
                 Reset();
             }
             if (items.Count == 0) return;
-            var run = BeginQueryRun(default);
+            using var run = BeginQueryRun(default);
 
             logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
 

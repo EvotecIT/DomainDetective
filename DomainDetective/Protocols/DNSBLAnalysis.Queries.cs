@@ -11,11 +11,20 @@ using System.Threading.Tasks;
 namespace DomainDetective;
 
 public partial class DNSBLAnalysis {
-    private readonly SemaphoreSlim _queryGate = new(16);
-    internal sealed class QueryRun {
+    // A single analysis also supports concurrent append runs. Keep their aggregate
+    // provider admission bounded while each run retains its own budget and cap.
+    private readonly SemaphoreSlim _providerAdmission = new(32);
+    internal sealed class QueryRun : IDisposable {
         internal CancellationToken CallerToken { get; }
         internal Stopwatch Budget { get; } = Stopwatch.StartNew();
-        internal QueryRun(CancellationToken callerToken) { CallerToken = callerToken; }
+        internal SemaphoreSlim ProviderGate { get; }
+        internal int MaxParallelism { get; }
+        internal QueryRun(CancellationToken callerToken, int maxParallelism) {
+            CallerToken = callerToken;
+            MaxParallelism = maxParallelism;
+            ProviderGate = new SemaphoreSlim(maxParallelism);
+        }
+        public void Dispose() => ProviderGate.Dispose();
     }
     /// <summary>Whether MX and address discovery completed without query failures.</summary>
     public bool DiscoverySucceeded { get; private set; } = true;
@@ -31,7 +40,8 @@ public partial class DNSBLAnalysis {
         }
     }
 
-    internal QueryRun BeginQueryRun(CancellationToken caller) => new(caller);
+    internal QueryRun BeginQueryRun(CancellationToken caller) =>
+        new(caller, Math.Min(32, Math.Max(1, DnsConfiguration.ResolverMaxConcurrency ?? 16)));
 
     private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
@@ -40,8 +50,8 @@ public partial class DNSBLAnalysis {
         try {
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { throw new TimeoutException("Analysis budget exhausted."); }
             if (remaining.HasValue) { deadline.CancelAfter(remaining.Value); }
-            var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token)
-                .WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+            var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
             var response = responses.FirstOrDefault();
             if (response == null || !string.IsNullOrEmpty(response.Error) ||
                 response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
@@ -89,9 +99,15 @@ public partial class DNSBLAnalysis {
             types.Select(type => (type, Array.Empty<DnsAnswer>(), (string?)error)).ToArray();
         var remaining = RemainingBudget(run);
         if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
-        await _queryGate.WaitAsync(run.CallerToken).ConfigureAwait(false);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
+        bool runAdmitted = false;
+        bool analysisAdmitted = false;
         try {
+            if (remaining.HasValue) { deadline.CancelAfter(remaining.Value); }
+            await run.ProviderGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+            runAdmitted = true;
+            await _providerAdmission.WaitAsync(deadline.Token).ConfigureAwait(false);
+            analysisAdmitted = true;
             remaining = RemainingBudget(run);
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
             TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
@@ -99,10 +115,11 @@ public partial class DNSBLAnalysis {
             if (timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
             async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
                 try {
-                    var responseTask = QueryDnsFullOverride != null
-                        ? QueryDnsFullOverride(new[] { query }, type)
-                        : DnsConfiguration.QueryFullDNS(new[] { query }, type, cancellationToken: deadline.Token);
-                    var response = (await responseTask.WaitWithCancellation(deadline.Token).ConfigureAwait(false)).FirstOrDefault();
+                    var responses = QueryDnsFullOverride != null
+                        ? await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)
+                        : await DnsConfiguration.QueryFullDNS(new[] { query }, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
+                    var response = responses.FirstOrDefault();
                     if (response == null || !string.IsNullOrEmpty(response.Error) ||
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                         return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));
@@ -120,7 +137,8 @@ public partial class DNSBLAnalysis {
         catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is SocketException || ex is InvalidOperationException || ex is UriFormatException) {
             return Failed(ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
         } finally {
-            _queryGate.Release();
+            if (analysisAdmitted) { _providerAdmission.Release(); }
+            if (runAdmitted) { run.ProviderGate.Release(); }
         }
     }
 
@@ -131,7 +149,7 @@ public partial class DNSBLAnalysis {
         bool ipv6 = isIp && address!.AddressFamily == AddressFamily.InterNetworkV6;
         var kind = isIp ? (ipv6 ? DnsblQueryKind.IpAddressV6 : DnsblQueryKind.IpAddressV4) : DnsblQueryKind.Domain;
         var name = isIp ? FormatDnsblName(address!) : ipAddressOrHostname;
-        var responses = await Helpers.BoundedAsync.RunAsync(zones, zone => QueryProviderAsync(run, $"{name}.{zone}", ipv6), 16, run.CallerToken).ConfigureAwait(false);
+        var responses = await Helpers.BoundedAsync.RunAsync(zones, zone => QueryProviderAsync(run, $"{name}.{zone}", ipv6), run.MaxParallelism, run.CallerToken).ConfigureAwait(false);
         for (int i = 0; i < zones.Length; i++) {
             run.CallerToken.ThrowIfCancellationRequested();
             DNSBLRecord Record(string value, string? error, bool hasAnswer) {

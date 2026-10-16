@@ -123,6 +123,21 @@ public partial class DomainHealthCheck {
             CancellationToken cancellationToken = default,
             HealthCheckExecutionOptions? executionOptions = null,
             bool useDefaultChecksWhenEmpty = true) {
+            var configuration = DnsConfiguration;
+            var previousAdmission = configuration.QueryAdmissionGate;
+            using var ownedAdmission = previousAdmission == null
+                ? new SemaphoreSlim((executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism()) : null;
+            configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
+            try {
+                await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
+                    portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
+            } finally { configuration.QueryAdmissionGate = previousAdmission; }
+        }
+
+        private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,
+            string[]? dkimSelectors, ServiceType[]? daneServiceType, int[]? danePorts,
+            PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken,
+            HealthCheckExecutionOptions? executionOptions, bool useDefaultChecksWhenEmpty) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
