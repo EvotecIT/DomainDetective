@@ -192,15 +192,24 @@ namespace DomainDetective {
             return results;
         }
 
-        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
+        /// <summary>Applies a query execution budget after shared admission, while the caller budget also bounds queue time.</summary>
+        internal Task<DnsResponse> QueryDNSResponseWithExecutionTimeout(string name, DnsRecordType recordType,
+            TimeSpan executionTimeout, CancellationToken cancellationToken) {
+            ValidateName(name, recordType);
+            return QueryResponseAsync(name, recordType, cancellationToken, executionTimeout);
+        }
+
+        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken, TimeSpan? executionTimeout = null) {
             var admissionGate = QueryAdmissionGate;
-            if (admissionGate == null) {
-                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
-            }
-            await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
             try {
-                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
-            } finally { admissionGate.Release(); }
+                if (!executionTimeout.HasValue) {
+                    return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                }
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                if (executionTimeout.Value != Timeout.InfiniteTimeSpan) { deadline.CancelAfter(executionTimeout.Value); }
+                return await QueryResponseCoreAsync(name, recordType, deadline.Token).ConfigureAwait(false);
+            } finally { admissionGate?.Release(); }
         }
 
         private async Task<DnsResponse> QueryResponseCoreAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {

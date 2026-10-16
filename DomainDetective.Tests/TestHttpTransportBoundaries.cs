@@ -115,9 +115,16 @@ public class TestHttpTransportBoundaries {
             try { await context.Response.OutputStream.WriteAsync(new byte[length], 0, length, cancellation.Token); }
             catch (IOException) { /* The bounded reader may close its body stream early. */ }
             finally { context.Response.Close(); }
+            // The static scanner also inspects HEAD metadata before its DNS detections.
+            var headers = await server.GetContextAsync().WaitWithCancellation(cancellation.Token);
+            Assert.Equal("HEAD", headers.Request.HttpMethod);
+            headers.Response.Close();
         });
         try {
-            var scan = new WebStaticScanAnalysis { LinkOnly = true, FollowLinks = false };
+            using var configuration = new DnsConfiguration {
+                QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsClientX.DnsResponse { Status = DnsClientX.DnsResponseCode.NoError })
+            };
+            var scan = new WebStaticScanAnalysis { LinkOnly = true, FollowLinks = false, DnsConfiguration = configuration };
             await scan.Analyze(url, new InternalLogger(), cancellation.Token);
             var request = Assert.Single(scan.Requests);
             Assert.True(request.BodyTruncated);

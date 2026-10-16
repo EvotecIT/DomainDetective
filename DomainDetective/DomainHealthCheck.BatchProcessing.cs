@@ -53,7 +53,9 @@ public partial class DomainHealthCheck {
         var options = executionOptions ?? new HealthCheckExecutionOptions();
         int maxParallel = options.EnableParallelism ? options.GetEffectiveDomainParallelism() : 1;
         bool ownsHealthChecks = healthCheckFactory == null;
-        using var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
+        // Factory-owned configurations may have independent borrowers after this batch.
+        // This async-only gate has no native wait handle and is reclaimed with its last borrower.
+        var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var gate = new object();
         int nextIndex = 0;

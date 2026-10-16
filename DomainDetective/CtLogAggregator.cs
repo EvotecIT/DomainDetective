@@ -71,6 +71,8 @@ public sealed class CtLogAggregator
 
     private volatile string[] _lastQueriedSources = Array.Empty<string>();
     private volatile string[] _lastTemplateFormatErrors = Array.Empty<string>();
+    // Retain completed source evidence when the owning certificate lookup reaches its deadline.
+    internal IReadOnlyList<JsonElement> LastCompletedEntries { get; private set; } = Array.Empty<JsonElement>();
 
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
@@ -139,6 +141,7 @@ public sealed class CtLogAggregator
         var results = new List<JsonElement>();
         _lastQueriedSources = Array.Empty<string>();
         _lastTemplateFormatErrors = Array.Empty<string>();
+        LastCompletedEntries = Array.Empty<JsonElement>();
         if (string.IsNullOrWhiteSpace(fingerprint))
         {
             return results;
@@ -150,6 +153,7 @@ public sealed class CtLogAggregator
             // The legacy override owns its task; cancellation stops consuming its result.
             var json = await QueryOverride(fingerprint).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
             AppendEntries(ParseEntries(json, CtResponseParserKind.Standard), results);
+            LastCompletedEntries = results.ToArray();
             return results;
         }
 
@@ -187,6 +191,7 @@ public sealed class CtLogAggregator
         }
         finally
         {
+            LastCompletedEntries = results.ToArray();
             if (dispose)
             {
                 client.Dispose();

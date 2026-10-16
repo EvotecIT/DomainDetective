@@ -7,6 +7,45 @@ namespace DomainDetective.Tests;
 
 public class TestCertificatePerformanceBudgets {
     [Fact]
+    public async Task CtDeadlineRetainsEntriesAndSourcesFromEarlierSuccessfulRequests() {
+        using var rsa = RSA.Create();
+        var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var analysis = new CertificateAnalysis {
+            SkipRevocation = true, CaptureExtendedMetadata = false, CaptureCtMetadata = true,
+            CtLookupTimeout = TimeSpan.FromMilliseconds(700)
+        };
+        string suffix = Guid.NewGuid().ToString("N");
+        analysis.CtLogApiTemplates.Clear();
+        analysis.CtLogApiTemplates.Add($"https://first-{suffix}.example.test/?sha256={{0}}");
+        analysis.CtLogApiTemplates.Add($"https://second-{suffix}.example.test/?sha256={{0}}");
+        var handler = new PartialCtHandler();
+        analysis.CtLogs.HttpHandlerFactory = () => handler;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await analysis.AnalyzeCertificateWithEnrichment(certificate, guard.Token);
+        Assert.False(analysis.CtLookupComplete);
+        Assert.False(analysis.AnalysisComplete);
+        Assert.True(analysis.PresentInCtLogs);
+        Assert.Equal(11, Assert.Single(analysis.CtLogEntries).GetProperty("id").GetInt32());
+        Assert.Equal(2, analysis.CtDiscoverySources.Count);
+        Assert.Equal(2, handler.Calls);
+        Assert.True(handler.CleanupObserved);
+    }
+
+    private sealed class PartialCtHandler : HttpMessageHandler {
+        internal int Calls;
+        internal bool CleanupObserved;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            if (Interlocked.Increment(ref Calls) == 1) {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[{\"id\":11}]") };
+            }
+            try { await Task.Delay(Timeout.Infinite, cancellationToken); }
+            finally { CleanupObserved = true; }
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    [Fact]
     public async Task CtDeadlineRetainsCertificateAndNextInspectionResetsCoverage() {
         using var rsa = RSA.Create();
         var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);

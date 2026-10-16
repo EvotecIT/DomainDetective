@@ -50,7 +50,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
                 _ctLookupBudgetExhausted = true;
                 logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency lookup budget exhausted; absence from CT logs was not established.");
-                return;
+                entries = _ctLogAggregator.LastCompletedEntries;
             }
             _ctLogEntries.AddRange(entries);
             _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
@@ -62,7 +62,7 @@ namespace DomainDetective {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
-            CtLookupComplete = true;
+            CtLookupComplete = !_ctLookupBudgetExhausted;
         }
 
         private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {

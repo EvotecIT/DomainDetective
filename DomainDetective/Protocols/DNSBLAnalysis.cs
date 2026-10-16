@@ -158,15 +158,15 @@ namespace DomainDetective {
             Subject = domainName;
             using var ownedRun = queryRun == null ? BeginQueryRun(cancellationToken) : null;
             var run = queryRun ?? ownedRun!;
-            var domainRecords = ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName));
-            async Task<(string Ip, List<DNSBLRecord> Records)[]> QueryTargetsAsync() {
-                var targets = await DiscoverTargetsAsync(domainName, scanMode, run, logger).ConfigureAwait(false);
-                return await Helpers.BoundedAsync.RunAsync(targets, async target => {
-                    var records = await ToListAsync(QueryDNSBL(DNSBLLists, target.Ip, run, target.Source, target.Host)).ConfigureAwait(false);
-                    return (target.Ip, records);
-                }, 16, run.CallerToken).ConfigureAwait(false);
+            var discoveryScheduled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var ipRecords = DiscoverAndQueryTargetsAsync(domainName, scanMode, run, logger, () => discoveryScheduled.TrySetResult(true));
+            async Task<List<DNSBLRecord>> QueryDomainAsync() {
+                // Queue initial discovery before domain providers can occupy a small DNS cap.
+                await discoveryScheduled.Task.ConfigureAwait(false);
+                run.CallerToken.ThrowIfCancellationRequested();
+                return await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, run, DnsblIpSource.Domain, sourceHost: domainName)).ConfigureAwait(false);
             }
-            var ipRecords = QueryTargetsAsync();
+            var domainRecords = QueryDomainAsync();
             // Observe both owned branches even if discovery or a provider callback fails.
             await Task.WhenAll(domainRecords, ipRecords).ConfigureAwait(false);
             ConvertToResults(domainName, await domainRecords, logger);

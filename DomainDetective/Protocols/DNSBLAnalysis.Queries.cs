@@ -45,11 +45,16 @@ public partial class DNSBLAnalysis {
 
     private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();
+        if (DiscoveryTimeout <= TimeSpan.Zero && DiscoveryTimeout != Timeout.InfiniteTimeSpan) {
+            throw new ArgumentOutOfRangeException(nameof(DiscoveryTimeout));
+        }
         var remaining = RemainingBudget(run);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
         try {
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { throw new TimeoutException("Analysis budget exhausted."); }
-            if (remaining.HasValue) { deadline.CancelAfter(remaining.Value); }
+            TimeSpan? timeout = DiscoveryTimeout == Timeout.InfiniteTimeSpan ? remaining :
+                remaining.HasValue && remaining.Value < DiscoveryTimeout ? remaining : DiscoveryTimeout;
+            if (timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
             var responses = await DnsConfiguration.QueryFullDNSOrdered(new[] { owner }, type, cancellationToken: deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
             var response = responses.FirstOrDefault();
@@ -86,6 +91,8 @@ public partial class DNSBLAnalysis {
     public TimeSpan ProviderTimeout { get; set; } = TimeSpan.FromSeconds(2);
     /// <summary>Total provider-query budget for one analysis run. Exhaustion retains incomplete records.</summary>
     public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(8);
+    /// <summary>Timeout for one MX or address discovery lookup, including recursive-query admission. Exhaustion retains incomplete target coverage.</summary>
+    public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(2);
 
     private TimeSpan? RemainingBudget(QueryRun run) => AnalysisTimeout == Timeout.InfiniteTimeSpan ? null : AnalysisTimeout - run.Budget.Elapsed;
 
@@ -112,14 +119,13 @@ public partial class DNSBLAnalysis {
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
             TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
                 remaining.HasValue && remaining.Value < ProviderTimeout ? remaining : ProviderTimeout;
-            if (timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
+            if (QueryDnsFullOverride != null && timeout.HasValue) { deadline.CancelAfter(timeout.Value); }
             async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)> QueryTypeAsync(DnsRecordType type) {
                 try {
-                    var responses = QueryDnsFullOverride != null
-                        ? await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)
-                        : await DnsConfiguration.QueryFullDNS(new[] { query }, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+                    var response = QueryDnsFullOverride != null
+                        ? (await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false)).FirstOrDefault()
+                        : await DnsConfiguration.QueryDNSResponseWithExecutionTimeout(query, type, ProviderTimeout, deadline.Token).ConfigureAwait(false);
                     deadline.Token.ThrowIfCancellationRequested();
-                    var response = responses.FirstOrDefault();
                     if (response == null || !string.IsNullOrEmpty(response.Error) ||
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                         return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));

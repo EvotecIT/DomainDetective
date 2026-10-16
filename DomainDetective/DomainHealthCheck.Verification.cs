@@ -125,7 +125,9 @@ public partial class DomainHealthCheck {
             bool useDefaultChecksWhenEmpty = true) {
             var configuration = DnsConfiguration;
             var previousAdmission = configuration.QueryAdmissionGate;
-            using var ownedAdmission = previousAdmission == null
+            // Async-only gates allocate no wait handle. A public configuration query may
+            // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
+            var ownedAdmission = previousAdmission == null
                 ? new SemaphoreSlim((executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism()) : null;
             configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
             try {

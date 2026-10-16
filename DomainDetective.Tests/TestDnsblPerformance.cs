@@ -4,6 +4,83 @@ namespace DomainDetective.Tests;
 
 [Collection("Performance proxy environment")]
 public class TestDnsblPerformance {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(32)]
+    public async Task SlowDiscoveryRetainsListingForAnAlreadyResolvedFamily(int dnsParallelism) {
+        using var admission = new SemaphoreSlim(dnsParallelism);
+        using var configuration = new DnsConfiguration {
+            QueryAdmissionGate = admission,
+            QueryDnsResponseOverride = async (owner, type, ct) => {
+                if (owner == "example.com") {
+                    if (type == DnsRecordType.A) { return Answer(type, "192.0.2.1"); }
+                    await Task.Delay(Timeout.Infinite, ct);
+                }
+                return Answer(DnsRecordType.A, "127.0.0.2");
+            }
+        };
+        var analysis = new DNSBLAnalysis { DnsConfiguration = configuration, AnalysisTimeout = TimeSpan.FromSeconds(3) };
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        await analysis.AnalyzeDNSBLRecordsMX("example.com", new InternalLogger(), scanMode: DomainIpScanMode.ApexOnly);
+        Assert.False(analysis.DiscoverySucceeded);
+        Assert.Contains(analysis.AllResults, record => record.IpAddress == "192.0.2.1" && record.IsBlackListed && record.QuerySucceeded);
+    }
+
+    [Fact]
+    public async Task DomainProvidersCannotTakeTheOnlyDnsSlotBeforeDiscovery() {
+        using var health = new DomainHealthCheck();
+        var analysis = health.DNSBLAnalysis;
+        analysis.ClearDNSBL();
+        analysis.AddDNSBL("provider.example.test");
+        analysis.AnalysisTimeout = TimeSpan.FromSeconds(1);
+        health.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, ct) => {
+            if (owner == "example.com" && type == DnsRecordType.MX) { return Answer(type, "10 mail.example.com"); }
+            if (owner == "mail.example.com") { return Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1"); }
+            if (owner.StartsWith("example.com.", StringComparison.Ordinal)) { await Task.Delay(Timeout.Infinite, ct); }
+            return new DnsResponse { Status = DnsResponseCode.NXDomain };
+        };
+        await health.Verify("example.com", new[] { HealthCheckType.DNSBL }, executionOptions: new HealthCheckExecutionOptions { DnsParallelism = 1 });
+        Assert.True(analysis.DiscoverySucceeded);
+        Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.MxA);
+        Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.MxAAAA);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IndependentDnsBorrowerCanOutliveVerificationAdmission(bool batch) {
+        using var health = new DomainHealthCheck();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var verificationStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var borrowerStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseVerification = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBorrower = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        health.DnsConfiguration.QueryDnsResponseOverride = async (owner, _, ct) => {
+            if (owner == "borrower.example") {
+                borrowerStarted.TrySetResult(true);
+                await releaseBorrower.Task.WaitWithCancellation(ct);
+            } else {
+                verificationStarted.TrySetResult(true);
+                await releaseVerification.Task.WaitWithCancellation(ct);
+            }
+            return new DnsResponse { Status = DnsResponseCode.NoError };
+        };
+        try {
+            Task verification = batch
+                ? DomainHealthCheck.ProcessBatchAsync(new[] { "example.com" }, (_, _) => Task.CompletedTask,
+                    new[] { HealthCheckType.CAA }, healthCheckFactory: _ => health, cancellationToken: guard.Token)
+                : health.Verify("example.com", new[] { HealthCheckType.CAA }, cancellationToken: guard.Token);
+            await verificationStarted.Task.WaitWithCancellation(guard.Token);
+            var borrower = health.DnsConfiguration.QueryDNS("borrower.example", DnsRecordType.TXT, cancellationToken: guard.Token);
+            await borrowerStarted.Task.WaitWithCancellation(guard.Token);
+            releaseVerification.TrySetResult(true);
+            await verification;
+            releaseBorrower.TrySetResult(true);
+            Assert.Empty(await borrower);
+        } finally { releaseVerification.TrySetResult(true); releaseBorrower.TrySetResult(true); }
+    }
+
     [Fact]
     public async Task SlowProviderWorkCannotPreventDiscoveryOfTheOtherAddressFamily() {
         using var health = new DomainHealthCheck();
