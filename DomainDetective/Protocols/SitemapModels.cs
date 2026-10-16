@@ -121,6 +121,10 @@ public sealed class SitemapUrlProbe {
 public sealed class SitemapAnalysisOptions {
     /// <summary>Per-request timeout.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(20);
+    /// <summary>Whole-analysis cancellation budget, including discovery, parsing and URL probes.</summary>
+    public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
+    /// <summary>Maximum URL probes admitted concurrently within this analysis.</summary>
+    public int MaxUrlProbeParallelism { get; set; } = 8;
     /// <summary>When true, HTTP sitemap discovery is attempted after HTTPS candidates.</summary>
     public bool AllowHttpFallback { get; set; } = true;
     /// <summary>When true, sitemap URL entries are probed for reachability.</summary>

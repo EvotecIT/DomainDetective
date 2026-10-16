@@ -20,7 +20,7 @@ namespace DomainDetective;
 /// <summary>
 /// Downloads, parses, and validates sitemap XML documents and optionally probes listed URLs.
 /// </summary>
-public sealed class SitemapAnalysis : IHasAssessments {
+public sealed partial class SitemapAnalysis : IHasAssessments {
     private const string SitemapNamespace = "http://www.sitemaps.org/schemas/sitemap/0.9";
     private static readonly Lazy<XmlSchemaSet> _protocolSchemas = new(LoadProtocolSchemas);
     private static readonly XNamespace _sitemapNs = SitemapNamespace;
@@ -82,6 +82,9 @@ public sealed class SitemapAnalysis : IHasAssessments {
     /// <summary>Factory for HTTP message handlers; mainly useful for tests.</summary>
     public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
+    /// <summary>Whether discovery, parsing and the configured URL probe set finished within the analysis budget.</summary>
+    public bool AnalysisComplete { get; private set; }
+
     /// <summary>Executes sitemap analysis for a domain, host, sitemap URL, or HTTP/HTTPS URL.</summary>
     public async Task AnalyzeAsync(string subject, InternalLogger? logger = null, SitemapAnalysisOptions? options = null, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(subject)) {
@@ -89,8 +92,23 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         options ??= new SitemapAnalysisOptions();
+        if (options.AnalysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(options.AnalysisTimeout)); }
+        if (options.MaxUrlProbeParallelism <= 0) { throw new ArgumentOutOfRangeException(nameof(options.MaxUrlProbeParallelism)); }
         Reset(subject);
+        AnalysisComplete = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.AnalysisTimeout);
+        try {
+            await AnalyzeCoreAsync(subject, logger, options, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
+            AnalysisComplete = true;
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+            AddAssessment(AssessmentSeverity.Warning, "SITEMAP.Analysis.Incomplete", "Sitemap analysis budget exhausted; remaining documents and URLs were not checked.", Subject);
+        }
+    }
 
+    private async Task AnalyzeCoreAsync(string subject, InternalLogger? logger, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
         using var client = CreateClient(options);
         var trimmedSubject = subject.Trim();
         var seeds = await DiscoverSeedSitemapsAsync(client, trimmedSubject, options, cancellationToken).ConfigureAwait(false);
@@ -560,106 +578,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
         if (Entries.Count > 0) {
             AddAssessment(AssessmentSeverity.Info, SitemapCodes.UrlEntryPresent, Entries.Count.ToString(CultureInfo.InvariantCulture) + " sitemap URL entries parsed.", Subject);
-        }
-    }
-
-    private async Task ProbeSitemapUrlsAsync(HttpClient client, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var probeLimit = Math.Max(0, Math.Min(options.MaxUrlProbes, Entries.Count));
-        if (Entries.Count > probeLimit) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "URL probe limit reached; checked " + probeLimit.ToString(CultureInfo.InvariantCulture) + " of " + Entries.Count.ToString(CultureInfo.InvariantCulture) + " sitemap entries.", Subject);
-        }
-
-        foreach (var entry in Entries.Where(entry => entry.LocationValid).Take(probeLimit)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (options.RestrictRemoteFetchesToOriginHost &&
-                Uri.TryCreate(entry.Location, UriKind.Absolute, out var entryUri) &&
-                !IsTrustedRemoteUri(entryUri, options)) {
-                AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, "Skipped sitemap URL probe outside the analyzed origin host.", entry.Location);
-                continue;
-            }
-
-            var probe = await ProbeUrlAsync(client, entry.Location, options, cancellationToken).ConfigureAwait(false);
-            UrlProbes.Add(probe);
-            AddProbeAssessment(probe);
-        }
-    }
-
-    private async Task<SitemapUrlProbe> ProbeUrlAsync(HttpClient client, string url, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var probe = new SitemapUrlProbe {
-            Url = url
-        };
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) {
-            probe.Error = "Invalid URL.";
-            return probe;
-        }
-
-        var response = await SendFollowingRedirectsAsync(client, uri, options, readBody: options.CheckCanonical, cancellationToken).ConfigureAwait(false);
-        probe.StatusCode = response.StatusCode;
-        probe.ContentType = response.ContentType;
-        probe.FinalUrl = response.FinalUri?.AbsoluteUri;
-        probe.Error = response.Error;
-        probe.WasRedirected = response.WasRedirected;
-        probe.RedirectLoop = response.RedirectLoop;
-        probe.RedirectHopCount = response.RedirectChain.Count > 0 ? Math.Max(0, response.RedirectChain.Count - 1) : 0;
-        foreach (var item in response.RedirectChain) {
-            probe.RedirectChain.Add(item);
-        }
-
-        var status = response.StatusCode ?? 0;
-        probe.Success = status >= 200 && status < 300 && !probe.RedirectLoop;
-        if (probe.Success && options.CheckCanonical) {
-            probe.NoIndex = HasNoIndex(response.Headers, response.Body);
-            probe.CanonicalUrl = ExtractCanonical(response.FinalUri ?? uri, response.Body);
-            if (!string.IsNullOrWhiteSpace(probe.CanonicalUrl) && response.FinalUri != null) {
-                probe.CanonicalMismatch = !UrlsEqualWithoutFragment(probe.CanonicalUrl!, response.FinalUri.AbsoluteUri);
-            }
-        }
-
-        return probe;
-    }
-
-    private void AddProbeAssessment(SitemapUrlProbe probe) {
-        if (probe.RedirectLoop) {
-            RedirectLoopCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlRedirectLoop, "Sitemap URL has a redirect loop.", probe.Url);
-            return;
-        }
-
-        if (!probe.StatusCode.HasValue || probe.StatusCode.Value == 0) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, probe.Error ?? "Sitemap URL fetch failed.", probe.Url);
-            return;
-        }
-
-        if (probe.StatusCode.Value >= 300 && probe.StatusCode.Value < 400) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, probe.Error ?? "Sitemap URL redirect could not be followed.", probe.Url);
-            return;
-        }
-
-        if (probe.StatusCode.Value >= 500) {
-            ServerErrorCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlServerError, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + ".", probe.Url);
-        } else if (probe.StatusCode.Value == 401 || probe.StatusCode.Value == 403) {
-            ClientErrorCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlAccessForbidden, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + " to the unauthenticated probe. The page may still exist for browser sessions.", probe.Url);
-        } else if (probe.StatusCode.Value >= 400) {
-            ClientErrorCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlClientError, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + ".", probe.Url);
-        } else if (probe.WasRedirected) {
-            RedirectCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlRedirect, "Sitemap URL redirects to " + (probe.FinalUrl ?? "another URL") + ".", probe.Url);
-        } else {
-            AddAssessment(AssessmentSeverity.Info, SitemapCodes.UrlOk, "Sitemap URL returned a successful response.", probe.Url);
-        }
-
-        if (probe.NoIndex) {
-            NoIndexCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlNoIndex, "Sitemap URL is marked noindex.", probe.Url);
-        }
-
-        if (probe.CanonicalMismatch) {
-            CanonicalMismatchCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CanonicalMismatch, "Sitemap URL canonicalizes to " + probe.CanonicalUrl + ".", probe.Url);
         }
     }
 

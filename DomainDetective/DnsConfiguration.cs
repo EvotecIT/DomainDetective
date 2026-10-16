@@ -15,6 +15,8 @@ namespace DomainDetective {
         private ResolverEntry? _resolver;
         private string? _resolverKey;
         private bool _disposed;
+        /// <summary>Borrowed batch admission gate. The batch owns its lifetime and restores it after active queries drain.</summary>
+        internal SemaphoreSlim? QueryAdmissionGate { get; set; }
 
         /// <summary>Gets or sets the User-Agent header for HTTP-based DNS transports.</summary>
         public string UserAgent { get; set; } = DefaultUserAgent;
@@ -38,6 +40,9 @@ namespace DomainDetective {
         public bool ReuseResolverClients { get; set; }
         /// <summary>Cancellation budget for one locally validated DNSSEC RRset query, including retries and validation. Admitted work is observed before returning.</summary>
         public TimeSpan DnsSecQueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>Cancellation budget for a full DNSSEC analysis, including subject validation and optional metadata. Admitted callbacks are observed before returning.</summary>
+        public TimeSpan DnsSecAnalysisTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
         /// <remarks>Cancellation stops the library from waiting. The callback owner remains responsible for completing its work because this delegate does not receive a cancellation token.</remarks>
@@ -136,6 +141,13 @@ namespace DomainDetective {
             ValidateNames(names, recordType);
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (QueryAdmissionGate != null) {
+                return await Helpers.AuthoritativeDnsProbes.RunAsync(names, async name => {
+                    var response = await QueryResponseAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                    return ApplyLocalFilter(response, filter, includeAliasesInFilter);
+                }, ResolverMaxConcurrency ?? 8, cancellationToken).ConfigureAwait(false);
+            }
+
             if (QueryDnsResponseOverride != null || QueryDnsOverride != null) {
                 var overridden = new List<DnsResponse?>(names.Length);
                 foreach (string name in names) {
@@ -181,6 +193,17 @@ namespace DomainDetective {
         }
 
         private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
+            var admissionGate = QueryAdmissionGate;
+            if (admissionGate == null) {
+                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+            }
+            await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+            } finally { admissionGate.Release(); }
+        }
+
+        private async Task<DnsResponse> QueryResponseCoreAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
             cancellationToken.ThrowIfCancellationRequested();
             if (QueryDnsResponseOverride != null) {
                 DnsResponse response = await QueryDnsResponseOverride(name, recordType, cancellationToken).ConfigureAwait(false);

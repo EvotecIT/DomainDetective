@@ -69,6 +69,15 @@ public partial class TyposquattingAnalysis : IHasAssessments
     /// <summary>When true, candidate enrichment includes NS and MX record checks.</summary>
     public bool IncludeNsAndMxChecks { get; set; } = true;
 
+    /// <summary>Maximum candidates queried concurrently. Each candidate uses up to four independent DNS queries.</summary>
+    public int MaxDnsParallelism { get; set; } = 8;
+
+    /// <summary>Whole-analysis cancellation budget, including optional enrichment. Admitted callbacks are observed before returning.</summary>
+    public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Whether the analysis and all candidate DNS checks completed.</summary>
+    public bool AnalysisComplete { get; private set; }
+
     /// <summary>Ownership baseline built for the analyzed source domain.</summary>
     public TyposquattingOwnershipProfile? SourceOwnershipProfile { get; private set; }
 
@@ -84,14 +93,17 @@ public partial class TyposquattingAnalysis : IHasAssessments
     /// <summary>Campaign-level rollups for shared suspicious infrastructure.</summary>
     public IReadOnlyList<TyposquattingInfrastructureCampaign> InfrastructureCampaigns { get; private set; } = Array.Empty<TyposquattingInfrastructureCampaign>();
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (QueryDnsOverride != null)
         {
-            return await QueryDnsOverride(name, type);
+            var answers = await QueryDnsOverride(name, type);
+            ct.ThrowIfCancellationRequested();
+            return answers;
         }
 
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct);
     }
 
     /// <summary>
@@ -99,6 +111,22 @@ public partial class TyposquattingAnalysis : IHasAssessments
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        if (AnalysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(AnalysisTimeout)); }
+        if (MaxDnsParallelism <= 0) { throw new ArgumentOutOfRangeException(nameof(MaxDnsParallelism)); }
+        AnalysisComplete = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(AnalysisTimeout);
+        try {
+            await AnalyzeCore(domainName, logger, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            ct.ThrowIfCancellationRequested();
+            AnalysisComplete = Candidates.All(candidate => !candidate.DnsChecksIncomplete);
+        } catch (OperationCanceledException) when (!ct.IsCancellationRequested && deadline.IsCancellationRequested) {
+            logger?.WriteInformationCode("TYPOSQUAT.Analysis.Incomplete", "Typosquatting analysis budget exhausted; unchecked candidates remain unknown.");
+        }
+    }
+
+    private async Task AnalyzeCore(string domainName, InternalLogger logger, CancellationToken ct) {
         if (string.IsNullOrWhiteSpace(domainName))
         {
             throw new ArgumentNullException(nameof(domainName));
@@ -124,34 +152,32 @@ public partial class TyposquattingAnalysis : IHasAssessments
         InfrastructureClusters = Array.Empty<TyposquattingInfrastructureCluster>();
         InfrastructureCampaigns = Array.Empty<TyposquattingInfrastructureCampaign>();
 
-        foreach (var candidate in builtCandidates)
-        {
-            ct.ThrowIfCancellationRequested();
-            var a = await QueryDns(candidate.Domain, DnsRecordType.A);
-            var aaaa = await QueryDns(candidate.Domain, DnsRecordType.AAAA);
-
-            candidate.ARecords = NormalizeDnsAnswers(a);
-            candidate.AaaaRecords = NormalizeDnsAnswers(aaaa);
-
-            if (IncludeNsAndMxChecks)
-            {
-                candidate.NsRecords = NormalizeDnsAnswers(await QueryDns(candidate.Domain, DnsRecordType.NS));
-                candidate.MxRecords = NormalizeDnsAnswers(await QueryDns(candidate.Domain, DnsRecordType.MX));
-            }
-
-            if (candidate.AppearsRegistered)
-            {
-                RegisteredDomains.Add(candidate.Domain);
-            }
-
-            if (candidate.Resolves)
-            {
-                ActiveDomains.Add(candidate.Domain);
-                logger?.WriteWarningCode(
-                    TyposquattingCodes.VariantActive,
-                    "Potential typosquat detected: {0} ({1})",
-                    candidate.Domain,
-                    candidate.Kind);
+        foreach (var candidate in builtCandidates) { candidate.DnsChecksIncomplete = true; }
+        try {
+            await AuthoritativeDnsProbes.RunAsync(builtCandidates, async candidate => {
+                var types = IncludeNsAndMxChecks
+                    ? new[] { DnsRecordType.A, DnsRecordType.AAAA, DnsRecordType.NS, DnsRecordType.MX }
+                    : new[] { DnsRecordType.A, DnsRecordType.AAAA };
+                var responses = await Task.WhenAll(types.Select(type => QueryCandidateDnsAsync(candidate.Domain, type, ct))).ConfigureAwait(false);
+                candidate.ARecords = NormalizeDnsAnswers(responses[0].Answers);
+                candidate.AaaaRecords = NormalizeDnsAnswers(responses[1].Answers);
+                if (IncludeNsAndMxChecks) {
+                    candidate.NsRecords = NormalizeDnsAnswers(responses[2].Answers);
+                    candidate.MxRecords = NormalizeDnsAnswers(responses[3].Answers);
+                }
+                candidate.DnsQueryErrors = responses.Where(response => !string.IsNullOrEmpty(response.Error))
+                    .Select(response => response.Error!).ToArray();
+                candidate.DnsChecksIncomplete = candidate.DnsQueryErrors.Count > 0;
+                return candidate;
+            }, MaxDnsParallelism, ct).ConfigureAwait(false);
+        } finally {
+            foreach (var candidate in builtCandidates) {
+                if (candidate.AppearsRegistered) { RegisteredDomains.Add(candidate.Domain); }
+                if (candidate.Resolves) {
+                    ActiveDomains.Add(candidate.Domain);
+                    logger?.WriteWarningCode(TyposquattingCodes.VariantActive,
+                        "Potential typosquat detected: {0} ({1})", candidate.Domain, candidate.Kind);
+                }
             }
         }
 
@@ -170,7 +196,7 @@ public partial class TyposquattingAnalysis : IHasAssessments
             SourceOwnershipProfile = await TyposquattingOwnershipAnalyzer.BuildProfileAsync(
                 domainName,
                 DnsConfiguration,
-                QueryDns,
+                (name, type) => QueryDns(name, type, ct),
                 OwnershipProfileOptions,
                 ct).ConfigureAwait(false);
             TyposquattingOwnershipAnalyzer.CompareCandidates(builtCandidates, SourceOwnershipProfile);
@@ -206,7 +232,7 @@ public partial class TyposquattingAnalysis : IHasAssessments
         TyposquattingDispositionAnalyzer.Apply(builtCandidates);
         InfrastructureCampaigns = TyposquattingInfrastructureCampaignAnalyzer.BuildCampaigns(InfrastructureClusters, builtCandidates);
 
-        if (ActiveDomains.Count == 0)
+        if (ActiveDomains.Count == 0 && builtCandidates.All(candidate => !candidate.DnsChecksIncomplete))
         {
             logger?.WriteInformationCode(TyposquattingCodes.VariantNone, "No active typosquat variants detected");
         }
@@ -215,6 +241,24 @@ public partial class TyposquattingAnalysis : IHasAssessments
         {
             logger?.WriteInformationCode(TyposquattingCodes.DefensiveRegistered, $"{RegisteredDomains.Count} variant(s) show a DNS footprint");
         }
+    }
+
+    private async Task<DnsResponse> QueryCandidateDnsAsync(string name, DnsRecordType type, CancellationToken ct) {
+        ct.ThrowIfCancellationRequested();
+        if (QueryDnsOverride != null) {
+            var answers = await QueryDnsOverride(name, type).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            return new DnsResponse { Status = DnsResponseCode.NoError, Answers = answers };
+        }
+        var response = await DnsConfiguration.QueryDNSResponse(name, type, cancellationToken: ct).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(response.Error) || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
+            return new DnsResponse {
+                Status = response.Status,
+                Error = $"{type}: {response.Error ?? response.Status.ToString()}",
+                Answers = Array.Empty<DnsAnswer>()
+            };
+        }
+        return response;
     }
 
     private static IReadOnlyList<string> NormalizeDnsAnswers(DnsAnswer[]? answers)

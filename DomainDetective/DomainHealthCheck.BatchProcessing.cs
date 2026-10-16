@@ -53,6 +53,7 @@ public partial class DomainHealthCheck {
         var options = executionOptions ?? new HealthCheckExecutionOptions();
         int maxParallel = options.EnableParallelism ? options.GetEffectiveDomainParallelism() : 1;
         bool ownsHealthChecks = healthCheckFactory == null;
+        using var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var gate = new object();
         int nextIndex = 0;
@@ -65,8 +66,13 @@ public partial class DomainHealthCheck {
                 stop.Token.ThrowIfCancellationRequested();
                 health = healthCheckFactory != null ? healthCheckFactory(domain) : new DomainHealthCheck();
                 if (health == null) { throw new InvalidOperationException("Health check factory returned null."); }
-                await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
-                    danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
+                var configuration = health.DnsConfiguration;
+                var previousAdmission = configuration.QueryAdmissionGate;
+                configuration.QueryAdmissionGate = dnsAdmission;
+                try {
+                    await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
+                        danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
+                } finally { configuration.QueryAdmissionGate = previousAdmission; }
                 return new DomainHealthCheckRun(domain, health, null, ownsHealthChecks);
             } catch (OperationCanceledException) when (stop.IsCancellationRequested) {
                 if (ownsHealthChecks) { health?.Dispose(); }

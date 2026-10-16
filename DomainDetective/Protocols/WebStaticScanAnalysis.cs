@@ -25,6 +25,14 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public string? Subject { get; set; }
     /// <summary>Gets or sets the timeout value.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Whole static-scan cancellation budget, including HTTP discovery and TLS/DNS/RDAP enrichment.</summary>
+    public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
+    /// <summary>Budget for each host TLS probe, including connection and handshake.</summary>
+    public TimeSpan TlsProbeTimeout { get; set; } = TimeSpan.FromSeconds(5);
+    /// <summary>Budget for a shared IP RDAP lookup.</summary>
+    public TimeSpan RdapQueryTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    /// <summary>Whether the configured scan finished within its analysis budget.</summary>
+    public bool AnalysisComplete { get; private set; }
     /// <summary>Gets or sets the max resources value.</summary>
     public int MaxResources { get; set; } = 300;
     /// <summary>Gets or sets the concurrency value.</summary>
@@ -125,6 +133,25 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     /// <summary>Executes the analyze operation.</summary>
     public async Task Analyze(string url, InternalLogger logger, CancellationToken cancellationToken = default)
     {
+        if (AnalysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(AnalysisTimeout)); }
+        if (TlsProbeTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(TlsProbeTimeout)); }
+        if (RdapQueryTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(RdapQueryTimeout)); }
+        cancellationToken.ThrowIfCancellationRequested();
+        AnalysisComplete = false;
+        using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "WEBSTATIC", target: url);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(AnalysisTimeout);
+        try {
+            await AnalyzeCore(url, logger, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
+            AnalysisComplete = true;
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+            logger?.WriteInformationCode("WEBSTATIC.Analysis.Incomplete", "Static web analysis budget exhausted; remaining resources and enrichment were not checked.");
+        }
+    }
+
+    private async Task AnalyzeCore(string url, InternalLogger logger, CancellationToken cancellationToken) {
         Subject = url;
         Requests.Clear();
         Hosts.Clear();
@@ -135,7 +162,6 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         LinkHints.Clear();
         RobotsSitemaps.Clear();
 
-        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "WEBSTATIC", target: url);
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }) { Timeout = Timeout };
         Uri baseUri = new Uri(url);
         PrimaryRegistrableDomain = GetRegistrableDomain?.Invoke(baseUri.Host) ?? baseUri.Host;

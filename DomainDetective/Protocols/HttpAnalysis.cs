@@ -134,7 +134,7 @@ namespace DomainDetective {
 	        public bool CspFrameAncestorsPresent { get; private set; }
 
 	        /// <summary>Gets or sets the HTTP request timeout.</summary>
-	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
+	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
 #if NET8_0_OR_GREATER
         /// <summary>Gets or sets the HTTP version used for requests.</summary>
@@ -183,66 +183,6 @@ namespace DomainDetective {
 	            "ETag"
 	        };
 
-	        private static HashSet<string> _hstsPreloadExact = new(StringComparer.OrdinalIgnoreCase);
-	        private static HashSet<string> _hstsPreloadSubdomains = new(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>Loads a Chromium-derived HSTS preload snapshot, optionally gzip-compressed.</summary>
-        /// <param name="filePath">File path containing the preload list.</param>
-        public static void LoadHstsPreloadList(string filePath) {
-            if (!File.Exists(filePath)) {
-                return;
-            }
-            try {
-                using var file = File.OpenRead(filePath);
-                using var stream = filePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-                    ? (Stream)new GZipStream(file, CompressionMode.Decompress)
-                    : file;
-                using var document = JsonDocument.Parse(stream);
-                var exact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var subdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var root = document.RootElement;
-                if (root.ValueKind == JsonValueKind.Array) {
-                    foreach (var item in root.EnumerateArray()) {
-                        if (item.ValueKind == JsonValueKind.String && NormalizeHstsHost(item.GetString()) is string host) exact.Add(host);
-                    }
-                } else if (root.TryGetProperty("entries", out var entries)) {
-                    foreach (var item in entries.EnumerateArray()) {
-                        if (!item.TryGetProperty("name", out var nameProperty) || NormalizeHstsHost(nameProperty.GetString()) is not string host) continue;
-                        exact.Add(host);
-                        if (item.TryGetProperty("includeSubDomains", out var includeProperty) && includeProperty.ValueKind == JsonValueKind.True) {
-                            subdomains.Add(host);
-                        }
-                    }
-                }
-                _hstsPreloadExact = exact;
-                _hstsPreloadSubdomains = subdomains;
-            } catch {
-                // ignore malformed preload files
-            }
-        }
-
-        internal static bool IsHstsPreloadedHost(string host) {
-            var normalized = NormalizeHstsHost(host);
-            if (normalized == null) return false;
-            if (_hstsPreloadExact.Contains(normalized)) return true;
-            var offset = normalized.IndexOf('.');
-            while (offset >= 0 && offset + 1 < normalized.Length) {
-                var parent = normalized.Substring(offset + 1);
-                if (_hstsPreloadSubdomains.Contains(parent)) return true;
-                offset = normalized.IndexOf('.', offset + 1);
-            }
-            return false;
-        }
-
-        private static string? NormalizeHstsHost(string? host) {
-            if (string.IsNullOrWhiteSpace(host)) return null;
-            try {
-                return new IdnMapping().GetAscii(host!.Trim().TrimEnd('.')).ToLowerInvariant();
-            } catch (ArgumentException) {
-                return null;
-            }
-        }
-
         /// <summary>
         /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
         /// called with header collection enabled. The list includes modern headers such
@@ -273,9 +213,14 @@ namespace DomainDetective {
                 if (MaxBodyBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBodyBytes));
                 using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
-            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false } : null;
-                using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
-                var cookies = HttpRequestBoundary.PrepareHandler(handler);
+                bool reuseTransport = HttpHandlerFactory == null && !requestOptions.DisableTlsValidation &&
+                    string.IsNullOrWhiteSpace(requestOptions.ProxyUrl) && string.IsNullOrWhiteSpace(requestOptions.Cookie) &&
+                    requestOptions.Headers.Count == 0;
+                var configurableHandler = HttpHandlerFactory == null && !reuseTransport
+                    ? new HttpClientHandler { AllowAutoRedirect = false } : null;
+                using var ownedHandler = reuseTransport ? null : HttpHandlerFactory?.Invoke() ?? configurableHandler!;
+                var handler = ownedHandler ?? SharedHttpClient.AnonymousProbeHandler;
+                var cookies = reuseTransport ? new CookieContainer() : HttpRequestBoundary.PrepareHandler(handler);
 	            ProxyUsed = null;
 	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
 	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
@@ -300,7 +245,7 @@ namespace DomainDetective {
 	                configurableHandler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
 	#endif
 	            }
-	            using var client = new HttpClient(handler) { Timeout = Timeout };
+	            using var client = new HttpClient(handler, disposeHandler: false) { Timeout = Timeout };
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 deadline.CancelAfter(Timeout);
                 var requestToken = deadline.Token;

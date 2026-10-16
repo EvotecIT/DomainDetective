@@ -86,6 +86,17 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>Whole-analysis cancellation budget, including redirects, protocol probes and certificate enrichment.</summary>
+        public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
+        /// <summary>Budget for one auxiliary TLS version probe, including address resolution and connection.</summary>
+        public TimeSpan ProtocolProbeTimeout { get; set; } = TimeSpan.FromSeconds(5);
+        /// <summary>Whether the configured certificate analysis finished before its whole-analysis deadline.</summary>
+        public bool AnalysisComplete { get; private set; }
+        /// <summary>Whether all TLS version probes produced conclusive remote evidence.</summary>
+        public bool ProtocolSupportComplete { get; private set; }
+        /// <summary>Whether TLS 1.0 and TLS 1.1 support were both conclusively observed.</summary>
+        public bool LegacyProtocolSupportComplete { get; private set; }
         /// <summary>
         /// Gets the actual remote address reached by the origin probe. On .NET Framework full-HTTP
         /// analysis this comes from a paired direct TLS handshake because HttpClientHandler does not
@@ -255,22 +266,12 @@ namespace DomainDetective {
             }
         }
 
-        /// <summary>
-        /// Retrieves the certificate from the specified HTTPS endpoint.
-        /// </summary>
-        /// <param name="url">URL to query.</param>
-        /// <param name="port">Port number to use.</param>
-        /// <param name="logger">Logger instance for diagnostics.</param>
-        /// <param name="cancellationToken">Token used to cancel the operation.</param>
-        public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-            cancellationToken.ThrowIfCancellationRequested();
-            ResetObservedState();
+        private async Task AnalyzeUrlCore(string url, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
             Subject = url;
             bool capturedHandshakeCertificate = false;
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {
                 try {
                     await AnalyzeWithTlsHandshakeOnlyAsync(url, port, cancellationToken).ConfigureAwait(false);

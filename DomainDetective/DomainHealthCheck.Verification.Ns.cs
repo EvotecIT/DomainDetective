@@ -23,7 +23,7 @@ namespace DomainDetective {
             }
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             NSAnalysis.Subject = domainName;
-            await NSAnalysis.AnalyzeNsRecords(ns, _logger);
+            await NSAnalysis.AnalyzeNsRecords(ns, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace DomainDetective {
                     DataRaw = nsRecord,
                     Type = DnsRecordType.NS
                 }
-            }, _logger);
+            }, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -51,7 +51,7 @@ namespace DomainDetective {
             var dnsResults = nsRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
             }).ToList();
-            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger);
+            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger, cancellationToken);
         }
     }
 }

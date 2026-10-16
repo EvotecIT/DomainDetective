@@ -33,6 +33,15 @@ namespace DomainDetective {
         public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { private get; set; }
         private readonly List<string> _mismatchSummary = new();
         private readonly List<string> _warnings = new();
+        private readonly List<string> _metadataQueryFailures = new();
+        private TimeSpan _queryTimeout = TimeSpan.FromSeconds(5);
+        private SemaphoreSlim? _queryAdmissionGate;
+
+        /// <summary>Whether all optional DNSSEC metadata queries completed without query or analysis budget failures.</summary>
+        public bool MetadataQueriesComplete { get; private set; }
+
+        /// <summary>Unavailable metadata queries and their failure reasons. Subject validation remains separately represented by ValidationStatus.</summary>
+        public IReadOnlyList<string> MetadataQueryFailures => _metadataQueryFailures;
 
         /// <summary>
         /// Gets a list describing mismatches encountered while validating the
@@ -120,8 +129,36 @@ namespace DomainDetective {
 
         /// <summary>Validates DNSSEC evidence for the requested subject RRset.</summary>
         internal async Task AnalyzeRecord(string domainName, DnsRecordType subjectRecordType, InternalLogger? logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+            _queryTimeout = dnsConfiguration?.DnsSecQueryTimeout ?? TimeSpan.FromSeconds(5);
+            _queryAdmissionGate = dnsConfiguration?.QueryAdmissionGate;
+            var analysisTimeout = dnsConfiguration?.DnsSecAnalysisTimeout ?? TimeSpan.FromSeconds(15);
+            if (_queryTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(DnsConfiguration.DnsSecQueryTimeout)); }
+            if (analysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(DnsConfiguration.DnsSecAnalysisTimeout)); }
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            deadline.CancelAfter(analysisTimeout);
             var effectiveLogger = logger ?? new InternalLogger();
-            using var _collector = AssessmentCollector.ForAnalysis(effectiveLogger, this, category: "DNSSEC", target: domainName);
+            using var collector = AssessmentCollector.ForAnalysis(effectiveLogger, this, category: "DNSSEC", target: domainName);
+            try {
+                await AnalyzeRecordCore(domainName, subjectRecordType, effectiveLogger, dnsConfiguration, deadline.Token).ConfigureAwait(false);
+                deadline.Token.ThrowIfCancellationRequested();
+                ct.ThrowIfCancellationRequested();
+            } catch (OperationCanceledException) when (!ct.IsCancellationRequested && deadline.IsCancellationRequested) {
+                MetadataQueriesComplete = false;
+                _metadataQueryFailures.Add("DNSSEC analysis budget exhausted; remaining metadata was not checked.");
+                if (ValidationStatus == DnssecValidationStatus.NotChecked) {
+                    ValidationStatus = DnssecValidationStatus.Indeterminate;
+                    _mismatchSummary.Add("DNSSEC analysis budget exhausted before subject validation completed.");
+                }
+                effectiveLogger.WriteInformationCode("DNSSEC.Analysis.Incomplete", "DNSSEC analysis budget exhausted; evidence is incomplete.");
+            } finally {
+                _queryAdmissionGate = null;
+            }
+        }
+
+        private async Task AnalyzeRecordCore(string domainName, DnsRecordType subjectRecordType, InternalLogger? logger,
+            DnsConfiguration? dnsConfiguration, CancellationToken ct) {
+            var effectiveLogger = logger ?? new InternalLogger();
             Subject = domainName;
             Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride =
                 QueryDnsResponseOverride ?? dnsConfiguration?.QueryDnsResponseOverride;
@@ -137,7 +174,7 @@ namespace DomainDetective {
 
             ResetValidationState();
             DnsResponse subjectResponse = await Resolve(
-                validationResolver, domainName, subjectRecordType, responseOverride, ct).ConfigureAwait(false);
+                validationResolver, domainName, subjectRecordType, responseOverride, ct, isSubject: true).ConfigureAwait(false);
 
             SubjectAuthenticData = subjectResponse.AuthenticData;
             AuthenticData = subjectResponse.AuthenticData;
@@ -145,6 +182,10 @@ namespace DomainDetective {
                 ? "DnsClientXLocalValidation"
                 : "DnsClientXValidationNotAvailable";
             ValidationStatus = MapValidationStatus(subjectResponse.DnsSecValidationStatus);
+            if (ValidationStatus == DnssecValidationStatus.NotChecked &&
+                (!string.IsNullOrEmpty(subjectResponse.Error) || subjectResponse.Status == DnsResponseCode.ServerFailure)) {
+                ValidationStatus = DnssecValidationStatus.Indeterminate;
+            }
             ChainValid = subjectResponse.DnsSecValidationStatus == DnsSecValidationStatus.Secure;
             if (ChainValid) ValidatedSubjectRecords = (subjectRecordType == DnsRecordType.TLSA
                     ? DANEAnalysis.BindServiceTlsaAnswers(domainName, subjectResponse)
@@ -233,6 +274,8 @@ namespace DomainDetective {
         private void ResetValidationState() {
             _mismatchSummary.Clear();
             _warnings.Clear();
+            _metadataQueryFailures.Clear();
+            MetadataQueriesComplete = true;
             KeyExpiresSoon = false;
             RootAnchorExpiration = null;
             ChainValid = false;
@@ -343,7 +386,7 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<bool> HasNsec3OptOutAsync(string domain, DnsMultiResolver? resolver,
+        private async Task<bool> HasNsec3OptOutAsync(string domain, DnsMultiResolver? resolver,
             Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride,
             CancellationToken ct) {
             foreach (DnsRecordType type in new[] { (DnsRecordType)51, (DnsRecordType)50 }) {
@@ -359,7 +402,7 @@ namespace DomainDetective {
             return false;
         }
 
-        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecordsWithFallback(string domain, DnsMultiResolver? resolver, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride, CancellationToken ct)
+        private async Task<(List<string> records, int ttl, bool ad)> FetchDsRecordsWithFallback(string domain, DnsMultiResolver? resolver, Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride, CancellationToken ct)
         {
             var resp = await Resolve(resolver, domain, DnsRecordType.DS, responseOverride, ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
@@ -389,26 +432,51 @@ namespace DomainDetective {
                 Strategy = dnsConfiguration?.GetEffectiveMultiResolverStrategy()
                     ?? MultiResolverStrategy.SequentialFallback,
                 MaxParallelism = dnsConfiguration?.GetEffectiveMultiResolverMaxParallelism(endpointCount) ?? 1,
-                DefaultTimeout = TimeSpan.FromSeconds(5),
+                DefaultTimeout = dnsConfiguration?.DnsSecQueryTimeout ?? TimeSpan.FromSeconds(5),
+                MaxConcurrency = dnsConfiguration?.ResolverMaxConcurrency,
+                EnableResponseCache = dnsConfiguration?.EnableResponseCache ?? false,
+                MaxCacheTtl = dnsConfiguration?.MaxCacheTtl,
+                UserAgent = dnsConfiguration?.UserAgent ?? DnsConfiguration.DefaultUserAgent,
                 RequestDnsSec = true,
                 ValidateDnsSec = validateDnsSec,
                 TypedRecords = true
             };
         }
 
-        private static async Task<DnsResponse> Resolve(DnsMultiResolver? resolver, string name,
+        private async Task<DnsResponse> Resolve(DnsMultiResolver? resolver, string name,
             DnsRecordType type,
             Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? responseOverride,
-            CancellationToken ct) {
-            if (responseOverride != null) {
-                return await responseOverride(name, type, ct).ConfigureAwait(false);
+            CancellationToken ct, bool isSubject = false) {
+            ct.ThrowIfCancellationRequested();
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            deadline.CancelAfter(_queryTimeout);
+            DnsResponse response;
+            try {
+                var admissionGate = _queryAdmissionGate;
+                if (admissionGate != null) { await admissionGate.WaitAsync(deadline.Token).ConfigureAwait(false); }
+                try {
+                    if (responseOverride != null) {
+                        response = await responseOverride(name, type, deadline.Token).ConfigureAwait(false);
+                    } else {
+                        if (resolver == null) {
+                            throw new InvalidOperationException("A DNS resolver is required when no response override is configured.");
+                        }
+                        response = await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
+                    }
+                } finally { admissionGate?.Release(); }
+                deadline.Token.ThrowIfCancellationRequested();
+            } catch (OperationCanceledException) when (!ct.IsCancellationRequested && deadline.IsCancellationRequested) {
+                response = new DnsResponse {
+                    Status = DnsResponseCode.ServerFailure,
+                    Error = "DNSSEC query budget exhausted; the RRset could not be validated."
+                };
             }
-
-            if (resolver == null) {
-                throw new InvalidOperationException("A DNS resolver is required when no response override is configured.");
+            if (!isSubject && (!string.IsNullOrEmpty(response.Error)
+                || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain)) {
+                MetadataQueriesComplete = false;
+                _metadataQueryFailures.Add($"{name} {type}: {response.Error ?? response.Status.ToString()}");
             }
-
-            return await resolver.QueryAsync(name, type, ct).ConfigureAwait(false);
+            return response;
         }
 
         private static bool IsNonFatalDnssecProbeException(Exception exception, CancellationToken cancellationToken) {

@@ -239,6 +239,7 @@ namespace DomainDetective {
         {
             try
             {
+                token.ThrowIfCancellationRequested();
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 cts.CancelAfter(Timeout);
                 var psi = new System.Diagnostics.ProcessStartInfo
@@ -252,20 +253,9 @@ namespace DomainDetective {
                 };
                 using var proc = System.Diagnostics.Process.Start(psi);
                 if (proc == null) return;
-                var readOut = proc.StandardOutput.ReadToEndAsync();
-                var readErr = proc.StandardError.ReadToEndAsync();
-                var delayTask = Task.Delay(Timeout, cts.Token);
-#if NET8_0_OR_GREATER
-                var waitTask = proc.WaitForExitAsync(cts.Token);
-#else
-                var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
-#endif
-                var completed = await Task.WhenAny(delayTask, waitTask);
-                if (completed != waitTask) {
-                    try { if (!proc.HasExited) { proc.Kill(); } } catch { }
-                }
-                string output = await ReadWithTimeout(readOut, TimeSpan.FromSeconds(1), cts.Token);
-                string error = await ReadWithTimeout(readErr, TimeSpan.FromSeconds(1), cts.Token);
+                var captured = await ProcessOutputCapture.ReadUntilExitAsync(proc, cts.Token).ConfigureAwait(false);
+                string output = captured.Output;
+                string error = captured.Error;
                 var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
                 if (string.IsNullOrWhiteSpace(text)) return;
                 bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -281,50 +271,56 @@ namespace DomainDetective {
                     logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", uri.Host, port);
                 }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch { }
-        }
-
-        private static async Task<string> ReadWithTimeout(Task<string> readTask, TimeSpan timeout, CancellationToken token) {
-            try {
-                var completed = await Task.WhenAny(readTask, Task.Delay(timeout, token));
-                if (completed == readTask) {
-                    return await readTask;
-                }
-            } catch {
-            }
-            return string.Empty;
         }
 
         private async Task ProbeProtocolSupport(Uri uri, int port, InternalLogger logger, CancellationToken token)
         {
             SupportsTls10 = false; SupportsTls11 = false; SupportsTls12 = false; SupportsTls13 = false;
-            async Task<bool> TryHandshake(System.Security.Authentication.SslProtocols proto)
+            ProtocolSupportComplete = LegacyProtocolSupportComplete = false;
+            async Task<(SslProtocols Protocol, bool Supported, bool Complete)> TryHandshake(SslProtocols proto)
             {
+                token.ThrowIfCancellationRequested();
+                if (TlsProtocol == proto) { return (proto, true, true); }
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                timeoutCts.CancelAfter(Timeout);
+                timeoutCts.CancelAfter(ProtocolProbeTimeout < Timeout ? ProtocolProbeTimeout : Timeout);
+                Helpers.TlsAlertEvidenceStream? evidence = null;
                 try {
                     using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
-                    using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+                    using var observed = new Helpers.TlsAlertEvidenceStream(tcp.GetStream(), leaveOpen: true);
+                    evidence = observed;
+                    using var ssl = new System.Net.Security.SslStream(observed, false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
                     var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
                     await ssl.AuthenticateAsClientAsync(options, timeoutCts.Token);
 #else
-                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+                    using var registration = timeoutCts.Token.Register(() => ssl.Dispose());
+                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation);
 #endif
-                    return ssl.SslProtocol == proto;
-                } catch (Exception ex) when (NormalizeProbeException(ex, token, timeoutCts) is TimeoutException) {
-                    return false;
-                } catch { return false; }
+                    timeoutCts.Token.ThrowIfCancellationRequested();
+                    return (proto, ssl.SslProtocol == proto, ssl.SslProtocol == proto);
+                } catch (Exception) when (token.IsCancellationRequested) {
+                    token.ThrowIfCancellationRequested();
+                    throw;
+                } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                    return (proto, false, evidence?.SawProtocolVersionRejection == true);
+                }
             }
-#if NET8_0_OR_GREATER
-            SupportsTls13 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls13);
-#endif
-            SupportsTls12 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls12);
-            // Legacy probes (best-effort). We intentionally test legacy protocols to report insecure offerings.
-#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
-            SupportsTls11 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls11);
-            SupportsTls10 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls);
-#pragma warning restore SYSLIB0039
+            // The numeric TLS 1.3 value also permits Framework hosts to report supported
+            // runtime capability; a local policy failure remains inconclusive.
+            var protocols = new[] { (SslProtocols)12288, SslProtocols.Tls12, (SslProtocols)768, (SslProtocols)192 };
+            var results = await Task.WhenAll(protocols.Select(TryHandshake)).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            SupportsTls13 = results.Any(result => (int)result.Protocol == 12288 && result.Supported);
+            SupportsTls12 = results.Any(result => result.Protocol == SslProtocols.Tls12 && result.Supported);
+            SupportsTls11 = results.Any(result => (int)result.Protocol == 768 && result.Supported);
+            SupportsTls10 = results.Any(result => (int)result.Protocol == 192 && result.Supported);
+            ProtocolSupportComplete = results.All(result => result.Complete);
+            LegacyProtocolSupportComplete = results.Where(result => (int)result.Protocol is 768 or 192).All(result => result.Complete);
+            if (!ProtocolSupportComplete) {
+                logger?.WriteInformationCode("TLS.ProtocolSupport.Incomplete", "TLS version coverage is incomplete; a failed local or network probe does not establish absent protocol support.");
+            }
             if (SupportsTls10 || SupportsTls11)
             {
                 logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",

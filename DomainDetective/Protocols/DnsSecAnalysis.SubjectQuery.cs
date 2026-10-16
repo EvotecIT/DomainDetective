@@ -19,23 +19,27 @@ public partial class DnsSecAnalysis {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(configuration.DnsSecQueryTimeout);
         try {
-            if (configuration.QueryDnsResponseOverride != null) {
-                var overridden = await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
+            var admissionGate = configuration.QueryAdmissionGate;
+            if (admissionGate != null) { await admissionGate.WaitAsync(deadline.Token).ConfigureAwait(false); }
+            try {
+                if (configuration.QueryDnsResponseOverride != null) {
+                    var overridden = await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
+                    return overridden;
+                }
+
+                if (configuration.QueryDnsOverride != null) {
+                    throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
+                }
+
+                DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
+                    ? configuration.DnsEndpoints.Distinct().ToArray()
+                    : new[] { configuration.DnsEndpoint };
+                using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
+                var response = await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
                 deadline.Token.ThrowIfCancellationRequested();
-                return overridden;
-            }
-
-            if (configuration.QueryDnsOverride != null) {
-                throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
-            }
-
-            DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
-                ? configuration.DnsEndpoints.Distinct().ToArray()
-                : new[] { configuration.DnsEndpoint };
-            using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
-            var response = await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
-            deadline.Token.ThrowIfCancellationRequested();
-            return response;
+                return response;
+            } finally { admissionGate?.Release(); }
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
             return new DnsResponse {
                 Status = DnsResponseCode.ServerFailure,
