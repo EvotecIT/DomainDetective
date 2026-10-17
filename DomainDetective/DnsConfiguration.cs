@@ -17,6 +17,9 @@ namespace DomainDetective {
         private bool _disposed;
         /// <summary>Borrowed batch admission gate. The batch owns its lifetime and restores it after active queries drain.</summary>
         internal SemaphoreSlim? QueryAdmissionGate { get; set; }
+        // Bulk provider queries share a smaller allowance within the overall DNS cap,
+        // leaving recursive capacity for discovery and other domain checks.
+        internal SemaphoreSlim? BulkQueryAdmissionGate { get; set; }
 
         /// <summary>Gets or sets the User-Agent header for HTTP-based DNS transports.</summary>
         public string UserAgent { get; set; } = DefaultUserAgent;
@@ -196,16 +199,22 @@ namespace DomainDetective {
         internal Task<DnsResponse> QueryDNSResponseAfterAdmission(string name, DnsRecordType recordType,
             CancellationToken cancellationToken, Action queryAdmitted) {
             ValidateName(name, recordType);
-            return QueryResponseAsync(name, recordType, cancellationToken, queryAdmitted);
+            return QueryResponseAsync(name, recordType, cancellationToken, queryAdmitted, bulkQuery: true);
         }
 
-        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken, Action? queryAdmitted = null) {
+        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken,
+            Action? queryAdmitted = null, bool bulkQuery = false) {
+            // Borrow one admission context even if its owning verification finishes while queued.
             var admissionGate = QueryAdmissionGate;
-            if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            var bulkGate = bulkQuery ? BulkQueryAdmissionGate : null;
+            if (bulkGate != null) { await bulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
             try {
-                queryAdmitted?.Invoke();
-                return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
-            } finally { admissionGate?.Release(); }
+                if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+                try {
+                    queryAdmitted?.Invoke();
+                    return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                } finally { admissionGate?.Release(); }
+            } finally { bulkGate?.Release(); }
         }
 
         private async Task<DnsResponse> QueryResponseCoreAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {

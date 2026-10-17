@@ -125,15 +125,21 @@ public partial class DomainHealthCheck {
             bool useDefaultChecksWhenEmpty = true) {
             var configuration = DnsConfiguration;
             var previousAdmission = configuration.QueryAdmissionGate;
+            var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+            int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
             // Async-only gates allocate no wait handle. A public configuration query may
             // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
             var ownedAdmission = previousAdmission == null
-                ? new SemaphoreSlim((executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism()) : null;
+                ? new SemaphoreSlim(dnsParallelism) : null;
             configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
+            configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
             try {
                 await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
                     portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
-            } finally { configuration.QueryAdmissionGate = previousAdmission; }
+            } finally {
+                configuration.QueryAdmissionGate = previousAdmission;
+                configuration.BulkQueryAdmissionGate = previousBulkAdmission;
+            }
         }
 
         private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,

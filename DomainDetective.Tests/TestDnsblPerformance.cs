@@ -5,6 +5,51 @@ namespace DomainDetective.Tests;
 [Collection("Performance proxy environment")]
 public class TestDnsblPerformance {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BulkProvidersLeaveSharedDnsCapacityForForegroundQueries(bool batch) {
+        using var first = new DomainHealthCheck();
+        using var second = new DomainHealthCheck();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var providersStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int active = 0;
+        int peak = 0;
+        foreach (var health in new[] { first, second }) {
+            health.DNSBLAnalysis.ClearDNSBL();
+            for (int index = 0; index < 8; index++) { health.DNSBLAnalysis.AddDNSBL($"provider{index}.example.test"); }
+            health.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, ct) => {
+                if (type == DnsRecordType.CAA) { return new DnsResponse { Status = DnsResponseCode.NoError }; }
+                if (type == DnsRecordType.MX) { return Answer(type, "10 mail." + owner); }
+                if (owner.StartsWith("mail.", StringComparison.Ordinal)) {
+                    return type == DnsRecordType.A ? Answer(type, "192.0.2.1") : new DnsResponse { Status = DnsResponseCode.NoError };
+                }
+                int current = Interlocked.Increment(ref active);
+                int previous;
+                do { previous = peak; }
+                while (current > previous && Interlocked.CompareExchange(ref peak, current, previous) != previous);
+                if (current >= 2) { providersStarted.TrySetResult(true); }
+                try { await release.Task.WaitWithCancellation(ct); }
+                finally { Interlocked.Decrement(ref active); }
+                return new DnsResponse { Status = DnsResponseCode.NXDomain };
+            };
+        }
+        var options = new HealthCheckExecutionOptions { DnsParallelism = 4, MaxDomainParallelism = 2 };
+        Task verification = batch
+            ? DomainHealthCheck.ProcessBatchAsync(new[] { "one.example.com", "two.example.com" }, (_, _) => Task.CompletedTask,
+                new[] { HealthCheckType.DNSBL }, executionOptions: options, healthCheckFactory: domain => domain.StartsWith("one.", StringComparison.Ordinal) ? first : second, cancellationToken: guard.Token)
+            : first.Verify("one.example.com", new[] { HealthCheckType.DNSBL }, executionOptions: options, cancellationToken: guard.Token);
+        try {
+            await providersStarted.Task.WaitWithCancellation(guard.Token);
+            using var foregroundGuard = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+            using var foreground = CancellationTokenSource.CreateLinkedTokenSource(guard.Token, foregroundGuard.Token);
+            await first.DnsConfiguration.QueryDNS("foreground.example.com", DnsRecordType.CAA, cancellationToken: foreground.Token);
+            Assert.InRange(peak, 1, 2);
+        } finally { release.TrySetResult(true); await verification; }
+        Assert.Equal(0, active);
+    }
+
+    [Theory]
     [InlineData(1, 3)]
     [InlineData(32, 3)]
     [InlineData(1, 1)]
