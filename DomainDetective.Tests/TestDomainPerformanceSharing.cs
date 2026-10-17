@@ -40,6 +40,9 @@ public class TestDomainPerformanceSharing {
         using var health = new DomainHealthCheck();
         int requests = 0;
         int certificatePaths = 0;
+        // Stop at the synthetic address-resolution boundary on every target framework.
+        health.CertificateAnalysis.PreferTlsHandshakeOnlyProbe = true;
+        health.CertificateAnalysis.CaptureExtendedMetadata = false;
         health.HttpAnalysis.HttpHandlerFactory = () => new SuccessfulHandler(() => Interlocked.Increment(ref requests));
         health.CertificateAnalysis.OutboundAddressResolver = (_, _) => {
             Interlocked.Increment(ref certificatePaths);
