@@ -25,7 +25,7 @@ await health.Verify("example.com", new[] {
 
 `MaxParallelism` limits active checks. `DnsParallelism` limits recursive DNS queries across the run, including DNSSEC and DNSBL. In `VerifyBatchAsync` and `ProcessBatchAsync`, that DNS limit is shared across admitted domains; `MaxDomainParallelism` controls the number of active domains. The recursive-query limit does not cover direct authoritative DNS probes, HTTP requests, or TLS connections, which have their own bounds.
 
-DNSBL provider requests share at most half of the recursive-query slots, with a minimum of one. The allowance is shared across batch domains too, leaving capacity for target discovery, SPF, TTL, and other recursive checks during a large provider sweep.
+DNSBL provider requests share at most half of the recursive-query slots, with a minimum of one. The allowance is shared across batch domains too. Each resolver also limits provider admission according to its configured endpoint cap and strategy's endpoint fan-out, leaving execution capacity for target discovery, SPF, TTL, and other recursive checks. If one provider request can occupy every available slot, the scheduled DNSBL check runs after the other checks in that verification. Explicit endpoint selection and resolver limits remain in effect.
 
 Use independent health-check instances for concurrent domains. A health check contains mutable analysis state and should have one active verification at a time. Dispose health checks and batch results when their evidence is no longer needed.
 

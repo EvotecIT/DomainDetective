@@ -20,6 +20,7 @@ namespace DomainDetective {
         // Bulk provider queries share a smaller allowance within the overall DNS cap,
         // leaving recursive capacity for discovery and other domain checks.
         internal SemaphoreSlim? BulkQueryAdmissionGate { get; set; }
+        internal SemaphoreSlim? ResolverBulkQueryAdmissionGate { get; set; }
 
         /// <summary>Gets or sets the User-Agent header for HTTP-based DNS transports.</summary>
         public string UserAgent { get; set; } = DefaultUserAgent;
@@ -207,14 +208,18 @@ namespace DomainDetective {
             // Borrow one admission context even if its owning verification finishes while queued.
             var admissionGate = QueryAdmissionGate;
             var bulkGate = bulkQuery ? BulkQueryAdmissionGate : null;
-            if (bulkGate != null) { await bulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            var resolverBulkGate = bulkQuery ? ResolverBulkQueryAdmissionGate : null;
+            if (resolverBulkGate != null) { await resolverBulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
             try {
-                if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+                if (bulkGate != null) { await bulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
                 try {
-                    queryAdmitted?.Invoke();
-                    return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
-                } finally { admissionGate?.Release(); }
-            } finally { bulkGate?.Release(); }
+                    if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+                    try {
+                        queryAdmitted?.Invoke();
+                        return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                    } finally { admissionGate?.Release(); }
+                } finally { bulkGate?.Release(); }
+            } finally { resolverBulkGate?.Release(); }
         }
 
         private async Task<DnsResponse> QueryResponseCoreAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
@@ -298,6 +303,20 @@ namespace DomainDetective {
         /// <summary>Resolves the endpoint concurrency cap represented by this configuration.</summary>
         internal int GetEffectiveMultiResolverMaxParallelism(int endpointCount) {
             return Math.Max(1, MultiResolverMaxParallelism ?? endpointCount);
+        }
+
+        /// <summary>Bounds provider requests while leaving an endpoint execution slot for foreground work.</summary>
+        /// <remarks>Zero means that one provider request can occupy the resolver; scheduled bulk work must follow other checks.</remarks>
+        internal int GetBulkQueryParallelism(int dnsParallelism) {
+            int resolverParallelism = Math.Max(1, MultiResolverMaxParallelism ?? dnsParallelism);
+            var strategy = GetEffectiveMultiResolverStrategy();
+            int fanout = 1;
+            if (strategy == MultiResolverStrategy.FirstSuccess || strategy == MultiResolverStrategy.FastestWins) {
+                var providers = DnsEndpoints.Count > 0 ? DnsEndpoints.ToArray() : new[] { DnsEndpoint };
+                int endpointCount = DnsResolverEndpointFactory.From(providers).Length;
+                fanout = Math.Max(1, Math.Min(resolverParallelism, endpointCount));
+            }
+            return Math.Min(Math.Max(1, dnsParallelism / 2), (resolverParallelism - 1) / fanout);
         }
 
         private void ReleaseResolver(ResolverEntry entry) {

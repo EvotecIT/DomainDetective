@@ -126,19 +126,24 @@ public partial class DomainHealthCheck {
             var configuration = DnsConfiguration;
             var previousAdmission = configuration.QueryAdmissionGate;
             var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+            var previousResolverBulkAdmission = configuration.ResolverBulkQueryAdmissionGate;
             int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
             // Async-only gates allocate no wait handle. A public configuration query may
             // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
             var ownedAdmission = previousAdmission == null
                 ? new SemaphoreSlim(dnsParallelism) : null;
+            var resolverBulkAdmission = previousResolverBulkAdmission
+                ?? new SemaphoreSlim(Math.Max(1, configuration.GetBulkQueryParallelism(dnsParallelism)));
             configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
             configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
+            configuration.ResolverBulkQueryAdmissionGate = resolverBulkAdmission;
             try {
                 await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
                     portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
             } finally {
                 configuration.QueryAdmissionGate = previousAdmission;
                 configuration.BulkQueryAdmissionGate = previousBulkAdmission;
+                configuration.ResolverBulkQueryAdmissionGate = previousResolverBulkAdmission;
             }
         }
 
@@ -312,10 +317,17 @@ public partial class DomainHealthCheck {
                     ReportProgress("Starting", 0);
                     using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
                     var tasks = new List<Task>(healthCheckTypes.Length);
+                    bool deferBulk = DnsConfiguration.GetBulkQueryParallelism(exec.GetEffectiveDnsParallelism()) == 0;
                     foreach (var healthCheckType in healthCheckTypes) {
+                        if (deferBulk && healthCheckType == HealthCheckType.DNSBL) { continue; }
                         tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
                     }
                     await Task.WhenAll(tasks);
+                    if (deferBulk) {
+                        foreach (var healthCheckType in healthCheckTypes) {
+                            if (healthCheckType == HealthCheckType.DNSBL) { await RunCheckWithGateAsync(healthCheckType, gate); }
+                        }
+                    }
                 }
             } catch (Exception exception) {
                 executionFailure = exception;
