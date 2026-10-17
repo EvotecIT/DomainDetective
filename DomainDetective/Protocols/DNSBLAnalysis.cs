@@ -280,13 +280,17 @@ namespace DomainDetective {
                         warnings.Add((code, message));
                     }
                     if (rec.IsBlackListed) {
-                        var target = rec.SourceHost ?? rec.IpAddress ?? ipAddressOrHostname;
+                        var target = rec.IpSource == DnsblIpSource.UserProvided
+                            ? rec.IpAddress ?? ipAddressOrHostname
+                            : rec.SourceHost ?? rec.IpAddress ?? ipAddressOrHostname;
                         var reason = string.IsNullOrWhiteSpace(rec.ReplyMeaning) ? "Listed" : rec.ReplyMeaning;
                         var message = $"{reason} listed on {rec.BlackList}";
+                        // Each append owns its logger, even when retained evidence already
+                        // contains this listing. Logger-level suppression remains caller-local.
+                        warnings.Add((DnsblCodes.Listed, message));
                         if (!listedAssessments.Add((target.ToUpperInvariant(), rec.BlackList.ToUpperInvariant(), message))) { continue; }
                         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: target, source: rec.BlackList) : null;
                         _collector?.AddWarning(message, DnsblCodes.Listed);
-                        warnings.Add((DnsblCodes.Listed, message));
                     }
                 }
 
