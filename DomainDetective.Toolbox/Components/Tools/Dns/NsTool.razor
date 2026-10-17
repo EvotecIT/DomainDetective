@@ -2,8 +2,8 @@
 
 @if (HealthCheck.NSAnalysis is { } nameservers) {
     var matchKnown = nameservers.NsLookupComplete && nameservers.ParentNsRecords.Count > 0;
-    var glueKnown = nameservers.DelegationAnalysisComplete || nameservers.GlueRecordsComplete;
-    var consistencyKnown = nameservers.DelegationAnalysisComplete && nameservers.GlueRecordsComplete;
+    var glueKnown = nameservers.GluePresenceKnown;
+    var consistencyKnown = nameservers.GlueConsistencyKnown;
     <ResultCard Title="Nameserver posture" Status="@(!nameservers.NsLookupComplete ? ResultCard.ResultStatus.Warning : !nameservers.NsRecordExists ? ResultCard.ResultStatus.Fail : GetStatus(nameservers.Assessments))">
         <div class="tool-summary-grid">
             <div class="tool-summary-card">

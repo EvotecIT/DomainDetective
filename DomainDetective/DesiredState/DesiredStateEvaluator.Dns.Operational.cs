@@ -98,8 +98,8 @@ public static partial class DesiredStateEvaluator {
         }
 
         bool matchKnown = ns.NsLookupComplete && ns.ParentNsRecords.Count > 0;
-        bool gluePresenceKnown = ns.DelegationAnalysisComplete || ns.GlueRecordsComplete;
-        bool glueConsistencyKnown = ns.DelegationAnalysisComplete && ns.GlueRecordsComplete;
+        bool gluePresenceKnown = ns.GluePresenceKnown;
+        bool glueConsistencyKnown = ns.GlueConsistencyKnown;
         if ((desired.RequireMatchesParent == true && !matchKnown)
             || (desired.RequireGlueComplete == true && !gluePresenceKnown)
             || (desired.RequireGlueConsistent == true && !glueConsistencyKnown)) {

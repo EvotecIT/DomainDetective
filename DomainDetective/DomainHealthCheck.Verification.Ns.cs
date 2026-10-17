@@ -27,7 +27,8 @@ namespace DomainDetective {
             NSAnalysis.ResetNsEvidence();
             DnsAnswer[] ns;
             try {
-                ns = await DnsConfiguration.QueryPolicyDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+                ns = (await DnsConfiguration.QueryPolicyDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken))
+                    .Where(answer => answer.Type == DnsRecordType.NS).ToArray();
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex) when (NSAnalysis.IsDnsQueryFailure(ex)) {
                 cancellationToken.ThrowIfCancellationRequested();

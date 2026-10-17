@@ -13,8 +13,12 @@ public partial class NSAnalysis {
 
     /// <summary>True when child NS discovery returned a conclusive DNS response or supplied records were analyzed.</summary>
     public bool NsLookupComplete { get; private set; }
-    /// <summary>True when parent delegation and applicable glue comparisons were checked without query failures.</summary>
+    /// <summary>True when parent delegation and applicable glue comparisons completed; unused discovery failures remain diagnostic.</summary>
     public bool DelegationAnalysisComplete { get; private set; }
+    /// <summary>True when an observed parent delegation establishes whether required glue is present.</summary>
+    public bool GluePresenceKnown => ParentNsRecords.Count > 0;
+    /// <summary>True when a glue mismatch is confirmed, or every required glue comparison confirms consistency.</summary>
+    public bool GlueConsistencyKnown { get; private set; }
     /// <summary>True when DNS failures affect child NS discovery or child-host enrichment.</summary>
     public bool ChildDnsQueryFailed => _childDnsQueryErrors.Count > 0;
     /// <summary>True when every NS has an observed address, or at least one NS is confirmed to have none.</summary>
@@ -36,6 +40,7 @@ public partial class NSAnalysis {
         _childDnsQueryErrors.Clear();
         _delegationDnsQueryErrors.Clear();
         NsLookupComplete = DelegationAnalysisComplete = false;
+        GlueConsistencyKnown = false;
         AddressResultKnown = CnameResultKnown = DiversityResultKnown = AsnDiversityComplete = false;
         NsRecords = new();
         ParentNsRecords = new();

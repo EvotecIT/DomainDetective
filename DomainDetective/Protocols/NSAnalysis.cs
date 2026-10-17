@@ -102,7 +102,8 @@ namespace DomainDetective {
                 return res ?? Array.Empty<DnsAnswer>();
             }
 
-            return await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: ct) ?? Array.Empty<DnsAnswer>();
+            var answers = await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: ct);
+            return answers.Where(answer => answer.Type == type).ToArray();
         }
 
         private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type, CancellationToken ct = default) {
@@ -219,13 +220,10 @@ namespace DomainDetective {
 
                 var a = records.A.Answers;
                 var aaaa = records.Aaaa.Answers;
-                if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
-                    AllHaveAOrAaaa = false;
-                    if (records.A.Error == null && records.Aaaa.Error == null) { missingAddressHosts.Add(ns); }
-                }
-
+                bool hasAddress = false;
                 foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        hasAddress = true;
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
                         nsIps.Add((ns, ip));
@@ -234,10 +232,15 @@ namespace DomainDetective {
 
                 foreach (var answer in aaaa ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        hasAddress = true;
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
                         nsIps.Add((ns, ip));
                     }
+                }
+                if (!hasAddress) {
+                    AllHaveAOrAaaa = false;
+                    if (records.A.Error == null && records.Aaaa.Error == null) { missingAddressHosts.Add(ns); }
                 }
             }
 
@@ -289,7 +292,9 @@ namespace DomainDetective {
                 logger.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
             } else if (HasDiverseLocations) {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
-                logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
+                var asnCount = AsnDiversityComplete ? AsnDistinctCount.ToString()
+                    : AsnDistinctCount > 0 ? $"{AsnDistinctCount}+ (partial)" : "unverified";
+                logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {asnCount})");
             }
 
             // Best-effort CHAOS TXT fingerprinting for version/hostname disclosure
@@ -349,6 +354,7 @@ namespace DomainDetective {
             GlueRecordsComplete = false;
             GlueRecordsConsistent = false;
             DelegationAnalysisComplete = false;
+            GlueConsistencyKnown = false;
             if (!NsLookupComplete) { return; }
 
             var parent = GetParentZone(domainName);
@@ -376,6 +382,7 @@ namespace DomainDetective {
             bool glueComplete = true;
             bool glueConsistent = true;
             bool confirmedGlueMismatch = false;
+            bool glueComparisonsComplete = true;
 
             DelegationMatches = new HashSet<string>(ParentNsRecords, StringComparer.OrdinalIgnoreCase)
                 .SetEquals(NsRecords);
@@ -398,7 +405,11 @@ namespace DomainDetective {
                 var childAaaa = await childAaaaTask;
                 RecordQueryError(ns, DnsRecordType.A, childA.Error, logger, parent: true);
                 RecordQueryError(ns, DnsRecordType.AAAA, childAaaa.Error, logger, parent: true);
-                if (childA.Error != null || childAaaa.Error != null) { glueConsistent = false; continue; }
+                if (childA.Error != null || childAaaa.Error != null) {
+                    glueConsistent = false;
+                    glueComparisonsComplete = false;
+                    continue;
+                }
                 var combined = childA.Answers.Concat(childAaaa.Answers).Select(a => a.Data);
                 if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
                     glueConsistent = false;
@@ -408,7 +419,8 @@ namespace DomainDetective {
 
             GlueRecordsComplete = glueComplete;
             GlueRecordsConsistent = glueComplete && glueConsistent;
-            DelegationAnalysisComplete = _delegationDnsQueryErrors.Count == 0;
+            GlueConsistencyKnown = confirmedGlueMismatch || GlueRecordsConsistent;
+            DelegationAnalysisComplete = glueComparisonsComplete;
 
             if (!DelegationMatches) {
                 logger.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");

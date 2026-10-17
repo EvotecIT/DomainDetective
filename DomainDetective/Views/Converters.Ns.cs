@@ -12,8 +12,11 @@ public static partial class Converters
         Value = !info.NsLookupComplete ? "Unknown" : info.NsRecordExists ? $"{info.NsRecords.Count} nameserver(s)" : "Missing",
         Detail = !info.NsLookupComplete ? "NS discovery did not complete; record presence is unknown."
             : info.DnsQueryFailed ? "Some nameserver DNS evidence remains incomplete."
-            : info.NsRecordExists ? $"ASN diversity: {info.AsnDistinctCount}" : "No authoritative nameservers published."
+            : info.NsRecordExists ? $"ASN diversity: {FormatNsAsnCount(info.AsnDistinctCount, info.AsnDiversityComplete)}" : "No authoritative nameservers published."
     };
+
+    private static string FormatNsAsnCount(int count, bool complete) => complete ? count.ToString()
+        : count > 0 ? $"{count}+ (partial)" : "unverified";
 
     /// <summary>Executes the convert operation.</summary>
     public static NsInfo Convert(NSAnalysis analysis)
@@ -21,8 +24,7 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-        var asnSummary = analysis.AsnDiversityComplete ? $"ASNs {analysis.AsnDistinctCount}"
-            : analysis.AsnDistinctCount > 0 ? $"ASNs {analysis.AsnDistinctCount}+ (partial)" : "ASNs unverified";
+        var asnSummary = $"ASNs {FormatNsAsnCount(analysis.AsnDistinctCount, analysis.AsnDiversityComplete)}";
         return new NsInfo
         {
             Check = HealthCheckType.NS,
@@ -39,6 +41,8 @@ public static partial class Converters
             AsnDiversityComplete = analysis.AsnDiversityComplete,
             DnsQueryErrors = analysis.DnsQueryErrors,
             DelegationAnalysisComplete = analysis.DelegationAnalysisComplete,
+            GluePresenceKnown = analysis.GluePresenceKnown,
+            GlueConsistencyKnown = analysis.GlueConsistencyKnown,
             HasDuplicates = analysis.HasDuplicates,
             AtLeastTwoRecords = analysis.AtLeastTwoRecords,
             AllHaveAOrAaaa = analysis.AllHaveAOrAaaa,
@@ -56,8 +60,8 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = !analysis.NsLookupComplete ? "NS discovery incomplete; record presence unknown"
-                : !analysis.DelegationAnalysisComplete ? $"{analysis.NsRecords.Count} NS; parent delegation/glue unverified; {asnSummary}"
-                : $"{analysis.NsRecords.Count} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(!analysis.GlueRecordsComplete ? "unverified" : analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; {asnSummary}",
+                : !analysis.GluePresenceKnown ? $"{analysis.NsRecords.Count} NS; parent delegation/glue unverified; {asnSummary}"
+                : $"{analysis.NsRecords.Count} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(!analysis.GlueConsistencyKnown ? "unverified" : analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; {asnSummary}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
@@ -101,6 +105,10 @@ public class NsInfo
     public IReadOnlyList<string> DnsQueryErrors { get; set; } = System.Array.Empty<string>();
     /// <summary>True when the parent delegation and applicable glue checks completed.</summary>
     public bool DelegationAnalysisComplete { get; set; }
+    /// <summary>True when parent evidence establishes whether required glue is present.</summary>
+    public bool GluePresenceKnown { get; set; }
+    /// <summary>True when glue consistency or a mismatch is established by observed comparisons.</summary>
+    public bool GlueConsistencyKnown { get; set; }
     /// <summary>True when duplicate NS names are present.</summary>
     public bool HasDuplicates { get; set; }
     /// <summary>True when two or more NS records exist.</summary>

@@ -47,14 +47,15 @@ public static class NSNarrative
                 ? "Nameservers are geographically diverse."
                 : !ns.DiversityResultKnown ? "Nameserver diversity could not be fully verified." : "Nameservers lack geographic diversity.");
         }
-        if (ns.DelegationAnalysisComplete) {
+        if (ns.GluePresenceKnown) {
             hi.Add(ns.GlueRecordsComplete
                 ? "Parent zone provides glue records for in-bailiwick NS."
                 : "Parent zone missing glue records for in-bailiwick NS.");
-            hi.Add(ns.GlueRecordsConsistent
-                ? "Parent glue records match child A/AAAA values."
+            hi.Add(ns.GlueConsistencyKnown
+                ? ns.GlueRecordsConsistent ? "Parent glue records match child A/AAAA values."
+                    : "Parent glue records differ from child A/AAAA values."
                 : !ns.GlueRecordsComplete ? "Glue consistency cannot be verified until missing glue records are available."
-                : "Parent glue records differ from child A/AAAA values.");
+                    : "Some parent glue comparisons could not be verified.");
             hi.Add(ns.DelegationMatches
                 ? "Parent delegation matches child NS set."
                 : "Parent delegation differs from child NS set.");
@@ -72,13 +73,12 @@ public static class NSNarrative
                 ? "NS addresses span multiple networks/subnets."
                 : "NS addresses share the same network.");
         }
-        if (ns.DelegationAnalysisComplete) {
+        if (ns.GluePresenceKnown) {
             det.Add(ns.GlueRecordsComplete
                 ? "Glue records are complete."
                 : "Glue records are incomplete.");
-            det.Add(ns.GlueRecordsConsistent
-                ? "Glue records are consistent with child zone."
-                : !ns.GlueRecordsComplete ? "Glue consistency remains unverified."
+            det.Add(!ns.GlueConsistencyKnown ? "Glue consistency remains unverified."
+                : ns.GlueRecordsConsistent ? "Glue records are consistent with child zone."
                 : "Glue records are inconsistent with child zone.");
         }
         det.AddRange(ns.DnsQueryErrors);
