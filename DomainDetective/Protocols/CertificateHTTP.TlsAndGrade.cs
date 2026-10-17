@@ -256,7 +256,7 @@ namespace DomainDetective {
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "openssl",
-                    Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status -brief",
+                    Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status",
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

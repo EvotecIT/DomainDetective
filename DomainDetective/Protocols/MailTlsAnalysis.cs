@@ -580,7 +580,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
             var psi = new System.Diagnostics.ProcessStartInfo {
                 FileName = "openssl",
                 Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
-                    (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status -brief",
+                    (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status",
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
