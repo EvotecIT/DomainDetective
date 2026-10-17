@@ -23,7 +23,7 @@ public sealed class HealthCheckExecutionOptions {
     public int? MaxDomainParallelism { get; set; }
 
     /// <summary>
-    /// Optional override for DNS resolver concurrency hints.
+    /// Optional override for DNS resolver concurrency hints and the shared recursive-query admission cap across a batch.
     /// </summary>
     public int? DnsParallelism { get; set; }
 

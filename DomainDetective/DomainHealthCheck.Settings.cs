@@ -104,7 +104,10 @@ namespace DomainDetective {
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
 
-        private DnsConfiguration _dnsConfiguration = new DnsConfiguration { ReuseResolverClients = true };
+        private DnsConfiguration _dnsConfiguration = new DnsConfiguration {
+            ReuseResolverClients = true,
+            EnableResponseCache = true
+        };
 
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
         /// <value>The DNS configuration instance. The health check owns and disposes the assigned configuration.</value>

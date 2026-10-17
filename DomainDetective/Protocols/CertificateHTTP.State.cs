@@ -52,11 +52,13 @@ public partial class CertificateAnalysis {
         CipherAlgorithm = CipherSuite = string.Empty;
         CipherStrength = DhKeyBits = 0;
         PresentInCtLogs = false;
+        CtLookupComplete = _ctLookupBudgetExhausted = false;
         _ctLogEntries.Clear();
         _ctDiscoverySources = _ctTemplateFormatErrors = Array.Empty<string>();
         Assessments.Clear();
         GradeLevel = GradeLevel.Unknown;
         LegacyEnabled = SupportsTls10 = SupportsTls11 = SupportsTls12 = SupportsTls13 = false;
+        AnalysisComplete = ProtocolSupportComplete = LegacyProtocolSupportComplete = false;
         SctCount = 0;
         OcspMustStaple = false;
         OcspStaplingPresent = null;

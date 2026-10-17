@@ -48,6 +48,11 @@ public static class TyposquattingDispositionAnalyzer
 
         if (!candidate.AppearsRegistered)
         {
+            if (candidate.DnsChecksIncomplete) {
+                reasons.Add("DNS coverage is incomplete; registration availability is unknown");
+                SetDisposition(candidate, TyposquattingDisposition.Unknown, reasons);
+                return;
+            }
             reasons.Add("candidate appears unregistered and available for defensive registration");
             SetDisposition(candidate, TyposquattingDisposition.Available, reasons);
             return;

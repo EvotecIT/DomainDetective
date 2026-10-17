@@ -70,9 +70,20 @@ public sealed partial class TestDesiredState {
     }
 
     [Fact]
-    public void Evaluate_DelegationMismatch_AddsError() {
-        var health = new DomainHealthCheck();
-        typeof(NSAnalysis).GetProperty("DelegationMatches", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.NSAnalysis, false);
+    public async Task Evaluate_DelegationMismatch_AddsError() {
+        using var health = new DomainHealthCheck();
+        health.NSAnalysis.EnableChaosFingerprinting = false;
+        health.NSAnalysis.LookupAsnOverride = _ => Task.FromResult<int?>(null);
+        health.NSAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsClientX.DnsAnswer>());
+        health.NSAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsClientX.DnsResponse>>(new[] {
+            new DnsClientX.DnsResponse { Answers = new[] { new DnsClientX.DnsAnswer {
+                Name = "example.com", Type = DnsClientX.DnsRecordType.NS, DataRaw = "parent.provider.test"
+            } } }
+        });
+        await health.NSAnalysis.AnalyzeNsRecords(new[] { new DnsClientX.DnsAnswer {
+            Type = DnsClientX.DnsRecordType.NS, DataRaw = "child.provider.test"
+        } }, new InternalLogger());
+        await health.NSAnalysis.AnalyzeParentDelegation("example.com", new InternalLogger());
 
         var profile = new DesiredStateProfile {
             Delegation = new DesiredStateDelegationPolicy {

@@ -123,6 +123,34 @@ public partial class DomainHealthCheck {
             CancellationToken cancellationToken = default,
             HealthCheckExecutionOptions? executionOptions = null,
             bool useDefaultChecksWhenEmpty = true) {
+            var configuration = DnsConfiguration;
+            var previousAdmission = configuration.QueryAdmissionGate;
+            var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+            var previousResolverBulkAdmission = configuration.ResolverBulkQueryAdmissionGate;
+            int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
+            // Async-only gates allocate no wait handle. A public configuration query may
+            // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
+            var ownedAdmission = previousAdmission == null
+                ? new SemaphoreSlim(dnsParallelism) : null;
+            var resolverBulkAdmission = previousResolverBulkAdmission
+                ?? new SemaphoreSlim(Math.Max(1, configuration.GetBulkQueryParallelism(dnsParallelism)));
+            configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
+            configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
+            configuration.ResolverBulkQueryAdmissionGate = resolverBulkAdmission;
+            try {
+                await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
+                    portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
+            } finally {
+                configuration.QueryAdmissionGate = previousAdmission;
+                configuration.BulkQueryAdmissionGate = previousBulkAdmission;
+                configuration.ResolverBulkQueryAdmissionGate = previousResolverBulkAdmission;
+            }
+        }
+
+        private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,
+            string[]? dkimSelectors, ServiceType[]? daneServiceType, int[]? danePorts,
+            PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken,
+            HealthCheckExecutionOptions? executionOptions, bool useDefaultChecksWhenEmpty) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -156,11 +184,8 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.REVERSEDNS] = () => VerifyReverseDnsAsync(domainName, cancellationToken),
                 [HealthCheckType.FCRDNS] = () => VerifyFcrDnsAsync(domainName, cancellationToken),
                 [HealthCheckType.CAA] = () => VerifyCAA(domainName, cancellationToken),
-                [HealthCheckType.NS] = () => VerifyNS(domainName, cancellationToken),
-                [HealthCheckType.DELEGATION] = () => VerifyDelegation(domainName, cancellationToken),
                 [HealthCheckType.ZONETRANSFER] = () => VerifyZoneTransfer(domainName, cancellationToken),
                 [HealthCheckType.DANE] = () => VerifyDaneAsync(domainName, daneServiceType, danePorts, cancellationToken),
-                [HealthCheckType.WEBSITE] = () => VerifyWebsiteAsync(domainName, cancellationToken),
                 [HealthCheckType.SPFFLATTENED] = () => VerifySpfFlattenedAsync(domainName, cancellationToken),
                 [HealthCheckType.DNSSEC] = () => VerifyDNSSEC(domainName, cancellationToken),
                 [HealthCheckType.DNSBL] = () => VerifyDNSBL(domainName, cancellationToken),
@@ -169,7 +194,6 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, skipIndicatorDownload: exec.SkipBimiIndicatorDownload, cancellationToken: cancellationToken),
                 [HealthCheckType.IDENTITYPROVIDER] = () => VerifyIdpInfo(domainName, cancellationToken),
                 [HealthCheckType.AUTODISCOVER] = () => VerifyAutodiscover(domainName, cancellationToken),
-                [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxt(domainName, cancellationToken),
                 [HealthCheckType.ROBOTS] = () => VerifyRobotsAsync(domainName, cancellationToken),
                 [HealthCheckType.SITEMAP] = () => VerifySitemapAsync(domainName, cancellationToken),
@@ -183,7 +207,6 @@ public partial class DomainHealthCheck {
                 [HealthCheckType.SMTPBANNER] = () => VerifySMTPBanner(domainName, 25, cancellationToken),
                 [HealthCheckType.SMTPAUTH] = () => VerifySmtpAuth(domainName, 25, cancellationToken),
                 [HealthCheckType.MAILLATENCY] = () => VerifyMailLatency(domainName, 25, cancellationToken),
-                [HealthCheckType.HTTP] = () => VerifyWebsiteHttps(domainName, cancellationToken),
                 [HealthCheckType.HPKP] = () => VerifyHpkpAsync(domainName, cancellationToken),
                 [HealthCheckType.CONTACT] = () => VerifyContactInfo(domainName, cancellationToken),
                 [HealthCheckType.MESSAGEHEADER] = () => VerifyMessageHeaderAsync(cancellationToken),
@@ -220,6 +243,7 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
+            ConfigureSharedChecks(actions, domainName, cancellationToken);
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
@@ -262,8 +286,11 @@ public partial class DomainHealthCheck {
             }
 
             async Task RunCheckWithGateAsync(HealthCheckType healthCheckType, SemaphoreSlim gate) {
+                var queued = Stopwatch.StartNew();
                 await gate.WaitAsync(cancellationToken);
                 try {
+                    queued.Stop();
+                    _logger.WriteVerbose("{0} check admitted after {1} ms in queue.", healthCheckType, queued.ElapsedMilliseconds);
                     await RunCheckAsync(healthCheckType);
                 } finally {
                     gate.Release();
@@ -290,10 +317,17 @@ public partial class DomainHealthCheck {
                     ReportProgress("Starting", 0);
                     using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
                     var tasks = new List<Task>(healthCheckTypes.Length);
+                    bool deferBulk = DnsConfiguration.GetBulkQueryParallelism(exec.GetEffectiveDnsParallelism()) == 0;
                     foreach (var healthCheckType in healthCheckTypes) {
+                        if (deferBulk && healthCheckType == HealthCheckType.DNSBL) { continue; }
                         tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
                     }
                     await Task.WhenAll(tasks);
+                    if (deferBulk) {
+                        foreach (var healthCheckType in healthCheckTypes) {
+                            if (healthCheckType == HealthCheckType.DNSBL) { await RunCheckWithGateAsync(healthCheckType, gate); }
+                        }
+                    }
                 }
             } catch (Exception exception) {
                 executionFailure = exception;
@@ -312,12 +346,6 @@ public partial class DomainHealthCheck {
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
             try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
-        }
-
-        private async Task VerifyWebsiteAsync(string domainName, CancellationToken cancellationToken) {
-            await Task.WhenAll(
-                VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
-                VerifyWebsiteHttps(domainName, cancellationToken)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -671,7 +699,8 @@ public partial class DomainHealthCheck {
 
         private static T CloneAnalysis<T>(T analysis) where T : class {
             return analysis == null ? null! : analysis is CertificateAnalysis certificate
-                ? (T)(object)certificate.CloneForSnapshot() : (T)_cloneObject(analysis);
+                ? (T)(object)certificate.CloneForSnapshot() : analysis is NSAnalysis ns
+                ? (T)(object)ns.CloneForSnapshot() : (T)_cloneObject(analysis);
         }
 
         private static Func<object, object> CreateCloneDelegate() {

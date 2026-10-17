@@ -18,12 +18,25 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            if (IsPublicSuffix) {
+            await VerifyNameServersAsync(domainName, cancellationToken);
+        }
+
+        private async Task VerifyNameServersAsync(string domainName, CancellationToken cancellationToken) {
+            cancellationToken.ThrowIfCancellationRequested();
+            NSAnalysis.Subject = domainName;
+            NSAnalysis.ResetNsEvidence();
+            DnsAnswer[] ns;
+            try {
+                ns = (await DnsConfiguration.QueryPolicyDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken))
+                    .Where(answer => answer.Type == DnsRecordType.NS).ToArray();
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (NSAnalysis.IsDnsQueryFailure(ex)) {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var collector = AssessmentCollector.ForAnalysis(_logger, NSAnalysis, category: "NS", target: domainName, source: "Child");
+                NSAnalysis.RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, _logger);
                 return;
             }
-            var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
-            NSAnalysis.Subject = domainName;
-            await NSAnalysis.AnalyzeNsRecords(ns, _logger);
+            await NSAnalysis.AnalyzeNsRecords(ns, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -38,7 +51,7 @@ namespace DomainDetective {
                     DataRaw = nsRecord,
                     Type = DnsRecordType.NS
                 }
-            }, _logger);
+            }, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -51,7 +64,7 @@ namespace DomainDetective {
             var dnsResults = nsRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
             }).ToList();
-            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger);
+            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger, cancellationToken);
         }
     }
 }

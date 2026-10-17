@@ -24,12 +24,7 @@ public partial class MXAnalysis {
         var normalized = NormalizeHost(owner);
         var response = await QueryRecursiveResponseAsync(normalized, DnsRecordType.SOA);
         if (response == null) { return null; }
-        return (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
-            .Where(answer => answer.Type == DnsRecordType.SOA)
-            .Select(answer => NormalizeHost(answer.Name))
-            .Where(zone => zone.Length > 0 && (normalized.Equals(zone, StringComparison.OrdinalIgnoreCase) ||
-                normalized.EndsWith("." + zone, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(zone => zone.Length).FirstOrDefault();
+        return Helpers.AuthoritativeDnsProbes.GetEnclosingSoaZone(normalized, response);
     }
 
     /// <summary>Discovers authority addresses for the subject and MX owners, sharing discovery for owners in the same zone.</summary>

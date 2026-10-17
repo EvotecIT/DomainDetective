@@ -1,22 +1,25 @@
 @using DomainDetective.Toolbox.Components.Shared
 
 @if (HealthCheck.NSAnalysis is { } nameservers) {
-    <ResultCard Title="Nameserver posture" Status="@(nameservers.NsRecordExists ? GetStatus(nameservers.Assessments) : ResultCard.ResultStatus.Fail)">
+    var matchKnown = nameservers.NsLookupComplete && nameservers.ParentNsRecords.Count > 0;
+    var glueKnown = nameservers.GluePresenceKnown;
+    var consistencyKnown = nameservers.GlueConsistencyKnown;
+    <ResultCard Title="Nameserver posture" Status="@(!nameservers.NsLookupComplete ? ResultCard.ResultStatus.Warning : !nameservers.NsRecordExists ? ResultCard.ResultStatus.Fail : GetStatus(nameservers.Assessments))">
         <div class="tool-summary-grid">
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Published NS</span>
-                <strong class="tool-summary-value">@nameservers.NsRecords.Count</strong>
-                <p class="tool-summary-note">At least two: @FormatBool(nameservers.AtLeastTwoRecords)</p>
+                <strong class="tool-summary-value">@(nameservers.NsLookupComplete ? nameservers.NsRecords.Count.ToString() : "Unknown")</strong>
+                <p class="tool-summary-note">At least two: @FormatKnown(nameservers.AtLeastTwoRecords, nameservers.NsLookupComplete)</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Glue coverage</span>
-                <strong class="tool-summary-value">@(nameservers.GlueRecordsComplete ? "Complete" : "Incomplete")</strong>
-                <p class="tool-summary-note">Consistent: @FormatBool(nameservers.GlueRecordsConsistent)</p>
+                <strong class="tool-summary-value">@(!glueKnown ? "Unverified" : nameservers.GlueRecordsComplete ? "Complete" : "Incomplete")</strong>
+                <p class="tool-summary-note">Consistent: @FormatKnown(nameservers.GlueRecordsConsistent, consistencyKnown)</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Diversity</span>
-                <strong class="tool-summary-value">@nameservers.AsnDistinctCount ASN</strong>
-                <p class="tool-summary-note">Delegation matches: @FormatBool(nameservers.DelegationMatches)</p>
+                <strong class="tool-summary-value">@(nameservers.AsnDiversityComplete ? $"{nameservers.AsnDistinctCount} ASN" : nameservers.AsnDistinctCount > 0 ? $"{nameservers.AsnDistinctCount}+ ASN (partial)" : "Unverified")</strong>
+                <p class="tool-summary-note">Delegation matches: @FormatKnown(nameservers.DelegationMatches, matchKnown)</p>
             </div>
         </div>
 
@@ -45,16 +48,16 @@
         }
 
         <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>Duplicate records</td><td>@FormatBool(nameservers.HasDuplicates)</td></tr>
-            <tr><td>All hosts have A or AAAA</td><td>@FormatBool(nameservers.AllHaveAOrAaaa)</td></tr>
-            <tr><td>NS points to CNAME</td><td>@FormatBool(nameservers.PointsToCname)</td></tr>
-            <tr><td>Diverse locations</td><td>@FormatBool(nameservers.HasDiverseLocations)</td></tr>
-            <tr><td>Delegation matches parent</td><td>@FormatBool(nameservers.DelegationMatches)</td></tr>
+            <tr><td>Duplicate records</td><td>@FormatKnown(nameservers.HasDuplicates, nameservers.NsLookupComplete)</td></tr>
+            <tr><td>All hosts have A or AAAA</td><td>@FormatKnown(nameservers.AllHaveAOrAaaa, nameservers.AddressResultKnown)</td></tr>
+            <tr><td>NS points to CNAME</td><td>@FormatKnown(nameservers.PointsToCname, nameservers.CnameResultKnown)</td></tr>
+            <tr><td>Diverse locations</td><td>@FormatKnown(nameservers.HasDiverseLocations, nameservers.DiversityResultKnown)</td></tr>
+            <tr><td>Delegation matches parent</td><td>@FormatKnown(nameservers.DelegationMatches, matchKnown)</td></tr>
         </ResultTable>
     </ResultCard>
 
     <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
-        <AssessmentList Assessments="nameservers.Assessments" EmptyMessage="@($"NS analysis complete for {Domain}.")" />
+        <AssessmentList Assessments="nameservers.Assessments" EmptyMessage="@(nameservers.NsLookupComplete ? $"Child NS analysis complete for {Domain}. Parent delegation and glue are checked separately." : $"NS discovery did not complete for {Domain}; record presence is unknown.")" />
     </ResultCard>
 }
 
@@ -62,7 +65,7 @@
     [Parameter] public required DomainDetective.DomainHealthCheck HealthCheck { get; set; }
     [Parameter] public required string Domain { get; set; }
 
-    private static string FormatBool(bool value) => value ? "Yes" : "No";
+    private static string FormatKnown(bool value, bool known) => !known ? "Unverified" : value ? "Yes" : "No";
 
     private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
         if (assessments.Any(static a => a.Severity == DomainDetective.AssessmentSeverity.Error)) {

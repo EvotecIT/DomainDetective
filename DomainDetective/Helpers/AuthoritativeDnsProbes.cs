@@ -13,16 +13,12 @@ namespace DomainDetective.Helpers;
 internal static class AuthoritativeDnsProbes {
     internal static async Task<TOutput[]> RunAsync<TInput, TOutput>(IEnumerable<TInput> inputs,
         Func<TInput, Task<TOutput>> probe, int concurrency = 8, CancellationToken cancellationToken = default) {
-        using var gate = new SemaphoreSlim(Math.Max(1, concurrency));
-        return await Task.WhenAll(inputs.Select(async input => {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try { return await probe(input).ConfigureAwait(false); }
-            finally { gate.Release(); }
-        })).ConfigureAwait(false);
+        return await BoundedAsync.RunAsync(inputs as IReadOnlyList<TInput> ?? inputs.ToArray(),
+            probe, concurrency, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
-        int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false) {
+        int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false, bool acceptReferral = false) {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeoutMs);
         try {
@@ -34,13 +30,19 @@ internal static class AuthoritativeDnsProbes {
             var result = await DnsWireQueryClient.QueryUdpAsync(address, 53, query, timeoutMs,
                 useTcpFallback: true, cancellationToken: deadline.Token).ConfigureAwait(false);
             var response = result.Response;
-            return (acceptRefused ? IsUsableResponse(response, acceptRefused: true) : IsAuthoritativeResponse(response)) ? response : null;
+            return (acceptReferral ? IsUsableResponse(response)
+                : acceptRefused ? IsUsableResponse(response, acceptRefused: true) : IsAuthoritativeResponse(response)) ? response : null;
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
+        catch (Exception ex) when (IsTransportFailure(ex) || ex is ArgumentException || ex is FormatException) {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
     }
+
+    /// <summary>Expected network failures; callers retain precedence for their own cancellation token.</summary>
+    internal static bool IsTransportFailure(Exception error) => error is TimeoutException || error is OperationCanceledException
+        || error is SocketException || error is System.IO.IOException || error is System.Net.Http.HttpRequestException
+        || error is DnsClientException;
 
     internal static bool IsUsableResponse(DnsResponse response, bool acceptRefused = false) =>
         string.IsNullOrEmpty(response.Error) && (response.Status == DnsResponseCode.NoError ||
@@ -48,6 +50,17 @@ internal static class AuthoritativeDnsProbes {
 
     internal static bool IsAuthoritativeResponse(DnsResponse? response) =>
         response != null && response.IsAuthoritativeAnswer && IsUsableResponse(response);
+
+    /// <summary>Selects the closest enclosing SOA owner from a recursive answer or negative response.</summary>
+    internal static string? GetEnclosingSoaZone(string owner, DnsResponse response, bool includeRoot = false) {
+        string normalized = owner.Trim().TrimEnd('.');
+        return (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+            .Where(answer => answer.Type == DnsRecordType.SOA)
+            .Select(answer => (answer.Name ?? string.Empty).Trim().TrimEnd('.'))
+            .Where(zone => zone.Length > 0 && (normalized.Equals(zone, StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith("." + zone, StringComparison.OrdinalIgnoreCase)) || includeRoot && zone.Length == 0)
+            .OrderByDescending(zone => zone.Length).Select(zone => zone.Length == 0 ? "." : zone).FirstOrDefault();
+    }
 
     internal static void ReportIpv6Reachability(IEnumerable<string> attempted, IEnumerable<string> reachable, InternalLogger logger) {
         var addresses = attempted.Select(value => IPAddress.TryParse(value, out var address) ? address : null).Where(address => address != null).ToArray();

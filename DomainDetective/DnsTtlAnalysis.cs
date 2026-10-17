@@ -114,9 +114,12 @@ namespace DomainDetective {
         /// </summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, System.Threading.CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                var answers = await QueryDnsOverride(name, type);
+                ct.ThrowIfCancellationRequested();
+                return answers;
             }
 
             if (type == DnsRecordType.TXT) {
@@ -124,9 +127,9 @@ namespace DomainDetective {
                     name,
                     type,
                     filter: string.Empty,
-                    includeAliasesInFilter: true);
+                    includeAliasesInFilter: true, cancellationToken: ct);
             }
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct);
         }
 
         private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
@@ -152,7 +155,11 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain name to analyze.</param>
         /// <param name="logger">Optional logger used for diagnostics.</param>
-        public async Task Analyze(string domainName, InternalLogger logger) {
+        public Task Analyze(string domainName, InternalLogger logger)
+            => Analyze(domainName, logger, System.Threading.CancellationToken.None);
+
+        /// <summary>Queries independent TTL prerequisites with bounded concurrency and caller cancellation.</summary>
+        public async Task Analyze(string domainName, InternalLogger logger, System.Threading.CancellationToken ct) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNS", target: domainName);
             Subject = domainName;
             UniformityIncomplete = false;
@@ -168,16 +175,25 @@ namespace DomainDetective {
             TlsRptTxtTtls = Array.Empty<int>();
             DkimTxtTtls = new Dictionary<string, IReadOnlyList<int>>();
 
-            var aRecords = await QueryDns(domainName, DnsRecordType.A);
-            var aaaaRecords = await QueryDns(domainName, DnsRecordType.AAAA);
-            var mxRecords = await QueryDns(domainName, DnsRecordType.MX);
-            var nsRecords = await QueryDns(domainName, DnsRecordType.NS);
-            var soaRecords = await QueryDns(domainName, DnsRecordType.SOA);
-            var dsRecords = await QueryDns(domainName, DnsRecordType.DS);
-            var txtApex = await QueryDns(domainName, DnsRecordType.TXT);
-            var txtDmarc = await QueryDns($"_dmarc.{domainName}", DnsRecordType.TXT);
-            var txtMtasts = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
-            var txtTlsRpt = await QueryDns($"_smtp._tls.{domainName}", DnsRecordType.TXT);
+            var requests = new[] {
+                (domainName, DnsRecordType.A), (domainName, DnsRecordType.AAAA),
+                (domainName, DnsRecordType.MX), (domainName, DnsRecordType.NS),
+                (domainName, DnsRecordType.SOA), (domainName, DnsRecordType.DS),
+                (domainName, DnsRecordType.TXT), ($"_dmarc.{domainName}", DnsRecordType.TXT),
+                ($"_mta-sts.{domainName}", DnsRecordType.TXT), ($"_smtp._tls.{domainName}", DnsRecordType.TXT)
+            };
+            var records = await Helpers.AuthoritativeDnsProbes.RunAsync(requests,
+                request => QueryDns(request.Item1, request.Item2, ct), concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
+            var aRecords = records[0];
+            var aaaaRecords = records[1];
+            var mxRecords = records[2];
+            var nsRecords = records[3];
+            var soaRecords = records[4];
+            var dsRecords = records[5];
+            var txtApex = records[6];
+            var txtDmarc = records[7];
+            var txtMtasts = records[8];
+            var txtTlsRpt = records[9];
 
             DnsSecSigned = dsRecords.Length > 0;
 
@@ -210,10 +226,13 @@ namespace DomainDetective {
 
             if (DkimSelectors != null && DkimSelectors.Count > 0)
             {
-                foreach (var sel in DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase))
-                {
+                var selectorRecords = await Helpers.AuthoritativeDnsProbes.RunAsync(DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase),
+                    async sel => (Selector: sel, Records: await QueryDns($"{sel}._domainkey.{domainName}", DnsRecordType.TXT, ct)),
+                    concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
+                foreach (var selectorRecord in selectorRecords) {
+                    var sel = selectorRecord.Selector;
                     var name = $"{sel}._domainkey.{domainName}";
-                    var dkimTxt = await QueryDns(name, DnsRecordType.TXT);
+                    var dkimTxt = selectorRecord.Records;
                     var list = dkimTxt.Select(r => r.TTL).ToArray();
                     DkimTxtTtls[name] = list;
                     // Evaluate per selector
@@ -251,20 +270,19 @@ namespace DomainDetective {
 	            using var semaphore = new System.Threading.SemaphoreSlim(maxParallelism, maxParallelism);
 
             // Discover authoritative NS hosts and IPs via resolver
-            var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
+            var nsAnswers = await QueryDns(domainName, DnsRecordType.NS, ct);
             var nsHosts = nsAnswers.Select(a => a.Data?.Trim('.') ?? string.Empty).Where(h => !string.IsNullOrEmpty(h)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var nsIps = new HashSet<System.Net.IPAddress>();
-            foreach (var host in nsHosts) {
-                var a = await QueryDns(host, DnsRecordType.A);
-                foreach (var ans in a) {
+            var addresses = await Helpers.AuthoritativeDnsProbes.RunAsync(nsHosts, async host => {
+                var a = QueryDns(host, DnsRecordType.A, ct);
+                var aaaa = QueryDns(host, DnsRecordType.AAAA, ct);
+                await Task.WhenAll(a, aaaa).ConfigureAwait(false);
+                return (await a).Concat(await aaaa);
+            }, concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
+            foreach (var hostAddresses in addresses) {
+                foreach (var ans in hostAddresses) {
                     if (System.Net.IPAddress.TryParse(ans.Data, out var ip)) {
                         nsIps.Add(ip);
-                    }
-                }
-                var aaaa = await QueryDns(host, DnsRecordType.AAAA);
-                foreach (var ans in aaaa) {
-                    if (System.Net.IPAddress.TryParse(ans.Data, out var ip6)) {
-                        nsIps.Add(ip6);
                     }
                 }
             }

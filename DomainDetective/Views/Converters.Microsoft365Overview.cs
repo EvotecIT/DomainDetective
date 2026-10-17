@@ -180,13 +180,6 @@ public static partial class Converters {
         Detail = $"{info.DsRecords.Count} DS, {info.DnsKeys.Count} DNSKEY"
     };
 
-    private static AggregateCheckStatusInfo BuildNsStatus(NsInfo info) => new AggregateCheckStatusInfo {
-        Key = "ns",
-        Label = "NS",
-        State = !info.NsRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 || !info.AtLeastTwoRecords ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.NsRecordExists ? $"{info.NsRecords.Count} nameserver(s)" : "Missing",
-        Detail = info.NsRecordExists ? $"ASN diversity: {info.AsnDistinctCount}" : "No authoritative nameservers published."
-    };
 }
 
 /// <summary>Provides microsoft365 overview info functionality.</summary>

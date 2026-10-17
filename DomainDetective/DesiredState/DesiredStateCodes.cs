@@ -174,6 +174,7 @@ internal static class DesiredStateCodes {
     public const string FcrDnsForwardMismatch = "DesiredState.FCRDNS.ForwardConfirmed.Mismatch";
 
     public const string NsMissingRecord = "DesiredState.NS.Record.Missing";
+    public const string NsEvidenceIncomplete = "DesiredState.NS.Evidence.Incomplete";
     public const string NsTooFewRecords = "DesiredState.NS.Records.TooFew";
     public const string NsDuplicatesNotAllowed = "DesiredState.NS.Records.Duplicate.NotAllowed";
     public const string NsMissingAddress = "DesiredState.NS.Target.NoAddress";
@@ -253,6 +254,7 @@ internal static class DesiredStateCodes {
     public const string FlatteningServiceTargetNotAllowed = "DesiredState.FLATTENINGSERVICE.Target.NotAllowed";
 
     public const string DelegationMismatch = "DesiredState.DELEGATION.Parent.Mismatch";
+    public const string DelegationEvidenceIncomplete = "DesiredState.Delegation.Evidence.Incomplete";
     public const string DelegationGlueIncomplete = "DesiredState.DELEGATION.Glue.Incomplete";
     public const string DelegationGlueInconsistent = "DesiredState.DELEGATION.Glue.Inconsistent";
 
