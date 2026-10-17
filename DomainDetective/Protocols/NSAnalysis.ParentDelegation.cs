@@ -58,10 +58,17 @@ public partial class NSAnalysis {
             using var probes = CancellationTokenSource.CreateLinkedTokenSource(token);
             try {
                 await AuthoritativeDnsProbes.RunAsync(addresses, async address => {
-                    var response = QueryResponseOverride == null
-                        ? await AuthoritativeDnsProbes.QueryAsync(address, domain, DnsRecordType.NS, cancellationToken: probes.Token, acceptReferral: true).ConfigureAwait(false)
-                        : await QueryResponseOverride(IPAddress.Parse(address), new DnsMessage(domain, DnsRecordType.NS,
-                            new DnsMessageOptions(RecursionDesired: false)), probes.Token).ConfigureAwait(false);
+                    DnsResponse? response;
+                    try {
+                        response = QueryResponseOverride == null
+                            ? await AuthoritativeDnsProbes.QueryAsync(address, domain, DnsRecordType.NS, cancellationToken: probes.Token, acceptReferral: true).ConfigureAwait(false)
+                            : await QueryResponseOverride(IPAddress.Parse(address), new DnsMessage(domain, DnsRecordType.NS,
+                                new DnsMessageOptions(RecursionDesired: false)), probes.Token).ConfigureAwait(false);
+                    } catch (OperationCanceledException) when (probes.Token.IsCancellationRequested) { throw; }
+                    catch (Exception error) when (AuthoritativeDnsProbes.IsTransportFailure(error)
+                        || error is ArgumentException || error is FormatException) {
+                        return true; // An unavailable server must not cancel usable sibling probes.
+                    }
                     probes.Token.ThrowIfCancellationRequested();
                     // One address can host both parent and child zones. Its child answer,
                     // even with RD disabled, cannot establish the parent's delegation.

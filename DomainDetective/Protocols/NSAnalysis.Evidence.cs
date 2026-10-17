@@ -15,6 +15,16 @@ public partial class NSAnalysis {
     public bool NsLookupComplete { get; private set; }
     /// <summary>True when parent delegation and applicable glue comparisons were checked without query failures.</summary>
     public bool DelegationAnalysisComplete { get; private set; }
+    /// <summary>True when DNS failures affect child NS discovery or child-host enrichment.</summary>
+    public bool ChildDnsQueryFailed => _childDnsQueryErrors.Count > 0;
+    /// <summary>True when every NS has an observed address, or at least one NS is confirmed to have none.</summary>
+    public bool AddressResultKnown { get; private set; }
+    /// <summary>True when a CNAME target is observed or every child CNAME query completed.</summary>
+    public bool CnameResultKnown { get; private set; }
+    /// <summary>True when diversity is observed or all address and ASN evidence needed to exclude it is available.</summary>
+    public bool DiversityResultKnown { get; private set; }
+    /// <summary>True when all child address queries and ASN lookups completed; otherwise the ASN count is a lower bound.</summary>
+    public bool AsnDiversityComplete { get; private set; }
     /// <summary>True when DNS failures leave child discovery, address enrichment or delegation evidence incomplete.</summary>
     public bool DnsQueryFailed => _childDnsQueryErrors.Count > 0 || _delegationDnsQueryErrors.Count > 0;
     /// <summary>Operational failures retained separately from confirmed missing records or mismatched glue.</summary>
@@ -26,6 +36,7 @@ public partial class NSAnalysis {
         _childDnsQueryErrors.Clear();
         _delegationDnsQueryErrors.Clear();
         NsLookupComplete = DelegationAnalysisComplete = false;
+        AddressResultKnown = CnameResultKnown = DiversityResultKnown = AsnDiversityComplete = false;
         NsRecords = new();
         ParentNsRecords = new();
         ParentAuthorityServer = null;
@@ -41,12 +52,15 @@ public partial class NSAnalysis {
     }
 
     internal static bool IsDnsQueryFailure(Exception error) => error is DnsQueryFailureException
-        || error is TimeoutException || error is TaskCanceledException || error is System.Net.Http.HttpRequestException;
+        || Helpers.AuthoritativeDnsProbes.IsTransportFailure(error);
 
     private async Task<(DnsAnswer[] Answers, Exception? Error)> QueryNsEvidenceAsync(string name, DnsRecordType type, CancellationToken ct) {
         try { return (await QueryDns(name, type, ct).ConfigureAwait(false), null); }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception error) when (IsDnsQueryFailure(error)) { return (Array.Empty<DnsAnswer>(), error); }
+        catch (Exception error) when (IsDnsQueryFailure(error)) {
+            ct.ThrowIfCancellationRequested();
+            return (Array.Empty<DnsAnswer>(), error);
+        }
     }
 
     private void RecordQueryError(string name, DnsRecordType type, Exception? error, InternalLogger logger, bool parent = false) {

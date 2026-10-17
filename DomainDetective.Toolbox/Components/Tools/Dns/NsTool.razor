@@ -18,7 +18,7 @@
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Diversity</span>
-                <strong class="tool-summary-value">@(nameservers.NsLookupComplete && !nameservers.DnsQueryFailed ? $"{nameservers.AsnDistinctCount} ASN" : "Unverified")</strong>
+                <strong class="tool-summary-value">@(nameservers.AsnDiversityComplete ? $"{nameservers.AsnDistinctCount} ASN" : nameservers.AsnDistinctCount > 0 ? $"{nameservers.AsnDistinctCount}+ ASN (partial)" : "Unverified")</strong>
                 <p class="tool-summary-note">Delegation matches: @FormatKnown(nameservers.DelegationMatches, matchKnown)</p>
             </div>
         </div>
@@ -49,9 +49,9 @@
 
         <ResultTable Columns="@(new[] { "Property", "Value" })">
             <tr><td>Duplicate records</td><td>@FormatKnown(nameservers.HasDuplicates, nameservers.NsLookupComplete)</td></tr>
-            <tr><td>All hosts have A or AAAA</td><td>@FormatKnown(nameservers.AllHaveAOrAaaa, nameservers.NsLookupComplete && !nameservers.DnsQueryFailed)</td></tr>
-            <tr><td>NS points to CNAME</td><td>@FormatKnown(nameservers.PointsToCname, nameservers.NsLookupComplete && !nameservers.DnsQueryFailed)</td></tr>
-            <tr><td>Diverse locations</td><td>@FormatKnown(nameservers.HasDiverseLocations, nameservers.NsLookupComplete && !nameservers.DnsQueryFailed)</td></tr>
+            <tr><td>All hosts have A or AAAA</td><td>@FormatKnown(nameservers.AllHaveAOrAaaa, nameservers.AddressResultKnown)</td></tr>
+            <tr><td>NS points to CNAME</td><td>@FormatKnown(nameservers.PointsToCname, nameservers.CnameResultKnown)</td></tr>
+            <tr><td>Diverse locations</td><td>@FormatKnown(nameservers.HasDiverseLocations, nameservers.DiversityResultKnown)</td></tr>
             <tr><td>Delegation matches parent</td><td>@FormatKnown(nameservers.DelegationMatches, matchKnown)</td></tr>
         </ResultTable>
     </ResultCard>

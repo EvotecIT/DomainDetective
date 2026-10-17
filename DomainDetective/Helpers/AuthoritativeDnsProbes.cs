@@ -33,11 +33,16 @@ internal static class AuthoritativeDnsProbes {
             return (acceptReferral ? IsUsableResponse(response)
                 : acceptRefused ? IsUsableResponse(response, acceptRefused: true) : IsAuthoritativeResponse(response)) ? response : null;
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException || ex is SocketException || ex is System.IO.IOException || ex is ArgumentException || ex is FormatException || ex is DnsClientException) {
+        catch (Exception ex) when (IsTransportFailure(ex) || ex is ArgumentException || ex is FormatException) {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }
     }
+
+    /// <summary>Expected network failures; callers retain precedence for their own cancellation token.</summary>
+    internal static bool IsTransportFailure(Exception error) => error is TimeoutException || error is OperationCanceledException
+        || error is SocketException || error is System.IO.IOException || error is System.Net.Http.HttpRequestException
+        || error is DnsClientException;
 
     internal static bool IsUsableResponse(DnsResponse response, bool acceptRefused = false) =>
         string.IsNullOrEmpty(response.Error) && (response.Status == DnsResponseCode.NoError ||

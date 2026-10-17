@@ -21,6 +21,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
+        var asnSummary = analysis.AsnDiversityComplete ? $"ASNs {analysis.AsnDistinctCount}"
+            : analysis.AsnDistinctCount > 0 ? $"ASNs {analysis.AsnDistinctCount}+ (partial)" : "ASNs unverified";
         return new NsInfo
         {
             Check = HealthCheckType.NS,
@@ -30,6 +32,11 @@ public static partial class Converters
             NsRecordExists = analysis.NsRecordExists,
             NsLookupComplete = analysis.NsLookupComplete,
             DnsQueryFailed = analysis.DnsQueryFailed,
+            ChildDnsQueryFailed = analysis.ChildDnsQueryFailed,
+            AddressResultKnown = analysis.AddressResultKnown,
+            CnameResultKnown = analysis.CnameResultKnown,
+            DiversityResultKnown = analysis.DiversityResultKnown,
+            AsnDiversityComplete = analysis.AsnDiversityComplete,
             DnsQueryErrors = analysis.DnsQueryErrors,
             DelegationAnalysisComplete = analysis.DelegationAnalysisComplete,
             HasDuplicates = analysis.HasDuplicates,
@@ -49,8 +56,8 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = !analysis.NsLookupComplete ? "NS discovery incomplete; record presence unknown"
-                : !analysis.DelegationAnalysisComplete ? $"{analysis.NsRecords.Count} NS; parent delegation/glue unverified; ASNs {analysis.AsnDistinctCount}"
-                : $"{analysis.NsRecords.Count} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(!analysis.GlueRecordsComplete ? "unverified" : analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; ASNs {analysis.AsnDistinctCount}",
+                : !analysis.DelegationAnalysisComplete ? $"{analysis.NsRecords.Count} NS; parent delegation/glue unverified; {asnSummary}"
+                : $"{analysis.NsRecords.Count} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(!analysis.GlueRecordsComplete ? "unverified" : analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; {asnSummary}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
@@ -80,6 +87,16 @@ public class NsInfo
     public string RecordPresence => NsRecordExists ? "Yes" : NsLookupComplete ? "No" : "Unknown";
     /// <summary>True when DNS query failures leave any analyzed NS evidence incomplete.</summary>
     public bool DnsQueryFailed { get; set; }
+    /// <summary>True when DNS failures affect child discovery or enrichment, independently of parent probes.</summary>
+    public bool ChildDnsQueryFailed { get; set; }
+    /// <summary>True when the all-host address condition is confirmed true or false.</summary>
+    public bool AddressResultKnown { get; set; }
+    /// <summary>True when the presence or absence of child CNAME targets is known.</summary>
+    public bool CnameResultKnown { get; set; }
+    /// <summary>True when the diversity condition is confirmed true or false.</summary>
+    public bool DiversityResultKnown { get; set; }
+    /// <summary>True when the ASN count is complete; otherwise it is an observed lower bound.</summary>
+    public bool AsnDiversityComplete { get; set; }
     /// <summary>DNS failures retained separately from confirmed policy problems.</summary>
     public IReadOnlyList<string> DnsQueryErrors { get; set; } = System.Array.Empty<string>();
     /// <summary>True when the parent delegation and applicable glue checks completed.</summary>

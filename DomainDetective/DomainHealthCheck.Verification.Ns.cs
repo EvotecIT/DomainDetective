@@ -30,6 +30,7 @@ namespace DomainDetective {
                 ns = await DnsConfiguration.QueryPolicyDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex) when (NSAnalysis.IsDnsQueryFailure(ex)) {
+                cancellationToken.ThrowIfCancellationRequested();
                 using var collector = AssessmentCollector.ForAnalysis(_logger, NSAnalysis, category: "NS", target: domainName, source: "Child");
                 NSAnalysis.RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, _logger);
                 return;

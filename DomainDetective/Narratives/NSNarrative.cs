@@ -42,10 +42,10 @@ public static class NSNarrative
             if (ns.HasDuplicates) { hi.Add("Duplicate NS records detected."); }
             hi.Add(ns.AllHaveAOrAaaa
                 ? "All NS hostnames have A/AAAA addresses."
-                : ns.DnsQueryFailed ? "Some NS address lookups could not be verified." : "Some NS hostnames lack A/AAAA addresses.");
+                : !ns.AddressResultKnown ? "Some NS address lookups could not be verified." : "Some NS hostnames lack A/AAAA addresses.");
             hi.Add(ns.HasDiverseLocations
                 ? "Nameservers are geographically diverse."
-                : ns.DnsQueryFailed ? "Nameserver diversity could not be fully verified." : "Nameservers lack geographic diversity.");
+                : !ns.DiversityResultKnown ? "Nameserver diversity could not be fully verified." : "Nameservers lack geographic diversity.");
         }
         if (ns.DelegationAnalysisComplete) {
             hi.Add(ns.GlueRecordsComplete
@@ -67,7 +67,7 @@ public static class NSNarrative
             det.Add($"NS set: {string.Join(", ", ns.NsRecords)}");
         if (ns.ParentNsRecords != null && ns.ParentNsRecords.Count > 0)
             det.Add($"Parent NS set: {string.Join(", ", ns.ParentNsRecords)}");
-        if (ns.NsLookupComplete && !ns.DnsQueryFailed) {
+        if (ns.NsLookupComplete && ns.DiversityResultKnown) {
             det.Add(ns.HasDiverseLocations
                 ? "NS addresses span multiple networks/subnets."
                 : "NS addresses share the same network.");

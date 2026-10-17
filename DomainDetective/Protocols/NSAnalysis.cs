@@ -260,6 +260,11 @@ namespace DomainDetective {
             AsnDistinctCount = AsnByIp.Values.Distinct().Count();
 
             HasDiverseLocations = subnets.Count >= 2 || AsnDistinctCount >= 2;
+            AddressResultKnown = AllHaveAOrAaaa || missingAddressHosts.Count > 0;
+            CnameResultKnown = PointsToCname || hostRecords.All(records => records.Cname.Error == null);
+            AsnDiversityComplete = hostRecords.All(records => records.A.Error == null && records.Aaaa.Error == null)
+                && asnResults.All(result => result.Asn.HasValue);
+            DiversityResultKnown = HasDiverseLocations || AsnDiversityComplete;
 
             // Emit assessments for common NS issues
             if (!NsRecordExists) {
@@ -280,7 +285,7 @@ namespace DomainDetective {
                         logger.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
                 }
             }
-            if (!HasDiverseLocations && !DnsQueryFailed) {
+            if (!HasDiverseLocations && DiversityResultKnown) {
                 logger.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
             } else if (HasDiverseLocations) {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
@@ -358,6 +363,7 @@ namespace DomainDetective {
                 (parentNs, glue) = await QueryParentNsGlue(domainName, logger, ct);
             } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex) when (IsDnsQueryFailure(ex)) {
+                ct.ThrowIfCancellationRequested();
                 RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, logger, parent: true);
                 return;
             }

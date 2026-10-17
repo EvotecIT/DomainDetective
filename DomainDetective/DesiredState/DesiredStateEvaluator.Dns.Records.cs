@@ -138,7 +138,12 @@ public static partial class DesiredStateEvaluator {
             || desired.DisallowDuplicates == true || desired.RequireAllHaveAOrAaaa == true
             || desired.DisallowCnameTargets == true || desired.RequireDiversity == true
             || desired.MinAsnDiversity.HasValue || desired.AllowedHostSuffixes?.Length > 0;
-        if (requiresEvidence && (!ns.NsLookupComplete || ns.DnsQueryFailed)) {
+        bool incomplete = !ns.NsLookupComplete && requiresEvidence || ns.NsRecordExists && (
+            desired.RequireAllHaveAOrAaaa == true && !ns.AddressResultKnown
+            || desired.DisallowCnameTargets == true && !ns.CnameResultKnown
+            || desired.RequireDiversity == true && !ns.DiversityResultKnown
+            || desired.MinAsnDiversity.HasValue && ns.AsnDistinctCount < desired.MinAsnDiversity.Value && !ns.AsnDiversityComplete);
+        if (incomplete) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
                 Code = DesiredStateCodes.NsEvidenceIncomplete,
@@ -182,7 +187,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireAllHaveAOrAaaa == true && !ns.DnsQueryFailed && !ns.AllHaveAOrAaaa) {
+        if (desired.RequireAllHaveAOrAaaa == true && ns.AddressResultKnown && !ns.AllHaveAOrAaaa) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -202,7 +207,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireDiversity == true && !ns.DnsQueryFailed && !ns.HasDiverseLocations) {
+        if (desired.RequireDiversity == true && ns.DiversityResultKnown && !ns.HasDiverseLocations) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -212,7 +217,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.MinAsnDiversity.HasValue && !ns.DnsQueryFailed && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
+        if (desired.MinAsnDiversity.HasValue && ns.AsnDiversityComplete && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
