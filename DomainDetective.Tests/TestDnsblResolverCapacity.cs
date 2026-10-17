@@ -6,6 +6,36 @@ namespace DomainDetective.Tests;
 [Collection("Performance proxy environment")]
 public class TestDnsblResolverCapacity {
     [Theory]
+    [InlineData(1, MultiResolverStrategy.SequentialFallback)]
+    [InlineData(2, MultiResolverStrategy.FirstSuccess)]
+    [InlineData(2, MultiResolverStrategy.FastestWins)]
+    public async Task SlowDiscoveryLeavesTimeForKnownTargetsAtTheActualResolverLimit(int resolverCap, MultiResolverStrategy strategy) {
+        using var health = CreateHealth(strategy);
+        health.MultiResolverMaxParallelism = resolverCap;
+        health.ResolverMaxConcurrency = 4;
+        health.DNSBLAnalysis.AnalysisTimeout = TimeSpan.FromMilliseconds(700);
+        health.DNSBLAnalysis.DiscoveryTimeout = TimeSpan.FromSeconds(2);
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var resolver = OverrideResolver(async (_, owner, type, token) => {
+            if (owner == "capacity.example.test" && type == DnsRecordType.AAAA) {
+                try { await Task.Delay(Timeout.Infinite, token); }
+                finally { await Task.Delay(20); }
+            }
+            return new DnsResponse {
+                Status = DnsResponseCode.NoError,
+                Answers = type == DnsRecordType.A ? new[] { new DnsAnswer {
+                    Name = owner, Type = type, TTL = 60,
+                    DataRaw = owner == "capacity.example.test" ? "192.0.2.1" : "127.0.0.2"
+                } } : Array.Empty<DnsAnswer>()
+            };
+        });
+        await health.DNSBLAnalysis.AnalyzeDNSBLRecordsMX("capacity.example.test", new InternalLogger(),
+            scanMode: DomainIpScanMode.ApexOnly, cancellationToken: guard.Token);
+        Assert.False(health.DNSBLAnalysis.DiscoverySucceeded);
+        Assert.Contains(health.DNSBLAnalysis.AllResults, record => record.IpAddress == "192.0.2.1" && record.IsBlackListed && record.QuerySucceeded);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SmallerResolverCapLeavesRoomForForegroundQueries(bool batch) {
@@ -59,6 +89,7 @@ public class TestDnsblResolverCapacity {
     }
 
     private static DomainHealthCheck CreateHealth(MultiResolverStrategy strategy) {
+        DnsMultiResolver.ClearFastestCache();
         var health = new DomainHealthCheck { MultiResolverMaxParallelism = 2 };
         health.DnsConfiguration.EnableResponseCache = false;
         health.DnsConfiguration.DnsEndpoints.Add(DnsEndpoint.Cloudflare);

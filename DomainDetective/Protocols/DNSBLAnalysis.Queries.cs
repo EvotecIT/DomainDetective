@@ -40,8 +40,10 @@ public partial class DNSBLAnalysis {
         }
     }
 
-    internal QueryRun BeginQueryRun(CancellationToken caller) =>
-        new(caller, Math.Min(32, Math.Max(1, DnsConfiguration.ResolverMaxConcurrency ?? 16)));
+    internal QueryRun BeginQueryRun(CancellationToken caller) {
+        int parallelism = Math.Min(DnsConfiguration.ResolverMaxConcurrency ?? 16, DnsConfiguration.GetReusableQueryParallelism());
+        return new(caller, Math.Min(32, Math.Max(1, parallelism)));
+    }
 
     private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
         run.CallerToken.ThrowIfCancellationRequested();

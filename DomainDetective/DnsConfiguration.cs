@@ -309,14 +309,25 @@ namespace DomainDetective {
         /// <remarks>Zero means that one provider request can occupy the resolver; scheduled bulk work must follow other checks.</remarks>
         internal int GetBulkQueryParallelism(int dnsParallelism) {
             int resolverParallelism = Math.Max(1, MultiResolverMaxParallelism ?? dnsParallelism);
+            return Math.Min(Math.Max(1, dnsParallelism / 2), (resolverParallelism - 1) / GetEndpointFanout(resolverParallelism));
+        }
+
+        /// <summary>Gets the number of logical queries that the reused resolver can execute concurrently.</summary>
+        internal int GetReusableQueryParallelism() {
+            if (!ReuseResolverClients || QueryDnsOverride != null || QueryDnsResponseOverride != null) { return int.MaxValue; }
+            var providers = DnsEndpoints.Count > 0 ? DnsEndpoints.ToArray() : new[] { DnsEndpoint };
+            int resolverParallelism = GetEffectiveMultiResolverMaxParallelism(DnsResolverEndpointFactory.From(providers).Length);
+            return Math.Max(1, resolverParallelism / GetEndpointFanout(resolverParallelism));
+        }
+
+        private int GetEndpointFanout(int resolverParallelism) {
             var strategy = GetEffectiveMultiResolverStrategy();
-            int fanout = 1;
             if (strategy == MultiResolverStrategy.FirstSuccess || strategy == MultiResolverStrategy.FastestWins) {
                 var providers = DnsEndpoints.Count > 0 ? DnsEndpoints.ToArray() : new[] { DnsEndpoint };
                 int endpointCount = DnsResolverEndpointFactory.From(providers).Length;
-                fanout = Math.Max(1, Math.Min(resolverParallelism, endpointCount));
+                return Math.Max(1, Math.Min(resolverParallelism, endpointCount));
             }
-            return Math.Min(Math.Max(1, dnsParallelism / 2), (resolverParallelism - 1) / fanout);
+            return 1;
         }
 
         private void ReleaseResolver(ResolverEntry entry) {
