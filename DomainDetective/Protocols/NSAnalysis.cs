@@ -44,9 +44,9 @@ namespace DomainDetective {
         public List<string> ParentNsRecords { get; private set; } = new();
         /// <summary>Gets or sets the delegation matches value.</summary>
         public bool DelegationMatches { get; private set; }
-        /// <summary>Gets or sets the glue records complete value.</summary>
+        /// <summary>True when the observed parent provides usable glue for every in-bailiwick NS; it need not advertise both address families.</summary>
         public bool GlueRecordsComplete { get; private set; }
-        /// <summary>True when all applicable glue in the observed parent response matches the child address evidence.</summary>
+        /// <summary>True when the address families advertised in parent glue match the corresponding child address records.</summary>
         public bool GlueRecordsConsistent { get; private set; }
 
         /// <summary>Gets or sets the root server responses value.</summary>
@@ -397,9 +397,18 @@ namespace DomainDetective {
                     glueComplete = false;
                     continue;
                 }
+                var parentAddresses = parentGlue.Select(value => IPAddress.TryParse(value, out var ip) ? ip : null)
+                    .Where(ip => ip != null).Select(ip => ip!).ToArray();
+                bool v4Glue = parentAddresses.Any(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                bool v6Glue = parentAddresses.Any(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6);
+                if (!v4Glue && !v6Glue) { glueComplete = false; continue; }
 
-                var childATask = QueryNsEvidenceAsync(ns, DnsRecordType.A, ct);
-                var childAaaaTask = QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct);
+                // Consistency concerns the RRsets actually advertised by the parent.
+                // Other child families need no query and cannot contradict that glue.
+                var childATask = v4Glue ? QueryNsEvidenceAsync(ns, DnsRecordType.A, ct)
+                    : Task.FromResult((Answers: Array.Empty<DnsAnswer>(), Error: (Exception?)null));
+                var childAaaaTask = v6Glue ? QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct)
+                    : Task.FromResult((Answers: Array.Empty<DnsAnswer>(), Error: (Exception?)null));
                 await Task.WhenAll(childATask, childAaaaTask).ConfigureAwait(false);
                 var childA = await childATask;
                 var childAaaa = await childAaaaTask;
@@ -411,8 +420,8 @@ namespace DomainDetective {
                 }
                 // A conclusive mismatch in either family establishes inconsistency even
                 // when the other family could not be queried.
-                bool mismatch = childA.Error == null && !AddressFamilyMatches(parentGlue, childA.Answers, System.Net.Sockets.AddressFamily.InterNetwork)
-                    || childAaaa.Error == null && !AddressFamilyMatches(parentGlue, childAaaa.Answers, System.Net.Sockets.AddressFamily.InterNetworkV6);
+                bool mismatch = v4Glue && childA.Error == null && !AddressFamilyMatches(parentAddresses, childA.Answers, System.Net.Sockets.AddressFamily.InterNetwork)
+                    || v6Glue && childAaaa.Error == null && !AddressFamilyMatches(parentAddresses, childAaaa.Answers, System.Net.Sockets.AddressFamily.InterNetworkV6);
                 if (mismatch) {
                     glueConsistent = false;
                     confirmedGlueMismatch = true;

@@ -151,7 +151,7 @@ public class TestNsEvidenceCompleteness {
         Configure(analysis);
         bool failed = false;
         configuration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(
-            failed && type == DnsRecordType.AAAA ? new DnsResponse { Status = DnsResponseCode.ServerFailure } : Response(name, type));
+            failed && type == DnsRecordType.A ? new DnsResponse { Status = DnsResponseCode.ServerFailure } : Response(name, type));
         var child = new DnsAnswer { Name = "example.com", Type = DnsRecordType.NS, DataRaw = "ns1.example.com" };
         analysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
             new DnsResponse { Status = DnsResponseCode.NoError, Answers = new[] { child },

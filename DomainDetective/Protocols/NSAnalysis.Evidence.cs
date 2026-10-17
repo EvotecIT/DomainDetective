@@ -59,11 +59,11 @@ public partial class NSAnalysis {
     internal static bool IsDnsQueryFailure(Exception error) => error is DnsQueryFailureException
         || Helpers.AuthoritativeDnsProbes.IsTransportFailure(error);
 
-    private static bool AddressFamilyMatches(IEnumerable<string> parentGlue, IEnumerable<DnsAnswer> child, System.Net.Sockets.AddressFamily family) {
+    private static bool AddressFamilyMatches(IEnumerable<System.Net.IPAddress> parentGlue, IEnumerable<DnsAnswer> child, System.Net.Sockets.AddressFamily family) {
         IEnumerable<string> Normalize(IEnumerable<string> values) => values
             .Select(value => System.Net.IPAddress.TryParse(value, out var ip) ? ip : null)
             .Where(ip => ip != null && ip.AddressFamily == family).Select(ip => ip!.ToString());
-        return new HashSet<string>(Normalize(parentGlue), StringComparer.OrdinalIgnoreCase)
+        return new HashSet<string>(parentGlue.Where(ip => ip.AddressFamily == family).Select(ip => ip.ToString()), StringComparer.OrdinalIgnoreCase)
             .SetEquals(Normalize(child.Select(answer => answer.Data)));
     }
 

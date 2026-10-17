@@ -29,7 +29,7 @@ public class TestNsFactCompletion {
         using var health = CreateHealth();
         await health.VerifyNS("example.com");
         health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(
-            name == "ns2.example.com" && type == DnsRecordType.AAAA
+            name == "ns2.example.com" && type == DnsRecordType.A
                 ? new DnsResponse { Status = DnsResponseCode.ServerFailure } : Response(name, type));
         health.NSAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { ParentResponse(mismatch ? "203.0.113.99" : null) });
         await health.NSAnalysis.AnalyzeParentDelegation("example.com", new InternalLogger());
@@ -127,8 +127,10 @@ public class TestNsFactCompletion {
                     ? new DnsResponse { Answers = new[] { Answer(name, type, "2001:db8::53") } }
                     : Response(name, type));
         var parent = ParentResponse(null);
-        parent.Additional = parent.Additional.Concat(new[] { Answer("ns1.example.com",
-            failedIpv6 ? DnsRecordType.A : DnsRecordType.AAAA, failedIpv6 ? "203.0.113.99" : "2001:db8:1::53") }).ToArray();
+        parent.Additional = parent.Additional.Concat(new[] {
+            Answer("ns1.example.com", DnsRecordType.A, failedIpv6 ? "203.0.113.99" : "192.0.2.53"),
+            Answer("ns1.example.com", DnsRecordType.AAAA, failedIpv6 ? "2001:db8::53" : "2001:db8:1::53")
+        }).ToArray();
         health.NSAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { parent });
         await health.NSAnalysis.AnalyzeParentDelegation("example.com", new InternalLogger());
         Assert.False(health.NSAnalysis.DelegationAnalysisComplete);
