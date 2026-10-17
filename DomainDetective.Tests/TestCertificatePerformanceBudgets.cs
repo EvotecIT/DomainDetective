@@ -100,23 +100,37 @@ public class TestCertificatePerformanceBudgets {
         var request = new CertificateRequest("CN=fixture.example", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         var ctStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseProtocols = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int protocolCalls = 0;
-        using var analysis = new CertificateAnalysis { SkipRevocation = true, CaptureExtendedMetadata = false };
+        int protocolCompletions = 0;
+        using var analysis = new CertificateAnalysis {
+            SkipRevocation = true, CaptureExtendedMetadata = false,
+            // Bound the unrelated optional OpenSSL phase inside the outer test guard.
+            Timeout = TimeSpan.FromSeconds(5)
+        };
         await analysis.AnalyzeCertificate(certificate);
         analysis.CaptureExtendedMetadata = true;
         analysis.CtLogQueryOverride = _ => { ctStarted.TrySetResult(true); return Task.FromResult("[]"); };
         analysis.OutboundAddressResolver = async (_, ct) => {
             Interlocked.Increment(ref protocolCalls);
-            await ctStarted.Task.WaitWithCancellation(ct);
-            return Array.Empty<IPAddress>();
+            try {
+                await releaseProtocols.Task.WaitWithCancellation(ct);
+                return Array.Empty<IPAddress>();
+            } finally { Interlocked.Increment(ref protocolCompletions); }
         };
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var finalize = typeof(CertificateAnalysis).GetMethod("FinalizeCapturedCertificateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var finalization = (Task)finalize.Invoke(analysis, new object[] { "https://127.0.0.1", 1, new InternalLogger(), guard.Token })!;
         try {
-            await (Task)finalize.Invoke(analysis, new object[] { "https://127.0.0.1", 1, new InternalLogger(), guard.Token })!;
+            await ctStarted.Task.WaitWithCancellation(guard.Token);
             Assert.Equal(4, protocolCalls);
-            Assert.True(analysis.CtLookupComplete);
-        } finally { ctStarted.TrySetResult(true); }
+            Assert.Equal(0, Volatile.Read(ref protocolCompletions));
+        } finally {
+            releaseProtocols.TrySetResult(true);
+            await finalization;
+        }
+        Assert.Equal(4, protocolCompletions);
+        Assert.True(analysis.CtLookupComplete);
     }
 
     [Fact]
