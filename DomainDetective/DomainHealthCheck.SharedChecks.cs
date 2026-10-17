@@ -18,9 +18,7 @@ public partial class DomainHealthCheck {
         actions[HealthCheckType.NS] = () => ns.Value;
         actions[HealthCheckType.DELEGATION] = async () => {
             await ns.Value.ConfigureAwait(false);
-            if (!IsPublicSuffix) {
-                await NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken).ConfigureAwait(false);
-            }
+            await NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken).ConfigureAwait(false);
         };
         actions[HealthCheckType.HTTP] = () => http.Value;
         actions[HealthCheckType.CERT] = () => certificate.Value;

@@ -60,6 +60,8 @@ health.DNSBLAnalysis.DiscoveryTimeout = TimeSpan.FromSeconds(3);
 
 DNSBL checks resolved targets while other discovery continues. Slow or unavailable providers can still consume its overall budget. Compare completed provider coverage and discovery errors when comparing scan times; a shorter incomplete scan is not equivalent to a completed scan.
 
+Repeated canonical IP addresses share provider work within one analysis. Results retain the source hosts and discovery paths that produced each address, and a later analysis performs fresh provider work. Repeated address answers do not create duplicate source records or identical listing assessments.
+
 With a single resolver slot, DNSBL caps each discovery lookup at half the remaining overall budget so that a slow address family leaves time to check an already-resolved target. An IPv6 provider's A and AAAA requests share one provider execution deadline, starting when the first request obtains recursive admission.
 
 ## HTTP transport and reference data

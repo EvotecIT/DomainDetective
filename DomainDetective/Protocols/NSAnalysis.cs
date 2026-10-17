@@ -177,6 +177,9 @@ namespace DomainDetective {
             ct.ThrowIfCancellationRequested();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS");
             NsRecords = new List<string>();
+            ParentNsRecords = new List<string>();
+            DelegationMatches = false;
+            GlueRecordsComplete = GlueRecordsConsistent = true;
             NsRecordExists = false;
             HasDuplicates = false;
             AtLeastTwoRecords = false;

@@ -257,6 +257,7 @@ namespace DomainDetective {
                 {
                     FileName = "openssl",
                     Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status -brief",
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,

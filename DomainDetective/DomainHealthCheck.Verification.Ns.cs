@@ -18,9 +18,10 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            if (IsPublicSuffix) {
-                return;
-            }
+            await VerifyNameServersAsync(domainName, cancellationToken);
+        }
+
+        private async Task VerifyNameServersAsync(string domainName, CancellationToken cancellationToken) {
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             NSAnalysis.Subject = domainName;
             await NSAnalysis.AnalyzeNsRecords(ns, _logger, cancellationToken);

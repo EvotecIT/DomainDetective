@@ -29,10 +29,8 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            await VerifyNS(domainName, cancellationToken);
-            if (!IsPublicSuffix) {
-                await NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken);
-            }
+            await VerifyNameServersAsync(domainName, cancellationToken);
+            await NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken);
         }
     }
 }

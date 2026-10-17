@@ -582,6 +582,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 FileName = "openssl",
                 Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
                     (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status -brief",
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -603,7 +604,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
             } else {
                 logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", host, port);
             }
-        } catch { }
+        } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch { }
     }
 
     private static void ComputeGrade(TlsResult r) {

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Helpers;
 
-/// <summary>Observes a started, exclusively owned child process and both redirected streams through exit, including cancellation.</summary>
+/// <summary>Captures a started, exclusively owned noninteractive child through exit, closing redirected input and draining both output streams, including cancellation.</summary>
 internal static class ProcessOutputCapture {
     internal static async Task<(string Output, string Error)> ReadUntilExitAsync(Process process, CancellationToken cancellationToken) {
         var exited = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -13,6 +13,7 @@ internal static class ProcessOutputCapture {
         process.EnableRaisingEvents = true;
         process.Exited += handler;
         try {
+            if (process.StartInfo.RedirectStandardInput) { process.StandardInput.Close(); }
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
             if (process.HasExited) { exited.TrySetResult(true); }

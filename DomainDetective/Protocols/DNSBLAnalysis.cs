@@ -265,7 +265,11 @@ namespace DomainDetective {
                         string.Equals(assessment.Target, ipAddressOrHostname, StringComparison.OrdinalIgnoreCase));
                 }
 
-                // Emit assessments for any listed records
+                // A shared address may retain several source/family occurrences. Keep
+                // identical host/provider listing assessments once while retaining every record.
+                var listedAssessments = new HashSet<(string Target, string Source, string Message)>(
+                    Assessments.Where(assessment => assessment.Code == DnsblCodes.Listed).Select(assessment =>
+                        ((assessment.Target ?? string.Empty).ToUpperInvariant(), (assessment.Source ?? string.Empty).ToUpperInvariant(), assessment.Message)));
                 foreach (var rec in results) {
                     if (!rec.QuerySucceeded) {
                         using var incomplete = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: ipAddressOrHostname, source: rec.BlackList) : null;
@@ -276,9 +280,11 @@ namespace DomainDetective {
                         warnings.Add((code, message));
                     }
                     if (rec.IsBlackListed) {
-                        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: rec.SourceHost ?? rec.IpAddress ?? ipAddressOrHostname, source: rec.BlackList) : null;
+                        var target = rec.SourceHost ?? rec.IpAddress ?? ipAddressOrHostname;
                         var reason = string.IsNullOrWhiteSpace(rec.ReplyMeaning) ? "Listed" : rec.ReplyMeaning;
                         var message = $"{reason} listed on {rec.BlackList}";
+                        if (!listedAssessments.Add((target.ToUpperInvariant(), rec.BlackList.ToUpperInvariant(), message))) { continue; }
+                        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: target, source: rec.BlackList) : null;
                         _collector?.AddWarning(message, DnsblCodes.Listed);
                         warnings.Add((DnsblCodes.Listed, message));
                     }
