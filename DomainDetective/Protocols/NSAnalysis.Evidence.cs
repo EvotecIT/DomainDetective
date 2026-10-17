@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 namespace DomainDetective;
 
 public partial class NSAnalysis {
-    private readonly List<string> _childDnsQueryErrors = new();
-    private readonly List<string> _delegationDnsQueryErrors = new();
+    private List<string> _childDnsQueryErrors = new();
+    private List<string> _delegationDnsQueryErrors = new();
 
     /// <summary>True when child NS discovery returned a conclusive DNS response or supplied records were analyzed.</summary>
     public bool NsLookupComplete { get; private set; }
@@ -28,6 +28,7 @@ public partial class NSAnalysis {
         NsLookupComplete = DelegationAnalysisComplete = false;
         NsRecords = new();
         ParentNsRecords = new();
+        ParentAuthorityServer = null;
         NsRecordExists = HasDuplicates = AtLeastTwoRecords = AllHaveAOrAaaa = false;
         PointsToCname = HasDiverseLocations = DelegationMatches = false;
         GlueRecordsComplete = GlueRecordsConsistent = false;
@@ -57,5 +58,25 @@ public partial class NSAnalysis {
         string detail = $"{name} ({type}): {error.Message}";
         (parent ? _delegationDnsQueryErrors : _childDnsQueryErrors).Add(detail);
         logger.WriteWarningCode(NSCodes.QueryFailed, "NS DNS query failed for {0}", detail);
+    }
+
+    /// <summary>Copies observed evidence without sharing mutable result containers with a later refresh.</summary>
+    internal NSAnalysis CloneForSnapshot() {
+        var clone = (NSAnalysis)MemberwiseClone();
+        clone._childDnsQueryErrors = new(_childDnsQueryErrors);
+        clone._delegationDnsQueryErrors = new(_delegationDnsQueryErrors);
+        clone.NsRecords = new(NsRecords);
+        clone.ParentNsRecords = new(ParentNsRecords);
+        clone.RootServerResponses = new(RootServerResponses);
+        clone.RecursionEnabled = new(RecursionEnabled);
+        clone.ChaosVersionByServer = new(ChaosVersionByServer, StringComparer.OrdinalIgnoreCase);
+        clone.ChaosHostnameByServer = new(ChaosHostnameByServer, StringComparer.OrdinalIgnoreCase);
+        clone.AsnByIp = new(AsnByIp, StringComparer.OrdinalIgnoreCase);
+        clone.Assessments = Assessments.Select(item => new Assessment {
+            Severity = item.Severity, Message = item.Message, Code = item.Code, Category = item.Category,
+            Target = item.Target, Source = item.Source, Timestamp = item.Timestamp,
+            Metadata = new Dictionary<string, string>(item.Metadata, item.Metadata.Comparer)
+        }).ToList();
+        return clone;
     }
 }

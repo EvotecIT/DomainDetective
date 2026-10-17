@@ -13,6 +13,13 @@ public class TestDomainPerformanceSharing {
         var names = new[] { "ns1.example.net", "ns1.example.net", "ns2.example.net" };
         health.NSAnalysis.EnableChaosFingerprinting = false;
         health.NSAnalysis.LookupAsnOverride = _ => Task.FromResult<int?>(null);
+        health.NSAnalysis.QueryDnsFullOverride = (name, type) => {
+            calls.AddOrUpdate((name, type), 1, (_, count) => count + 1);
+            return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse {
+                Status = DnsResponseCode.NoError,
+                Authorities = names.Select(value => new DnsAnswer { Name = name, Type = type, DataRaw = value }).ToArray()
+            } });
+        };
         health.DnsConfiguration.QueryDnsResponseOverride = async (name, type, ct) => {
             calls.AddOrUpdate((name, type), 1, (_, count) => count + 1);
             await Task.Delay(5, ct);

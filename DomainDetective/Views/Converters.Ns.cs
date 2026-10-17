@@ -4,6 +4,17 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
+    private static AggregateCheckStatusInfo BuildNsStatus(NsInfo info) => new() {
+        Key = "ns", Label = "NS",
+        State = !info.NsLookupComplete ? AggregateCheckState.Unknown : !info.NsRecordExists || info.ErrorCount > 0
+            ? AggregateCheckState.Fail : info.DnsQueryFailed || info.WarningCount > 0 || !info.AtLeastTwoRecords
+            ? AggregateCheckState.Warning : AggregateCheckState.Pass,
+        Value = !info.NsLookupComplete ? "Unknown" : info.NsRecordExists ? $"{info.NsRecords.Count} nameserver(s)" : "Missing",
+        Detail = !info.NsLookupComplete ? "NS discovery did not complete; record presence is unknown."
+            : info.DnsQueryFailed ? "Some nameserver DNS evidence remains incomplete."
+            : info.NsRecordExists ? $"ASN diversity: {info.AsnDistinctCount}" : "No authoritative nameservers published."
+    };
+
     /// <summary>Executes the convert operation.</summary>
     public static NsInfo Convert(NSAnalysis analysis)
     {
@@ -91,7 +102,7 @@ public class NsInfo
     public bool DelegationMatches { get; set; }
     /// <summary>True when glue records are present for in-bailiwick NS.</summary>
     public bool GlueRecordsComplete { get; set; }
-    /// <summary>True when glue records are consistent across authoritative servers.</summary>
+    /// <summary>True when applicable glue in the observed parent response matches child A/AAAA records.</summary>
     public bool GlueRecordsConsistent { get; set; }
     /// <summary>DNS response status from root/parent servers.</summary>
     public IReadOnlyDictionary<string, bool> RootServerResponses { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();

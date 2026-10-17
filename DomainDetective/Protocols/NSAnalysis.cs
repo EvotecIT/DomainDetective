@@ -46,7 +46,7 @@ namespace DomainDetective {
         public bool DelegationMatches { get; private set; }
         /// <summary>Gets or sets the glue records complete value.</summary>
         public bool GlueRecordsComplete { get; private set; }
-        /// <summary>Gets or sets the glue records consistent value.</summary>
+        /// <summary>True when all applicable glue in the observed parent response matches the child address evidence.</summary>
         public bool GlueRecordsConsistent { get; private set; }
 
         /// <summary>Gets or sets the root server responses value.</summary>
@@ -66,7 +66,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the chaos hostname by server value.</summary>
         public Dictionary<string, string> ChaosHostnameByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Optional parsed-response override for direct CHAOS-class probes.</summary>
+        /// <summary>Optional parsed-response transport for direct parent-delegation and CHAOS probes.</summary>
         public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
 
         // ASN diversity (provider diversity)
@@ -82,7 +82,7 @@ namespace DomainDetective {
         public int AsnLookupTimeoutMs { get; set; } = 5000;
 
         /// <summary>Gets the assessments value.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
 
         /// <summary>
         /// Executes a DNS query for the specified record type.
@@ -118,11 +118,11 @@ namespace DomainDetective {
         }
 
         private static string? GetParentZone(string domain) {
-            if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
+            if (string.IsNullOrWhiteSpace(domain) || domain.Trim() == ".") {
                 return null;
             }
             var parts = domain.Trim('.').Split('.');
-            return parts.Length > 1 ? string.Join(".", parts.Skip(1)) : null;
+            return parts.Length > 1 ? string.Join(".", parts.Skip(1)) : ".";
         }
 
         private static bool AnswersMatch(IEnumerable<DnsAnswer>? first, IEnumerable<DnsAnswer>? second) {
@@ -142,19 +142,16 @@ namespace DomainDetective {
             List<string> nsRecords = new();
             Dictionary<string, List<string>> glueRecords = new(StringComparer.OrdinalIgnoreCase);
 
-            var responses = (await QueryFullDns(domainName, DnsRecordType.NS, ct)).ToArray();
-            if (responses.Length == 0) {
-                return (nsRecords, glueRecords);
-            }
-
-            var response = responses[0];
+            var response = await QueryParentDelegationResponseAsync(domainName, logger, ct).ConfigureAwait(false);
             DnsConfiguration.EnsureConclusiveResponse(domainName, DnsRecordType.NS, response);
-            foreach (var rec in response.Answers ?? Array.Empty<DnsAnswer>()) {
+            foreach (var rec in (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+                .Where(record => record.Type == DnsRecordType.NS && (string.Equals(record.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)
+                    || QueryDnsFullOverride != null && string.IsNullOrEmpty(record.Name)))) {
                 nsRecords.Add(rec.Data.Trim('.'));
             }
 
             foreach (var add in response.Additional ?? Array.Empty<DnsAnswer>()) {
-                if (add.Type == DnsRecordType.A || add.Type == DnsRecordType.AAAA) {
+                if ((add.Type == DnsRecordType.A || add.Type == DnsRecordType.AAAA) && nsRecords.Contains(add.Name.TrimEnd('.'), StringComparer.OrdinalIgnoreCase)) {
                     var host = add.Name.Trim('.');
                     if (!glueRecords.TryGetValue(host, out var list)) {
                         list = new List<string>();
@@ -339,6 +336,7 @@ namespace DomainDetective {
                 || item.Code == NSCodes.GlueIncomplete || item.Code == NSCodes.GlueInconsistent);
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName, source: "Parent");
             ParentNsRecords = new List<string>();
+            ParentAuthorityServer = null;
             DelegationMatches = false;
             GlueRecordsComplete = false;
             GlueRecordsConsistent = false;
@@ -374,7 +372,7 @@ namespace DomainDetective {
                 .SetEquals(NsRecords);
 
             foreach (var ns in ParentNsRecords) {
-                if (!ns.EndsWith('.' + domainName, StringComparison.OrdinalIgnoreCase)) {
+                if (!Helpers.DomainHelper.IsDomainOrSubdomainOf(ns, domainName.TrimEnd('.'))) {
                     continue;
                 }
 

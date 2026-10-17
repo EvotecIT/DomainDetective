@@ -14,6 +14,14 @@ public class TestPerformancePublicationFeedback {
         var queried = new ConcurrentQueue<(string Owner, DnsRecordType Type)>();
         health.NSAnalysis.EnableChaosFingerprinting = false;
         health.NSAnalysis.LookupAsnOverride = _ => Task.FromResult<int?>(null);
+        health.NSAnalysis.QueryDnsFullOverride = (owner, type) => {
+            queried.Enqueue((owner, type));
+            return Task.FromResult<IEnumerable<DnsResponse>>(new[] { new DnsResponse {
+                Status = DnsResponseCode.NoError,
+                Authorities = new[] { new DnsAnswer { Name = owner, Type = type,
+                    DataRaw = owner == "co.uk" ? "suffix-ns.example.test" : "previous-ns.example.test" } }
+            } });
+        };
         health.DnsConfiguration.QueryDnsResponseOverride = (owner, type, _) => {
             queried.Enqueue((owner, type));
             bool suffix = owner == "co.uk" || owner == "uk";

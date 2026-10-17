@@ -134,6 +134,19 @@ public static partial class DesiredStateEvaluator {
     private static void EvaluateNs(string domain, NSAnalysis ns, DesiredStateNsPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) return;
 
+        bool requiresEvidence = desired.RequireRecord == true || desired.RequireAtLeastTwo == true
+            || desired.DisallowDuplicates == true || desired.RequireAllHaveAOrAaaa == true
+            || desired.DisallowCnameTargets == true || desired.RequireDiversity == true
+            || desired.MinAsnDiversity.HasValue || desired.AllowedHostSuffixes?.Length > 0;
+        if (requiresEvidence && (!ns.NsLookupComplete || ns.DnsQueryFailed)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = DesiredStateCodes.NsEvidenceIncomplete,
+                Message = "Nameserver DNS evidence is incomplete; the requested NS requirements could not all be verified."
+            });
+        }
+        if (!ns.NsLookupComplete) { return; }
+
         if (desired.RequireRecord == true && !ns.NsRecordExists) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,
@@ -169,7 +182,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireAllHaveAOrAaaa == true && !ns.AllHaveAOrAaaa) {
+        if (desired.RequireAllHaveAOrAaaa == true && !ns.DnsQueryFailed && !ns.AllHaveAOrAaaa) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -189,7 +202,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireDiversity == true && !ns.HasDiverseLocations) {
+        if (desired.RequireDiversity == true && !ns.DnsQueryFailed && !ns.HasDiverseLocations) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -199,7 +212,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.MinAsnDiversity.HasValue && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
+        if (desired.MinAsnDiversity.HasValue && !ns.DnsQueryFailed && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",

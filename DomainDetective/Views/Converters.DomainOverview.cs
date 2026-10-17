@@ -107,7 +107,7 @@ public static partial class Converters {
             BuildDomainCaaStatus(caa),
             BuildDomainDaneStatus(dane),
             BuildDomainDnssecStatus(dnssec),
-            BuildDomainNsStatus(ns),
+            BuildNsStatus(ns),
             BuildDomainSoaStatus(soa)
         };
 
@@ -338,14 +338,6 @@ public static partial class Converters {
         },
         Value = info.ValidationStatus.ToString(),
         Detail = $"Zone {info.ValidatedZone}; {info.DsRecords.Count} DS, {info.DnsKeys.Count} DNSKEY"
-    };
-
-    private static AggregateCheckStatusInfo BuildDomainNsStatus(NsInfo info) => new AggregateCheckStatusInfo {
-        Key = "ns",
-        Label = "NS",
-        State = !info.NsRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 || !info.AtLeastTwoRecords ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.NsRecordExists ? $"{info.NsRecords.Count} nameserver(s)" : "Missing",
-        Detail = info.NsRecordExists ? $"ASN diversity: {info.AsnDistinctCount}" : "No authoritative nameservers published."
     };
 
     private static AggregateCheckStatusInfo BuildDomainSoaStatus(SoaInfo info) => new AggregateCheckStatusInfo {

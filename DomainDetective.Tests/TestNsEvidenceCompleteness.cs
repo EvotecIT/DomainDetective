@@ -177,6 +177,7 @@ public class TestNsEvidenceCompleteness {
     private static void Configure(NSAnalysis analysis) {
         analysis.EnableChaosFingerprinting = false;
         analysis.LookupAsnOverride = _ => Task.FromResult<int?>(null);
+        analysis.QueryDnsFullOverride = (name, type) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { Response(name, type) });
     }
 
     private static DnsAnswer NsAnswer(string name) => new() { Name = name, Type = DnsRecordType.NS, DataRaw = "ns1.example.test" };
