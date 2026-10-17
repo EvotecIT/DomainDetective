@@ -83,6 +83,25 @@ public class TestNsConsumerEvidence {
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ChildAnswersFromSharedParentServerCannotCertifyDelegation(bool authoritative) {
+        using var health = CreateHealth();
+        ConfigureParentDiscovery(health);
+        health.NSAnalysis.QueryResponseOverride = (_, query, _) => Task.FromResult<DnsResponse?>(new DnsResponse {
+            Status = DnsResponseCode.NoError, IsAuthoritativeAnswer = authoritative,
+            Answers = new[] { new DnsAnswer { Name = query.Name, Type = DnsRecordType.NS, DataRaw = "child.example.test" } }
+        });
+        await health.VerifyDelegation("sub.example.com");
+        Assert.True(health.NSAnalysis.NsLookupComplete);
+        Assert.Equal(new[] { "child.example.test" }, health.NSAnalysis.NsRecords);
+        Assert.False(health.NSAnalysis.DelegationAnalysisComplete);
+        Assert.Empty(health.NSAnalysis.ParentNsRecords);
+        Assert.False(health.NSAnalysis.DelegationMatches);
+        Assert.True(health.NSAnalysis.DnsQueryFailed);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ParentProbeDeadlineAndCallerCancellationObserveOwnedTransport(bool cancelCaller) {
@@ -135,7 +154,7 @@ public class TestNsConsumerEvidence {
     private static void ConfigureParentDiscovery(DomainHealthCheck health) {
         health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(new DnsResponse {
             Status = DnsResponseCode.NoError,
-            Answers = type == DnsRecordType.SOA ? new[] { new DnsAnswer { Name = "com", Type = type, DataRaw = "ns.parent.test hostmaster.parent.test 1 2 3 4 5" } }
+            Answers = type == DnsRecordType.SOA ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "ns.parent.test hostmaster.parent.test 1 2 3 4 5" } }
                 : type == DnsRecordType.NS ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = name == "com" ? "ns.parent.test" : "child.example.test" } }
                 : type == DnsRecordType.A ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.53" } } : Array.Empty<DnsAnswer>()
         });

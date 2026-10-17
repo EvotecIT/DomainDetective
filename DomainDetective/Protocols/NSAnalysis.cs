@@ -144,7 +144,10 @@ namespace DomainDetective {
 
             var response = await QueryParentDelegationResponseAsync(domainName, logger, ct).ConfigureAwait(false);
             DnsConfiguration.EnsureConclusiveResponse(domainName, DnsRecordType.NS, response);
-            foreach (var rec in (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+            var parentRecords = QueryDnsFullOverride != null
+                ? (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+                : response.Authorities ?? Array.Empty<DnsAnswer>();
+            foreach (var rec in parentRecords
                 .Where(record => record.Type == DnsRecordType.NS && (string.Equals(record.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)
                     || QueryDnsFullOverride != null && string.IsNullOrEmpty(record.Name)))) {
                 nsRecords.Add(rec.Data.Trim('.'));

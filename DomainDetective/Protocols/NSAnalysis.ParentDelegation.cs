@@ -63,8 +63,11 @@ public partial class NSAnalysis {
                         : await QueryResponseOverride(IPAddress.Parse(address), new DnsMessage(domain, DnsRecordType.NS,
                             new DnsMessageOptions(RecursionDesired: false)), probes.Token).ConfigureAwait(false);
                     probes.Token.ThrowIfCancellationRequested();
-                    if (response != null && AuthoritativeDnsProbes.IsUsableResponse(response)
-                        && (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+                    // One address can host both parent and child zones. Its child answer,
+                    // even with RD disabled, cannot establish the parent's delegation.
+                    if (response != null && !response.IsAuthoritativeAnswer && response.Status == DnsResponseCode.NoError
+                        && AuthoritativeDnsProbes.IsUsableResponse(response)
+                        && (response.Authorities ?? Array.Empty<DnsAnswer>())
                             .Any(answer => answer.Type == DnsRecordType.NS && string.Equals(answer.Name?.TrimEnd('.'), domain.TrimEnd('.'), StringComparison.OrdinalIgnoreCase))) {
                         if (winner.TrySetResult((response, address))) { probes.Cancel(); }
                     }
