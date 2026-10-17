@@ -22,7 +22,7 @@ namespace DomainDetective {
                 }
             } catch { /* best effort */ }
 
-            await DnsTtlAnalysis.Analyze(domainName, _logger);
+            await DnsTtlAnalysis.Analyze(domainName, _logger, cancellationToken);
             await DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken);
         }
 

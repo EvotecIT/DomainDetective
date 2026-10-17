@@ -86,6 +86,17 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>Whole URL-analysis cancellation budget, including redirects, protocol probes and certificate enrichment.</summary>
+        public TimeSpan AnalysisTimeout { get; set; } = TimeSpan.FromSeconds(60);
+        /// <summary>Budget for one auxiliary TLS version probe, including address resolution and connection.</summary>
+        public TimeSpan ProtocolProbeTimeout { get; set; } = TimeSpan.FromSeconds(5);
+        /// <summary>Whether the configured certificate analysis finished before its whole-analysis deadline.</summary>
+        public bool AnalysisComplete { get; private set; }
+        /// <summary>Whether all TLS version probes produced conclusive remote evidence.</summary>
+        public bool ProtocolSupportComplete { get; private set; }
+        /// <summary>Whether TLS 1.0 and TLS 1.1 support were both conclusively observed.</summary>
+        public bool LegacyProtocolSupportComplete { get; private set; }
         /// <summary>
         /// Gets the actual remote address reached by the origin probe. On .NET Framework full-HTTP
         /// analysis this comes from a paired direct TLS handshake because HttpClientHandler does not
@@ -160,6 +171,10 @@ namespace DomainDetective {
         public bool CaptureExtendedMetadata { get; set; } = true;
         /// <summary>Enable CT lookup even when the rest of extended HTTPS metadata is disabled.</summary>
         public bool CaptureCtMetadata { get; set; }
+        /// <summary>Total time budget for certificate-transparency discovery, including retries. Use an infinite timespan to rely on the enclosing analysis or caller budget.</summary>
+        public TimeSpan CtLookupTimeout { get; set; } = TimeSpan.FromSeconds(10);
+        /// <summary>Whether CT discovery finished within its time budget. False does not establish absence from CT logs.</summary>
+        public bool CtLookupComplete { get; private set; }
         /// <summary>Prefer a certificate-only TLS handshake instead of a full HTTP request when the caller only needs certificate evidence.</summary>
         public bool PreferTlsHandshakeOnlyProbe { get; set; }
         /// <summary>Skip certificate revocation checks.</summary>
@@ -255,22 +270,12 @@ namespace DomainDetective {
             }
         }
 
-        /// <summary>
-        /// Retrieves the certificate from the specified HTTPS endpoint.
-        /// </summary>
-        /// <param name="url">URL to query.</param>
-        /// <param name="port">Port number to use.</param>
-        /// <param name="logger">Logger instance for diagnostics.</param>
-        /// <param name="cancellationToken">Token used to cancel the operation.</param>
-        public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-            cancellationToken.ThrowIfCancellationRequested();
-            ResetObservedState();
+        private async Task AnalyzeUrlCore(string url, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
             Subject = url;
             bool capturedHandshakeCertificate = false;
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             if (ShouldUseTlsHandshakeOnlyProbe()) {
                 try {
                     await AnalyzeWithTlsHandshakeOnlyAsync(url, port, cancellationToken).ConfigureAwait(false);
@@ -694,32 +699,6 @@ namespace DomainDetective {
             }
 
             return exception;
-        }
-
-        private async Task FinalizeCapturedCertificateAsync(string url, int port, InternalLogger logger, CancellationToken cancellationToken)
-        {
-            EnsureChainBuilt(Certificate!);
-            PopulateKeyInfo();
-            if (CaptureTlsDetails) {
-                await PopulateTlsInfo(new Uri(url), port, cancellationToken).ConfigureAwait(false);
-            }
-            DaysToExpire = (int)(Certificate!.NotAfter - DateTime.Now).TotalDays;
-            DaysValid = (int)(Certificate!.NotAfter - Certificate!.NotBefore).TotalDays;
-            IsExpired = Certificate!.NotAfter < DateTime.Now;
-            if (CaptureExtendedMetadata && !SkipRevocation) {
-                await QueryRevocationEndpoints(cancellationToken).ConfigureAwait(false);
-            }
-            PopulateSubjectAlternativeNames();
-            if (CaptureExtendedMetadata) {
-                PopulateSctAndTlsFeature(logger);
-                await ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
-                await ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken).ConfigureAwait(false);
-                // Compute grade once we have basic data (and optional TLS details)
-                ComputeGrade(logger);
-            }
-            if (CaptureExtendedMetadata || CaptureCtMetadata) {
-                await QueryCtLogs(cancellationToken).ConfigureAwait(false);
-            }
         }
 
         internal static string? BuildFailureReason(Exception? exception)

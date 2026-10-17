@@ -33,7 +33,9 @@ public class TestDnsblConcurrentCoverage {
 
     [Fact]
     public async Task ConcurrentAppendsRetainEveryProviderAndConsistentViews() {
-        var analysis = new DNSBLAnalysis { AnalysisTimeout = TimeSpan.FromSeconds(20) };
+        // This exercises atomic publication under append concurrency. Provider timing
+        // has separate coverage; thread-pool contention must not change this fixture's replies.
+        var analysis = new DNSBLAnalysis { AnalysisTimeout = TimeSpan.FromSeconds(20), ProviderTimeout = Timeout.InfiniteTimeSpan };
         analysis.ClearDNSBL();
         for (int provider = 0; provider < 8; provider++) { analysis.AddDNSBL($"provider{provider}.example.test"); }
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,6 +57,7 @@ public class TestDnsblConcurrentCoverage {
         await completed;
         Assert.Equal(64, analysis.Results.Count);
         Assert.Equal(512, analysis.AllResults.Count);
+        Assert.All(analysis.AllResults, record => Assert.True(record.QuerySucceeded));
         Assert.Equal(64, analysis.RecordChecked);
         Assert.Equal(64, analysis.NotBlacklisted);
         var view = Converters.Convert(analysis);

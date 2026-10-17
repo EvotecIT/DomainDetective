@@ -10,14 +10,17 @@ internal static class BoundedAsync {
     internal static async Task<TResult[]> RunAsync<T, TResult>(IReadOnlyList<T> inputs,
         Func<T, Task<TResult>> action, int concurrency, CancellationToken cancellationToken) {
         var results = new TResult[inputs.Count];
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         int next = -1;
         async Task WorkerAsync() {
-            while (true) {
-                cancellationToken.ThrowIfCancellationRequested();
-                int index = Interlocked.Increment(ref next);
-                if (index >= inputs.Count) { return; }
-                results[index] = await action(inputs[index]).ConfigureAwait(false);
-            }
+            try {
+                while (true) {
+                    stop.Token.ThrowIfCancellationRequested();
+                    int index = Interlocked.Increment(ref next);
+                    if (index >= inputs.Count) { return; }
+                    results[index] = await action(inputs[index]).ConfigureAwait(false);
+                }
+            } catch { stop.Cancel(); throw; }
         }
         var workers = new Task[Math.Min(Math.Max(1, concurrency), inputs.Count)];
         for (int i = 0; i < workers.Length; i++) { workers[i] = WorkerAsync(); }

@@ -101,7 +101,7 @@ namespace DomainDetective {
                 }
             }
 
-            var run = DNSBLAnalysis.BeginQueryRun(cancellationToken);
+            using var run = DNSBLAnalysis.BeginQueryRun(cancellationToken);
             if (ips.Count > 0) {
                 await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true, cancellationToken: cancellationToken, queryRun: run);
             } else {

@@ -18,6 +18,10 @@ public partial class WebStaticScanAnalysis
         public string? RegistrableDomain { get; set; }
         /// <summary>Gets the ip addresses value.</summary>
         public List<string> IpAddresses { get; } = new();
+        /// <summary>Failure evidence when the host TLS probe could not complete.</summary>
+        public string? TlsProbeError { get; set; }
+        /// <summary>Failure evidence when DNS or RDAP enrichment could not complete.</summary>
+        public string? DnsEnrichmentError { get; set; }
         /// <summary>Gets or sets the cidr value.</summary>
         public string? Cidr { get; set; }
         /// <summary>Gets or sets the asn value.</summary>

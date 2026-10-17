@@ -435,17 +435,11 @@ namespace DomainDetective {
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
-            var resourceStream = typeof(DomainHealthCheck).Assembly.GetManifestResourceStream("DomainDetective.public_suffix_list.dat");
-            if (resourceStream != null) {
-                using var reader = resourceStream;
-                _publicSuffixList = PublicSuffixList.Load(reader);
-            } else {
-                _publicSuffixList = new PublicSuffixList();
-            }
+            _publicSuffixList = _bundledPublicSuffixList.Value;
 
             var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json.gz");
             if (File.Exists(preloadPath)) {
-                HttpAnalysis.LoadHstsPreloadList(preloadPath);
+                HttpAnalysis.EnsureHstsPreloadListLoaded(preloadPath);
             }
 
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;

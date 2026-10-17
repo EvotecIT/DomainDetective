@@ -87,28 +87,34 @@ namespace DomainDetective {
         /// <summary>
         /// Executes a DNS query for the specified record type.
         /// </summary>
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
             var queryDnsOverride = QueryDnsOverride;
             if (queryDnsOverride != null) {
                 // Try exact first
                 var res = await queryDnsOverride(name, type);
+                ct.ThrowIfCancellationRequested();
                 if (res != null && res.Length > 0) return res;
                 // Fallback to toggling trailing dot to accommodate tests and mixed data
                 string alt = name.EndsWith(".", StringComparison.Ordinal) ? name.TrimEnd('.') : name + ".";
                 try { res = await queryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
+                ct.ThrowIfCancellationRequested();
                 return res ?? Array.Empty<DnsAnswer>();
             }
 
-            return await DnsConfiguration.QueryDNS(name, type) ?? Array.Empty<DnsAnswer>();
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct) ?? Array.Empty<DnsAnswer>();
         }
 
-        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type) {
+        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
             var queryDnsFullOverride = QueryDnsFullOverride;
             if (queryDnsFullOverride != null) {
-                return await queryDnsFullOverride(name, type);
+                var responses = await queryDnsFullOverride(name, type);
+                ct.ThrowIfCancellationRequested();
+                return responses;
             }
 
-            return await DnsConfiguration.QueryFullDNS(new[] { name }, type) ?? Array.Empty<DnsResponse>();
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type, cancellationToken: ct) ?? Array.Empty<DnsResponse>();
         }
 
         private static string? GetParentZone(string domain) {
@@ -128,11 +134,15 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the parent zone for NS records and glue information.
         /// </summary>
-        public async Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger) {
+        public Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger)
+            => QueryParentNsGlue(domainName, logger, CancellationToken.None);
+
+        /// <summary>Queries parent delegation evidence, observing caller cancellation.</summary>
+        public async Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger, CancellationToken ct) {
             List<string> nsRecords = new();
             Dictionary<string, List<string>> glueRecords = new(StringComparer.OrdinalIgnoreCase);
 
-            var responses = (await QueryFullDns(domainName, DnsRecordType.NS)).ToArray();
+            var responses = (await QueryFullDns(domainName, DnsRecordType.NS, ct)).ToArray();
             if (responses.Length == 0) {
                 return (nsRecords, glueRecords);
             }
@@ -159,9 +169,17 @@ namespace DomainDetective {
         /// <summary>
         /// Processes NS records and determines their properties.
         /// </summary>
-        public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger)
+            => AnalyzeNsRecords(dnsResults, logger, CancellationToken.None);
+
+        /// <summary>Analyzes NS records with bounded address discovery and caller cancellation.</summary>
+        public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken ct) {
+            ct.ThrowIfCancellationRequested();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS");
             NsRecords = new List<string>();
+            ParentNsRecords = new List<string>();
+            DelegationMatches = false;
+            GlueRecordsComplete = GlueRecordsConsistent = true;
             NsRecordExists = false;
             HasDuplicates = false;
             AtLeastTwoRecords = false;
@@ -192,12 +210,20 @@ namespace DomainDetective {
 
             var allIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var nsIps = new List<(string Host, IPAddress Ip)>();
-            foreach (var ns in NsRecords) {
-                var cname = await QueryDns(ns, DnsRecordType.CNAME);
+            var hostRecords = await Helpers.AuthoritativeDnsProbes.RunAsync(NsRecords.Distinct(StringComparer.OrdinalIgnoreCase), async ns => {
+                var cnameTask = QueryDns(ns, DnsRecordType.CNAME, ct);
+                var aTask = QueryDns(ns, DnsRecordType.A, ct);
+                var aaaaTask = QueryDns(ns, DnsRecordType.AAAA, ct);
+                await Task.WhenAll(cnameTask, aTask, aaaaTask).ConfigureAwait(false);
+                return (Host: ns, Cname: await cnameTask, A: await aTask, Aaaa: await aaaaTask);
+            }, concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
+            foreach (var records in hostRecords) {
+                var ns = records.Host;
+                var cname = records.Cname;
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
 
-                var a = await QueryDns(ns, DnsRecordType.A);
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                var a = records.A;
+                var aaaa = records.Aaaa;
                 if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
                     AllHaveAOrAaaa = false;
                     missingAddressHosts.Add(ns);
@@ -226,10 +252,13 @@ namespace DomainDetective {
             var asnResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(allIps, async ip => {
                 try {
                     if (LookupAsnOverride != null) { return (Ip: ip, Asn: await LookupAsnOverride(ip)); }
-                    using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    cts.CancelAfter(asnLookupTimeoutMs);
                     return (Ip: ip, Asn: await LookupAsnAsync(ip, cts.Token));
-                } catch { return (Ip: ip, Asn: (int?)null); }
-            }, concurrency: 16);
+                } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { return (Ip: ip, Asn: (int?)null); }
+            }, concurrency: 16, cancellationToken: ct);
+            ct.ThrowIfCancellationRequested();
             foreach (var item in asnResults) {
                 if (item.Asn.HasValue) { AsnByIp[item.Ip] = item.Asn.Value; }
             }
@@ -267,8 +296,9 @@ namespace DomainDetective {
             if (DnsConfiguration.QueryDnsOverride == null) {
                 try
                 {
-                    await FingerprintChaosAsync(nsIps, logger, _collector, CancellationToken.None);
+                    await FingerprintChaosAsync(nsIps, logger, _collector, ct);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch
                 {
                 }
@@ -303,7 +333,12 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain being checked.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
-        public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
+        public Task AnalyzeParentDelegation(string domainName, InternalLogger logger)
+            => AnalyzeParentDelegation(domainName, logger, CancellationToken.None);
+
+        /// <summary>Compares completed child NS evidence with parent delegation, observing cancellation.</summary>
+        public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger, CancellationToken ct) {
+            ct.ThrowIfCancellationRequested();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName);
             ParentNsRecords = new List<string>();
             DelegationMatches = false;
@@ -316,7 +351,7 @@ namespace DomainDetective {
                 return;
             }
 
-            var (parentNs, glue) = await QueryParentNsGlue(domainName, logger);
+            var (parentNs, glue) = await QueryParentNsGlue(domainName, logger, ct);
             ParentNsRecords = parentNs;
 
             if (!ParentNsRecords.Any()) {
@@ -338,8 +373,11 @@ namespace DomainDetective {
                     continue;
                 }
 
-                var childA = await QueryDns(ns, DnsRecordType.A);
-                var childAaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                var childATask = QueryDns(ns, DnsRecordType.A, ct);
+                var childAaaaTask = QueryDns(ns, DnsRecordType.AAAA, ct);
+                await Task.WhenAll(childATask, childAaaaTask).ConfigureAwait(false);
+                var childA = await childATask;
+                var childAaaa = await childAaaaTask;
                 var combined = childA.Concat(childAaaa ?? Array.Empty<DnsAnswer>()).Select(a => a.Data);
                 if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
                     GlueRecordsConsistent = false;

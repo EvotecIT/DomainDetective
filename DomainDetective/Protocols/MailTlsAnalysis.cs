@@ -582,6 +582,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 FileName = "openssl",
                 Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
                     (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status -brief",
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -589,23 +590,9 @@ public partial class MailTlsAnalysis : IHasAssessments {
             };
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null) return;
-            var readOut = proc.StandardOutput.ReadToEndAsync();
-            var readErr = proc.StandardError.ReadToEndAsync();
-#if NET8_0_OR_GREATER
-            var waitTask = proc.WaitForExitAsync(cts.Token);
-#else
-            var waitTask = Task.Run(() => { while (!proc.HasExited) { cts.Token.ThrowIfCancellationRequested(); Thread.Sleep(25); } }, cts.Token);
-#endif
-            try {
-                await waitTask.WaitWithCancellation(cts.Token).ConfigureAwait(false);
-            } catch (OperationCanceledException) {
-                try { if (!proc.HasExited) { proc.Kill(); } } catch { }
-                return;
-            }
-            string output = string.Empty;
-            try { output = await readOut.WaitWithCancellation(cts.Token); } catch { }
-            string error = string.Empty;
-            try { error = await readErr.WaitWithCancellation(cts.Token); } catch { }
+            var captured = await Helpers.ProcessOutputCapture.ReadUntilExitAsync(proc, cts.Token).ConfigureAwait(false);
+            string output = captured.Output;
+            string error = captured.Error;
             var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
             if (string.IsNullOrWhiteSpace(text)) return;
             bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -617,7 +604,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
             } else {
                 logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", host, port);
             }
-        } catch { }
+        } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch { }
     }
 
     private static void ComputeGrade(TlsResult r) {

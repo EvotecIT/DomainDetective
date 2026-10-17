@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,31 +16,48 @@ public partial class WebStaticScanAnalysis
     {
         logger?.WriteVerbose("[WEB] TLS probing for {0} hosts ...", Hosts.Count);
         int tlsCap = Math.Max(1, (TlsConcurrency > 0 ? TlsConcurrency : Concurrency));
-        using var tlsGate = new SemaphoreSlim(tlsCap);
-        var tlsTasks = Hosts.Select(async kv => {
-            await tlsGate.WaitAsync(cancellationToken);
+        var tlsWork = Helpers.AuthoritativeDnsProbes.RunAsync(Hosts, async kv => {
             try {
-                kv.Value.Tls = await TlsProbe.ProbeAsync(kv.Key, 443, cancellationToken);
+                kv.Value.Tls = await TlsProbe.ProbeAsync(kv.Key, 443, TlsProbeTimeout, cancellationToken);
                 if (kv.Value.Tls != null)
                 {
                     kv.Value.TlsProtocolSummary = kv.Value.Tls.Protocol.ToString();
                     kv.Value.TlsCipherSuiteSummary = kv.Value.Tls.CipherSuite;
                 }
-            } catch { }
-            finally { try { tlsGate.Release(); } catch { } }
-        }).ToArray();
-        await Task.WhenAll(tlsTasks);
-        logger?.WriteVerbose("[WEB] TLS probing complete.");
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { kv.Value.TlsProbeError = ex.Message; }
+            return true;
+        }, tlsCap, cancellationToken);
 
         logger?.WriteVerbose("[WEB] DNS/RDAP enrichment for {0} hosts ...", Hosts.Count);
         int dnsCap = Math.Max(1, (DnsConcurrency > 0 ? DnsConcurrency : Concurrency));
-        using var dnsGate = new SemaphoreSlim(dnsCap);
-        var dnsTasks = Hosts.Select(async kv => {
-            await dnsGate.WaitAsync(cancellationToken);
+        var rdapQueries = new ConcurrentDictionary<string, Lazy<Task<RdapIpNetwork?>>>(StringComparer.OrdinalIgnoreCase);
+        var rdapClient = new RdapClient();
+        async Task<RdapIpNetwork?> QueryRdapAsync(string ip) {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(RdapQueryTimeout);
+            var result = await rdapClient.GetIp(ip, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            return result;
+        }
+        var dnsWork = Helpers.AuthoritativeDnsProbes.RunAsync(Hosts, async kv => {
             try
             {
-                var answers4 = await DnsConfiguration.QueryDNS(kv.Key, DnsRecordType.A, cancellationToken: cancellationToken);
-                var answers6 = await DnsConfiguration.QueryDNS(kv.Key, DnsRecordType.AAAA, cancellationToken: cancellationToken);
+                async Task<(DnsAnswer[] Answers, string? Error)> QueryAddressesAsync(DnsRecordType type) {
+                    try {
+                        return (await DnsConfiguration.QueryPolicyDNS(kv.Key, type, cancellationToken: cancellationToken).ConfigureAwait(false), null);
+                    } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (Exception ex) when (ex is not OutOfMemoryException) { return (Array.Empty<DnsAnswer>(), $"{type}: {ex.Message}"); }
+                }
+                var aTask = QueryAddressesAsync(DnsRecordType.A);
+                var aaaaTask = QueryAddressesAsync(DnsRecordType.AAAA);
+                await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+                var ipv4 = await aTask;
+                var ipv6 = await aaaaTask;
+                var failures = new[] { ipv4.Error, ipv6.Error }.Where(error => !string.IsNullOrEmpty(error)).ToArray();
+                if (failures.Length > 0) { kv.Value.DnsEnrichmentError = string.Join("; ", failures); }
+                var answers4 = ipv4.Answers;
+                var answers6 = ipv6.Answers;
                 foreach (var a in answers4.Concat(answers6))
                 {
                     var ip = a.Data ?? a.DataRaw;
@@ -67,7 +85,8 @@ public partial class WebStaticScanAnalysis
                 if (kv.Value.IpAddresses.Count > 0)
                 {
                     var ip = kv.Value.IpAddresses[0];
-                    var rdap = await new RdapClient().GetIp(ip, cancellationToken).ConfigureAwait(false);
+                    var rdap = await rdapQueries.GetOrAdd(ip,
+                        address => new Lazy<Task<RdapIpNetwork?>>(() => QueryRdapAsync(address))).Value.ConfigureAwait(false);
                     kv.Value.Cidr = rdap?.Cidr;
                     kv.Value.Country = rdap?.Country;
                     if (rdap?.Entities != null)
@@ -99,11 +118,15 @@ public partial class WebStaticScanAnalysis
                     }
                 }
             }
-            catch { }
-            finally { try { dnsGate.Release(); } catch { } }
-        }).ToArray();
-        await Task.WhenAll(dnsTasks);
-        logger?.WriteVerbose("[WEB] DNS/RDAP enrichment complete.");
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) {
+                kv.Value.DnsEnrichmentError = string.IsNullOrEmpty(kv.Value.DnsEnrichmentError)
+                    ? ex.Message : kv.Value.DnsEnrichmentError + "; " + ex.Message;
+            }
+            return true;
+        }, dnsCap, cancellationToken);
+        await Task.WhenAll(tlsWork, dnsWork).ConfigureAwait(false);
+        logger?.WriteVerbose("[WEB] TLS/DNS/RDAP enrichment complete.");
 
         // Infer provider from ASN/AS name when header hints were absent
         try

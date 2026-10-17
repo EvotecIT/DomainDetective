@@ -76,13 +76,14 @@ public class TestDaneDnssecBinding {
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
         string owner = $"_{port}._tcp.example.com";
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        Task server = Task.Run(async () => {
+        async Task ServeAsync() {
             using var connection = await listener.AcceptTcpClientAsync(guard.Token);
             using var tls = new SslStream(connection.GetStream(), false);
             await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions {
                 ServerCertificate = certificate, EnabledSslProtocols = SslProtocols.Tls12
             }, guard.Token);
-        }, guard.Token);
+        }
+        Task server = ServeAsync();
         try {
             var outboundHosts = new List<string>();
             using var check = new DomainHealthCheck { OutboundAddressResolver = (host, _) => {

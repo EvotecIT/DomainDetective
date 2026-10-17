@@ -13,12 +13,8 @@ namespace DomainDetective.Helpers;
 internal static class AuthoritativeDnsProbes {
     internal static async Task<TOutput[]> RunAsync<TInput, TOutput>(IEnumerable<TInput> inputs,
         Func<TInput, Task<TOutput>> probe, int concurrency = 8, CancellationToken cancellationToken = default) {
-        using var gate = new SemaphoreSlim(Math.Max(1, concurrency));
-        return await Task.WhenAll(inputs.Select(async input => {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try { return await probe(input).ConfigureAwait(false); }
-            finally { gate.Release(); }
-        })).ConfigureAwait(false);
+        return await BoundedAsync.RunAsync(inputs as IReadOnlyList<TInput> ?? inputs.ToArray(),
+            probe, concurrency, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
