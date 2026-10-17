@@ -3,6 +3,55 @@ using System.Diagnostics;
 namespace DomainDetective.Tests;
 
 public class TestProcessOutputCapture {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProbeDeadlineRetainsDrainedEvidenceUnlessCallerCanceled(bool callerCanceled) {
+        string folder = Path.Combine(Path.GetTempPath(), "dd-process-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        string ready = Path.Combine(folder, "ready");
+        string script = Path.Combine(folder, "probe.ps1");
+        bool windows = Path.DirectorySeparatorChar == '\\';
+        File.WriteAllText(script, "[Console]::Out.Write('OCSP Response Status: successful'); [Console]::Out.Flush(); " +
+            "[Console]::Error.Write('diagnostic'); [Console]::Error.Flush(); " +
+            "[IO.File]::WriteAllText($args[0], 'ready'); Start-Sleep -Seconds 20");
+        using var process = Process.Start(new ProcessStartInfo {
+            FileName = windows ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe") : "/bin/sh",
+            Arguments = windows ? $"-NoProfile -NonInteractive -File \"{script}\" \"{ready}\"" :
+                $"-c \"printf 'OCSP Response Status: successful'; printf diagnostic >&2; printf ready > '{ready}'; exec sleep 20\"",
+            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            UseShellExecute = false, CreateNoWindow = true
+        })!;
+        try {
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            while (!File.Exists(ready)) { await Task.Delay(20, guard.Token); }
+            using var deadline = new CancellationTokenSource();
+            using var caller = new CancellationTokenSource();
+            deadline.Cancel();
+            if (callerCanceled) { caller.Cancel(); }
+            if (callerCanceled) {
+                var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                    Helpers.ProcessOutputCapture.ReadUntilExitAsync(process, deadline.Token, caller.Token));
+                Assert.Equal(caller.Token, exception.CancellationToken);
+            } else {
+                var captured = await Helpers.ProcessOutputCapture.ReadUntilExitAsync(process, deadline.Token, caller.Token);
+                Assert.Equal("OCSP Response Status: successful", captured.Output);
+                Assert.Equal("diagnostic", captured.Error);
+            }
+            Assert.True(process.HasExited);
+        } finally {
+            if (!process.HasExited) {
+#if NET8_0_OR_GREATER
+                process.Kill(entireProcessTree: true);
+#else
+                process.Kill();
+#endif
+                process.WaitForExit();
+            }
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task NonInteractiveCaptureClosesStdinBeforeWaitingForExit() {
         using var process = Start("set /p answer= & echo received-eof", "read answer; printf received-eof");

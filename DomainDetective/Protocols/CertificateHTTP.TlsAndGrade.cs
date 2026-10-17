@@ -265,15 +265,9 @@ namespace DomainDetective {
                 };
                 using var proc = System.Diagnostics.Process.Start(psi);
                 if (proc == null) return;
-                var captured = await ProcessOutputCapture.ReadUntilExitAsync(proc, cts.Token).ConfigureAwait(false);
-                string output = captured.Output;
-                string error = captured.Error;
-                var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
-                if (string.IsNullOrWhiteSpace(text)) return;
-                bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                               text.IndexOf("OCSP Response Data:", StringComparison.OrdinalIgnoreCase) >= 0;
-                bool explicitlyMissing = text.IndexOf("OCSP response: no response sent", StringComparison.OrdinalIgnoreCase) >= 0;
-                OcspStaplingPresent = present && !explicitlyMissing;
+                var captured = await ProcessOutputCapture.ReadUntilExitAsync(proc, cts.Token, token).ConfigureAwait(false);
+                OcspStaplingPresent = OcspStaplingEvidence.Parse(captured.Output, captured.Error);
+                if (OcspStaplingPresent == null) return;
                 if (OcspStaplingPresent == true)
                 {
                     logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", uri.Host, port);

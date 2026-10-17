@@ -77,6 +77,8 @@ With a single resolver slot, DNSBL caps each discovery lookup at half the remain
 
 ## HTTP transport and reference data
 
+Optional OpenSSL OCSP probes retain explicit stapling evidence captured before their local deadline. Caller cancellation still stops the child and propagates after both output streams are drained. Diagnostic or partial output without an OCSP result leaves stapling unknown; it does not establish that stapling is missing. Mail checks retain their overall timeout classification alongside any captured OCSP evidence.
+
 Anonymous HTTP posture probes reuse connections. Requests with explicit headers, cookies, proxy settings, custom handlers, or certificate-validation changes retain isolated transport. Cookies received during an anonymous request stay within that request's redirect chain.
 
 Bundled public-suffix and HSTS data use shared immutable snapshots, reducing repeated health-check construction costs. Explicit reference-data refreshes and custom inputs retain their own load behavior.

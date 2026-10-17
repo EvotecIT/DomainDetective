@@ -350,7 +350,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     // Probe protocol support (best-effort)
                     await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
-                        await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                        await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -460,7 +460,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 // Probe protocol support (best-effort)
                 await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                 if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
-                    await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                    await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                 }
             }
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
@@ -563,7 +563,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
         return await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, deadline.Token).ConfigureAwait(false);
     }
 
-    private static async Task ProbeOcspStaplingWithOpenSsl(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
+    private static async Task ProbeOcspStaplingWithOpenSsl(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token, CancellationToken callerToken) {
         try {
             token.ThrowIfCancellationRequested();
             var host = endpoint.HostName;
@@ -577,7 +577,6 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 MailTransportAddressFamily.IPv6 => "-6 ",
                 _ => string.Empty
             };
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             var psi = new System.Diagnostics.ProcessStartInfo {
                 FileName = "openssl",
                 Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
@@ -590,15 +589,9 @@ public partial class MailTlsAnalysis : IHasAssessments {
             };
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null) return;
-            var captured = await Helpers.ProcessOutputCapture.ReadUntilExitAsync(proc, cts.Token).ConfigureAwait(false);
-            string output = captured.Output;
-            string error = captured.Error;
-            var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
-            if (string.IsNullOrWhiteSpace(text)) return;
-            bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                           text.IndexOf("OCSP Response Data:", StringComparison.OrdinalIgnoreCase) >= 0;
-            bool explicitlyMissing = text.IndexOf("OCSP response: no response sent", StringComparison.OrdinalIgnoreCase) >= 0;
-            result.OcspStaplingPresent = present && !explicitlyMissing;
+            var captured = await Helpers.ProcessOutputCapture.ReadUntilExitAsync(proc, token, callerToken).ConfigureAwait(false);
+            result.OcspStaplingPresent = Helpers.OcspStaplingEvidence.Parse(captured.Output, captured.Error);
+            if (result.OcspStaplingPresent == null) return;
             if (result.OcspStaplingPresent == true) {
                 logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", host, port);
             } else {
@@ -606,6 +599,7 @@ public partial class MailTlsAnalysis : IHasAssessments {
             }
         } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch { }
+        finally { token.ThrowIfCancellationRequested(); }
     }
 
     private static void ComputeGrade(TlsResult r) {
