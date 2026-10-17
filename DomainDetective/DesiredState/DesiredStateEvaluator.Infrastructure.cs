@@ -226,6 +226,17 @@ public static partial class DesiredStateEvaluator {
             var key = kvp.Key;
             var info = kvp.Value;
 
+            if (!info.QuerySucceeded) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Error,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.EdnsQueryFailed,
+                    Message = $"Desired EDNS state could not be verified for '{key}': {info.Error}"
+                });
+                continue;
+            }
+
             if (desired.RequireAllServersSupported == true && !info.Supported) {
                 sink.Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Error,

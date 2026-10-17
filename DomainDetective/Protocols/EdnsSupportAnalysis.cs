@@ -13,6 +13,12 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public record EdnsSupportInfo
 {
+    /// <summary>Whether the capability query completed. Failed queries do not establish EDNS support.</summary>
+    public bool QuerySucceeded { get; init; } = true;
+
+    /// <summary>Failure details when the capability query could not complete.</summary>
+    public string? Error { get; init; }
+
     /// <summary>Whether EDNS is supported.</summary>
     public bool Supported { get; init; }
 
@@ -49,6 +55,9 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// <summary>Configuration for DNS queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
+    /// <summary>Budget for one name-server or address discovery query. Increase it when the configured resolver fallback needs more time.</summary>
+    public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
     /// <summary>Allows overriding DNS queries for testing.</summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
@@ -60,14 +69,23 @@ public class EdnsSupportAnalysis : IHasAssessments
         new StandardReference { Title = "Extension Mechanisms for DNS (EDNS(0))", Reference = "RFC 6891", Url = "https://datatracker.ietf.org/doc/html/rfc6891" }
     };
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken)
     {
-        if (QueryDnsOverride != null)
-        {
-            return await QueryDnsOverride(name, type);
+        cancellationToken.ThrowIfCancellationRequested();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(DiscoveryTimeout);
+        DnsAnswer[] answers;
+        if (QueryDnsOverride != null) {
+            answers = await QueryDnsOverride(name, type).WaitWithCancellation(deadline.Token).ConfigureAwait(false);
+        } else {
+            var response = await DnsConfiguration.QueryDNSResponse(name, type, cancellationToken: deadline.Token).ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(response.Error) || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
+                throw new InvalidOperationException($"{type} discovery failed: {response.Status}: {response.Error}");
+            }
+            answers = response.Answers ?? Array.Empty<DnsAnswer>();
         }
-
-        return await DnsConfiguration.QueryDNS(name, type);
+        cancellationToken.ThrowIfCancellationRequested();
+        return answers;
     }
 
     private static (string Host, int Port) ParseServerEndpoint(string server)
@@ -109,7 +127,7 @@ public class EdnsSupportAnalysis : IHasAssessments
         return (trimmed, 53);
     }
 
-    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain)
+    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip, string queryDomain, CancellationToken cancellationToken)
     {
         var (host, port) = ParseServerEndpoint(ip);
         byte[] cookie = new byte[8];
@@ -123,7 +141,7 @@ public class EdnsSupportAnalysis : IHasAssessments
             Options: new[] { new CookieOption(cookie) },
             RecursionDesired: false));
         DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
-            host, port, query, 3000, useTcpFallback: true).ConfigureAwait(false);
+            host, port, query, 3000, useTcpFallback: true, cancellationToken: cancellationToken).ConfigureAwait(false);
         DnsResponse response = result.Response;
         return new EdnsSupportInfo {
             Supported = response.EdnsUdpPayloadSize.HasValue,
@@ -141,92 +159,110 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// </summary>
     /// <param name="domainName">Domain name.</param>
     /// <param name="logger">Optional logger.</param>
-    public async Task Analyze(string domainName, InternalLogger logger)
+    public Task Analyze(string domainName, InternalLogger? logger) => Analyze(domainName, logger, CancellationToken.None);
+
+    /// <summary>Queries authoritative servers, retaining failures per server and honoring caller cancellation.</summary>
+    /// <param name="domainName">Domain name.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="cancellationToken">Token to cancel discovery and capability queries.</param>
+    public async Task Analyze(string domainName, InternalLogger? logger, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         Subject = domainName;
+        Assessments.Clear();
+        logger ??= new InternalLogger();
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
-        var ns = await QueryDns(domainName, DnsRecordType.NS);
-        foreach (var record in ns)
-        {
-            var host = record.Data.Trim('.');
-            var aTask = QueryDns(host, DnsRecordType.A);
-            var aaaaTask = QueryDns(host, DnsRecordType.AAAA);
-            try
+        var ns = await QueryDns(domainName, DnsRecordType.NS, cancellationToken);
+        using var discoveryGate = new SemaphoreSlim(4);
+        var discoveries = await Task.WhenAll(ns.Select(record => record.Data.Trim('.')).Distinct(StringComparer.OrdinalIgnoreCase).Select(async host => {
+            await discoveryGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+                var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
+                try { await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false); }
+                catch (Exception ex) when (ex is not OutOfMemoryException) { cancellationToken.ThrowIfCancellationRequested(); }
+                var a = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
+                var aaaa = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
+                return (Host: host, Addresses: a.Concat(aaaa).Select(answer => answer.Data ?? answer.DataRaw)
+                    .Where(address => !string.IsNullOrWhiteSpace(address)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    Error: string.Join("; ", new[] { DiscoveryError("A", aTask), DiscoveryError("AAAA", aaaaTask) }.Where(error => error != null)));
+            } finally { discoveryGate.Release(); }
+        })).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var targets = discoveries.SelectMany(item => item.Addresses.Select(address => (item.Host, Address: address))).ToArray();
+        using var gate = new SemaphoreSlim(8);
+        var results = await Task.WhenAll(targets.Select(async target => {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                var support = QueryServerOverride != null
+                    ? await QueryServerOverride(target.Address).WaitWithCancellation(cancellationToken).ConfigureAwait(false)
+                    : await QueryServerAsync(target.Address, domainName, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                return (target.Host, target.Address, Support: support);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is not OutOfMemoryException) {
+                cancellationToken.ThrowIfCancellationRequested();
+                return (target.Host, target.Address, Support: new EdnsSupportInfo { QuerySucceeded = false, Error = $"{ex.GetType().Name}: {ex.Message}" });
+            } finally { gate.Release(); }
+        })).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (var discovery in discoveries.Where(item => !string.IsNullOrEmpty(item.Error))) {
+            ServerSupport[$"{discovery.Host} (address discovery)"] = new EdnsSupportInfo {
+                QuerySucceeded = false, Error = discovery.Error
+            };
+            logger.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS address discovery was incomplete for {0}: {1}", discovery.Host, discovery.Error);
+        }
+        foreach (var result in results) {
+            var host = result.Host;
+            var serverAddress = result.Address;
+            var support = result.Support;
+            ServerSupport[$"{host} ({serverAddress})"] = support;
+            if (!support.QuerySucceeded)
             {
-                await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+                logger?.WriteErrorCode(EdnsCodes.QueryFailed, "EDNS query failed on {0} ({1}): {2}", host, serverAddress, support.Error);
+                continue;
             }
-            catch
+            logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
+            if (!support.Supported)
             {
-                // Preserve whichever address family succeeded so EDNS probing can continue.
+                logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, serverAddress);
             }
-
-            if (aTask.IsFaulted)
+            else
             {
-                logger?.WriteWarning("Failed to resolve A records for {0}: {1}", host, aTask.Exception?.GetBaseException().Message ?? "unknown error");
-            }
-
-            if (aaaaTask.IsFaulted)
-            {
-                logger?.WriteWarning("Failed to resolve AAAA records for {0}: {1}", host, aaaaTask.Exception?.GetBaseException().Message ?? "unknown error");
-            }
-
-            var aRecords = aTask.Status == TaskStatus.RanToCompletion ? aTask.Result : Array.Empty<DnsAnswer>();
-            var aaaaRecords = aaaaTask.Status == TaskStatus.RanToCompletion ? aaaaTask.Result : Array.Empty<DnsAnswer>();
-            var addresses = aRecords
-                .Concat(aaaaRecords)
-                .Select(addr => addr.Data ?? addr.DataRaw)
-                .Where(serverAddress => !string.IsNullOrWhiteSpace(serverAddress))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            foreach (var serverAddress in addresses)
-            {
-                EdnsSupportInfo support;
-                if (QueryServerOverride != null)
+                logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, serverAddress);
+                if (support.CookieSupported)
                 {
-                    support = await QueryServerOverride(serverAddress);
+                    logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, serverAddress);
                 }
                 else
                 {
-                    support = await QueryServerAsync(serverAddress, domainName);
+                    logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, serverAddress);
                 }
-
-                ServerSupport[$"{host} ({serverAddress})"] = support;
-                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
-                if (!support.Supported)
+                if (support.UdpPayloadSize > 1232)
                 {
-                    logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, serverAddress);
+                    logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, serverAddress);
                 }
                 else
                 {
-                    logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, serverAddress);
-                    if (support.CookieSupported)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.CookiesSupported, "DNS Cookies supported on {0} ({1})", host, serverAddress);
-                    }
-                    else
-                    {
-                        logger?.WriteWarningCode(EdnsCodes.CookiesNotSupported, "DNS Cookies not supported on {0} ({1})", host, serverAddress);
-                    }
-                    if (support.UdpPayloadSize > 1232)
-                    {
-                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, serverAddress);
-                    }
-                    else
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, serverAddress);
-                    }
-                    if (support.Version == 0)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, serverAddress);
-                    }
-                    if (support.TruncatedUdp)
-                    {
-                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, serverAddress);
-                    }
+                    logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, serverAddress);
+                }
+                if (support.Version == 0)
+                {
+                    logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, serverAddress);
+                }
+                if (support.TruncatedUdp)
+                {
+                    logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, serverAddress);
                 }
             }
         }
+    }
+
+    private static string? DiscoveryError(string type, Task<DnsAnswer[]> query) {
+        if (query.Status == TaskStatus.RanToCompletion) { return null; }
+        var error = query.Exception?.GetBaseException();
+        return error != null ? $"{type}: {error.GetType().Name}: {error.Message}" : $"{type}: OperationCanceledException: Address discovery timed out.";
     }
 
     /// <summary>Gets the assessments value.</summary>
