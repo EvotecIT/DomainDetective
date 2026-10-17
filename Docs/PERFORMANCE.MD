@@ -38,6 +38,7 @@ Caller cancellation propagates as cancellation. An internal analysis deadline re
 | Analysis | Default budgets and concurrency | Evidence to inspect |
 | --- | --- | --- |
 | HTTP | 30 seconds per request operation | Reachability and failure details |
+| NS and delegation | Bounded nameserver address discovery; resolver query limits remain in effect | `NsLookupComplete`, `DelegationAnalysisComplete`, `DnsQueryFailed`, `DnsQueryErrors` |
 | Certificate | 60 seconds overall; 5 seconds per TLS version probe; 10 seconds for CT discovery | `AnalysisComplete`, `ProtocolSupportComplete`, `LegacyProtocolSupportComplete`, `CtLookupComplete` |
 | DNSSEC | 5 seconds per query; 15 seconds overall | Validation status, `MetadataQueriesComplete`, `MetadataQueryFailures` |
 | DNSBL | 8 seconds overall; 2 seconds per provider query after recursive admission; 2 seconds per discovery lookup including admission | `DiscoverySucceeded`, `DiscoveryErrors`, per-record `QuerySucceeded` and `Error` |
@@ -46,6 +47,8 @@ Caller cancellation propagates as cancellation. An internal analysis deadline re
 | Static web scan | 60 seconds overall; 5 seconds for TLS; 10 seconds per RDAP lookup | `AnalysisComplete`, host TLS and DNS enrichment errors |
 
 For example, a CT deadline can leave a successfully captured certificate and entries from an earlier CT source intact while setting `CtLookupComplete` and `AnalysisComplete` to false. `PresentInCtLogs = false` with incomplete CT coverage does not confirm absence. Likewise, a local TLS policy error or timeout leaves protocol coverage incomplete rather than proving that the server rejects that protocol.
+
+For NS checks, a server failure or timeout leaves record presence unknown. A successful empty answer or NXDOMAIN remains conclusive negative evidence. Child NS discovery retains successful records when an address lookup fails, and parent/glue results remain unverified until the applicable delegation checks complete. The core NS view and narrative carry these distinctions.
 
 Configure the owning analysis when a workflow needs different budgets:
 

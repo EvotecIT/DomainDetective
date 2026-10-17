@@ -17,6 +17,10 @@ public static partial class Converters
             Subject = analysis.Subject ?? string.Empty,
             NsRecords = analysis.NsRecords,
             NsRecordExists = analysis.NsRecordExists,
+            NsLookupComplete = analysis.NsLookupComplete,
+            DnsQueryFailed = analysis.DnsQueryFailed,
+            DnsQueryErrors = analysis.DnsQueryErrors,
+            DelegationAnalysisComplete = analysis.DelegationAnalysisComplete,
             HasDuplicates = analysis.HasDuplicates,
             AtLeastTwoRecords = analysis.AtLeastTwoRecords,
             AllHaveAOrAaaa = analysis.AllHaveAOrAaaa,
@@ -30,10 +34,12 @@ public static partial class Converters
             RootServerResponses = analysis.RootServerResponses,
             RecursionEnabled = analysis.RecursionEnabled,
             Assessments = analysis.Assessments,
-            Status = status,
+            Status = analysis.DnsQueryFailed ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.NsRecords?.Count ?? 0} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; ASNs {analysis.AsnDistinctCount}",
+            Summary = !analysis.NsLookupComplete ? "NS discovery incomplete; record presence unknown"
+                : !analysis.DelegationAnalysisComplete ? $"{analysis.NsRecords.Count} NS; parent delegation/glue unverified; ASNs {analysis.AsnDistinctCount}"
+                : $"{analysis.NsRecords.Count} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(!analysis.GlueRecordsComplete ? "unverified" : analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; ASNs {analysis.AsnDistinctCount}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
@@ -57,6 +63,16 @@ public class NsInfo
     public IReadOnlyList<string> NsRecords { get; set; } = System.Array.Empty<string>();
     /// <summary>True when at least one NS record exists.</summary>
     public bool NsRecordExists { get; set; }
+    /// <summary>True when child NS discovery completed with conclusive DNS evidence.</summary>
+    public bool NsLookupComplete { get; set; }
+    /// <summary>Record presence is unknown when discovery could not complete.</summary>
+    public string RecordPresence => NsRecordExists ? "Yes" : NsLookupComplete ? "No" : "Unknown";
+    /// <summary>True when DNS query failures leave any analyzed NS evidence incomplete.</summary>
+    public bool DnsQueryFailed { get; set; }
+    /// <summary>DNS failures retained separately from confirmed policy problems.</summary>
+    public IReadOnlyList<string> DnsQueryErrors { get; set; } = System.Array.Empty<string>();
+    /// <summary>True when the parent delegation and applicable glue checks completed.</summary>
+    public bool DelegationAnalysisComplete { get; set; }
     /// <summary>True when duplicate NS names are present.</summary>
     public bool HasDuplicates { get; set; }
     /// <summary>True when two or more NS records exist.</summary>

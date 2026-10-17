@@ -107,11 +107,16 @@ namespace DomainDetective {
         internal async Task<DnsAnswer[]> QueryPolicyDNS(string name, DnsRecordType recordType,
             string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default) {
             var response = await QueryDNSResponse(name, recordType, filter, includeAliasesInFilter, cancellationToken).ConfigureAwait(false);
+            EnsureConclusiveResponse(name, recordType, response);
+            return response.Answers ?? Array.Empty<DnsAnswer>();
+        }
+
+        /// <summary>Distinguishes conclusive DNS answers and negative responses from operational failures.</summary>
+        internal static void EnsureConclusiveResponse(string name, DnsRecordType recordType, DnsResponse response) {
             if (!string.IsNullOrEmpty(response.Error)
                 || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                 throw new DnsQueryFailureException(name, recordType, response);
             }
-            return response.Answers ?? Array.Empty<DnsAnswer>();
         }
 
         /// <summary>Queries multiple names and flattens their answer sets in input order.</summary>

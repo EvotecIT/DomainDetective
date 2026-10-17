@@ -12,7 +12,7 @@ namespace DomainDetective {
     /// Performs analysis of NS records for a domain.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class NSAnalysis : IHasAssessments {
+    public partial class NSAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Configuration used for DNS queries.</summary>
@@ -97,12 +97,12 @@ namespace DomainDetective {
                 if (res != null && res.Length > 0) return res;
                 // Fallback to toggling trailing dot to accommodate tests and mixed data
                 string alt = name.EndsWith(".", StringComparison.Ordinal) ? name.TrimEnd('.') : name + ".";
-                try { res = await queryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
+                res = await queryDnsOverride(alt, type);
                 ct.ThrowIfCancellationRequested();
                 return res ?? Array.Empty<DnsAnswer>();
             }
 
-            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct) ?? Array.Empty<DnsAnswer>();
+            return await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: ct) ?? Array.Empty<DnsAnswer>();
         }
 
         private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type, CancellationToken ct = default) {
@@ -148,6 +148,7 @@ namespace DomainDetective {
             }
 
             var response = responses[0];
+            DnsConfiguration.EnsureConclusiveResponse(domainName, DnsRecordType.NS, response);
             foreach (var rec in response.Answers ?? Array.Empty<DnsAnswer>()) {
                 nsRecords.Add(rec.Data.Trim('.'));
             }
@@ -175,19 +176,8 @@ namespace DomainDetective {
         /// <summary>Analyzes NS records with bounded address discovery and caller cancellation.</summary>
         public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken ct) {
             ct.ThrowIfCancellationRequested();
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS");
-            NsRecords = new List<string>();
-            ParentNsRecords = new List<string>();
-            DelegationMatches = false;
-            GlueRecordsComplete = GlueRecordsConsistent = true;
-            NsRecordExists = false;
-            HasDuplicates = false;
-            AtLeastTwoRecords = false;
-            AllHaveAOrAaaa = true;
-            PointsToCname = false;
-            HasDiverseLocations = false;
-            ChaosVersionByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            ChaosHostnameByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ResetNsEvidence();
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: Subject, source: "Child");
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -195,6 +185,8 @@ namespace DomainDetective {
             }
 
             var nsList = dnsResults.ToList();
+            NsLookupComplete = true;
+            AllHaveAOrAaaa = true;
             NsRecordExists = nsList.Any();
             AtLeastTwoRecords = nsList.Count >= 2;
 
@@ -211,22 +203,25 @@ namespace DomainDetective {
             var allIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var nsIps = new List<(string Host, IPAddress Ip)>();
             var hostRecords = await Helpers.AuthoritativeDnsProbes.RunAsync(NsRecords.Distinct(StringComparer.OrdinalIgnoreCase), async ns => {
-                var cnameTask = QueryDns(ns, DnsRecordType.CNAME, ct);
-                var aTask = QueryDns(ns, DnsRecordType.A, ct);
-                var aaaaTask = QueryDns(ns, DnsRecordType.AAAA, ct);
+                var cnameTask = QueryNsEvidenceAsync(ns, DnsRecordType.CNAME, ct);
+                var aTask = QueryNsEvidenceAsync(ns, DnsRecordType.A, ct);
+                var aaaaTask = QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct);
                 await Task.WhenAll(cnameTask, aTask, aaaaTask).ConfigureAwait(false);
                 return (Host: ns, Cname: await cnameTask, A: await aTask, Aaaa: await aaaaTask);
             }, concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
             foreach (var records in hostRecords) {
                 var ns = records.Host;
-                var cname = records.Cname;
+                RecordQueryError(ns, DnsRecordType.CNAME, records.Cname.Error, logger);
+                RecordQueryError(ns, DnsRecordType.A, records.A.Error, logger);
+                RecordQueryError(ns, DnsRecordType.AAAA, records.Aaaa.Error, logger);
+                var cname = records.Cname.Answers;
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
 
-                var a = records.A;
-                var aaaa = records.Aaaa;
+                var a = records.A.Answers;
+                var aaaa = records.Aaaa.Answers;
                 if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
                     AllHaveAOrAaaa = false;
-                    missingAddressHosts.Add(ns);
+                    if (records.A.Error == null && records.Aaaa.Error == null) { missingAddressHosts.Add(ns); }
                 }
 
                 foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
@@ -285,9 +280,9 @@ namespace DomainDetective {
                         logger.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
                 }
             }
-            if (!HasDiverseLocations) {
+            if (!HasDiverseLocations && !DnsQueryFailed) {
                 logger.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
-            } else {
+            } else if (HasDiverseLocations) {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
                 logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
             }
@@ -339,11 +334,16 @@ namespace DomainDetective {
         /// <summary>Compares completed child NS evidence with parent delegation, observing cancellation.</summary>
         public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger, CancellationToken ct) {
             ct.ThrowIfCancellationRequested();
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName);
+            _delegationDnsQueryErrors.Clear();
+            Assessments.RemoveAll(item => item.Source == "Parent" || item.Code == NSCodes.DelegationMismatch
+                || item.Code == NSCodes.GlueIncomplete || item.Code == NSCodes.GlueInconsistent);
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName, source: "Parent");
             ParentNsRecords = new List<string>();
             DelegationMatches = false;
-            GlueRecordsComplete = true;
-            GlueRecordsConsistent = true;
+            GlueRecordsComplete = false;
+            GlueRecordsConsistent = false;
+            DelegationAnalysisComplete = false;
+            if (!NsLookupComplete) { return; }
 
             var parent = GetParentZone(domainName);
             if (string.IsNullOrEmpty(parent)) {
@@ -351,13 +351,24 @@ namespace DomainDetective {
                 return;
             }
 
-            var (parentNs, glue) = await QueryParentNsGlue(domainName, logger, ct);
+            List<string> parentNs;
+            Dictionary<string, List<string>> glue;
+            try {
+                (parentNs, glue) = await QueryParentNsGlue(domainName, logger, ct);
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (IsDnsQueryFailure(ex)) {
+                RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, logger, parent: true);
+                return;
+            }
             ParentNsRecords = parentNs;
 
             if (!ParentNsRecords.Any()) {
-                GlueRecordsComplete = false;
                 return;
             }
+
+            bool glueComplete = true;
+            bool glueConsistent = true;
+            bool confirmedGlueMismatch = false;
 
             DelegationMatches = new HashSet<string>(ParentNsRecords, StringComparer.OrdinalIgnoreCase)
                 .SetEquals(NsRecords);
@@ -369,20 +380,28 @@ namespace DomainDetective {
 
                 glue.TryGetValue(ns, out var parentGlue);
                 if (parentGlue == null || parentGlue.Count == 0) {
-                    GlueRecordsComplete = false;
+                    glueComplete = false;
                     continue;
                 }
 
-                var childATask = QueryDns(ns, DnsRecordType.A, ct);
-                var childAaaaTask = QueryDns(ns, DnsRecordType.AAAA, ct);
+                var childATask = QueryNsEvidenceAsync(ns, DnsRecordType.A, ct);
+                var childAaaaTask = QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct);
                 await Task.WhenAll(childATask, childAaaaTask).ConfigureAwait(false);
                 var childA = await childATask;
                 var childAaaa = await childAaaaTask;
-                var combined = childA.Concat(childAaaa ?? Array.Empty<DnsAnswer>()).Select(a => a.Data);
+                RecordQueryError(ns, DnsRecordType.A, childA.Error, logger, parent: true);
+                RecordQueryError(ns, DnsRecordType.AAAA, childAaaa.Error, logger, parent: true);
+                if (childA.Error != null || childAaaa.Error != null) { glueConsistent = false; continue; }
+                var combined = childA.Answers.Concat(childAaaa.Answers).Select(a => a.Data);
                 if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
-                    GlueRecordsConsistent = false;
+                    glueConsistent = false;
+                    confirmedGlueMismatch = true;
                 }
             }
+
+            GlueRecordsComplete = glueComplete;
+            GlueRecordsConsistent = glueComplete && glueConsistent;
+            DelegationAnalysisComplete = _delegationDnsQueryErrors.Count == 0;
 
             if (!DelegationMatches) {
                 logger.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");
@@ -390,7 +409,7 @@ namespace DomainDetective {
             if (!GlueRecordsComplete) {
                 logger.WriteWarningCode(NSCodes.GlueIncomplete, "Parent zone missing glue records for in-bailiwick NS");
             }
-            if (!GlueRecordsConsistent) {
+            if (confirmedGlueMismatch) {
                 logger.WriteWarningCode(NSCodes.GlueInconsistent, "Parent glue records do not match child A/AAAA records");
             }
         }

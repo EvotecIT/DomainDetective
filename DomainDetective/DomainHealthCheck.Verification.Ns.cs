@@ -22,8 +22,18 @@ namespace DomainDetective {
         }
 
         private async Task VerifyNameServersAsync(string domainName, CancellationToken cancellationToken) {
-            var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             NSAnalysis.Subject = domainName;
+            NSAnalysis.ResetNsEvidence();
+            DnsAnswer[] ns;
+            try {
+                ns = await DnsConfiguration.QueryPolicyDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (NSAnalysis.IsDnsQueryFailure(ex)) {
+                using var collector = AssessmentCollector.ForAnalysis(_logger, NSAnalysis, category: "NS", target: domainName, source: "Child");
+                NSAnalysis.RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, _logger);
+                return;
+            }
             await NSAnalysis.AnalyzeNsRecords(ns, _logger, cancellationToken);
         }
 
