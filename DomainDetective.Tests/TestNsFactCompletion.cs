@@ -113,6 +113,34 @@ public class TestNsFactCompletion {
         return health;
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConfirmedFamilyMismatchSurvivesSameHostsOtherFamilyFailure(bool failedIpv6) {
+        using var health = CreateHealth();
+        await health.VerifyNS("example.com");
+        health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(name != "ns1.example.com"
+            ? Response(name, type)
+            : type == (failedIpv6 ? DnsRecordType.AAAA : DnsRecordType.A)
+                ? new DnsResponse { Status = DnsResponseCode.ServerFailure }
+                : !failedIpv6 && type == DnsRecordType.AAAA
+                    ? new DnsResponse { Answers = new[] { Answer(name, type, "2001:db8::53") } }
+                    : Response(name, type));
+        var parent = ParentResponse(null);
+        parent.Additional = parent.Additional.Concat(new[] { Answer("ns1.example.com",
+            failedIpv6 ? DnsRecordType.A : DnsRecordType.AAAA, failedIpv6 ? "203.0.113.99" : "2001:db8:1::53") }).ToArray();
+        health.NSAnalysis.QueryDnsFullOverride = (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] { parent });
+        await health.NSAnalysis.AnalyzeParentDelegation("example.com", new InternalLogger());
+        Assert.False(health.NSAnalysis.DelegationAnalysisComplete);
+        Assert.Contains(health.NSAnalysis.Assessments, item => item.Code == NSCodes.GlueInconsistent);
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, new DesiredStateProfile {
+            Delegation = new DesiredStateDelegationPolicy { RequireMatchesParent = false, RequireGlueComplete = false, RequireGlueConsistent = true }
+        });
+        Assert.Contains(result.Assessments, item => item.Code == DesiredStateCodes.DelegationGlueInconsistent);
+        Assert.DoesNotContain(result.Assessments, item => item.Code == DesiredStateCodes.DelegationEvidenceIncomplete);
+        Assert.Contains("/mixed", Converters.Convert(health.NSAnalysis).Summary);
+    }
+
     private static DnsResponse Response(string name, DnsRecordType type) => new() {
         Answers = type == DnsRecordType.NS ? new[] { Answer(name, type, "ns1.example.com"), Answer(name, type, "ns2.example.com") }
             : type == DnsRecordType.A ? new[] { Answer(name, type, name == "ns2.example.com" ? "198.51.100.54" : "192.0.2.53") }

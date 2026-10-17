@@ -89,7 +89,7 @@ public class NsInfo
     public bool NsLookupComplete { get; set; }
     /// <summary>Record presence is unknown when discovery could not complete.</summary>
     public string RecordPresence => NsRecordExists ? "Yes" : NsLookupComplete ? "No" : "Unknown";
-    /// <summary>True when DNS query failures leave any analyzed NS evidence incomplete.</summary>
+    /// <summary>True when an NS-related DNS query failed; individual certainty flags describe usable evidence.</summary>
     public bool DnsQueryFailed { get; set; }
     /// <summary>True when DNS failures affect child discovery or enrichment, independently of parent probes.</summary>
     public bool ChildDnsQueryFailed { get; set; }

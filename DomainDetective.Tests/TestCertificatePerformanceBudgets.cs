@@ -121,20 +121,24 @@ public class TestCertificatePerformanceBudgets {
 
     [Fact]
     public async Task AuxiliaryVersionsOverlapAndTimeoutDoesNotMeanUnsupported() {
+        var allEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int active = 0;
         int peak = 0;
         int calls = 0;
         using var analysis = new CertificateAnalysis {
-            ProtocolProbeTimeout = TimeSpan.FromMilliseconds(30),
+            ProtocolProbeTimeout = TimeSpan.FromSeconds(5),
             OutboundAddressResolver = async (_, ct) => {
-                Interlocked.Increment(ref calls);
+                int started = Interlocked.Increment(ref calls);
                 int current = Interlocked.Increment(ref active);
                 int previous;
                 do { previous = peak; }
                 while (current > previous && Interlocked.CompareExchange(ref peak, current, previous) != previous);
-                try { await Task.Delay(Timeout.Infinite, ct); }
+                if (started == 4) { allEntered.TrySetResult(true); }
+                try {
+                    await allEntered.Task.WaitWithCancellation(ct);
+                    throw new TimeoutException("Synthetic resolver transport timeout");
+                }
                 finally { Interlocked.Decrement(ref active); }
-                return Array.Empty<IPAddress>();
             }
         };
         var probe = typeof(CertificateAnalysis).GetMethod("ProbeProtocolSupport", BindingFlags.NonPublic | BindingFlags.Instance)!;

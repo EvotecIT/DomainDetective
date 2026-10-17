@@ -29,7 +29,7 @@ public partial class NSAnalysis {
     public bool DiversityResultKnown { get; private set; }
     /// <summary>True when all child address queries and ASN lookups completed; otherwise the ASN count is a lower bound.</summary>
     public bool AsnDiversityComplete { get; private set; }
-    /// <summary>True when DNS failures leave child discovery, address enrichment or delegation evidence incomplete.</summary>
+    /// <summary>True when an NS-related DNS query failed; individual certainty flags describe the evidence still established.</summary>
     public bool DnsQueryFailed => _childDnsQueryErrors.Count > 0 || _delegationDnsQueryErrors.Count > 0;
     /// <summary>Operational failures retained separately from confirmed missing records or mismatched glue.</summary>
     public IReadOnlyList<string> DnsQueryErrors => _childDnsQueryErrors.Concat(_delegationDnsQueryErrors).ToArray();
@@ -58,6 +58,14 @@ public partial class NSAnalysis {
 
     internal static bool IsDnsQueryFailure(Exception error) => error is DnsQueryFailureException
         || Helpers.AuthoritativeDnsProbes.IsTransportFailure(error);
+
+    private static bool AddressFamilyMatches(IEnumerable<string> parentGlue, IEnumerable<DnsAnswer> child, System.Net.Sockets.AddressFamily family) {
+        IEnumerable<string> Normalize(IEnumerable<string> values) => values
+            .Select(value => System.Net.IPAddress.TryParse(value, out var ip) ? ip : null)
+            .Where(ip => ip != null && ip.AddressFamily == family).Select(ip => ip!.ToString());
+        return new HashSet<string>(Normalize(parentGlue), StringComparer.OrdinalIgnoreCase)
+            .SetEquals(Normalize(child.Select(answer => answer.Data)));
+    }
 
     private async Task<(DnsAnswer[] Answers, Exception? Error)> QueryNsEvidenceAsync(string name, DnsRecordType type, CancellationToken ct) {
         try { return (await QueryDns(name, type, ct).ConfigureAwait(false), null); }

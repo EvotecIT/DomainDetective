@@ -408,10 +408,12 @@ namespace DomainDetective {
                 if (childA.Error != null || childAaaa.Error != null) {
                     glueConsistent = false;
                     glueComparisonsComplete = false;
-                    continue;
                 }
-                var combined = childA.Answers.Concat(childAaaa.Answers).Select(a => a.Data);
-                if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
+                // A conclusive mismatch in either family establishes inconsistency even
+                // when the other family could not be queried.
+                bool mismatch = childA.Error == null && !AddressFamilyMatches(parentGlue, childA.Answers, System.Net.Sockets.AddressFamily.InterNetwork)
+                    || childAaaa.Error == null && !AddressFamilyMatches(parentGlue, childAaaa.Answers, System.Net.Sockets.AddressFamily.InterNetworkV6);
+                if (mismatch) {
                     glueConsistent = false;
                     confirmedGlueMismatch = true;
                 }
