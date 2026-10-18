@@ -318,6 +318,7 @@
     },
     {
       "task": "sitemap",
+      "includeTextFiles": false,
       "id": "build-sitemap",
       "dependsOn": "build-llms",
       "siteRoot": "./_site",
