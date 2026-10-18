@@ -269,6 +269,9 @@ namespace DomainDetective {
         /// <value>HTTP endpoint validation results.</value>
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
+        /// <summary>Plain HTTP evidence collected by a combined run when requested in its execution options.</summary>
+        public HttpAnalysis PlainHttpAnalysis { get; } = new HttpAnalysis();
+
         /// <summary>
         /// Gets the HPKP analysis.
         /// </summary>

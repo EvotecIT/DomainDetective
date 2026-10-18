@@ -17,11 +17,22 @@ internal static class AuthoritativeDnsProbes {
             probe, concurrency, cancellationToken).ConfigureAwait(false);
     }
 
-    internal static async Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
+    internal static Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
+        int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false, bool acceptReferral = false) {
+        var key = ("authoritative", address, owner.TrimEnd('.').ToLowerInvariant(), type,
+            timeoutMs, cancellationToken, acceptRefused, acceptReferral);
+        Task<DnsResponse?> Query() => QueryCoreAsync(address, owner, type, timeoutMs, cancellationToken, acceptRefused, acceptReferral);
+        return ScanObservations.Current?.ShareAsync(key, Query) ?? Query();
+    }
+
+    private static async Task<DnsResponse?> QueryCoreAsync(string address, string owner, DnsRecordType type,
         int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false, bool acceptReferral = false) {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeoutMs);
+        var admission = ScanObservations.Current?.DirectDnsAdmission;
+        bool admitted = false;
         try {
+            if (admission != null) { await admission.WaitAsync(deadline.Token).ConfigureAwait(false); admitted = true; }
             cancellationToken.ThrowIfCancellationRequested();
             // Callers supply addresses from authoritative A/AAAA records. Invalid data must
             // remain unavailable rather than starting a new recursive server-name lookup.
@@ -36,7 +47,7 @@ internal static class AuthoritativeDnsProbes {
         catch (Exception ex) when (IsTransportFailure(ex) || ex is ArgumentException || ex is FormatException) {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
-        }
+        } finally { if (admitted) { admission!.Release(); } }
     }
 
     /// <summary>Expected network failures; callers retain precedence for their own cancellation token.</summary>

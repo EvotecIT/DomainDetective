@@ -352,6 +352,7 @@ namespace DomainDetective {
                         !SkipRevocation)
                     .WaitWithCancellation(originTimeoutSource.Token)
                     .ConfigureAwait(false);
+                CaptureTlsNegotiation(originSsl);
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (Exception ex) {
@@ -376,6 +377,15 @@ namespace DomainDetective {
                     RemoteCertificateValidationCallback = (_, certificate, chain, policyErrors) =>
                         CaptureServerCertificate(certificate, chain, policyErrors)
                 }
+            };
+            socketsHandler.PlaintextStreamFilter = (context, token) => {
+                var requestUri = context.InitialRequestMessage.RequestUri;
+                var origin = new Uri(url);
+                if (requestUri != null && requestUri.Host.Equals(origin.Host, StringComparison.OrdinalIgnoreCase)
+                    && requestUri.Port == origin.Port && context.PlaintextStream is SslStream negotiated) {
+                    CaptureTlsNegotiation(negotiated);
+                }
+                return new ValueTask<System.IO.Stream>(context.PlaintextStream);
             };
             socketsHandler.ConnectCallback = async (context, token) => {
                 bool captureOriginAddress = context.InitialRequestMessage.RequestUri is Uri requestUri &&
@@ -434,6 +444,7 @@ namespace DomainDetective {
                                     return errors == SslPolicyErrors.None;
                                 });
                                 await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+                                CaptureTlsNegotiation(ssl);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = OwnCertificate(CertificateLoaderCompat.Clone(cert));
                                     using var xchain = new X509Chain();
@@ -495,6 +506,7 @@ namespace DomainDetective {
             await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation)
                 .WaitWithCancellation(timeoutCts.Token)
                 .ConfigureAwait(false);
+            CaptureTlsNegotiation(ssl);
 
             IsReachable = true;
             if (ssl.RemoteCertificate == null)

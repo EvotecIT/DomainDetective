@@ -10,7 +10,7 @@ using DomainDetective;
 
 namespace DomainDetective.Tests;
 
-public class TestCtLogAggregator
+public partial class TestCtLogAggregator
 {
     public TestCtLogAggregator()
     {

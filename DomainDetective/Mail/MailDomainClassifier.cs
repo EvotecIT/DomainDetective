@@ -36,19 +36,7 @@ public sealed class MailDomainClassifier {
             throw new ArgumentNullException(nameof(domain));
         }
 
-        // Ensure core signals are collected. Use specific verifications to keep
-        // the scope tight and avoid redundant checks.
-        await _health.VerifyMX(domain, cancellationToken);
-        await _health.VerifySPF(domain, cancellationToken);
-        await _health.VerifyDKIM(domain, selectors: Array.Empty<string>(), cancellationToken);
-        await _health.VerifyMTASTS(domain, cancellationToken);
-        await _health.VerifyTLSRPT(domain, cancellationToken);
-        await _health.VerifyBIMI(domain, skipIndicatorDownload: true, cancellationToken);
-        await _health.VerifyIdpInfo(domain, cancellationToken);
-        await _health.VerifyDANE(domain, new[] { ServiceType.SMTP }, cancellationToken);
-
-        // Apex A/AAAA lookup (SMTP fallback)
-        await _health.VerifyApexAddresses(domain, cancellationToken);
+        await _health.CollectMailClassificationSignalsAsync(domain, cancellationToken).ConfigureAwait(false);
 
         // Compute signals
         var hasNullMx = _health.MXAnalysis?.HasNullMx ?? false;

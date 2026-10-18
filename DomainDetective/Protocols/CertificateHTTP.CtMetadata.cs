@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace DomainDetective {
     public partial class CertificateAnalysis {
-        private bool _ctLookupBudgetExhausted;
+        private bool _ctLookupIncomplete;
 
         private async Task QueryCtLogs(CancellationToken cancellationToken, InternalLogger? logger = null)
         {
@@ -48,7 +48,7 @@ namespace DomainDetective {
                 entries = await _ctLogAggregator.QueryAsync(fingerprint, deadline.Token).ConfigureAwait(false);
                 deadline.Token.ThrowIfCancellationRequested();
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
-                _ctLookupBudgetExhausted = true;
+                _ctLookupIncomplete = true;
                 logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency lookup budget exhausted; absence from CT logs was not established.");
                 entries = _ctLogAggregator.LastCompletedEntries;
             }
@@ -62,7 +62,11 @@ namespace DomainDetective {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
-            CtLookupComplete = !_ctLookupBudgetExhausted;
+            CtLookupComplete = !_ctLookupIncomplete && _ctLogAggregator.LastQueryComplete;
+            if (!CtLookupComplete) {
+                _ctLookupIncomplete = true;
+                logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency evidence is incomplete; absence from CT logs was not established.");
+            }
         }
 
         private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {

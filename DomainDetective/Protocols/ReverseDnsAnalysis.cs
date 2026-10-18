@@ -87,20 +87,20 @@ namespace DomainDetective {
         /// <summary>Indicates whether all MX hosts have matching PTR records.</summary>
         public bool AllValid => Results?.All(r => r.IsValid) == true;
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct) {
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                return await QueryDnsOverride(name, type).WaitWithCancellation(ct);
             }
 
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct);
         }
 
-        private async Task<IEnumerable<DnsResponse>> QueryDnsFull(string name, DnsRecordType type) {
+        private async Task<IEnumerable<DnsResponse>> QueryDnsFull(string name, DnsRecordType type, CancellationToken ct) {
             if (QueryDnsFullOverride != null) {
-                return await QueryDnsFullOverride(name, type);
+                return await QueryDnsFullOverride(name, type).WaitWithCancellation(ct);
             }
 
-            return await DnsConfiguration.QueryFullDNS(new[] { name }, type);
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type, cancellationToken: ct);
         }
 
         /// <summary>
@@ -108,14 +108,16 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="hosts">MX host names.</param>
         /// <param name="logger">Optional diagnostic logger.</param>
-        public async Task AnalyzeHosts(IEnumerable<string> hosts, InternalLogger? logger = null) {
+        public Task AnalyzeHosts(IEnumerable<string> hosts, InternalLogger? logger = null) => AnalyzeHosts(hosts, logger, default);
+
+        internal async Task AnalyzeHosts(IEnumerable<string> hosts, InternalLogger? logger, CancellationToken cancellationToken) {
             var bag = new ConcurrentBag<ReverseDnsResult>();
             var hostList = hosts?.Where(h => !string.IsNullOrWhiteSpace(h)).ToList() ?? new List<string>();
             using var semaphore = new SemaphoreSlim(ParallelLookupLimit);
             var tasks = hostList.Select(async host => {
-                await semaphore.WaitAsync();
+                await semaphore.WaitAsync(cancellationToken);
                 try {
-                    var hostResults = await AnalyzeHost(host, logger);
+                    var hostResults = await AnalyzeHost(host, logger, cancellationToken);
                     foreach (var r in hostResults) {
                         bag.Add(r);
                     }
@@ -127,15 +129,15 @@ namespace DomainDetective {
             Results = bag.ToList();
         }
 
-        private async Task<List<ReverseDnsResult>> AnalyzeHost(string host, InternalLogger? logger) {
+        private async Task<List<ReverseDnsResult>> AnalyzeHost(string host, InternalLogger? logger, CancellationToken cancellationToken) {
             var results = new List<ReverseDnsResult>();
             if (string.IsNullOrWhiteSpace(host)) {
                 return results;
             }
 
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDNS", target: host) : null;
-            var aTask = QueryDns(host, DnsRecordType.A);
-            var aaaaTask = QueryDns(host, DnsRecordType.AAAA);
+            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
             await Task.WhenAll(aTask, aaaaTask);
             var aRecords = aTask.Result;
             var aaaaRecords = aaaaTask.Result ?? Array.Empty<DnsAnswer>();
@@ -149,12 +151,12 @@ namespace DomainDetective {
                 DnsAnswer[] ptrAnswers;
                 bool truncated = false;
                 if (ip.AddressFamily == AddressFamily.InterNetworkV6) {
-                    var resp = await QueryDnsFull(ptrName, DnsRecordType.PTR);
+                    var resp = await QueryDnsFull(ptrName, DnsRecordType.PTR, cancellationToken);
                     truncated = resp.Any(r => r.IsTruncated);
                     ptrAnswers = resp.SelectMany(r => r.Answers).ToArray();
                     if (truncated) {
                         if (QueryDnsOverride != null) {
-                            ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR);
+                            ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR).WaitWithCancellation(cancellationToken);
                         } else {
                             var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
                             ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR);
@@ -164,7 +166,7 @@ namespace DomainDetective {
                         }
                     }
                 } else {
-                    ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR);
+                    ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR, cancellationToken);
                 }
 
                 var ptrs = new List<string>();
@@ -191,8 +193,8 @@ namespace DomainDetective {
                 if (ptrs.Count > 0) {
                     logger?.WriteInformationCode(ReverseDnsCodes.PtrRecordPresent, "PTR record present for {0}", ip);
                     foreach (var p in ptrs) {
-                        var fwdATask = QueryDns(p, DnsRecordType.A);
-                        var fwdAaaaTask = QueryDns(p, DnsRecordType.AAAA);
+                        var fwdATask = QueryDns(p, DnsRecordType.A, cancellationToken);
+                        var fwdAaaaTask = QueryDns(p, DnsRecordType.AAAA, cancellationToken);
                         await Task.WhenAll(fwdATask, fwdAaaaTask);
                         if (fwdATask.Result.Concat(fwdAaaaTask.Result).Any(r => string.Equals(r.Data ?? r.DataRaw, ip.ToString(), StringComparison.Ordinal))) {
                             result.FcrDnsValid = true;

@@ -20,7 +20,7 @@ namespace DomainDetective {
             IsExpired = Certificate!.NotAfter < DateTime.Now;
             PopulateSubjectAlternativeNames();
             var phases = new List<Task>();
-            if (CaptureTlsDetails) {
+            if (CaptureTlsDetails && TlsProtocol == System.Security.Authentication.SslProtocols.None) {
                 phases.Add(MeasureAsync("TLS details", () => PopulateTlsInfo(new Uri(url), port, cancellationToken)));
             }
             if (CaptureExtendedMetadata && !SkipRevocation) {

@@ -19,28 +19,7 @@ public partial class DomainHealthCheck {
             return;
         }
 
-        if (!string.Equals(IdpInfoAnalysis.Domain, domainName, StringComparison.OrdinalIgnoreCase) ||
-            (!IdpInfoAnalysis.DiscoverySucceeded && !IdpInfoAnalysis.GetUserRealmSucceeded)) {
-            await VerifyIdpInfo(domainName, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (!string.Equals(DnsInventoryAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) ||
-            (!DnsInventoryAnalysis.QuerySucceeded && DnsInventoryAnalysis.TotalRecords == 0)) {
-            await VerifyDnsInventoryAsync(domainName, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (!string.Equals(SubdomainsAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase) ||
-            (!SubdomainsAnalysis.QuerySucceeded && (SubdomainsAnalysis.Subdomains?.Count ?? 0) == 0)) {
-            await VerifySubdomainsAsync(domainName, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (!string.Equals(AutodiscoverAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase)) {
-            await VerifyAutodiscover(domainName, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (!string.Equals(DKIMAnalysis.Subject, domainName, StringComparison.OrdinalIgnoreCase)) {
-            await VerifyDKIM(domainName, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
-        }
+        await CollectMicrosoft365SignalsAsync(domainName, cancellationToken).ConfigureAwait(false);
 
         Microsoft365TenantAnalysis = new Microsoft365TenantAnalysis();
         Microsoft365TenantAnalysis.Analyze(

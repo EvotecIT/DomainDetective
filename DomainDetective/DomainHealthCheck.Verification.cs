@@ -123,28 +123,36 @@ public partial class DomainHealthCheck {
             CancellationToken cancellationToken = default,
             HealthCheckExecutionOptions? executionOptions = null,
             bool useDefaultChecksWhenEmpty = true) {
-            var configuration = DnsConfiguration;
-            var previousAdmission = configuration.QueryAdmissionGate;
-            var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
-            var previousResolverBulkAdmission = configuration.ResolverBulkQueryAdmissionGate;
-            int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
-            // Async-only gates allocate no wait handle. A public configuration query may
-            // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
-            var ownedAdmission = previousAdmission == null
-                ? new SemaphoreSlim(dnsParallelism) : null;
-            var resolverBulkAdmission = previousResolverBulkAdmission
-                ?? new SemaphoreSlim(Math.Max(1, configuration.GetBulkQueryParallelism(dnsParallelism)));
-            configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
-            configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
-            configuration.ResolverBulkQueryAdmissionGate = resolverBulkAdmission;
+            await _verificationAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
             try {
-                await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
-                    portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
-            } finally {
-                configuration.QueryAdmissionGate = previousAdmission;
-                configuration.BulkQueryAdmissionGate = previousBulkAdmission;
-                configuration.ResolverBulkQueryAdmissionGate = previousResolverBulkAdmission;
-            }
+                var configuration = DnsConfiguration;
+                var previousAdmission = configuration.QueryAdmissionGate;
+                var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+                var previousResolverBulkAdmission = configuration.ResolverBulkQueryAdmissionGate;
+                int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
+                using var observations = new ScanObservations(dnsParallelism);
+                // Async-only gates allocate no wait handle. A public configuration query may
+                // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
+                var ownedAdmission = previousAdmission == null
+                    ? new SemaphoreSlim(dnsParallelism) : null;
+                var resolverBulkAdmission = previousResolverBulkAdmission
+                    ?? new SemaphoreSlim(Math.Max(1, configuration.GetBulkQueryParallelism(dnsParallelism)));
+                configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
+                configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
+                configuration.ResolverBulkQueryAdmissionGate = resolverBulkAdmission;
+                try {
+                    await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
+                        portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
+                } finally {
+                    _runOperations = null;
+                    _runDomain = null;
+                    _selectedRunChecks = null;
+                    _runNeedsSmtpDane = false;
+                    configuration.QueryAdmissionGate = previousAdmission;
+                    configuration.BulkQueryAdmissionGate = previousBulkAdmission;
+                    configuration.ResolverBulkQueryAdmissionGate = previousResolverBulkAdmission;
+                }
+            } finally { _verificationAdmission.Release(); }
         }
 
         private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,
@@ -173,13 +181,16 @@ public partial class DomainHealthCheck {
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
             ValidateDomainVerificationTypes(healthCheckTypes);
 
+            bool discoverDkim = healthCheckTypes.Contains(HealthCheckType.MAILCLASSIFICATION)
+                || healthCheckTypes.Contains(HealthCheckType.MICROSOFT365);
+            _runNeedsSmtpDane = healthCheckTypes.Contains(HealthCheckType.MAILCLASSIFICATION);
             var totalChecks = healthCheckTypes.Length;
             var processedChecks = 0;
 
             var actions = new Dictionary<HealthCheckType, Func<Task>> {
                 [HealthCheckType.DMARC] = () => VerifyDMARC(domainName, cancellationToken),
                 [HealthCheckType.SPF] = () => EnsureSpfAsync(domainName, cancellationToken),
-                [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), exec.IncludeMissingDkimSelectors, cancellationToken),
+                [HealthCheckType.DKIM] = () => VerifyDkimCoreAsync(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), exec.IncludeMissingDkimSelectors, cancellationToken, discoverDkim),
                 [HealthCheckType.MX] = () => VerifyMX(domainName, cancellationToken),
                 [HealthCheckType.REVERSEDNS] = () => VerifyReverseDnsAsync(domainName, cancellationToken),
                 [HealthCheckType.FCRDNS] = () => VerifyFcrDnsAsync(domainName, cancellationToken),
@@ -243,7 +254,7 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
-            ConfigureSharedChecks(actions, domainName, cancellationToken);
+            ConfigureSharedChecks(actions, domainName, cancellationToken, exec);
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
@@ -258,6 +269,23 @@ public partial class DomainHealthCheck {
                     prestartedDaneTask = daneTask.Value;
                 }
             }
+
+            // Composite-only dependencies use their narrow original policies. When
+            // explicitly selected, the richer requested selector/download plan wins.
+            if (!healthCheckTypes.Contains(HealthCheckType.DKIM)) {
+                actions[HealthCheckType.DKIM] = () => VerifyDKIM(domainName, Array.Empty<string>(), cancellationToken);
+            }
+            if (!healthCheckTypes.Contains(HealthCheckType.BIMI)) {
+                actions[HealthCheckType.BIMI] = () => VerifyBIMI(domainName, true, cancellationToken);
+            }
+            if (!healthCheckTypes.Contains(HealthCheckType.DANE)) {
+                actions[HealthCheckType.DANE] = () => VerifyDANE(domainName, new[] { ServiceType.SMTP }, cancellationToken);
+            }
+            ConfigureRunOperations(actions, domainName, healthCheckTypes);
+            if (exec.IncludePlainHttp) { PlainHttpAnalysis.Subject = new UriBuilder($"http://{domainName}").Uri.GetLeftPart(UriPartial.Authority); }
+            Task? plainHttpTask = exec.IncludePlainHttp
+                ? PlainHttpAnalysis.AnalyzeUrl(PlainHttpAnalysis.Subject!, false, _logger, cancellationToken: cancellationToken)
+                : null;
 
             void ReportProgress(string operation, int completed) {
                 if (totalChecks <= 0) {
@@ -333,6 +361,10 @@ public partial class DomainHealthCheck {
                 executionFailure = exception;
                 throw;
             } finally {
+                if (plainHttpTask != null) {
+                    try { await plainHttpTask.ConfigureAwait(false); }
+                    catch when (executionFailure != null) { }
+                }
                 if (prestartedDaneTask != null) {
                     try {
                         // Cancellation may prevent the gated DANE action from being admitted.
@@ -525,6 +557,10 @@ public partial class DomainHealthCheck {
                 throw new ArgumentNullException(nameof(domainName));
             }
             var trimmedValue = trimmed!;
+            if (!trimmedValue.StartsWith("[", StringComparison.Ordinal) && IPAddress.TryParse(trimmedValue, out var literal)
+                && literal.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
+                trimmedValue = $"[{literal}]";
+            }
 
             if (!Uri.TryCreate($"http://{trimmedValue}", UriKind.Absolute, out var uri)) {
                 // older frameworks may not handle IDN automatically
@@ -555,7 +591,7 @@ public partial class DomainHealthCheck {
                 throw new ArgumentException($"Invalid host name '{trimmed}'.", nameof(domainName));
             }
 
-            var host = uri.IdnHost;
+            var host = uri.HostNameType == UriHostNameType.IPv6 ? uri.Host : uri.IdnHost;
             if (uri.HostNameType == UriHostNameType.Dns) {
                 var labels = host.Split('.');
                 if (labels.Length == 0 ||

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace DomainDetective {
     /// <summary>
@@ -121,17 +122,17 @@ public sealed class ApexAddressAnalysis {
             return (name ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
         }
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct) {
             var q = NormalizeName(name);
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(q, type);
+                return await QueryDnsOverride(q, type).WaitWithCancellation(ct);
             }
             // If the DNS configuration has an override, prefer it directly to avoid any indirection issues
             var dnsConfiguration = DnsConfiguration;
             if (dnsConfiguration.QueryDnsOverride != null) {
-                return await dnsConfiguration.QueryDnsOverride(q, type);
+                return await dnsConfiguration.QueryDnsOverride(q, type).WaitWithCancellation(ct);
             }
-            return await dnsConfiguration.QueryDNS(q, type);
+            return await dnsConfiguration.QueryDNS(q, type, cancellationToken: ct);
         }
 
         /// <summary>
@@ -186,25 +187,33 @@ public sealed class ApexAddressAnalysis {
         /// <summary>
         /// Queries and analyzes apex A/AAAA for the given domain using configured DNS.
         /// </summary>
-        public async Task AnalyzeAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeAsync(string domainName, InternalLogger? logger = null) => AnalyzeAsync(domainName, logger, default);
+
+        /// <summary>Analyzes apex addresses and all requested enrichment with caller cancellation.</summary>
+        public async Task AnalyzeAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             Reset();
             Subject = domainName;
-            var a = await QueryDns(domainName, DnsRecordType.A) ?? Array.Empty<DnsAnswer>();
-            var aaaa = await QueryDns(domainName, DnsRecordType.AAAA) ?? Array.Empty<DnsAnswer>();
+            var aTask = QueryDns(domainName, DnsRecordType.A, cancellationToken);
+            var aaaaTask = QueryDns(domainName, DnsRecordType.AAAA, cancellationToken);
+            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+            var a = await aTask ?? Array.Empty<DnsAnswer>();
+            var aaaa = await aaaaTask ?? Array.Empty<DnsAnswer>();
             await AnalyzeApexAnswers(a, aaaa, logger);
-            await AnalyzeReverseDnsAsync(domainName, logger);
-            await AnalyzeAsnAndRpkiAsync(domainName, logger);
+                        await Task.WhenAll(AnalyzeReverseDnsAsync(domainName, logger, cancellationToken),
+                AnalyzeAsnAndRpkiAsync(domainName, logger, cancellationToken)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Performs PTR and FCrDNS checks for apex addresses.
         /// </summary>
-        public async Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger = null) => AnalyzeReverseDnsAsync(domainName, logger, default);
+
+        private async Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             var r = new ReverseDnsAnalysis { DnsConfiguration = this.DnsConfiguration };
             if (this.QueryDnsOverride != null) {
                 r.QueryDnsOverride = this.QueryDnsOverride;
             }
-            await r.AnalyzeHosts(new[] { domainName }, logger);
+            await r.AnalyzeHosts(new[] { domainName }, logger, cancellationToken);
             PtrByIp = new();
             AnyPtrPresent = false;
             AllPtrPresent = true;
@@ -265,11 +274,13 @@ public sealed class ApexAddressAnalysis {
         /// <summary>
         /// Populates ASN and RPKI validity for apex addresses using RPKIAnalysis.
         /// </summary>
-        public async Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger = null) => AnalyzeAsnAndRpkiAsync(domainName, logger, default);
+
+        private async Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             var rpki = new RPKIAnalysis { DnsConfiguration = this.DnsConfiguration };
             if (this.QueryDnsOverride != null) rpki.QueryDnsOverride = this.QueryDnsOverride;
             if (this.QueryRpkiOverride != null) rpki.QueryRpkiOverride = this.QueryRpkiOverride;
-            await rpki.Analyze(domainName, logger);
+            await rpki.Analyze(domainName, logger, cancellationToken);
 
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             RpkiValidCount = 0;

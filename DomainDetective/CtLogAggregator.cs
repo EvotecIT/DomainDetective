@@ -16,7 +16,7 @@ namespace DomainDetective;
 /// <summary>
 /// Retrieves certificate transparency log entries from multiple APIs.
 /// </summary>
-public sealed class CtLogAggregator
+public sealed partial class CtLogAggregator
 {
     private enum CtResponseParserKind
     {
@@ -102,6 +102,9 @@ public sealed class CtLogAggregator
         }
     }
 
+    /// <summary>Whether every configured CT request completed with valid JSON, including successful empty responses.</summary>
+    public bool LastQueryComplete { get; private set; }
+
     /// <summary>Minimum spacing between outbound CT requests across all aggregator instances.</summary>
     public TimeSpan MinimumRequestSpacing {
         get {
@@ -139,6 +142,7 @@ public sealed class CtLogAggregator
     public async Task<IReadOnlyList<JsonElement>> QueryAsync(string fingerprint, CancellationToken cancellationToken = default)
     {
         var results = new List<JsonElement>();
+        LastQueryComplete = false;
         _lastQueriedSources = Array.Empty<string>();
         _lastTemplateFormatErrors = Array.Empty<string>();
         LastCompletedEntries = Array.Empty<JsonElement>();
@@ -152,7 +156,9 @@ public sealed class CtLogAggregator
             _lastQueriedSources = new[] { "override" };
             // The legacy override owns its task; cancellation stops consuming its result.
             var json = await QueryOverride(fingerprint).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-            AppendEntries(ParseEntries(json, CtResponseParserKind.Standard), results);
+            var parsed = ParseFetchResult(json, CtResponseParserKind.Standard);
+            AppendEntries(parsed.Entries, results);
+            LastQueryComplete = parsed.Complete;
             LastCompletedEntries = results.ToArray();
             return results;
         }
@@ -167,7 +173,7 @@ public sealed class CtLogAggregator
             return results;
         }
 
-        var client = CreateClient(out var dispose);
+        bool complete = templateFormatErrors.Count == 0;
         try
         {
             foreach (var request in requests)
@@ -179,25 +185,19 @@ public sealed class CtLogAggregator
                     continue;
                 }
 
-                var fetchedEntries = await FetchEntriesWithRetryAsync(client, request, cancellationToken).ConfigureAwait(false);
-                if (fetchedEntries.Count == 0)
-                {
-                    continue;
-                }
-
-                CacheEntries(request.CacheKey, fetchedEntries);
+                var fetched = await FetchSharedAsync(request, cancellationToken).ConfigureAwait(false);
+                complete &= fetched.Complete;
+                var fetchedEntries = fetched.Entries;
+                if (fetched.Complete) { CacheEntries(request.CacheKey, fetchedEntries); }
                 AppendEntries(fetchedEntries, results);
             }
         }
         finally
         {
             LastCompletedEntries = results.ToArray();
-            if (dispose)
-            {
-                client.Dispose();
-            }
         }
 
+        LastQueryComplete = complete;
         return results;
     }
 
@@ -311,7 +311,7 @@ public sealed class CtLogAggregator
         return requests;
     }
 
-    private async Task<IReadOnlyList<JsonElement>> FetchEntriesWithRetryAsync(HttpClient client, CtDiscoveryRequest request, CancellationToken cancellationToken)
+    private async Task<FetchResult> FetchEntriesWithRetryAsync(HttpClient client, CtDiscoveryRequest request, CancellationToken cancellationToken)
     {
         var attempts = Math.Max(1, MaxAttemptsPerRequest);
         for (var attempt = 1; attempt <= attempts; attempt++)
@@ -333,12 +333,12 @@ public sealed class CtLogAggregator
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    return ParseEntries(json, request.ResponseParser);
+                    return ParseFetchResult(json, request.ResponseParser);
                 }
 
                 if (!ShouldRetryStatusCode(response.StatusCode) || attempt == attempts)
                 {
-                    return Array.Empty<JsonElement>();
+                    return new FetchResult(false, Array.Empty<JsonElement>());
                 }
 
                 var delay = MaxDelay(ComputeBackoff(attempt), ComputeRetryAfterDelay(response));
@@ -360,7 +360,7 @@ public sealed class CtLogAggregator
             }
         }
 
-        return Array.Empty<JsonElement>();
+        return new FetchResult(false, Array.Empty<JsonElement>());
     }
 
     private static string BuildBasicAuthorizationHeader(string apiId, string apiSecret)
@@ -621,7 +621,7 @@ public sealed class CtLogAggregator
     private void CacheEntries(string cacheKey, IReadOnlyList<JsonElement> entries)
     {
         var ttl = CacheTtl;
-        if (ttl <= TimeSpan.Zero || entries.Count == 0)
+        if (ttl <= TimeSpan.Zero)
         {
             return;
         }

@@ -12,7 +12,7 @@ namespace DomainDetective;
 /// <summary>
 /// Establishes mail transport connections while preserving logical-host and address-family constraints.
 /// </summary>
-internal static class MailTransportConnector {
+internal static partial class MailTransportConnector {
     internal static TimeSpan GetConnectTimeout(TimeSpan connectTimeout, TimeSpan operationTimeout) {
         if (connectTimeout == Timeout.InfiniteTimeSpan) { return operationTimeout; }
         if (operationTimeout == Timeout.InfiniteTimeSpan) { return connectTimeout; }
@@ -93,25 +93,7 @@ internal static class MailTransportConnector {
             throw new SocketException((int)SocketError.HostNotFound);
         }
 
-        Exception? lastError = null;
-        foreach (var address in filtered) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var client = new TcpClient(address.AddressFamily);
-            try {
-                await AwaitConnectAsync(
-                    client,
-                    client.ConnectAsync(address, endpoint.Port),
-                    cancellationToken).ConfigureAwait(false);
-                return client;
-            } catch (Exception ex) when (ex is not OperationCanceledException) {
-                lastError = ex;
-            }
-        }
-
-        if (lastError != null) {
-            throw lastError;
-        }
-        throw new SocketException((int)SocketError.HostUnreachable);
+        return await ConnectApprovedAsync(filtered, endpoint.Port, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task AwaitConnectAsync(
@@ -122,6 +104,9 @@ internal static class MailTransportConnector {
             await connectTask.WaitWithCancellation(cancellationToken).ConfigureAwait(false);
         } catch {
             client.Dispose();
+            // Disposing the socket terminates the owned native connect. Observe
+            // its completion rather than leaving a failed/canceled task behind.
+            try { await connectTask.ConfigureAwait(false); } catch { }
             throw;
         }
     }

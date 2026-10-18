@@ -186,6 +186,10 @@ namespace DomainDetective {
             {
                 throw NormalizeProbeException(ex, token, timeoutCts);
             }
+            CaptureTlsNegotiation(ssl);
+        }
+
+        private void CaptureTlsNegotiation(SslStream ssl) {
             TlsProtocol = ssl.SslProtocol;
             Tls13Used = (int)ssl.SslProtocol == 12288;
             var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
