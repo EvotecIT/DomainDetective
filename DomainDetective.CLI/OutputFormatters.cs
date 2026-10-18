@@ -25,7 +25,7 @@ internal static partial class OutputFormatters {
                 resultTable.AddRow(
                     $"[cyan]{check}[/]",
                     $"[{statusColor}]{status}[/]",
-                    findings ?? "[dim]No data[/]"
+                    findings?.EscapeMarkup() ?? "[dim]No data[/]"
                 );
             }
         }
@@ -107,33 +107,17 @@ internal static partial class OutputFormatters {
     private static string GetCheckStatus(object? analysis) {
         if (analysis == null) return "[dim]Not checked[/]";
         
-        var type = analysis.GetType();
-        var issuesProperty = type.GetProperty("Issues");
-        var validProperty = type.GetProperty("IsValid");
-        var recordProperty = type.GetProperty("Record");
-        var recordsProperty = type.GetProperty("Records");
-        
-        if (validProperty != null) {
-            var isValid = validProperty.GetValue(analysis) as bool?;
-            return isValid == true ? "[green]✅ Valid[/]" : "[red]❌ Invalid[/]";
-        }
-        
-        if (issuesProperty != null) {
-            var issues = issuesProperty.GetValue(analysis) as System.Collections.IList;
-            if (issues != null && issues.Count > 0) {
-                return $"[yellow]⚠ {issues.Count} issue(s)[/]";
-            }
-        }
-        
-        if (recordProperty != null || recordsProperty != null) {
-            var hasRecord = recordProperty?.GetValue(analysis) != null || 
-                           (recordsProperty?.GetValue(analysis) as System.Collections.IList)?.Count > 0;
-            return hasRecord ? "[green]✅ Present[/]" : "[yellow]⚠ Not found[/]";
-        }
-        
-        return "[green]✅ OK[/]";
+        var status = FormatEvidenceStatus(SummarizeAnalysis(analysis).Status);
+        return $"[{GetStatusColor(status)}]{status.EscapeMarkup()}[/]";
     }
-    
+
+    private static string FormatEvidenceStatus(string status) => status switch {
+        "OK" => "✅ OK",
+        "Warning" => "⚠ Warning",
+        "Error" => "❌ Failed",
+        _ => status
+    };
+
     internal static bool HasCompletedCheck(DomainHealthCheck hc, HealthCheckType check) =>
         !hc.VerificationCompleted.HasValue || hc.VerificationCompletedChecks.Contains(check);
 
@@ -156,7 +140,8 @@ internal static partial class OutputFormatters {
         var issuesProperty = type.GetProperty("Issues");
         var issues = issuesProperty?.GetValue(data) as System.Collections.IList;
         
-        string status = "✅ OK";
+        var (evidenceStatus, evidenceSummary) = SummarizeAnalysis(data);
+        string status = FormatEvidenceStatus(evidenceStatus);
         var findings = new List<string>();
 
         if (check == HealthCheckType.TYPOSQUATTING && data is TyposquattingAnalysis typosquatting)
@@ -331,7 +316,7 @@ internal static partial class OutputFormatters {
         }
 
         if (issues != null && issues.Count > 0) {
-            status = issues.Count > 2 ? "❌ Failed" : "⚠️  Warning";
+            if (evidenceStatus != "Error") { status = issues.Count > 2 ? "❌ Failed" : "⚠ Warning"; }
             foreach (var issue in issues) {
                 findings.Add($"• {issue}");
                 if (findings.Count >= 3) {
@@ -340,7 +325,7 @@ internal static partial class OutputFormatters {
                 }
             }
         } else {
-            findings.Add(GetPositiveFinding(check, data));
+            findings.Add(evidenceSummary);
         }
 
         if (check == HealthCheckType.AGENTREADINESS && data is AgentReadinessAnalysis agentReadiness)
@@ -461,19 +446,6 @@ internal static partial class OutputFormatters {
         }
 
         return (status, string.Join("\n", findings));
-    }
-    
-    private static string GetPositiveFinding(HealthCheckType check, object data) {
-        return check switch {
-            HealthCheckType.SPF => "SPF record properly configured",
-            HealthCheckType.DMARC => "DMARC policy is active",
-            HealthCheckType.DKIM => "DKIM selectors found",
-            HealthCheckType.MX => "Mail servers configured",
-            HealthCheckType.DNSSEC => "DNSSEC enabled",
-            HealthCheckType.CAA => "CAA records present",
-            HealthCheckType.TYPOSQUATTING => "No active lookalike domains detected",
-            _ => "Check passed"
-        };
     }
     
     private static string GetStatusColor(string status) {
@@ -600,12 +572,12 @@ internal static partial class OutputFormatters {
         foreach (var check in Enum.GetValues<HealthCheckType>()) {
             var (status, findings) = GetCheckSummary(hc, check);
             if (status == null) { continue; }
-            var cssClass = status.Contains("✅") ? "success" : status.Contains("⚠") ? "warning" : "error";
+            var cssClass = status.Contains("✅") ? "success" : status.Contains("⚠") ? "warning" : status.Contains("❌") ? "error" : string.Empty;
             sb.AppendLine($"<div class='check {cssClass}'>");
             sb.AppendLine($"<h3>{check}</h3>");
             sb.AppendLine($"<div class='status {cssClass}'>{status}</div>");
             if (!string.IsNullOrEmpty(findings)) {
-                sb.AppendLine($"<div class='details'>{findings.Replace("\n", "<br>")}</div>");
+                sb.AppendLine($"<div class='details'>{System.Net.WebUtility.HtmlEncode(findings).Replace("\n", "<br>")}</div>");
             }
             sb.AppendLine("</div>");
         }

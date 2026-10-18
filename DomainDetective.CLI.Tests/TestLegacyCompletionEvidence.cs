@@ -65,6 +65,8 @@ public class TestLegacyCompletionEvidence {
             var html = File.ReadAllText(path);
             Assert.Contains("<h3>CAA</h3>", html);
             Assert.DoesNotContain("HasSpfRecord", html);
+            Assert.DoesNotContain("CAA records present", html);
+            Assert.Contains("valid 0", html);
             Assert.Empty(health.BuildSummary().Hints);
             Assert.Equal(new[] { HealthCheckType.CAA }, health.BuildSummary().AssessedChecks);
             _output.WriteLine("SELECTED_ONLY_HTML_FIXTURE\n" + html);
