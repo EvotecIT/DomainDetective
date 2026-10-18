@@ -44,6 +44,7 @@ public class TestLegacyCompletionEvidence {
             Assert.DoesNotContain("HasSpfRecord", html);
             Assert.Empty(health.BuildSummary().Hints);
             Assert.Equal(new[] { HealthCheckType.CAA }, health.BuildSummary().AssessedChecks);
+            _output.WriteLine("SELECTED_ONLY_HTML_FIXTURE\n" + html);
         } finally { Directory.Delete(folder, true); }
     }
 

@@ -245,48 +245,48 @@ internal static partial class Ui
         table.AddColumn(new TableColumn("Summary").LeftAligned());
 
         // DNS core
-        try { var v = Converters.Convert(hc.NSAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.SOAAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.DnsSecAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.WildcardDnsAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.ZoneTransferAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.DnsTtlAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.NSAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.SOAAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.DnsSecAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.WildcardDnsAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.ZoneTransferAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.DnsTtlAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
 
         // Mail core
-        try { var v = Converters.Convert(hc.MXAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.SpfAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.DmarcAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.BimiAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.MTASTSAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-        try { var v = Converters.Convert(hc.TLSRPTAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.MXAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.SpfAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.DmarcAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.BimiAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.MTASTSAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+        try { var v = Converters.Convert(hc.TLSRPTAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
 
         if (includeActiveMailProbes)
         {
-            try { var v = Converters.Convert(hc.StartTlsAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.SmtpTlsAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.ImapTlsAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.Pop3TlsAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.SmtpBannerAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.SmtpAuthAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.OpenRelayAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.StartTlsAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.SmtpTlsAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.ImapTlsAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.Pop3TlsAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.SmtpBannerAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.SmtpAuthAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.OpenRelayAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
         }
 
         // Web (not in Quick mode)
         if (mode != ScanMode.Quick)
         {
-            try { var v = Converters.Convert(hc.HttpAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.CertificateAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.DaneAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.HttpAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.CertificateAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.DaneAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
         }
 
         // Reputation (Full mode)
         if (mode == ScanMode.Full)
         {
-            try { var v = Converters.Convert(hc.WhoisAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.RdapAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.RpkiAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.DNSBLAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
-            try { var v = Converters.Convert(hc.ThreatIntelAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.WhoisAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.RdapAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.RpkiAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.DNSBLAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
+            try { var v = Converters.Convert(hc.ThreatIntelAnalysis); if (OutputFormatters.HasCompletedCheck(hc, v.Check)) { table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } } catch { }
         }
 
         // If no rows gathered, skip rendering

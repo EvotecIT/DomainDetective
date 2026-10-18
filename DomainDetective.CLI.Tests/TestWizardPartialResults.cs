@@ -11,6 +11,23 @@ public class TestWizardPartialResults {
     private readonly ITestOutputHelper _output;
     public TestWizardPartialResults(ITestOutputHelper output) => _output = output;
 
+    [Fact]
+    public async Task FullSummaryDoesNotAssessUnrequestedThreatIntelligence() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("fixture.example", new[] { HealthCheckType.SPF });
+        var previous = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
+        try {
+            Ui.RenderCheckSummariesPanel(health, false, ScanMode.Full);
+            _output.WriteLine(output.ToString());
+            Assert.Contains("SPF", output.ToString());
+            Assert.DoesNotContain("THREAT", output.ToString());
+            Assert.DoesNotContain("0/0", output.ToString());
+        } finally { AnsiConsole.Console = previous; }
+    }
+
     [Theory]
     [InlineData("standard")]
     [InlineData("advanced")]

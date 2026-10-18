@@ -6,6 +6,24 @@ namespace DomainDetective.Tests;
 
 public class TestOwnedSupplementalChecks {
     [Fact]
+    public async Task FilteredPlainHttpEvidenceDoesNotFollowTheNextSourceRun() {
+        using var health = new DomainHealthCheck();
+        health.ExecutionOptions.IncludePlainHttp = true;
+        health.PlainHttpAnalysis.HttpHandlerFactory = () => new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("first.fixture.example", new[] { HealthCheckType.CAA });
+        using var snapshot = health.FilterAnalyses(new[] { HealthCheckType.CAA });
+        var visited = snapshot.PlainHttpAnalysis.VisitedUrls.ToArray();
+        var missing = snapshot.PlainHttpAnalysis.MissingSecurityHeaders.ToArray();
+        Assert.NotEmpty(visited);
+        await health.Verify("second.fixture.example", new[] { HealthCheckType.CAA });
+        Assert.Equal(visited, snapshot.PlainHttpAnalysis.VisitedUrls);
+        Assert.Equal(missing, snapshot.PlainHttpAnalysis.MissingSecurityHeaders);
+        Assert.NotSame(health.PlainHttpAnalysis.Assessments, snapshot.PlainHttpAnalysis.Assessments);
+        Assert.True(snapshot.VerificationPlainHttpCompleted);
+    }
+
+    [Fact]
     public async Task SupplementalOnlyPlanDoesNotInventDefaultChecks() {
         using var health = new DomainHealthCheck();
         var questions = new List<DnsRecordType>();

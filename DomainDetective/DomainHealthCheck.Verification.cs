@@ -738,7 +738,8 @@ public partial class DomainHealthCheck {
         private static T CloneAnalysis<T>(T analysis) where T : class {
             return analysis == null ? null! : analysis is CertificateAnalysis certificate
                 ? (T)(object)certificate.CloneForSnapshot() : analysis is NSAnalysis ns
-                ? (T)(object)ns.CloneForSnapshot() : (T)_cloneObject(analysis);
+                ? (T)(object)ns.CloneForSnapshot() : analysis is HttpAnalysis http
+                ? (T)(object)http.CloneForSnapshot() : (T)_cloneObject(analysis);
         }
 
         private static Func<object, object> CreateCloneDelegate() {
