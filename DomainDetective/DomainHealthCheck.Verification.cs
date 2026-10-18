@@ -626,7 +626,7 @@ public partial class DomainHealthCheck {
 
             var filtered = new DomainHealthCheck(DnsEndpoint, _logger) {
                 DnsSelectionStrategy = DnsSelectionStrategy,
-                DnsConfiguration = DnsConfiguration,
+                DnsConfiguration = DnsConfiguration.CloneForIndependentOwner(),
                 MtaStsPolicyUrlOverride = MtaStsPolicyUrlOverride
             };
             filtered.VerificationCompleted = VerificationCompleted;
@@ -725,6 +725,8 @@ public partial class DomainHealthCheck {
             filtered.CtTimelineAnalysis = active.Contains(HealthCheckType.CTTIMELINE) ? CloneAnalysis(CtTimelineAnalysis) : null!;
             filtered.DnsPropagationSet = active.Contains(HealthCheckType.DNSPROPAGATION) ? CloneAnalysis(DnsPropagationSet) : null!;
 
+            // Cloned analyses must follow the snapshot's independent resolver lifetime.
+            filtered.ApplyDnsConfiguration(filtered.DnsConfiguration);
             return filtered;
         }
 

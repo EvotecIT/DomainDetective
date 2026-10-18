@@ -24,6 +24,8 @@ internal static partial class OutputFormatters {
     }
 
     private static (string Status, string Summary) SummarizeAnalysis(object? analysis) {
+        // WEBSITE is already a composed core view in the analysis map.
+        if (analysis is WebsiteInfo website) { return (website.Status, website.Summary); }
         var status = "Collected";
         var summary = "See check details for collected evidence.";
         if (analysis != null) {

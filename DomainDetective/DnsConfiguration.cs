@@ -77,6 +77,25 @@ namespace DomainDetective {
         /// <summary>Initializes configuration with the system DNS provider.</summary>
         public DnsConfiguration() : this(DnsEndpoint.System, DnsSelectionStrategy.First) { }
 
+        /// <summary>Copies DNS policy for an independent owner without sharing resolver clients or run admission gates.</summary>
+        internal DnsConfiguration CloneForIndependentOwner() {
+            var clone = new DnsConfiguration(DnsEndpoint, DnsSelectionStrategy) {
+                UserAgent = UserAgent,
+                ResolverMaxConcurrency = ResolverMaxConcurrency,
+                EnableResponseCache = EnableResponseCache,
+                MaxCacheTtl = MaxCacheTtl,
+                ReuseResolverClients = ReuseResolverClients,
+                DnsSecQueryTimeout = DnsSecQueryTimeout,
+                DnsSecAnalysisTimeout = DnsSecAnalysisTimeout,
+                QueryDnsOverride = QueryDnsOverride,
+                QueryDnsResponseOverride = QueryDnsResponseOverride,
+                MultiResolverStrategy = MultiResolverStrategy,
+                MultiResolverMaxParallelism = MultiResolverMaxParallelism
+            };
+            clone.DnsEndpoints.AddRange(DnsEndpoints);
+            return clone;
+        }
+
         /// <summary>Initializes configuration with a predefined DNS provider and selection behavior.</summary>
         public DnsConfiguration(DnsEndpoint dnsEndpoint, DnsSelectionStrategy dnsSelectionStrategy) {
             DnsEndpoint = dnsEndpoint;
