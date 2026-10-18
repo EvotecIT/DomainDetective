@@ -81,12 +81,15 @@ public class TestCompositeRunOperations {
     }
 
     [Theory]
-    [InlineData("example.com", "example.com")]
-    [InlineData("2001:db8::1", "[2001:db8::1]")]
-    [InlineData("[2001:db8::1]", "[2001:db8::1]")]
-    [InlineData("fe80::1%12", "[fe80::1%12]")]
-    [InlineData("[fe80::1%12]", "[fe80::1%12]")]
-    public async Task CombinedWebPlanKeepsPlainHttpSeparateAndHonorsHttpsPort(string domain, string authority) {
+    [InlineData("example.com", "example.com", 8443)]
+    [InlineData("2001:db8::1", "[2001:db8::1]", 8443)]
+    [InlineData("[2001:db8::1]", "[2001:db8::1]", 8443)]
+    [InlineData("fe80::1%12", "[fe80::1%12]", 8443)]
+    [InlineData("[fe80::1%12]", "[fe80::1%12]", 8443)]
+    [InlineData("[fe80::1%12]", "[fe80::1%12]", 80)]
+    [InlineData("example.com", "example.com", 80)]
+    [InlineData("192.0.2.1", "192.0.2.1", 80)]
+    public async Task CombinedWebPlanKeepsPlainHttpSeparateAndHonorsHttpsPort(string domain, string authority, int websitePort) {
         using var health = new DomainHealthCheck();
         var requested = new ConcurrentBag<Uri>();
         var resolved = new ConcurrentBag<string>();
@@ -98,17 +101,18 @@ public class TestCompositeRunOperations {
             resolved.Add(host);
             return Task.FromResult<IReadOnlyList<IPAddress>>(Array.Empty<IPAddress>());
         };
-        var options = new HealthCheckExecutionOptions { IncludePlainHttp = true, WebsitePort = 8443 };
+        var options = new HealthCheckExecutionOptions { IncludePlainHttp = true, WebsitePort = websitePort };
         await health.Verify(domain, new[] { HealthCheckType.HTTP, HealthCheckType.WEBSITE, HealthCheckType.CERT }, executionOptions: options);
         Assert.Equal(2, requested.Count);
-        Assert.Contains(requested, uri => uri.Scheme == "https" && uri.Port == 8443);
+        Assert.Contains(requested, uri => uri.Scheme == "https" && uri.Port == websitePort);
         Assert.Contains(requested, uri => uri.Scheme == "http" && uri.Port == 80);
-        Assert.Equal($"https://{authority}:8443", health.HttpAnalysis.Subject);
+        Assert.Equal($"https://{authority}:{websitePort}", health.HttpAnalysis.Subject);
         Assert.Equal($"http://{authority}", health.PlainHttpAnalysis.Subject);
         var expectedHost = new Uri($"https://{authority}").IdnHost;
         Assert.All(requested, uri => Assert.Equal(expectedHost, uri.IdnHost));
         Assert.Equal(expectedHost, Assert.Single(resolved));
         Assert.Equal(expectedHost, new Uri(health.CertificateAnalysis.Url!).IdnHost);
+        Assert.Equal(websitePort, new Uri(health.CertificateAnalysis.Url!).Port);
         Assert.True(health.HttpAnalysis.IsReachable);
         Assert.True(health.PlainHttpAnalysis.IsReachable);
     }

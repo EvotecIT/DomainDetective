@@ -552,7 +552,9 @@ public partial class DomainHealthCheck {
                 trimmedValue = $"[{literal}]";
             }
 
-            if (!Uri.TryCreate($"http://{trimmedValue}", UriKind.Absolute, out var uri)) {
+            // A scheme without a default port retains every explicit endpoint port,
+            // including :80 when this authority will later be used for HTTPS.
+            if (!Uri.TryCreate($"tcp://{trimmedValue}", UriKind.Absolute, out var uri)) {
                 // older frameworks may not handle IDN automatically
                 var hostName = trimmedValue;
                 var portIndex = trimmedValue.LastIndexOf(':');
@@ -571,7 +573,7 @@ public partial class DomainHealthCheck {
                     ? hostName + trimmedValue.Substring(portIndex)
                     : hostName;
 
-                if (!Uri.TryCreate($"http://{rebuilt}", UriKind.Absolute, out uri)) {
+                if (!Uri.TryCreate($"tcp://{rebuilt}", UriKind.Absolute, out uri)) {
                     throw new ArgumentException($"Invalid host name '{trimmedValue}'.", nameof(domainName));
                 }
             }

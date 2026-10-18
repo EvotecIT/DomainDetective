@@ -8,26 +8,31 @@ namespace DomainDetective.Tests;
 [Collection("Performance proxy environment")]
 public class TestScopedWebEndpoints {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task DirectHttpChecksRetainScopeAndExplicitPort(bool https, bool customized) {
+    [InlineData(false, false, "[fe80::1%12]", 8080)]
+    [InlineData(false, true, "[fe80::1%12]", 8080)]
+    [InlineData(true, false, "[fe80::1%12]", 8443)]
+    [InlineData(true, true, "[fe80::1%12]", 8443)]
+    [InlineData(true, false, "[fe80::1%12]", 80)]
+    [InlineData(true, true, "[fe80::1%12]", 80)]
+    [InlineData(true, false, "example.com", 80)]
+    [InlineData(true, true, "example.com", 80)]
+    [InlineData(true, false, "192.0.2.1", 80)]
+    public async Task DirectHttpChecksRetainScopeAndExplicitPort(bool https, bool customized, string authority, int port) {
         using var health = new DomainHealthCheck();
         var requests = new ConcurrentBag<Uri>();
         health.HttpAnalysis.HttpHandlerFactory = () => new RecordingHandler(requests);
         var options = new HttpRequestOptions();
         if (https) {
-            if (customized) { await health.VerifyWebsiteHttps("[fe80::1%12]:8443", options); }
-            else { await health.VerifyWebsiteHttps("[fe80::1%12]:8443"); }
+            if (customized) { await health.VerifyWebsiteHttps($"{authority}:{port}", options); }
+            else { await health.VerifyWebsiteHttps($"{authority}:{port}"); }
         } else {
-            if (customized) { await health.VerifyPlainHttp("[fe80::1%12]:8080", options); }
-            else { await health.VerifyPlainHttp("[fe80::1%12]:8080"); }
+            if (customized) { await health.VerifyPlainHttp($"{authority}:{port}", options); }
+            else { await health.VerifyPlainHttp($"{authority}:{port}"); }
         }
         var uri = Assert.Single(requests);
-        Assert.Equal("fe80::1%12", uri.IdnHost);
-        Assert.Equal(https ? 8443 : 8080, uri.Port);
-        Assert.Equal($"{(https ? "https" : "http")}://[fe80::1%12]:{uri.Port}", health.HttpAnalysis.Subject);
+        Assert.Equal(new Uri($"http://{authority}").IdnHost, uri.IdnHost);
+        Assert.Equal(port, uri.Port);
+        Assert.Equal($"{(https ? "https" : "http")}://{authority}:{port}", health.HttpAnalysis.Subject);
     }
 
     [Theory]

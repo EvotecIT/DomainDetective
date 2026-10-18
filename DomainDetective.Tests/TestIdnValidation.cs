@@ -10,8 +10,10 @@ public class TestIdnValidation
     [InlineData("fe80::1%12", "[fe80::1%12]")]
     [InlineData("[fe80::1%12]", "[fe80::1%12]")]
     [InlineData("[fe80::1%12]:8443", "[fe80::1%12]:8443")]
-    [InlineData("[fe80::1%12]:80", "[fe80::1%12]")]
-    public void ValidateHostNamePreservesScopedIpv6(string input, string expected) {
+    [InlineData("[fe80::1%12]:80", "[fe80::1%12]:80")]
+    [InlineData("example.com:80", "example.com:80")]
+    [InlineData("192.0.2.1:80", "192.0.2.1:80")]
+    public void ValidateHostNamePreservesEndpoint(string input, string expected) {
         var method = typeof(DomainHealthCheck)
             .GetMethod("ValidateHostName", BindingFlags.NonPublic | BindingFlags.Static)!;
         Assert.Equal(expected, (string)method.Invoke(null, new object[] { input })!);
