@@ -63,8 +63,12 @@ public sealed partial class DomainWizard
             useDefaultChecksWhenEmpty: false).ConfigureAwait(false);
 
         var completedChecks = new ConcurrentDictionary<HealthCheckType, byte>();
-        int StagePercent(HealthCheckType type, int stage) {
-            completedChecks.TryAdd(type, 0);
+        int StagePercent(HealthCheckType type, int stage, int? completedSteps) {
+            // The sequential core sends a start event with the previous step
+            // count. Parallel events are completions and can arrive out of order.
+            if ((hc.ExecutionOptions.EnableParallelism && plan.Length > 1) || completedSteps > completedChecks.Count) {
+                completedChecks.TryAdd(type, 0);
+            }
             var types = stages[stage].Types;
             return types.Length == 0 ? 100 : types.Count(completedChecks.ContainsKey) * 100 / types.Length;
         }
@@ -179,7 +183,7 @@ public sealed partial class DomainWizard
                 if (!Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation ?? string.Empty, ignoreCase: true, out var ht)) return;
                 if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
                 var idx = fullIdx;
-                stageProgress[idx] = StagePercent(ht, fullIdx);
+                stageProgress[idx] = StagePercent(ht, fullIdx, e.ProgressCurrentSteps);
                 var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
                 var stepColor = PersonaFormatter.StepColor(personaKind);
                 stageOp[idx] = $"[{stepColor}]{verb} {Ui.FriendlyOpName(ht)}[/]";
@@ -231,7 +235,7 @@ public sealed partial class DomainWizard
                     if (!Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation ?? string.Empty, ignoreCase: true, out var ht)) return;
                     if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
                     var idx = fullIdx;
-                    sProgress[idx] = StagePercent(ht, fullIdx);
+                    sProgress[idx] = StagePercent(ht, fullIdx, e.ProgressCurrentSteps);
                     var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
                     sOp[idx] = $"{verb} {Ui.FriendlyOpName(ht)}";
                     progressLineNeedsRedraw = true;

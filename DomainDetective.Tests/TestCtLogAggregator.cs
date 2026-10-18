@@ -10,6 +10,7 @@ using DomainDetective;
 
 namespace DomainDetective.Tests;
 
+[Collection("CtSharedState")]
 public partial class TestCtLogAggregator
 {
     public TestCtLogAggregator()

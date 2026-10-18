@@ -159,7 +159,7 @@ namespace DomainDetective {
                             ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR).WaitWithCancellation(cancellationToken);
                         } else {
                             var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
-                            ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR);
+                            ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR, cancellationToken: cancellationToken);
                         }
                         if (ptrAnswers.Length == 0) {
                             logger?.WriteWarningCode(ReverseDnsCodes.TruncatedNoRecords, $"PTR query for {ip} was truncated and returned no records after TCP retry");

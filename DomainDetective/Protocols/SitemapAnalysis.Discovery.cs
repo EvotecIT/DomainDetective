@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,11 +28,18 @@ public partial class SitemapAnalysis {
                 downloads.Add(SendFollowingRedirectsAsync(client, uri, options, true, cancellationToken,
                     Math.Max(1024, options.MaxSitemapBodyCharacters)));
             }
-            var responses = await Task.WhenAll(downloads).ConfigureAwait(false);
+            Exception? downloadFailure = null;
+            try { await Task.WhenAll(downloads).ConfigureAwait(false); }
+            catch (Exception exception) { downloadFailure = exception; }
+
+            // When one download reaches the deadline, every started sibling has
+            // still been drained. Publish its completed evidence before surfacing
+            // cancellation; parsing a supplied response does not start network work.
             for (int index = 0; index < batch.Count; index++) {
+                if (downloads[index].Status != TaskStatus.RanToCompletion) { continue; }
                 var uri = batch[index];
                 var parsed = await FetchAndParseSitemapAsync(client, uri, seenFinalDocs, options,
-                    cancellationToken, responses[index]).ConfigureAwait(false);
+                    cancellationToken, downloads[index].Result).ConfigureAwait(false);
                 if (parsed.Document != null) { Documents.Add(parsed.Document); }
                 foreach (var nested in parsed.NestedSitemaps) {
                     int reserved = batch.Count - index - 1;
@@ -50,9 +58,11 @@ public partial class SitemapAnalysis {
                 if (Entries.Count >= Math.Max(1, options.MaxEntries)) {
                     AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached,
                         "Sitemap URL entry limit reached before all urlset entries were parsed.", uri.AbsoluteUri);
+                    if (downloadFailure != null) { ExceptionDispatchInfo.Capture(downloadFailure).Throw(); }
                     return;
                 }
             }
+            if (downloadFailure != null) { ExceptionDispatchInfo.Capture(downloadFailure).Throw(); }
         }
     }
 }
