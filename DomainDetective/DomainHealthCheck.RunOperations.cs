@@ -24,9 +24,10 @@ public partial class DomainHealthCheck {
             var type = pair.Key;
             var action = pair.Value;
             operations[type] = new Lazy<Task>(async () => {
-                // SMTP alignment awaits the selected DANE owner. With one slot,
-                // establish that prerequisite before admitting SMTP itself.
-                if (sequential && type == HealthCheckType.SMTPTLS && selectedChecks.Contains(HealthCheckType.DANE)) {
+                // SMTP and MTA-STS share alignment. Establish selected or composite-owned
+                // DANE before either consumer reserves the only available check slot.
+                if (sequential && (type is HealthCheckType.SMTPTLS or HealthCheckType.MTASTS)
+                    && (selectedChecks.Contains(HealthCheckType.DANE) || _runNeedsSmtpDane)) {
                     await operations[HealthCheckType.DANE].Value.ConfigureAwait(false);
                 }
                 if (type is HealthCheckType.MAILCLASSIFICATION or HealthCheckType.MICROSOFT365

@@ -127,6 +127,8 @@ public partial class DomainHealthCheck {
             try {
                 VerificationCompleted = false;
                 VerificationError = null;
+                VerificationPlainHttpCompleted = null;
+                VerificationTakeoverCompleted = null;
                 VerificationRequestedChecks = Array.Empty<HealthCheckType>();
                 _completedVerificationChecks.Clear();
                 var configuration = DnsConfiguration;
@@ -160,6 +162,11 @@ public partial class DomainHealthCheck {
                 VerificationCompleted = true;
             } catch (Exception exception) {
                 VerificationCompleted = false;
+                if (cancellationToken.IsCancellationRequested && exception is not OutOfMemoryException) {
+                    var canceled = new OperationCanceledException(cancellationToken);
+                    VerificationError = canceled.Message;
+                    throw canceled;
+                }
                 VerificationError = exception.Message;
                 throw;
             } finally { _verificationAdmission.Release(); }
@@ -285,14 +292,12 @@ public partial class DomainHealthCheck {
             int checkParallelism = exec.EnableParallelism ? exec.GetEffectiveMaxParallelism() : 1;
             using var checkAdmission = new SemaphoreSlim(checkParallelism, checkParallelism);
             ConfigureRunOperations(actions, domainName, healthCheckTypes, checkAdmission, checkParallelism == 1, cancellationToken);
-            if (exec.EnableParallelism && healthCheckTypes.Contains(HealthCheckType.DANE)
-                && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS))) {
+            if (_runNeedsSmtpDane || (healthCheckTypes.Contains(HealthCheckType.DANE)
+                && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS)))) {
                 prestartedDaneTask = actions[HealthCheckType.DANE]();
             }
-            if (exec.IncludePlainHttp) { PlainHttpAnalysis.Subject = new UriBuilder($"http://{domainName}").Uri.GetLeftPart(UriPartial.Authority); }
-            Task? plainHttpTask = exec.IncludePlainHttp
-                ? RunAdmittedCheckAsync(() => PlainHttpAnalysis.AnalyzeUrl(PlainHttpAnalysis.Subject!, false, _logger, cancellationToken: cancellationToken), cancellationToken)
-                : null;
+            var auxiliaryTasks = StartAuxiliaryChecks(domainName, exec, cancellationToken);
+            if (prestartedDaneTask != null) { auxiliaryTasks.Add(prestartedDaneTask); }
 
             void ReportProgress(string operation, int completed) {
                 if (totalChecks <= 0) {
@@ -355,19 +360,8 @@ public partial class DomainHealthCheck {
                 executionFailure = exception;
                 throw;
             } finally {
-                if (plainHttpTask != null) {
-                    try { await plainHttpTask.ConfigureAwait(false); }
-                    catch when (executionFailure != null) { }
-                }
-                if (prestartedDaneTask != null) {
-                    try {
-                        // Cancellation may prevent the gated DANE action from being admitted.
-                        // Every task already started still belongs to this verification lifetime.
-                        await prestartedDaneTask.ConfigureAwait(false);
-                    } catch when (executionFailure != null) {
-                        // Observe the prestarted task without replacing the original failure.
-                    }
-                }
+                try { await Task.WhenAll(auxiliaryTasks).ConfigureAwait(false); }
+                catch when (executionFailure != null) { /* Drain all owners without replacing the primary failure. */ }
             }
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)

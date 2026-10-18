@@ -221,6 +221,7 @@ internal static partial class CommandUtilities {
 	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 	
 	                hc.ExecutionOptions.IncludePlainHttp = checkHttp;
+                    hc.ExecutionOptions.IncludeTakeoverCname = checkTakeover;
                 return hc;
             }
             var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
@@ -230,7 +231,6 @@ internal static partial class CommandUtilities {
                 var domain = run.DomainName;
                 if (run.Error != null) { throw run.Error; }
                 var hc = run.HealthCheck!;
-                if (checkTakeover) { await hc.VerifyTakeoverCname(domain, cancellationToken); }
 
             if (outputJson) {
                 Console.WriteLine(hc.ToJson());

@@ -17,6 +17,12 @@ public partial class DomainHealthCheck {
     /// <summary>The latest Verify failure or cancellation message, retained alongside partial analysis results; null after a successful run.</summary>
     public string? VerificationError { get; private set; }
 
+    /// <summary>Whether the latest admitted Verify completed its optional plain HTTP phase; null when that phase was not requested.</summary>
+    public bool? VerificationPlainHttpCompleted { get; private set; }
+
+    /// <summary>Whether the latest admitted Verify completed its optional takeover phase; null when that phase was not requested.</summary>
+    public bool? VerificationTakeoverCompleted { get; private set; }
+
     /// <summary>The accepted check plan for the latest admitted Verify invocation.</summary>
     public IReadOnlyList<HealthCheckType> VerificationRequestedChecks { get; private set; } = Array.Empty<HealthCheckType>();
 

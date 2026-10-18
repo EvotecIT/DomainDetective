@@ -43,24 +43,24 @@ internal static class OutputFormatters {
         
         // Email Security Card
         var emailCard = CreateSummaryCard("📧 Email Security", new[] {
-            ("SPF", GetCheckStatus(hc.SpfAnalysis)),
-            ("DKIM", GetCheckStatus(hc.DKIMAnalysis)),
-            ("DMARC", GetCheckStatus(hc.DmarcAnalysis)),
-            ("MX Records", GetCheckStatus(hc.MXAnalysis))
+            ("SPF", GetCardStatus(hc, HealthCheckType.SPF, hc.SpfAnalysis)),
+            ("DKIM", GetCardStatus(hc, HealthCheckType.DKIM, hc.DKIMAnalysis)),
+            ("DMARC", GetCardStatus(hc, HealthCheckType.DMARC, hc.DmarcAnalysis)),
+            ("MX Records", GetCardStatus(hc, HealthCheckType.MX, hc.MXAnalysis))
         });
         cards.Add(emailCard);
         
         // DNS Security Card
         var dnsCard = CreateSummaryCard("🔒 DNS Security", new[] {
-            ("DNSSEC", GetCheckStatus(hc.DnsSecAnalysis)),
-            ("CAA", GetCheckStatus(hc.CAAAnalysis)),
-            ("DANE", GetCheckStatus(hc.DaneAnalysis)),
-            ("NS Records", GetCheckStatus(hc.NSAnalysis))
+            ("DNSSEC", GetCardStatus(hc, HealthCheckType.DNSSEC, hc.DnsSecAnalysis)),
+            ("CAA", GetCardStatus(hc, HealthCheckType.CAA, hc.CAAAnalysis)),
+            ("DANE", GetCardStatus(hc, HealthCheckType.DANE, hc.DaneAnalysis)),
+            ("NS Records", GetCardStatus(hc, HealthCheckType.NS, hc.NSAnalysis))
         });
         cards.Add(dnsCard);
         
         // Certificate Card
-        if (hc.CertificateAnalysis != null && hc.CertificateAnalysis.IsReachable) {
+        if (HasCompletedCheck(hc, HealthCheckType.CERT) && hc.CertificateAnalysis != null && hc.CertificateAnalysis.IsReachable) {
             var certCard = CreateSummaryCard("🔐 Certificate", new[] {
                 ("URL", hc.CertificateAnalysis.Url ?? "Unknown"),
                 ("Valid", hc.CertificateAnalysis.IsValid ? "✅ Yes" : "❌ No"),
@@ -134,8 +134,15 @@ internal static class OutputFormatters {
         return "[green]✅ OK[/]";
     }
     
+    internal static bool HasCompletedCheck(DomainHealthCheck hc, HealthCheckType check) =>
+        !hc.VerificationCompleted.HasValue || hc.VerificationCompletedChecks.Contains(check);
+
+    private static string GetCardStatus(DomainHealthCheck hc, HealthCheckType check, object? data) =>
+        HasCompletedCheck(hc, check) ? GetCheckStatus(data)
+            : hc.VerificationRequestedChecks.Contains(check) ? "[yellow]Incomplete[/]" : "[dim]Not assessed[/]";
+
     private static (string? status, string? findings) GetCheckSummary(DomainHealthCheck hc, HealthCheckType check) {
-        if (hc.VerificationCompleted.HasValue && !hc.VerificationCompletedChecks.Contains(check)) {
+        if (!HasCompletedCheck(hc, check)) {
             return hc.VerificationRequestedChecks.Contains(check)
                 ? ("Incomplete", "This check did not complete; collected evidence may be partial.") : (null, null);
         }

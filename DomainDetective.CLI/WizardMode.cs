@@ -489,6 +489,7 @@ internal static class WizardMode {
                     logger.OnProgressMessage += OnProgress;
                     try {
                         hc.ExecutionOptions.IncludePlainHttp = checkHttp;
+                        hc.ExecutionOptions.IncludeTakeoverCname = checkTakeover;
                         await hc.Verify(domain, checks, null, null, danePorts, portProfiles, cancellationToken);
                     } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException) {
                         scanComplete = false;
@@ -503,11 +504,6 @@ internal static class WizardMode {
                     
                     if (checkTakeover) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]Subdomain Takeover[/]";
-                        try { await hc.VerifyTakeoverCname(domain, cancellationToken); }
-                        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException) {
-                            scanComplete = false;
-                            AnsiConsole.MarkupLine($"[yellow]Takeover check incomplete: {ex.Message.EscapeMarkup()}[/]");
-                        }
                         cancellationToken.ThrowIfCancellationRequested();
                         mainTask.Increment(1);
                     }
@@ -583,6 +579,8 @@ internal static class WizardMode {
         bool autodiscoverEndpoints) {
         
         OutputFormatters.FormatAsRichTable(title.Replace("Results for ", ""), hc, checks);
+        if (checkHttp) { DisplayAuxiliaryResult($"PLAIN HTTP for {hc.PlainHttpAnalysis.Subject}", hc.VerificationPlainHttpCompleted, hc.PlainHttpAnalysis); }
+        if (checkTakeover) { DisplayAuxiliaryResult("TAKEOVER", hc.VerificationTakeoverCompleted, hc.TakeoverCnameAnalysis); }
         
         if (AnsiConsole.Confirm("Show detailed summary cards?")) {
             OutputFormatters.FormatAsSummaryCards(title.Replace("Results for ", ""), hc);
@@ -598,6 +596,12 @@ internal static class WizardMode {
         bool autodiscoverEndpoints) {
         
         foreach (var check in checks) {
+            if (!OutputFormatters.HasCompletedCheck(hc, check)) {
+                if (hc.VerificationRequestedChecks.Contains(check)) {
+                    AnsiConsole.MarkupLine($"[yellow]{check}: Incomplete; collected evidence may be partial.[/]");
+                }
+                continue;
+            }
             var data = GetCheckData(hc, check);
             if (data != null) {
                 var desc = DomainHealthCheck.GetCheckDescription(check);
@@ -610,13 +614,18 @@ internal static class WizardMode {
             }
         }
         
-        if (checkHttp && hc.HttpAnalysis != null) {
-            CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.PlainHttpAnalysis, false);
+        if (checkHttp) {
+            DisplayAuxiliaryResult($"PLAIN HTTP for {domain}", hc.VerificationPlainHttpCompleted, hc.PlainHttpAnalysis);
         }
         
-        if (checkTakeover && hc.TakeoverCnameAnalysis != null) {
-            CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, false);
+        if (checkTakeover) {
+            DisplayAuxiliaryResult($"TAKEOVER for {domain}", hc.VerificationTakeoverCompleted, hc.TakeoverCnameAnalysis);
         }
+    }
+
+    private static void DisplayAuxiliaryResult(string title, bool? completed, object? data) {
+        if (completed == true && data != null) { CliHelpers.ShowPropertiesTable(title, data, false); }
+        else if (completed == false) { AnsiConsole.MarkupLine($"[yellow]{title.EscapeMarkup()}: Incomplete; collected evidence may be partial.[/]"); }
     }
 
     private static object? GetCheckData(DomainHealthCheck hc, HealthCheckType check) {

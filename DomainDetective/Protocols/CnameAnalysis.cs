@@ -29,13 +29,6 @@ public class CnameAnalysis : IHasAssessments {
     /// <summary>Gets a value indicating whether a loop was detected.</summary>
     public bool LoopDetected { get; private set; }
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
-        if (QueryDnsOverride != null) {
-            return await QueryDnsOverride(name, type);
-        }
-        return await DnsConfiguration.QueryDNS(name, type);
-    }
-
     /// <summary>
     /// Analyzes CNAME records for the given domain.
     /// </summary>
