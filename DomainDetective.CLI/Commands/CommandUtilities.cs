@@ -236,7 +236,8 @@ internal static partial class CommandUtilities {
             }
 
             if (summaryOnly) {
-                OutputFormatters.FormatAsRichTable(domain, hc, hc.VerificationRequestedChecks.ToArray());
+                AnsiConsole.MarkupLine($"[bold]Summary for {domain.EscapeMarkup()}[/]");
+                OutputFormatters.FormatAsSelectedSummary(hc, hc.VerificationRequestedChecks.ToArray(), hc.VerificationCompletedChecks.ToHashSet());
                 continue;
             }
 

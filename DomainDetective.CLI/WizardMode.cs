@@ -660,7 +660,7 @@ internal static class WizardMode {
             HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
             HealthCheckType.AGENTREADINESS => hc.AgentReadinessAnalysis,
             HealthCheckType.SITEMAP => hc.SitemapAnalysis,
-            _ => null
+            _ => hc.GetAnalysisMap().TryGetValue(check, out var analysis) ? analysis : null
         };
     }
 

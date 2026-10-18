@@ -81,8 +81,7 @@ public class TestWizardPartialResults {
         using var output = new StringWriter();
         AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
         try {
-            typeof(DomainWizard).GetMethod("RenderSelectedSummary", BindingFlags.NonPublic | BindingFlags.Static)!
-                .Invoke(null, new object[] { health, new[] { HealthCheckType.DKIM }, new HashSet<HealthCheckType> { HealthCheckType.DKIM } });
+            OutputFormatters.FormatAsSelectedSummary(health, new[] { HealthCheckType.DKIM }, new HashSet<HealthCheckType> { HealthCheckType.DKIM });
             Assert.Contains("selector-fixture", output.ToString());
             Assert.Contains("no key", output.ToString());
             Assert.DoesNotContain("See check details", output.ToString());

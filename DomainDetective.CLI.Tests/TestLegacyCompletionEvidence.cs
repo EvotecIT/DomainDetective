@@ -11,6 +11,29 @@ public class TestLegacyCompletionEvidence {
     public TestLegacyCompletionEvidence(ITestOutputHelper output) => _output = output;
 
     [Fact]
+    public async Task SelectedSummaryIncludesCompletedChecksOutsideTheLegacyMap() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("fixture.example", new[] { HealthCheckType.SOA });
+        var previous = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
+        try {
+            OutputFormatters.FormatAsSelectedSummary(health, new[] { HealthCheckType.SOA }, health.VerificationCompletedChecks.ToHashSet());
+            _output.WriteLine(output.ToString());
+            Assert.Contains("SOA", output.ToString());
+            Assert.DoesNotContain("SPF", output.ToString());
+            var folder = Path.Combine(Path.GetTempPath(), "dd-selected-soa-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+            try {
+                var path = Path.Combine(folder, "scan.html");
+                OutputFormatters.ExportToHtml("fixture.example", health, path);
+                Assert.Contains("<h3>SOA</h3>", File.ReadAllText(path));
+            } finally { Directory.Delete(folder, true); }
+        } finally { AnsiConsole.Console = previous; }
+    }
+
+    [Fact]
     public async Task BatchCliRetainsTheRequestedSupplementalLookup() {
         int cnameQueries = 0;
         using var health = new DomainHealthCheck();

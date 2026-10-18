@@ -368,7 +368,7 @@ public sealed partial class DomainWizard
             }
             if (customSelection || planFailure != null) {
                 if (planFailure == null) { AnsiConsole.MarkupLine($"[green]Selected checks completed for {Options.Domain.EscapeMarkup()}[/]"); }
-                if (summaryOnly) { RenderSelectedSummary(hc, plan, completedChecks.Keys.ToHashSet()); }
+                if (summaryOnly) { OutputFormatters.FormatAsSelectedSummary(hc, plan, completedChecks.Keys.ToHashSet()); }
                 else {
                     var analyses = hc.GetAnalysisMap();
                     foreach (var check in plan) {

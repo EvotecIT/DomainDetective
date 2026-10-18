@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace DomainDetective.CLI;
 
-internal static class OutputFormatters {
+internal static partial class OutputFormatters {
     internal static void FormatAsRichTable(string domain, DomainHealthCheck hc, HealthCheckType[] checks) {
         var resultTable = new Table() {
             Border = TableBorder.Rounded,
@@ -147,7 +147,10 @@ internal static class OutputFormatters {
                 ? ("Incomplete", "This check did not complete; collected evidence may be partial.") : (null, null);
         }
         var data = GetCheckData(hc, check);
-        if (data == null) return (null, null);
+        if (data == null) {
+            return hc.GetAnalysisMap().TryGetValue(check, out var selected) && selected != null
+                ? SummarizeAnalysis(selected) : (null, null);
+        }
         
         var type = data.GetType();
         var issuesProperty = type.GetProperty("Issues");
