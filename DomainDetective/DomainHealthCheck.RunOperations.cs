@@ -35,6 +35,7 @@ public partial class DomainHealthCheck {
                 } else {
                     await RunAdmittedCheckAsync(action, cancellationToken, type.ToString()).ConfigureAwait(false);
                 }
+                _completedVerificationChecks.TryAdd(type, 0);
             }, LazyThreadSafetyMode.ExecutionAndPublication);
         }
         _runDomain = domainName;

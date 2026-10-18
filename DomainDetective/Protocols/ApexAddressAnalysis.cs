@@ -130,6 +130,29 @@ public sealed class ApexAddressAnalysis {
             AllRpkiValid = false;
         }
 
+        private static (List<string> Addresses, bool Complete, string? Failure) ReadAddressAnswers(
+            IEnumerable<DnsAnswer>? answers, DnsRecordType type) {
+            var addresses = new List<string>();
+            bool alias = false, invalid = false;
+            if (answers != null) {
+                foreach (var answer in answers) {
+                    if (answer.Type == DnsRecordType.CNAME) { alias = true; continue; }
+                    // DNSSEC annotations do not constitute address evidence.
+                    if ((int)answer.Type is 46 or 47 or 50) { continue; }
+                    var value = string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw : answer.Data;
+                    if (answer.Type != type || !System.Net.IPAddress.TryParse(value, out var address)
+                        || address.AddressFamily != (type == DnsRecordType.A
+                            ? System.Net.Sockets.AddressFamily.InterNetwork : System.Net.Sockets.AddressFamily.InterNetworkV6)) {
+                        invalid = true;
+                        continue;
+                    }
+                    addresses.Add(value);
+                }
+            }
+            bool complete = !invalid && (!alias || addresses.Count > 0);
+            return (addresses, complete, complete ? null : $"{type}: unresolved alias or invalid address answer.");
+        }
+
         private static string NormalizeName(string name)
         {
             return (name ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
@@ -148,23 +171,13 @@ public sealed class ApexAddressAnalysis {
         /// </summary>
         public Task AnalyzeApexAnswers(IEnumerable<DnsAnswer> aAnswers, IEnumerable<DnsAnswer> aaaaAnswers, InternalLogger? logger = null) {
             Reset();
-            ALookupComplete = AaaaLookupComplete = true;
-            if (aAnswers != null) {
-                foreach (var a in aAnswers) {
-                    var val = a.Data ?? a.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) {
-                        ARecords.Add(val);
-                    }
-                }
-            }
-            if (aaaaAnswers != null) {
-                foreach (var a in aaaaAnswers) {
-                    var val = a.Data ?? a.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) {
-                        AaaaRecords.Add(val);
-                    }
-                }
-            }
+            var a = ReadAddressAnswers(aAnswers, DnsRecordType.A);
+            var aaaa = ReadAddressAnswers(aaaaAnswers, DnsRecordType.AAAA);
+            ARecords = a.Addresses;
+            AaaaRecords = aaaa.Addresses;
+            ALookupComplete = a.Complete;
+            AaaaLookupComplete = aaaa.Complete;
+            AddressLookupFailures = new[] { a.Failure, aaaa.Failure }.Where(value => value != null).Select(value => value!).ToArray();
 
             // flags are computed from lists; no assignments
 
@@ -219,9 +232,10 @@ public sealed class ApexAddressAnalysis {
             var a = await aTask;
             var aaaa = await aaaaTask;
             await AnalyzeApexAnswers(a.Answers, aaaa.Answers, logger);
-            AddressLookupFailures = new[] { a.Failure, aaaa.Failure }.Where(value => value != null).Select(value => value!).ToArray();
-            ALookupComplete = a.Failure == null;
-            AaaaLookupComplete = aaaa.Failure == null;
+            AddressLookupFailures = AddressLookupFailures.Concat(new[] { a.Failure, aaaa.Failure }
+                .Where(value => value != null).Select(value => value!)).ToArray();
+            ALookupComplete &= a.Failure == null;
+            AaaaLookupComplete &= aaaa.Failure == null;
             if (!AddressLookupComplete) {
                 logger?.WriteInformationCode("APEXADDRESS.Lookup.Incomplete", "Apex address evidence is incomplete; absence was not established for every address family.");
             }

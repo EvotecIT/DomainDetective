@@ -135,6 +135,10 @@ internal static class OutputFormatters {
     }
     
     private static (string? status, string? findings) GetCheckSummary(DomainHealthCheck hc, HealthCheckType check) {
+        if (hc.VerificationCompleted.HasValue && !hc.VerificationCompletedChecks.Contains(check)) {
+            return hc.VerificationRequestedChecks.Contains(check)
+                ? ("Incomplete", "This check did not complete; collected evidence may be partial.") : (null, null);
+        }
         var data = GetCheckData(hc, check);
         if (data == null) return (null, null);
         
@@ -542,6 +546,7 @@ internal static class OutputFormatters {
         sb.AppendLine("<!DOCTYPE html>");
         sb.AppendLine("<html>");
         sb.AppendLine("<head>");
+        sb.AppendLine("<meta charset='utf-8'>");
         sb.AppendLine($"<title>Domain Analysis Report - {domain}</title>");
         sb.AppendLine("<style>");
         sb.AppendLine("body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }");
@@ -565,10 +570,13 @@ internal static class OutputFormatters {
         sb.AppendLine("<div class='container'>");
         sb.AppendLine($"<h1>Domain Analysis Report: {domain}</h1>");
         sb.AppendLine($"<p>Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
+        if (hc.VerificationCompleted == false) {
+            sb.AppendLine("<div class='check error' role='status'>Scan incomplete: " + System.Net.WebUtility.HtmlEncode(hc.VerificationError) + "</div>");
+        }
         
         // Add summary
         var summary = hc.BuildSummary();
-        if (summary != null) {
+        if (summary != null && hc.VerificationCompleted != false) {
             sb.AppendLine("<h2>Summary</h2>");
             sb.AppendLine("<pre>" + JsonSerializer.Serialize(summary, DomainDetective.Helpers.JsonOptions.Default) + "</pre>");
         }
@@ -577,20 +585,16 @@ internal static class OutputFormatters {
         sb.AppendLine("<h2>Detailed Results</h2>");
         
         foreach (var check in Enum.GetValues<HealthCheckType>()) {
-            var data = GetCheckData(hc, check);
-            if (data != null) {
-                var (status, findings) = GetCheckSummary(hc, check);
-                var cssClass = status?.Contains("✅") == true ? "success" : 
-                              status?.Contains("⚠") == true ? "warning" : "error";
-                
-                sb.AppendLine($"<div class='check {cssClass}'>");
-                sb.AppendLine($"<h3>{check}</h3>");
-                sb.AppendLine($"<div class='status {cssClass}'>{status}</div>");
-                if (!string.IsNullOrEmpty(findings)) {
-                    sb.AppendLine($"<div class='details'>{findings.Replace("\n", "<br>")}</div>");
-                }
-                sb.AppendLine("</div>");
+            var (status, findings) = GetCheckSummary(hc, check);
+            if (status == null) { continue; }
+            var cssClass = status.Contains("✅") ? "success" : status.Contains("⚠") ? "warning" : "error";
+            sb.AppendLine($"<div class='check {cssClass}'>");
+            sb.AppendLine($"<h3>{check}</h3>");
+            sb.AppendLine($"<div class='status {cssClass}'>{status}</div>");
+            if (!string.IsNullOrEmpty(findings)) {
+                sb.AppendLine($"<div class='details'>{findings.Replace("\n", "<br>")}</div>");
             }
+            sb.AppendLine("</div>");
         }
         
         sb.AppendLine("</div>");

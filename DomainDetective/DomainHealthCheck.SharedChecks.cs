@@ -29,7 +29,7 @@ public partial class DomainHealthCheck {
         actions[HealthCheckType.DELEGATION] = async () => {
             var child = RunPrerequisiteAsync(HealthCheckType.NS, domainName, () => ns.Value);
             async Task ParentAsync() {
-                await childReady.Task.ConfigureAwait(false);
+                await childReady.Task.WaitWithCancellation(cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RunAdmittedCheckAsync(() => NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken), cancellationToken).ConfigureAwait(false);
             }

@@ -112,8 +112,7 @@ internal static class WizardMode {
             HealthCheckType.DNSSEC
         };
 
-        await RunAndDisplayResults(new[] { domain }, essentialChecks, outputFormat, false, false, cancellationToken);
-        return 0;
+        return await RunAndDisplayResults(new[] { domain }, essentialChecks, outputFormat, false, false, cancellationToken);
     }
 
     private static async Task<int> RunAdvancedAnalysis(CancellationToken cancellationToken) {
@@ -149,12 +148,10 @@ internal static class WizardMode {
             checks = checks.Append(HealthCheckType.PORTSCAN).Distinct().ToArray();
         }
 
-        await RunAndDisplayResults(domains, checks, outputFormat, checkHttp, checkTakeover, cancellationToken,
+        return await RunAndDisplayResults(domains, checks, outputFormat, checkHttp, checkTakeover, cancellationToken,
             autodiscoverEndpoints: autodiscoverEndpoints,
             subdomainPolicy: subdomainPolicy,
             skipRevocation: skipRevocation);
-        
-        return 0;
     }
 
     private static async Task<int> RunCustomTests(CancellationToken cancellationToken) {
@@ -199,8 +196,7 @@ internal static class WizardMode {
 
         var outputFormat = PromptForOutputFormat();
         
-        await RunAndDisplayResults(domains, checks, outputFormat, false, false, cancellationToken);
-        return 0;
+        return await RunAndDisplayResults(domains, checks, outputFormat, false, false, cancellationToken);
     }
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize")]
@@ -443,7 +439,7 @@ internal static class WizardMode {
     internal static HealthCheckType[] BuildAdvancedChecks() => Enum.GetValues<HealthCheckType>()
         .Where(DomainHealthCheck.SupportsDomainVerification).Distinct().ToArray();
 
-    private static async Task RunAndDisplayResults(
+    private static async Task<int> RunAndDisplayResults(
         string[] domains,
         HealthCheckType[] checks,
         OutputFormat outputFormat,
@@ -456,6 +452,7 @@ internal static class WizardMode {
         int[]? danePorts = null,
         PortScanProfileDefinition.PortScanProfile[]? portProfiles = null) {
         
+        int exitCode = 0;
         foreach (var domain in domains) {
             var logger = new InternalLogger(false);
             using var hc = new DomainHealthCheck(internalLogger: logger) {
@@ -519,6 +516,8 @@ internal static class WizardMode {
                         : $"[yellow]{domain}[/]: [bold yellow]Incomplete; collected results retained[/]";
                 });
 
+            if (!scanComplete || hc.VerificationCompleted != true) { exitCode = 1; }
+
             if (outputFormat == OutputFormat.Json) {
                 Console.WriteLine(hc.ToJson());
                 if (AnsiConsole.Confirm("Export results to file?")) {
@@ -554,6 +553,7 @@ internal static class WizardMode {
                 }
             }
         }
+        return exitCode;
     }
 
     private static void DisplayResultsAsTable(string title, object data) {

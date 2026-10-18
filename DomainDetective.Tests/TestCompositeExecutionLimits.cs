@@ -12,6 +12,40 @@ using DnsClientX;
 namespace DomainDetective.Tests;
 
 public class TestCompositeExecutionLimits {
+    [Fact]
+    public async Task CancellationBeforeNsAdmissionDrainsRunAndReleasesObject() {
+        using var health = new DomainHealthCheck();
+        using var canceled = new CancellationTokenSource();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int active = 0;
+        health.DnsConfiguration.QueryDnsResponseOverride = async (_, type, token) => {
+            if (type == DnsRecordType.CAA) {
+                Interlocked.Increment(ref active);
+                entered.TrySetResult(true);
+                try { await Task.Delay(Timeout.Infinite, token); }
+                finally { Interlocked.Decrement(ref active); }
+            }
+            return new DnsResponse { Status = DnsResponseCode.NoError };
+        };
+        var run = health.Verify("fixture.example", new[] { HealthCheckType.CAA, HealthCheckType.DELEGATION },
+            cancellationToken: canceled.Token, executionOptions: new HealthCheckExecutionOptions { MaxParallelism = 1 });
+        await entered.Task.WaitWithCancellation(guard.Token);
+        canceled.Cancel();
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitWithCancellation(guard.Token));
+        Assert.Equal(canceled.Token, error.CancellationToken);
+        Assert.Equal(0, active);
+        Assert.False(health.VerificationCompleted);
+        Assert.Equal(new[] { HealthCheckType.CAA, HealthCheckType.DELEGATION }, health.VerificationRequestedChecks);
+        Assert.Empty(health.VerificationCompletedChecks);
+        Assert.False(string.IsNullOrEmpty(health.VerificationError));
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("fixture.example", new[] { HealthCheckType.CAA }, cancellationToken: guard.Token);
+        Assert.True(health.VerificationCompleted);
+        Assert.Null(health.VerificationError);
+        Assert.Equal(new[] { HealthCheckType.CAA }, health.VerificationCompletedChecks);
+    }
+
     [Theory]
     [InlineData(HealthCheckType.MAILCLASSIFICATION, 1)]
     [InlineData(HealthCheckType.MAILCLASSIFICATION, 2)]

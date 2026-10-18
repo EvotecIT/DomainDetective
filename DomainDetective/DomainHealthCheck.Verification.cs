@@ -125,6 +125,10 @@ public partial class DomainHealthCheck {
             bool useDefaultChecksWhenEmpty = true) {
             await _verificationAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
             try {
+                VerificationCompleted = false;
+                VerificationError = null;
+                VerificationRequestedChecks = Array.Empty<HealthCheckType>();
+                _completedVerificationChecks.Clear();
                 var configuration = DnsConfiguration;
                 var previousAdmission = configuration.QueryAdmissionGate;
                 var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
@@ -153,6 +157,11 @@ public partial class DomainHealthCheck {
                     configuration.BulkQueryAdmissionGate = previousBulkAdmission;
                     configuration.ResolverBulkQueryAdmissionGate = previousResolverBulkAdmission;
                 }
+                VerificationCompleted = true;
+            } catch (Exception exception) {
+                VerificationCompleted = false;
+                VerificationError = exception.Message;
+                throw;
             } finally { _verificationAdmission.Release(); }
         }
 
@@ -181,6 +190,7 @@ public partial class DomainHealthCheck {
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
             ValidateDomainVerificationTypes(healthCheckTypes);
+            VerificationRequestedChecks = Array.AsReadOnly(healthCheckTypes.ToArray());
 
             bool discoverDkim = healthCheckTypes.Contains(HealthCheckType.MAILCLASSIFICATION)
                 || healthCheckTypes.Contains(HealthCheckType.MICROSOFT365);

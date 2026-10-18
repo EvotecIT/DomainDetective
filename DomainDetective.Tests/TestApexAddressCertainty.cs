@@ -8,6 +8,31 @@ using DomainDetective.DesiredState;
 namespace DomainDetective.Tests;
 
 public class TestApexAddressCertainty {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CnameOnlyIsIncompleteWhileTypedAddressEvidenceIsRetained(bool includeAddress) {
+        using var health = new DomainHealthCheck();
+        health.ApexAddressAnalysis.QueryRpkiOverride = _ => Task.FromResult(("192.0.2.0/24", 64496, false));
+        health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(new DnsResponse {
+            Status = DnsResponseCode.NoError,
+            Answers = name == "sender.example" && type == DnsRecordType.A
+                ? (includeAddress ? new[] {
+                    new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = "alias.example" },
+                    new DnsAnswer { Type = DnsRecordType.A, DataRaw = "192.0.2.1" }
+                } : new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = "alias.example" } })
+                : name == "sender.example" && type == DnsRecordType.TXT
+                    ? new[] { new DnsAnswer { Type = type, DataRaw = "v=spf1 ip4:192.0.2.0/24 -all" } } : Array.Empty<DnsAnswer>()
+        });
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await health.Verify("sender.example", new[] { HealthCheckType.MAILCLASSIFICATION }, cancellationToken: guard.Token);
+        Assert.Equal(includeAddress ? new[] { "192.0.2.1" } : Array.Empty<string>(), health.ApexAddressAnalysis.ARecords);
+        Assert.Equal(includeAddress, health.ApexAddressAnalysis.AddressLookupComplete);
+        Assert.Equal(includeAddress ? (bool?)true : null, health.ApexAddressAnalysis.AddressPresence);
+        Assert.Equal(includeAddress ? MailDomainClassificationCategory.SendingAndReceiving : MailDomainClassificationCategory.Unknown,
+            health.MailDomainClassification!.Classification);
+    }
+
     [Fact]
     public async Task NullMxRemainsConclusiveWhenApexAddressExists() {
         using var health = new DomainHealthCheck();

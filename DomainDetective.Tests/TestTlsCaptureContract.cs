@@ -121,12 +121,14 @@ public class TestTlsCaptureContract {
         public NegotiatedStream() : base(new MemoryStream()) { }
         public override SslProtocols SslProtocol => SslProtocols.Tls12;
         public override bool IsAuthenticated => true;
+#if !NET10_0_OR_GREATER
         public override CipherAlgorithmType CipherAlgorithm => CipherAlgorithmType.Aes256;
         public override int CipherStrength => 256;
         public override ExchangeAlgorithmType KeyExchangeAlgorithm => ExchangeAlgorithmType.DiffieHellman;
         public override int KeyExchangeStrength => 2048;
         public override HashAlgorithmType HashAlgorithm => HashAlgorithmType.Sha256;
         public override int HashStrength => 256;
+#endif
 #if NET8_0_OR_GREATER
         public override TlsCipherSuite NegotiatedCipherSuite => TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384;
 #endif

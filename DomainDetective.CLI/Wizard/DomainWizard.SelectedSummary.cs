@@ -25,8 +25,19 @@ public sealed partial class DomainWizard {
                 if (converter != null) {
                     try {
                         var view = converter.Invoke(null, new[] { analysis });
-                        status = view?.GetType().GetProperty("Status")?.GetValue(view)?.ToString() ?? status;
-                        summary = view?.GetType().GetProperty("Summary")?.GetValue(view)?.ToString() ?? summary;
+                        if (view is System.Collections.IEnumerable items && view is not string) {
+                            var rows = items.Cast<object>().Select(item => (
+                                Status: ViewValue(item, "Status") ?? "Collected",
+                                Summary: string.Join(": ", new[] { ViewValue(item, "Selector"), ViewValue(item, "Summary") }
+                                    .Where(value => !string.IsNullOrWhiteSpace(value))))).ToArray();
+                            status = rows.Any(row => row.Status == "Error") ? "Error"
+                                : rows.Any(row => row.Status == "Warning") ? "Warning"
+                                : rows.Length > 0 && rows.All(row => row.Status == "OK") ? "OK" : "Collected";
+                            summary = rows.Length == 0 ? "No selector results." : string.Join("; ", rows.Select(row => row.Summary));
+                        } else {
+                            status = ViewValue(view, "Status") ?? status;
+                            summary = ViewValue(view, "Summary") ?? summary;
+                        }
                     } catch (TargetInvocationException) {
                         status = "Summary unavailable";
                     }
@@ -41,4 +52,7 @@ public sealed partial class DomainWizard {
         }
         AnsiConsole.Write(table);
     }
+
+    private static string? ViewValue(object? view, string property) =>
+        view?.GetType().GetProperty(property)?.GetValue(view)?.ToString();
 }

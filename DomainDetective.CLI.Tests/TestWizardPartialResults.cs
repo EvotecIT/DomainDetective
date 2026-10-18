@@ -10,6 +10,25 @@ namespace DomainDetective.CLI.Tests;
 public class TestWizardPartialResults {
     private readonly ITestOutputHelper _output;
     public TestWizardPartialResults(ITestOutputHelper output) => _output = output;
+
+    [Fact]
+    public async Task SelectedDkimSummaryRendersTheSelectorCollection() {
+        using var health = new DomainHealthCheck();
+        await health.DKIMAnalysis.AnalyzeDkimRecords("selector-fixture", new[] {
+            new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = "v=DKIM1; k=rsa; p=" }
+        }, new InternalLogger());
+        var previous = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
+        try {
+            typeof(DomainWizard).GetMethod("RenderSelectedSummary", BindingFlags.NonPublic | BindingFlags.Static)!
+                .Invoke(null, new object[] { health, new[] { HealthCheckType.DKIM }, new HashSet<HealthCheckType> { HealthCheckType.DKIM } });
+            Assert.Contains("selector-fixture", output.ToString());
+            Assert.Contains("no key", output.ToString());
+            Assert.DoesNotContain("See check details", output.ToString());
+            _output.WriteLine(output.ToString());
+        } finally { AnsiConsole.Console = previous; }
+    }
     [Fact]
     public async Task InvalidPlanStillFailsBeforeRenderingResults() {
         var logger = new InternalLogger();
@@ -49,6 +68,8 @@ public class TestWizardPartialResults {
             var result = await (Task<DomainHealthCheck>)typeof(DomainWizard).GetMethod("RunCoreAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
                 .Invoke(wizard, new object[] { health, logger, guard.Token })!;
             Assert.Same(health, result);
+            Assert.Equal(failSibling ? 1 : 0, WizardScanCommand.WriteScanOutputs(health,
+                new WizardOptions { Domain = "fixture.example" }, "fixture.example"));
             Assert.Equal(1, health.CAAAnalysis.ValidRecords);
             Assert.Contains("CAA", output.ToString());
             Assert.Contains("valid 1", output.ToString());
@@ -57,6 +78,65 @@ public class TestWizardPartialResults {
         } finally {
             _output.WriteLine(output.ToString());
             AnsiConsole.Console = previous;
+        }
+    }
+
+    [Theory]
+    [InlineData("json")]
+    [InlineData("html")]
+    public async Task NonConsoleFailureRetainsEvidenceInWrittenArtifactAndReturnsFailure(string format) {
+        var previous = AnsiConsole.Console;
+        using var console = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(console) });
+        var logger = new InternalLogger();
+        using var health = new DomainHealthCheck(internalLogger: logger);
+        health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            if (type == DnsRecordType.SOA) { throw new InvalidOperationException("Synthetic SOA failure <retained>"); }
+            return Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError,
+                Answers = name == "fixture.example" && type == DnsRecordType.TXT
+                    ? new[] { new DnsAnswer { Type = type, DataRaw = "v=spf1 -all" } } : Array.Empty<DnsAnswer>() });
+        };
+        var folder = Path.Combine(Path.GetTempPath(), "dd-wizard-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "scan." + format);
+        var wizard = new DomainWizard(new WizardOptions {
+            Domain = "fixture.example", Output = format, Out = path, Checks = new[] { HealthCheckType.SOA, HealthCheckType.SPF }
+        });
+        try {
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var result = await (Task<DomainHealthCheck>)typeof(DomainWizard).GetMethod("RunCoreAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(wizard, new object[] { health, logger, guard.Token })!;
+            Assert.Same(health, result);
+            Assert.False(health.VerificationCompleted);
+            Assert.Contains(HealthCheckType.SPF, health.VerificationCompletedChecks);
+            Assert.DoesNotContain(HealthCheckType.SOA, health.VerificationCompletedChecks);
+            Assert.Equal("Synthetic SOA failure <retained>", health.VerificationError);
+            Assert.Equal(1, WizardScanCommand.WriteScanOutputs(health, wizard.Options, "fixture.example"));
+            var artifact = File.ReadAllText(path);
+            Assert.Contains("Synthetic SOA failure", artifact);
+            Assert.Contains("v=spf1 -all", artifact);
+            if (format == "json") {
+                using var parsed = System.Text.Json.JsonDocument.Parse(artifact);
+                Assert.False(parsed.RootElement.GetProperty("VerificationCompleted").GetBoolean());
+            } else {
+                Assert.Contains("Scan incomplete", artifact);
+                Assert.Contains("&lt;retained&gt;", artifact);
+                Assert.Contains("AXFR: Not assessed", artifact);
+                Assert.DoesNotContain("✅ closed", artifact);
+                _output.WriteLine("HTML_FIXTURE\n" + artifact);
+                var legacyPath = Path.Combine(folder, "legacy.html");
+                OutputFormatters.ExportToHtml("fixture.example", health, legacyPath);
+                var legacy = File.ReadAllText(legacyPath);
+                Assert.Contains("Scan incomplete", legacy);
+                Assert.Contains("&lt;retained&gt;", legacy);
+                Assert.DoesNotContain("<h3>DMARC</h3>", legacy);
+                Assert.Contains("<h3>SOA</h3>", legacy);
+                Assert.Contains("This check did not complete", legacy);
+                Assert.Contains("<meta charset='utf-8'>", legacy);
+                _output.WriteLine("LEGACY_HTML_FIXTURE\n" + legacy);
+            }
+        } finally {
+            AnsiConsole.Console = previous;
+            if (Directory.Exists(folder)) { Directory.Delete(folder, true); }
         }
     }
 

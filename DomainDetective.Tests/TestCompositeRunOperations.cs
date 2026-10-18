@@ -115,10 +115,11 @@ public class TestCompositeRunOperations {
         };
         await health.VerifyApexAddresses("empty.example.com");
         Assert.False(health.ApexAddressAnalysis.HasAnyAddress);
-        // Discovery and the two independently requested enrichment consumers each
-        // inspect address membership once; an empty result does not restart them.
-        Assert.Equal(3, queries[DnsRecordType.A]);
-        Assert.Equal(3, queries[DnsRecordType.AAAA]);
+        // Confirmed empty discovery has no addresses to enrich or rediscover.
+        Assert.True(health.ApexAddressAnalysis.AddressLookupComplete);
+        Assert.False(health.ApexAddressAnalysis.AddressPresence);
+        Assert.Equal(1, queries[DnsRecordType.A]);
+        Assert.Equal(1, queries[DnsRecordType.AAAA]);
     }
 
     private sealed class WebHandler(ConcurrentBag<Uri> requests) : HttpMessageHandler {
