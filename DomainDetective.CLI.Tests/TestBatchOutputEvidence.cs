@@ -64,8 +64,10 @@ public class TestBatchOutputEvidence {
     }
 
     [Fact]
-    public void FallbackSummaryPreservesErrorStatusInHtml() {
+    public async Task FallbackSummaryPreservesErrorStatusInHtml() {
         using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("fixture.example", new[] { HealthCheckType.SOA });
         health.SOAAnalysis.Assessments.Add(new Assessment { Severity = AssessmentSeverity.Error, Message = "Synthetic SOA error" });
         var summary = ((string Status, string Summary))typeof(OutputFormatters)
             .GetMethod("GetCheckSummary", BindingFlags.NonPublic | BindingFlags.Static)!
