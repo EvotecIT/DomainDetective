@@ -48,6 +48,8 @@ public partial class CertificateAnalysis {
         ExtendedKeyUsageFriendlyNames.Clear();
         AuthenticationProfile = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         TlsProtocol = SslProtocols.None;
+        _tlsDetailsReusable = false;
+        _tlsProtocolProbeRoute = null;
         Tls13Used = false;
         CipherAlgorithm = CipherSuite = string.Empty;
         CipherStrength = DhKeyBits = 0;

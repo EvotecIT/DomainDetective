@@ -27,16 +27,18 @@ public partial class DomainHealthCheck {
         var certificate = new Lazy<Task>(() => VerifyWebsiteCertificate(website.Value.GetLeftPart(UriPartial.Authority), website.Value.Port, cancellationToken));
         actions[HealthCheckType.NS] = () => ns.Value;
         actions[HealthCheckType.DELEGATION] = async () => {
-            var child = ns.Value;
+            var child = RunPrerequisiteAsync(HealthCheckType.NS, domainName, () => ns.Value);
             async Task ParentAsync() {
                 await childReady.Task.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                await NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken).ConfigureAwait(false);
+                await RunAdmittedCheckAsync(() => NSAnalysis.AnalyzeParentDelegation(domainName, _logger, cancellationToken), cancellationToken).ConfigureAwait(false);
             }
             await Task.WhenAll(child, ParentAsync()).ConfigureAwait(false);
         };
         actions[HealthCheckType.HTTP] = () => http.Value;
         actions[HealthCheckType.CERT] = () => certificate.Value;
-        actions[HealthCheckType.WEBSITE] = () => Task.WhenAll(http.Value, certificate.Value);
+        actions[HealthCheckType.WEBSITE] = () => Task.WhenAll(
+            RunPrerequisiteAsync(HealthCheckType.HTTP, domainName, () => http.Value),
+            RunPrerequisiteAsync(HealthCheckType.CERT, domainName, () => certificate.Value));
     }
 }

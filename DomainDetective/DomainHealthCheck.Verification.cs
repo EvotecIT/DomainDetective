@@ -145,6 +145,7 @@ public partial class DomainHealthCheck {
                         portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
                 } finally {
                     _runOperations = null;
+                    _runCheckAdmission = null;
                     _runDomain = null;
                     _selectedRunChecks = null;
                     _runNeedsSmtpDane = false;
@@ -257,17 +258,7 @@ public partial class DomainHealthCheck {
             ConfigureSharedChecks(actions, domainName, cancellationToken, exec);
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
-                var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
-                actions[HealthCheckType.DANE] = () => daneTask.Value;
-                if (!exec.EnableParallelism && actions.TryGetValue(HealthCheckType.SMTPTLS, out var smtpAction)) {
-                    actions[HealthCheckType.SMTPTLS] = async () => {
-                        await daneTask.Value;
-                        await smtpAction();
-                    };
-                }
-                if (exec.EnableParallelism && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS))) {
-                    prestartedDaneTask = daneTask.Value;
-                }
+                actions[HealthCheckType.DANE] = () => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken);
             }
 
             // Composite-only dependencies use their narrow original policies. When
@@ -281,10 +272,16 @@ public partial class DomainHealthCheck {
             if (!healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 actions[HealthCheckType.DANE] = () => VerifyDANE(domainName, new[] { ServiceType.SMTP }, cancellationToken);
             }
-            ConfigureRunOperations(actions, domainName, healthCheckTypes);
+            int checkParallelism = exec.EnableParallelism ? exec.GetEffectiveMaxParallelism() : 1;
+            using var checkAdmission = new SemaphoreSlim(checkParallelism, checkParallelism);
+            ConfigureRunOperations(actions, domainName, healthCheckTypes, checkAdmission, checkParallelism == 1, cancellationToken);
+            if (exec.EnableParallelism && healthCheckTypes.Contains(HealthCheckType.DANE)
+                && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS))) {
+                prestartedDaneTask = actions[HealthCheckType.DANE]();
+            }
             if (exec.IncludePlainHttp) { PlainHttpAnalysis.Subject = new UriBuilder($"http://{domainName}").Uri.GetLeftPart(UriPartial.Authority); }
             Task? plainHttpTask = exec.IncludePlainHttp
-                ? PlainHttpAnalysis.AnalyzeUrl(PlainHttpAnalysis.Subject!, false, _logger, cancellationToken: cancellationToken)
+                ? RunAdmittedCheckAsync(() => PlainHttpAnalysis.AnalyzeUrl(PlainHttpAnalysis.Subject!, false, _logger, cancellationToken: cancellationToken), cancellationToken)
                 : null;
 
             void ReportProgress(string operation, int completed) {
@@ -301,28 +298,16 @@ public partial class DomainHealthCheck {
 
             async Task RunCheckAsync(HealthCheckType healthCheckType) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var sw = Stopwatch.StartNew();
-                _logger.WriteVerbose("Starting {0} check.", healthCheckType);
                 if (actions.TryGetValue(healthCheckType, out var action)) {
                     await action();
                 } else {
                     _logger.WriteError("Unknown health check type: {0}", healthCheckType);
                     throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
                 }
-                sw.Stop();
-                _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
             }
 
-            async Task RunCheckWithGateAsync(HealthCheckType healthCheckType, SemaphoreSlim gate) {
-                var queued = Stopwatch.StartNew();
-                await gate.WaitAsync(cancellationToken);
-                try {
-                    queued.Stop();
-                    _logger.WriteVerbose("{0} check admitted after {1} ms in queue.", healthCheckType, queued.ElapsedMilliseconds);
-                    await RunCheckAsync(healthCheckType);
-                } finally {
-                    gate.Release();
-                }
+            async Task RunCheckWithProgressAsync(HealthCheckType healthCheckType) {
+                await RunCheckAsync(healthCheckType).ConfigureAwait(false);
                 var done = Interlocked.Increment(ref processedChecks);
                 _logger.WriteInformation("{0} check completed", healthCheckType);
                 ReportProgress(healthCheckType.ToString(), done);
@@ -343,17 +328,16 @@ public partial class DomainHealthCheck {
                     var maxParallelism = exec.GetEffectiveMaxParallelism();
                     _logger.WriteVerbose("Parallel execution enabled: max {0} concurrent checks.", maxParallelism);
                     ReportProgress("Starting", 0);
-                    using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
                     var tasks = new List<Task>(healthCheckTypes.Length);
                     bool deferBulk = DnsConfiguration.GetBulkQueryParallelism(exec.GetEffectiveDnsParallelism()) == 0;
                     foreach (var healthCheckType in healthCheckTypes) {
                         if (deferBulk && healthCheckType == HealthCheckType.DNSBL) { continue; }
-                        tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
+                        tasks.Add(RunCheckWithProgressAsync(healthCheckType));
                     }
                     await Task.WhenAll(tasks);
                     if (deferBulk) {
                         foreach (var healthCheckType in healthCheckTypes) {
-                            if (healthCheckType == HealthCheckType.DNSBL) { await RunCheckWithGateAsync(healthCheckType, gate); }
+                            if (healthCheckType == HealthCheckType.DNSBL) { await RunCheckWithProgressAsync(healthCheckType); }
                         }
                     }
                 }

@@ -64,15 +64,12 @@ public sealed partial class CtLogAggregator
     public string? ShodanApiKey { get; set; }
     /// <summary>Shodan API URL template. Use {0} for SHA-256 fingerprint and {1} for URL-encoded API key. The API key remains in the outbound request URL per Shodan API requirements.</summary>
     public string ShodanApiUrlTemplate { get; set; } = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
-    /// <summary>Names of discovery sources configured for the last <see cref="QueryAsync"/> call.</summary>
-    public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
-    /// <summary>Template-format errors captured in the last <see cref="QueryAsync"/> call.</summary>
-    public IReadOnlyList<string> LastTemplateFormatErrors => _lastTemplateFormatErrors;
+    /// <summary>Names of discovery sources configured for the most recently started <see cref="QueryAsync"/> call.</summary>
+    public IReadOnlyList<string> LastQueriedSources => _lastQueryResult.Sources;
+    /// <summary>Template-format errors captured in the most recently started <see cref="QueryAsync"/> call.</summary>
+    public IReadOnlyList<string> LastTemplateFormatErrors => _lastQueryResult.TemplateFormatErrors;
 
-    private volatile string[] _lastQueriedSources = Array.Empty<string>();
-    private volatile string[] _lastTemplateFormatErrors = Array.Empty<string>();
-    // Retain completed source evidence when the owning certificate lookup reaches its deadline.
-    internal IReadOnlyList<JsonElement> LastCompletedEntries { get; private set; } = Array.Empty<JsonElement>();
+    internal IReadOnlyList<JsonElement> LastCompletedEntries => _lastQueryResult.Entries;
 
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
@@ -102,8 +99,8 @@ public sealed partial class CtLogAggregator
         }
     }
 
-    /// <summary>Whether every configured CT request completed with valid JSON, including successful empty responses.</summary>
-    public bool LastQueryComplete { get; private set; }
+    /// <summary>Whether the most recently started query completed every configured CT request with valid JSON, including empty responses.</summary>
+    public bool LastQueryComplete => _lastQueryResult.Complete;
 
     /// <summary>Minimum spacing between outbound CT requests across all aggregator instances.</summary>
     public TimeSpan MinimumRequestSpacing {
@@ -132,74 +129,6 @@ public sealed partial class CtLogAggregator
 
     /// <summary>Optional delay override for tests.</summary>
     internal Func<TimeSpan, CancellationToken, Task>? DelayOverride { get; set; }
-
-    /// <summary>
-    /// Queries all configured APIs for the specified SHA-256 fingerprint.
-    /// </summary>
-    /// <param name="fingerprint">SHA-256 certificate fingerprint.</param>
-    /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>List of JSON elements describing log entries.</returns>
-    public async Task<IReadOnlyList<JsonElement>> QueryAsync(string fingerprint, CancellationToken cancellationToken = default)
-    {
-        var results = new List<JsonElement>();
-        LastQueryComplete = false;
-        _lastQueriedSources = Array.Empty<string>();
-        _lastTemplateFormatErrors = Array.Empty<string>();
-        LastCompletedEntries = Array.Empty<JsonElement>();
-        if (string.IsNullOrWhiteSpace(fingerprint))
-        {
-            return results;
-        }
-
-        if (QueryOverride != null)
-        {
-            _lastQueriedSources = new[] { "override" };
-            // The legacy override owns its task; cancellation stops consuming its result.
-            var json = await QueryOverride(fingerprint).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-            var parsed = ParseFetchResult(json, CtResponseParserKind.Standard);
-            AppendEntries(parsed.Entries, results);
-            LastQueryComplete = parsed.Complete;
-            LastCompletedEntries = results.ToArray();
-            return results;
-        }
-
-        var discoverySources = new List<string>();
-        var templateFormatErrors = new List<string>();
-        var requests = BuildDiscoveryRequests(fingerprint, discoverySources, templateFormatErrors);
-        _lastQueriedSources = discoverySources.ToArray();
-        _lastTemplateFormatErrors = templateFormatErrors.ToArray();
-        if (requests.Count == 0)
-        {
-            return results;
-        }
-
-        bool complete = templateFormatErrors.Count == 0;
-        try
-        {
-            foreach (var request in requests)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (TryGetCachedEntries(request.CacheKey, out var cachedEntries))
-                {
-                    AppendEntries(cachedEntries, results);
-                    continue;
-                }
-
-                var fetched = await FetchSharedAsync(request, cancellationToken).ConfigureAwait(false);
-                complete &= fetched.Complete;
-                var fetchedEntries = fetched.Entries;
-                if (fetched.Complete) { CacheEntries(request.CacheKey, fetchedEntries); }
-                AppendEntries(fetchedEntries, results);
-            }
-        }
-        finally
-        {
-            LastCompletedEntries = results.ToArray();
-        }
-
-        LastQueryComplete = complete;
-        return results;
-    }
 
     private List<CtDiscoveryRequest> BuildDiscoveryRequests(
         string fingerprint,

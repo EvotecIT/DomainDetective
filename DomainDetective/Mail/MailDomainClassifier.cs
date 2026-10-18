@@ -133,7 +133,7 @@ public sealed class MailDomainClassifier {
             reason = "Null MX present and no sending authorization signals detected.";
             confidence = MailDomainClassificationConfidence.High;
         } else {
-            bool receiving = hasMxValid || hasMtaSts || hasTlsRpt || hasDaneSmtp || hasAorAAAA;
+            bool receiving = !hasNullMx && (hasMxValid || hasMtaSts || hasTlsRpt || hasDaneSmtp || hasAorAAAA);
             bool sending = effectiveSpfSends || hasDkim || hasBimi;
 
             if (receiving && sending) {
@@ -146,6 +146,8 @@ public sealed class MailDomainClassifier {
                 category = MailDomainClassificationCategory.ReceivingOnly;
                 reason = "Domain accepts inbound mail but no sending authorization was detected.";
                 confidence = MailDomainClassificationConfidence.Medium;
+            } else if (!receiving && sending && !hasNullMx && _health.ApexAddressAnalysis?.AddressPresence == null) {
+                reason = "Domain authorizes sending, but incomplete apex address evidence prevents establishing its receiving role.";
             } else if (!receiving && sending) {
                 category = MailDomainClassificationCategory.SendingOnly;
                 reason = hasNullMx
@@ -160,7 +162,7 @@ public sealed class MailDomainClassifier {
         if (hasMtaSts) receivingSignals.Add("MTA-STS");
         if (hasTlsRpt) receivingSignals.Add("TLS-RPT");
         if (hasDaneSmtp) receivingSignals.Add("DANE");
-        if (!hasMxValid && hasAorAAAA) receivingSignals.Add("A/AAAA");
+        if (!hasMxValid && !hasNullMx && hasAorAAAA) receivingSignals.Add("A/AAAA");
 
         var sendingSignals = new List<string>();
         if (effectiveSpfSends) sendingSignals.Add("SPF");
@@ -240,6 +242,7 @@ public sealed class MailDomainClassifier {
                 HasMX = hasMxValid,
                 HasNullMX = hasNullMx,
                 HasAorAAAA = hasAorAAAA,
+                ApexAddressLookupComplete = _health.ApexAddressAnalysis?.AddressLookupComplete == true,
                 EffectiveSpfSends = effectiveSpfSends,
                 HasDKIM = hasDkim,
                 HasMTASTS = hasMtaSts,

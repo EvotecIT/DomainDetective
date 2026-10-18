@@ -31,10 +31,10 @@ public partial class DomainHealthCheck {
             AutodiscoverAnalysis,
             _logger);
 
-        await Microsoft365TenantAnalysis.ProbeAuthenticationAsync(
+        await RunAdmittedCheckAsync(() => Microsoft365TenantAnalysis.ProbeAuthenticationAsync(
             domainName,
             HttpClientFactory,
             _logger,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken), cancellationToken, "Microsoft365Authentication").ConfigureAwait(false);
     }
 }

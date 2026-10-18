@@ -143,10 +143,10 @@ internal static class WizardMode {
         var portScan = includeOptions.Any(o => o.Contains("ports"));
         var skipRevocation = !includeOptions.Any(o => o.Contains("revocation"));
 
-        var checks = Enum.GetValues<HealthCheckType>();
+        var checks = BuildAdvancedChecks();
         
         if (portScan) {
-            checks = checks.Append(HealthCheckType.PORTSCAN).ToArray();
+            checks = checks.Append(HealthCheckType.PORTSCAN).Distinct().ToArray();
         }
 
         await RunAndDisplayResults(domains, checks, outputFormat, checkHttp, checkTakeover, cancellationToken,
@@ -440,6 +440,9 @@ internal static class WizardMode {
         };
     }
 
+    internal static HealthCheckType[] BuildAdvancedChecks() => Enum.GetValues<HealthCheckType>()
+        .Where(DomainHealthCheck.SupportsDomainVerification).Distinct().ToArray();
+
     private static async Task RunAndDisplayResults(
         string[] domains,
         HealthCheckType[] checks,
@@ -455,7 +458,7 @@ internal static class WizardMode {
         
         foreach (var domain in domains) {
             var logger = new InternalLogger(false);
-            var hc = new DomainHealthCheck(internalLogger: logger) {
+            using var hc = new DomainHealthCheck(internalLogger: logger) {
                 UseSubdomainPolicy = subdomainPolicy,
                 Progress = false, // Disable internal console progress
                 Verbose = false   // Disable verbose logging
@@ -465,6 +468,7 @@ internal static class WizardMode {
                 hc.CertificateAnalysis.SkipRevocation = true;
             }
 
+            bool scanComplete = true;
             // Use Progress instead of Status for better feedback
             await AnsiConsole.Progress()
                 .AutoClear(false)
@@ -489,7 +493,11 @@ internal static class WizardMode {
                     try {
                         hc.ExecutionOptions.IncludePlainHttp = checkHttp;
                         await hc.Verify(domain, checks, null, null, danePorts, portProfiles, cancellationToken);
+                    } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException) {
+                        scanComplete = false;
+                        AnsiConsole.MarkupLine($"[yellow]Scan incomplete: {ex.Message.EscapeMarkup()}[/]");
                     } finally { logger.OnProgressMessage -= OnProgress; }
+                    cancellationToken.ThrowIfCancellationRequested();
 
                     if (checkHttp) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]HTTP Check[/]";
@@ -498,11 +506,17 @@ internal static class WizardMode {
                     
                     if (checkTakeover) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]Subdomain Takeover[/]";
-                        await hc.VerifyTakeoverCname(domain, cancellationToken);
+                        try { await hc.VerifyTakeoverCname(domain, cancellationToken); }
+                        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException) {
+                            scanComplete = false;
+                            AnsiConsole.MarkupLine($"[yellow]Takeover check incomplete: {ex.Message.EscapeMarkup()}[/]");
+                        }
+                        cancellationToken.ThrowIfCancellationRequested();
                         mainTask.Increment(1);
                     }
                     
-                    mainTask.Description = $"[green]{domain}[/]: [bold green]Complete![/]";
+                    mainTask.Description = scanComplete ? $"[green]{domain}[/]: [bold green]Complete![/]"
+                        : $"[yellow]{domain}[/]: [bold yellow]Incomplete; collected results retained[/]";
                 });
 
             if (outputFormat == OutputFormat.Json) {

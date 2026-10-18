@@ -43,26 +43,25 @@ namespace DomainDetective {
             }
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (CtLookupTimeout != System.Threading.Timeout.InfiniteTimeSpan) { deadline.CancelAfter(CtLookupTimeout); }
-            IReadOnlyList<JsonElement> entries;
+            var queryResult = CtLogQueryResult.Empty;
             try {
-                entries = await _ctLogAggregator.QueryAsync(fingerprint, deadline.Token).ConfigureAwait(false);
+                queryResult = await _ctLogAggregator.QueryWithResultAsync(fingerprint, deadline.Token, snapshot => queryResult = snapshot).ConfigureAwait(false);
                 deadline.Token.ThrowIfCancellationRequested();
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
                 _ctLookupIncomplete = true;
                 logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency lookup budget exhausted; absence from CT logs was not established.");
-                entries = _ctLogAggregator.LastCompletedEntries;
             }
-            _ctLogEntries.AddRange(entries);
-            _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
+            _ctLogEntries.AddRange(queryResult.Entries);
+            _ctDiscoverySources = queryResult.Sources
                 .Where(source => !string.IsNullOrWhiteSpace(source))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            _ctTemplateFormatErrors = _ctLogAggregator.LastTemplateFormatErrors
+            _ctTemplateFormatErrors = queryResult.TemplateFormatErrors
                 .Where(error => !string.IsNullOrWhiteSpace(error))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
-            CtLookupComplete = !_ctLookupIncomplete && _ctLogAggregator.LastQueryComplete;
+            CtLookupComplete = !_ctLookupIncomplete && queryResult.Complete;
             if (!CtLookupComplete) {
                 _ctLookupIncomplete = true;
                 logger?.WriteInformationCode("CERT.CT.Incomplete", "Certificate transparency evidence is incomplete; absence from CT logs was not established.");

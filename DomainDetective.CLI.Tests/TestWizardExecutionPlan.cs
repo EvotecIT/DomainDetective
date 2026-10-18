@@ -3,6 +3,15 @@ using DomainDetective.CLI.Wizard;
 namespace DomainDetective.CLI.Tests;
 
 public class TestWizardExecutionPlan {
+    [Fact]
+    public void LegacyAdvancedPlanContainsEveryRunnableDomainCheckOnce() {
+        var checks = WizardMode.BuildAdvancedChecks();
+        Assert.Equal(Enum.GetValues<HealthCheckType>().Where(DomainHealthCheck.SupportsDomainVerification).Distinct().OrderBy(value => value),
+            checks.OrderBy(value => value));
+        Assert.DoesNotContain(HealthCheckType.ARC, checks);
+        Assert.DoesNotContain(HealthCheckType.SMIMEA, checks);
+    }
+
     [Theory]
     [InlineData(ScanMode.Quick)]
     [InlineData(ScanMode.Default)]

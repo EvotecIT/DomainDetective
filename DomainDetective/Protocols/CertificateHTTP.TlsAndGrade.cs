@@ -132,10 +132,7 @@ namespace DomainDetective {
 
 #pragma warning disable CA2000 // Dispose objects before losing scope - returned TcpClient is disposed by caller
         private async Task<TcpClient> ConnectWithProxy(string host, int port, CancellationToken token) {
-            var proxy = Environment.GetEnvironmentVariable("HTTPS_PROXY") ??
-                        Environment.GetEnvironmentVariable("https_proxy") ??
-                        Environment.GetEnvironmentVariable("HTTP_PROXY") ??
-                        Environment.GetEnvironmentVariable("http_proxy");
+            var proxy = ConfiguredTlsProxy;
             if (!string.IsNullOrEmpty(proxy)) {
                 var p = new Uri(proxy);
                 token.ThrowIfCancellationRequested();
@@ -187,9 +184,16 @@ namespace DomainDetective {
                 throw NormalizeProbeException(ex, token, timeoutCts);
             }
             CaptureTlsNegotiation(ssl);
+            if (CaptureTlsDetails) {
+                _tlsDetailsReusable = true;
+                _tlsProtocolProbeRoute = ProtocolProbeRoute(uri, port);
+            }
         }
 
         private void CaptureTlsNegotiation(SslStream ssl) {
+            if (!CaptureTlsDetails) { return; }
+            _tlsDetailsReusable = false;
+            _tlsProtocolProbeRoute = null;
             TlsProtocol = ssl.SslProtocol;
             Tls13Used = (int)ssl.SslProtocol == 12288;
             var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
@@ -292,7 +296,7 @@ namespace DomainDetective {
             async Task<(SslProtocols Protocol, bool Supported, bool Complete)> TryHandshake(SslProtocols proto)
             {
                 token.ThrowIfCancellationRequested();
-                if (TlsProtocol == proto) { return (proto, true, true); }
+                if (TlsProtocol == proto && _tlsProtocolProbeRoute == ProtocolProbeRoute(uri, port)) { return (proto, true, true); }
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeoutCts.CancelAfter(Timeout == System.Threading.Timeout.InfiniteTimeSpan || ProtocolProbeTimeout < Timeout
                     ? ProtocolProbeTimeout : Timeout);

@@ -352,7 +352,8 @@ namespace DomainDetective {
                         !SkipRevocation)
                     .WaitWithCancellation(originTimeoutSource.Token)
                     .ConfigureAwait(false);
-                CaptureTlsNegotiation(originSsl);
+                // The paired Framework handshake is direct. HTTP can select a
+                // proxy independently; collect details through its established route.
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (Exception ex) {
@@ -383,7 +384,7 @@ namespace DomainDetective {
                 var origin = new Uri(url);
                 if (requestUri != null && requestUri.Host.Equals(origin.Host, StringComparison.OrdinalIgnoreCase)
                     && requestUri.Port == origin.Port && context.PlaintextStream is SslStream negotiated) {
-                    CaptureTlsNegotiation(negotiated);
+                    CaptureHttpTlsNegotiation(negotiated, origin, origin.Port);
                 }
                 return new ValueTask<System.IO.Stream>(context.PlaintextStream);
             };

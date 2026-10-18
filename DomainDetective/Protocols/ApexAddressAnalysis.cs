@@ -32,6 +32,17 @@ public sealed class ApexAddressAnalysis {
         /// <summary>True when either A or AAAA records exist.</summary>
         public bool HasAnyAddress => (ARecords != null && ARecords.Count > 0) || (AaaaRecords != null && AaaaRecords.Count > 0) || HasARecord || HasAaaaRecord;
 
+        /// <summary>Whether both address-family lookups completed conclusively.</summary>
+        public bool AddressLookupComplete => ALookupComplete && AaaaLookupComplete;
+        /// <summary>Whether the IPv4 lookup returned a conclusive answer or negative response.</summary>
+        public bool ALookupComplete { get; private set; }
+        /// <summary>Whether the IPv6 lookup returned a conclusive answer or negative response.</summary>
+        public bool AaaaLookupComplete { get; private set; }
+        /// <summary>True for a confirmed address, false for confirmed absence, or null when absence is unestablished.</summary>
+        public bool? AddressPresence => HasAnyAddress ? true : AddressLookupComplete ? false : null;
+        /// <summary>Operational failures that prevented complete address discovery.</summary>
+        public IReadOnlyList<string> AddressLookupFailures { get; private set; } = Array.Empty<string>();
+
         /// <summary>Relevant standards for apex address (SMTP fallback) behavior.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "Simple Mail Transfer Protocol", Reference = "RFC 5321", Url = "https://datatracker.ietf.org/doc/html/rfc5321" },
@@ -92,6 +103,8 @@ public sealed class ApexAddressAnalysis {
 
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
+            ALookupComplete = AaaaLookupComplete = false;
+            AddressLookupFailures = Array.Empty<string>();
             ARecords = new List<string>();
             AaaaRecords = new List<string>();
             // flags are computed from lists
@@ -127,12 +140,7 @@ public sealed class ApexAddressAnalysis {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(q, type).WaitWithCancellation(ct);
             }
-            // If the DNS configuration has an override, prefer it directly to avoid any indirection issues
-            var dnsConfiguration = DnsConfiguration;
-            if (dnsConfiguration.QueryDnsOverride != null) {
-                return await dnsConfiguration.QueryDnsOverride(q, type).WaitWithCancellation(ct);
-            }
-            return await dnsConfiguration.QueryDNS(q, type, cancellationToken: ct);
+            return await DnsConfiguration.QueryPolicyDNS(q, type, cancellationToken: ct).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -140,6 +148,7 @@ public sealed class ApexAddressAnalysis {
         /// </summary>
         public Task AnalyzeApexAnswers(IEnumerable<DnsAnswer> aAnswers, IEnumerable<DnsAnswer> aaaaAnswers, InternalLogger? logger = null) {
             Reset();
+            ALookupComplete = AaaaLookupComplete = true;
             if (aAnswers != null) {
                 foreach (var a in aAnswers) {
                     var val = a.Data ?? a.DataRaw;
@@ -193,13 +202,31 @@ public sealed class ApexAddressAnalysis {
         public async Task AnalyzeAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             Reset();
             Subject = domainName;
-            var aTask = QueryDns(domainName, DnsRecordType.A, cancellationToken);
-            var aaaaTask = QueryDns(domainName, DnsRecordType.AAAA, cancellationToken);
+            async Task<(DnsAnswer[] Answers, string? Failure)> Lookup(DnsRecordType type) {
+                try {
+                    return (await QueryDns(domainName, type, cancellationToken).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>(), null);
+                } catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&
+                    (ex is DnsQueryFailureException || ex is System.Net.Http.HttpRequestException ||
+                     ex is System.IO.IOException || ex is System.Net.Sockets.SocketException ||
+                     ex is TimeoutException || ex is OperationCanceledException)) {
+                    return (Array.Empty<DnsAnswer>(), $"{type}: {ex.Message}");
+                }
+            }
+            var aTask = Lookup(DnsRecordType.A);
+            var aaaaTask = Lookup(DnsRecordType.AAAA);
             await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
-            var a = await aTask ?? Array.Empty<DnsAnswer>();
-            var aaaa = await aaaaTask ?? Array.Empty<DnsAnswer>();
-            await AnalyzeApexAnswers(a, aaaa, logger);
-                        await Task.WhenAll(AnalyzeReverseDnsAsync(domainName, logger, cancellationToken),
+            cancellationToken.ThrowIfCancellationRequested();
+            var a = await aTask;
+            var aaaa = await aaaaTask;
+            await AnalyzeApexAnswers(a.Answers, aaaa.Answers, logger);
+            AddressLookupFailures = new[] { a.Failure, aaaa.Failure }.Where(value => value != null).Select(value => value!).ToArray();
+            ALookupComplete = a.Failure == null;
+            AaaaLookupComplete = aaaa.Failure == null;
+            if (!AddressLookupComplete) {
+                logger?.WriteInformationCode("APEXADDRESS.Lookup.Incomplete", "Apex address evidence is incomplete; absence was not established for every address family.");
+            }
+            if (!HasAnyAddress) { return; }
+            await Task.WhenAll(AnalyzeReverseDnsAsync(domainName, logger, cancellationToken),
                 AnalyzeAsnAndRpkiAsync(domainName, logger, cancellationToken)).ConfigureAwait(false);
         }
 

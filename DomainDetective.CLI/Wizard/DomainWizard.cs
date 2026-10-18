@@ -58,17 +58,31 @@ public sealed partial class DomainWizard
             if (stages[i].Enabled)
                 foreach (var t in stages[i].Types) typeToStage[t] = i;
 
-        // Persona live narration buffer per stage
-        async Task RunPlanAsync() => await hc.Verify(Options.Domain, plan, cancellationToken: ct,
-            useDefaultChecksWhenEmpty: false).ConfigureAwait(false);
-
         var completedChecks = new ConcurrentDictionary<HealthCheckType, byte>();
-        int StagePercent(HealthCheckType type, int stage, int? completedSteps) {
-            // The sequential core sends a start event with the previous step
-            // count. Parallel events are completions and can arrive out of order.
-            if ((hc.ExecutionOptions.EnableParallelism && plan.Length > 1) || completedSteps > completedChecks.Count) {
-                completedChecks.TryAdd(type, 0);
+        Exception? planFailure = null;
+        async Task RunPlanAsync() {
+            bool planStarted = false;
+            void Completed(object? sender, LogEventArgs e) {
+                if (e.ProgressActivity != "HealthCheck") { return; }
+                planStarted = true;
+                if (!e.ProgressCurrentSteps.HasValue
+                    || !Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation, true, out var type)) { return; }
+                if ((hc.ExecutionOptions.EnableParallelism && plan.Length > 1) || e.ProgressCurrentSteps > completedChecks.Count) {
+                    completedChecks.TryAdd(type, 0);
+                }
             }
+            ilog.OnProgressMessage += Completed;
+            try {
+                await hc.Verify(Options.Domain, plan, cancellationToken: ct, useDefaultChecksWhenEmpty: false).ConfigureAwait(false);
+            } catch (Exception ex) when (planStarted && !ct.IsCancellationRequested && ex is not OutOfMemoryException) {
+                // Verify has drained every phase it started. Preserve those results
+                // and make the incomplete scan explicit in the rendered output.
+                planFailure = ex;
+                ilog.WriteError("Scan incomplete: {0}", ex.Message);
+            } finally { ilog.OnProgressMessage -= Completed; }
+            ct.ThrowIfCancellationRequested();
+        }
+        int StagePercent(HealthCheckType type, int stage, int? completedSteps) {
             var types = stages[stage].Types;
             return types.Length == 0 ? 100 : types.Count(completedChecks.ContainsKey) * 100 / types.Length;
         }
@@ -271,9 +285,11 @@ public sealed partial class DomainWizard
                         if (!stages[i].Enabled) continue;
                         currentStageIdx = i;
                         var stageName = Ui.FriendlyStageName(i);
-                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
+                        var stageComplete = stages[i].Types.All(completedChecks.ContainsKey);
+                        AppendPersonaLine(stageComplete ? AssessmentSeverity.Info : AssessmentSeverity.Warning,
+                            $"{stageName}.{(stageComplete ? "Done" : "Incomplete")}", $"{(stageComplete ? "Completed" : "Incomplete")} {stageName}");
                         if (stageLastLine.TryGetValue(i, out var line)) AppendGlobal(line);
-                        sProgress[i] = 100;
+                        sProgress[i] = stages[i].Types.Length == 0 ? 100 : stages[i].Types.Count(completedChecks.ContainsKey) * 100 / stages[i].Types.Length;
                     }
                     progressLineNeedsRedraw = true;
                 }
@@ -307,8 +323,10 @@ public sealed partial class DomainWizard
                             if (!stages[i].Enabled) continue;
                             currentStageIdx = i;
                             var stageName = Ui.FriendlyStageName(i);
-                            AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
-                            stageProgress[i] = 100;
+                            var stageComplete = stages[i].Types.All(completedChecks.ContainsKey);
+                            AppendPersonaLine(stageComplete ? AssessmentSeverity.Info : AssessmentSeverity.Warning,
+                                $"{stageName}.{(stageComplete ? "Done" : "Incomplete")}", $"{(stageComplete ? "Completed" : "Incomplete")} {stageName}");
+                            stageProgress[i] = stages[i].Types.Length == 0 ? 100 : stages[i].Types.Count(completedChecks.ContainsKey) * 100 / stages[i].Types.Length;
                         }
                     } finally { done = true; }
                 });
@@ -345,9 +363,13 @@ public sealed partial class DomainWizard
             var advanced = Options.Details.Equals("advanced", StringComparison.OrdinalIgnoreCase);
             var summaryOnly = Options.Details.Equals("summary", StringComparison.OrdinalIgnoreCase);
 
+            if (planFailure != null) {
+                AnsiConsole.MarkupLine($"[yellow]Scan incomplete for {Options.Domain.EscapeMarkup()}: {planFailure.Message.EscapeMarkup()}[/]");
+            }
             if (customSelection) {
-                AnsiConsole.MarkupLine($"[green]Selected checks completed for {Options.Domain.EscapeMarkup()}[/]");
-                if (!summaryOnly) {
+                if (planFailure == null) { AnsiConsole.MarkupLine($"[green]Selected checks completed for {Options.Domain.EscapeMarkup()}[/]"); }
+                if (summaryOnly) { RenderSelectedSummary(hc, plan, completedChecks.Keys.ToHashSet()); }
+                else {
                     var analyses = hc.GetAnalysisMap();
                     foreach (var check in plan) {
                         if (analyses.TryGetValue(check, out var analysis) && analysis != null) {
@@ -356,7 +378,7 @@ public sealed partial class DomainWizard
                     }
                 }
             } else {
-                Fx.FinalSummary(hc, Options.Domain);
+                Fx.FinalSummary(hc, Options.Domain, planFailure == null);
                 Ui.RenderPosturePanels(hc);
                 if (!summaryOnly)
                 {

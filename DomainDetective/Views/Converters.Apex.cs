@@ -13,8 +13,8 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(assessments);
         // ApexAddressAnalysis currently does not implement IHasAssessments; derive status from address quality flags
         int warnCount = 0, errCount = 0;
-        string status = (analysis.HasAnyAddress ? "OK" : "Warning");
-        if (!analysis.HasAnyAddress) warnCount = 1;
+        string status = analysis.AddressLookupComplete && analysis.HasAnyAddress ? "OK" : "Warning";
+        if (!analysis.HasAnyAddress || !analysis.AddressLookupComplete) warnCount = 1;
 
         return new ApexAddressInfo
         {
@@ -26,6 +26,11 @@ public static partial class Converters
             HasARecord = analysis.HasARecord,
             HasAaaaRecord = analysis.HasAaaaRecord,
             HasAnyAddress = analysis.HasAnyAddress,
+            AddressLookupComplete = analysis.AddressLookupComplete,
+            ALookupComplete = analysis.ALookupComplete,
+            AaaaLookupComplete = analysis.AaaaLookupComplete,
+            AddressPresence = analysis.AddressPresence,
+            AddressLookupFailures = analysis.AddressLookupFailures,
             IPv4Count = analysis.IPv4Count,
             IPv6Count = analysis.IPv6Count,
             DistinctSubnetCountV4 = analysis.DistinctSubnetCountV4,
@@ -50,7 +55,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"A {analysis.IPv4Count}, AAAA {analysis.IPv6Count}; FCrDNS {(analysis.AllFcrDnsValid ? "ok" : "check")}",
+            Summary = $"A {analysis.IPv4Count}, AAAA {analysis.IPv6Count}{(analysis.AddressLookupComplete ? "" : " (incomplete)")}; FCrDNS {(analysis.AllFcrDnsValid ? "ok" : "check")}",
             Recommendations = recs,
             Positives = RecommendationEngine.FromPositives(assessments),
             References = BuildReferences(analysis.RfcReferences.ToArray(), recs),
@@ -80,6 +85,16 @@ public class ApexAddressInfo
     public bool HasAaaaRecord { get; set; }
     /// <summary>Gets or sets the has any address value.</summary>
     public bool HasAnyAddress { get; set; }
+    /// <summary>Whether both address-family lookups completed conclusively.</summary>
+    public bool AddressLookupComplete { get; set; }
+    /// <summary>Whether the IPv4 lookup was conclusive.</summary>
+    public bool ALookupComplete { get; set; }
+    /// <summary>Whether the IPv6 lookup was conclusive.</summary>
+    public bool AaaaLookupComplete { get; set; }
+    /// <summary>Confirmed address presence or absence; null when unresolved.</summary>
+    public bool? AddressPresence { get; set; }
+    /// <summary>Operational failures that limited address discovery.</summary>
+    public IReadOnlyList<string> AddressLookupFailures { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the i pv4 count value.</summary>
     public int IPv4Count { get; set; }
     /// <summary>Gets or sets the i pv6 count value.</summary>

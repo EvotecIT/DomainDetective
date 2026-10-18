@@ -203,13 +203,13 @@ public static void TitleScreen(string domain, bool matrix, string persona)
         return $"[green]{new string(s)}[/]";
     }
 
-    public static void FinalSummary(DomainHealthCheck hc, string domain)
+    public static void FinalSummary(DomainHealthCheck hc, string domain, bool complete = true)
     {
         var grid = new Grid().AddColumn().AddColumn();
         grid.AddRow(new Markup("[bold]Domain[/]"), new Markup(domain.EscapeMarkup()))
             .AddRow(new Markup("[bold]DNSSEC[/]"), new Markup(hc.DnsSecAnalysis?.ChainValid == true ? "[green]Valid[/]" : "[red]No/Invalid[/]"))
             .AddRow(new Markup("[bold]Registrar[/]"), new Markup(hc.WhoisAnalysis?.Registrar?.EscapeMarkup() ?? "—"));
-        var p = new Panel(grid) { Header = new PanelHeader("[bold]Scan Complete[/]"), Border = BoxBorder.Heavy };
+        var p = new Panel(grid) { Header = new PanelHeader(complete ? "[bold]Scan Complete[/]" : "[bold]Scan Incomplete[/]"), Border = BoxBorder.Heavy };
         AnsiConsole.Write(p);
         AnsiConsole.WriteLine();
     }

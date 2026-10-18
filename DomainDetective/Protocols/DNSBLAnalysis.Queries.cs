@@ -151,7 +151,7 @@ public partial class DNSBLAnalysis {
                     // This is a conclusive access-policy reply, not a timeout or a
                     // target listing. Keep every subsequent target explicitly unknown.
                     if (CanShareProviderAccessFailure() && UsesSpamhausAResponses(zone) && answers.Any(answer =>
-                        (answer.Data ?? answer.DataRaw) == "127.255.255.254")) {
+                        (string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw : answer.Data) == "127.255.255.254")) {
                         run.BlockedProviders.TryAdd(zone, "Provider access blocked by the selected public resolver (127.255.255.254).");
                     }
                     return (type, answers, null);
