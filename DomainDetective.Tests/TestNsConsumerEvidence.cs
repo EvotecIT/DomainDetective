@@ -120,7 +120,8 @@ public class TestNsConsumerEvidence {
         await entered.Task;
         if (cancelCaller) {
             caller.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+            var cancellation = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+            Assert.Equal(caller.Token, cancellation.CancellationToken);
         } else {
             await operation;
             Assert.True(health.NSAnalysis.DnsQueryFailed);
