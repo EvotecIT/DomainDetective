@@ -132,8 +132,9 @@ internal static partial class OutputFormatters {
         }
         var data = GetCheckData(hc, check);
         if (data == null) {
-            return hc.GetAnalysisMap().TryGetValue(check, out var selected) && selected != null
-                ? SummarizeAnalysis(selected) : (null, null);
+            if (!hc.GetAnalysisMap().TryGetValue(check, out var selected) || selected == null) { return (null, null); }
+            var (fallbackStatus, fallbackSummary) = SummarizeAnalysis(selected);
+            return (FormatEvidenceStatus(fallbackStatus), fallbackSummary);
         }
         
         var type = data.GetType();

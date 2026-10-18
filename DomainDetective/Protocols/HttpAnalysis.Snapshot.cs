@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace DomainDetective;
 
 public partial class HttpAnalysis {
@@ -15,7 +17,7 @@ public partial class HttpAnalysis {
         clone.CachingHeaders = new(CachingHeaders, CachingHeaders.Comparer);
         clone.DeprecatedHeadersPresent = new(DeprecatedHeadersPresent, DeprecatedHeadersPresent.Comparer);
         clone.MissingDeprecatedHeaders = new(MissingDeprecatedHeaders, MissingDeprecatedHeaders.Comparer);
-        clone.Assessments = new(Assessments);
+        clone.Assessments = Assessments.Select(item => item.CloneForSnapshot()).ToList();
         return clone;
     }
 }

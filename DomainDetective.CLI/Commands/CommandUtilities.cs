@@ -225,46 +225,7 @@ internal static partial class CommandUtilities {
             var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
                 CreateHealthCheck, showProgress, checkHttp, checkTakeover, cancellationToken);
             try {
-            foreach (var run in runs) {
-                var domain = run.DomainName;
-                if (run.Error != null) { throw run.Error; }
-                var hc = run.HealthCheck!;
-
-            if (outputJson) {
-                Console.WriteLine(hc.ToJson());
-                continue;
-            }
-
-            if (summaryOnly) {
-                AnsiConsole.MarkupLine($"[bold]Summary for {domain.EscapeMarkup()}[/]");
-                OutputFormatters.FormatAsSelectedSummary(hc, hc.VerificationRequestedChecks.ToArray(), hc.VerificationCompletedChecks.ToHashSet());
-                continue;
-            }
-
-            var activeChecks = checks ?? DomainHealthCheck.DefaultChecks;
-            var analysisMap = hc.GetAnalysisMap();
-            foreach (var check in activeChecks) {
-                analysisMap.TryGetValue(check, out var data);
-                if (data != null) {
-                    var desc = DomainHealthCheck.GetCheckDescription(check);
-                    var header = desc != null ? $"{check} for {domain} - {desc.Summary}" : $"{check} for {domain}";
-                    CliHelpers.ShowPropertiesTable(header, data, unicodeOutput);
-                    if (check == HealthCheckType.AUTODISCOVER && autodiscoverEndpoints) {
-                        CliHelpers.ShowPropertiesTable($"AUTODISCOVER ENDPOINTS for {domain}", hc.AutodiscoverHttpAnalysis.Endpoints, unicodeOutput);
-                    }
-                }
-            }
-            if (checkHttp) {
-                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.PlainHttpAnalysis, unicodeOutput);
-            }
-            if (checkWeb) {
-                CliHelpers.ShowPropertiesTable($"WEB CERT for {domain}", hc.CertificateAnalysis, unicodeOutput);
-                CliHelpers.ShowPropertiesTable($"HTTPS SECURITY for {domain}", hc.HttpAnalysis, unicodeOutput);
-            }
-            if (checkTakeover) {
-                CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, unicodeOutput);
-            }
-            }
+                WriteBatchResults(runs, activePlan, checkHttp, checkWeb, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, unicodeOutput);
             } finally {
                 foreach (var run in runs) { run.HealthCheck?.Dispose(); }
             }

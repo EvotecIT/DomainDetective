@@ -24,6 +24,13 @@ public sealed class Assessment {
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
     /// <summary>Optional metadata for additional context.</summary>
     public Dictionary<string, string> Metadata { get; set; } = new();
+
+    /// <summary>Copies an observed finding and its metadata for an independently editable snapshot.</summary>
+    internal Assessment CloneForSnapshot() {
+        var clone = (Assessment)MemberwiseClone();
+        clone.Metadata = new Dictionary<string, string>(Metadata, Metadata.Comparer);
+        return clone;
+    }
 }
 
 /// <summary>

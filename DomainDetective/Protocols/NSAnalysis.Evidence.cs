@@ -99,11 +99,7 @@ public partial class NSAnalysis {
         clone.ChaosVersionByServer = new(ChaosVersionByServer, StringComparer.OrdinalIgnoreCase);
         clone.ChaosHostnameByServer = new(ChaosHostnameByServer, StringComparer.OrdinalIgnoreCase);
         clone.AsnByIp = new(AsnByIp, StringComparer.OrdinalIgnoreCase);
-        clone.Assessments = Assessments.Select(item => new Assessment {
-            Severity = item.Severity, Message = item.Message, Code = item.Code, Category = item.Category,
-            Target = item.Target, Source = item.Source, Timestamp = item.Timestamp,
-            Metadata = new Dictionary<string, string>(item.Metadata, item.Metadata.Comparer)
-        }).ToList();
+        clone.Assessments = Assessments.Select(item => item.CloneForSnapshot()).ToList();
         return clone;
     }
 }
