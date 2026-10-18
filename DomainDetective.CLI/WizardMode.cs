@@ -457,7 +457,7 @@ internal static class WizardMode {
             var logger = new InternalLogger(false);
             var hc = new DomainHealthCheck(internalLogger: logger) {
                 UseSubdomainPolicy = subdomainPolicy,
-                Progress = true, // Disable internal progress
+                Progress = false, // Disable internal console progress
                 Verbose = false   // Disable verbose logging
             };
             

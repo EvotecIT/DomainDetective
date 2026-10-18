@@ -178,7 +178,8 @@ public partial class DNSBLAnalysis {
         // One blocked recursive path says nothing about a different resolver.
         // Cloudflare's address/transport variants belong to the same public
         // resolver service covered by Spamhaus's public-resolver access policy.
-        return providers.Distinct().Count() == 1 && providers[0] == DnsEndpoint.Cloudflare
+        return providers.Distinct().Count() == 1 &&
+            (providers[0] == DnsEndpoint.Cloudflare || providers[0] == DnsEndpoint.CloudflareWireFormat)
             || DnsResolverEndpointFactory.From(providers).Length == 1;
     }
 

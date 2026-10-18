@@ -118,12 +118,13 @@ public class TestNetworkObservationSharing {
     }
 
     [Theory]
-    [InlineData(true, 1, false)]
-    [InlineData(false, 2, false)]
-    [InlineData(true, 2, true)]
-    public async Task DnsblSharesOnlyConclusiveAccessFailuresAndRetainsUnknownTargets(bool blocked, int expectedCalls, bool multipleServices) {
+    [InlineData(true, 1, false, DnsEndpoint.Cloudflare)]
+    [InlineData(true, 1, false, DnsEndpoint.CloudflareWireFormat)]
+    [InlineData(false, 2, false, DnsEndpoint.Cloudflare)]
+    [InlineData(true, 2, true, DnsEndpoint.Cloudflare)]
+    public async Task DnsblSharesOnlyConclusiveAccessFailuresAndRetainsUnknownTargets(bool blocked, int expectedCalls, bool multipleServices, DnsEndpoint endpoint) {
         int calls = 0;
-        var analysis = new DNSBLAnalysis(new DnsConfiguration(DnsEndpoint.Cloudflare, DnsSelectionStrategy.First) {
+        var analysis = new DNSBLAnalysis(new DnsConfiguration(endpoint, DnsSelectionStrategy.First) {
             ResolverMaxConcurrency = 1
         });
         analysis.ClearDNSBL();

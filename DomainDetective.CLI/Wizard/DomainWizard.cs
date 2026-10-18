@@ -45,7 +45,7 @@ public sealed partial class DomainWizard
 
         // Wire internal logger; we'll map progress to Spectre tasks
         var ilog = new InternalLogger();
-        var hc = new DomainHealthCheck(internalLogger: ilog) { Progress = true, Verbose = false };
+        var hc = new DomainHealthCheck(internalLogger: ilog) { Progress = false, Verbose = false };
         try { return await RunCoreAsync(hc, ilog, ct).ConfigureAwait(false); }
         catch { hc.Dispose(); throw; }
     }
@@ -143,7 +143,7 @@ public sealed partial class DomainWizard
                     // In simple UI, print log on a fresh line and re-draw status pinned line
                     lock (termLock)
                     {
-                        Console.Write("\r\x1b[2K");
+                        if (AnsiConsole.Profile.Capabilities.Ansi) { Console.Write("\r\x1b[2K"); }
                         AnsiConsole.MarkupLine(compact);
                         progressLineNeedsRedraw = true;
                     }
@@ -248,8 +248,11 @@ public sealed partial class DomainWizard
                             var line = ComposeProgressLine(sProgress, sOp);
                             lock (termLock)
                             {
-                                Console.Write("\r\x1b[2K");
-                                if (!string.IsNullOrEmpty(line)) Console.Write(line);
+                                if (AnsiConsole.Profile.Capabilities.Ansi) { Console.Write("\r\x1b[2K"); }
+                                if (!string.IsNullOrEmpty(line)) {
+                                    if (AnsiConsole.Profile.Capabilities.Ansi) { Console.Write(line); }
+                                    else { Console.WriteLine(line); }
+                                }
                                 progressLineNeedsRedraw = false;
                             }
                         }
@@ -277,7 +280,8 @@ public sealed partial class DomainWizard
                     try { await progTask; } catch { /* ignore */ }
                     lock (termLock)
                     {
-                        Console.Write("\r\x1b[2K\n");
+                        if (AnsiConsole.Profile.Capabilities.Ansi) { Console.Write("\r\x1b[2K\n"); }
+                        else { Console.WriteLine(); }
                     }
                 }
             }
@@ -333,52 +337,57 @@ public sealed partial class DomainWizard
 
         if (Options.Output == "console")
         {
-            Fx.FinalSummary(hc, Options.Domain);
+            bool customSelection = Options.Checks != null && Options.Checks.Length > 0;
             var advanced = Options.Details.Equals("advanced", StringComparison.OrdinalIgnoreCase);
             var summaryOnly = Options.Details.Equals("summary", StringComparison.OrdinalIgnoreCase);
 
-            Ui.RenderPosturePanels(hc);
-            if (!summaryOnly)
-            {
-                if (stages[0].Enabled) { Ui.RenderDnsTree(hc, advanced); }
-                if (Options.PersonaLive && stageLogs.TryGetValue(0, out var dnsLines) && dnsLines.Count > 0)
-                    Ui.RenderPersonaLogPanel("DNS Activity", dnsLines);
-                var allViews = hc.GetRecommendationViews();
-                var dnsRecs = Ui.FilterRecommendationsForStage(allViews, 0).Take(5).ToArray();
-                if (dnsRecs.Length > 0) Ui.RenderRecommendationsPanel("DNS Recommendations", dnsRecs);
-                if (stages[1].Enabled) { Ui.RenderMailTree(hc, advanced); }
-                if (Options.PersonaLive && stageLogs.TryGetValue(1, out var mailLines) && mailLines.Count > 0)
-                    Ui.RenderPersonaLogPanel("Mail Activity", mailLines);
-                var mailRecs = Ui.FilterRecommendationsForStage(allViews, 1).Take(5).ToArray();
-                if (mailRecs.Length > 0) Ui.RenderRecommendationsPanel("Mail Recommendations", mailRecs);
-                if (stages[2].Enabled) Ui.RenderWebTree(hc, advanced);
-                if (Options.PersonaLive && stages[2].Enabled && stageLogs.TryGetValue(2, out var webLines) && webLines.Count > 0)
-                    Ui.RenderPersonaLogPanel("Web Activity", webLines);
-                if (stages[2].Enabled)
-                {
-                    var webRecs = Ui.FilterRecommendationsForStage(allViews, 2).Take(5).ToArray();
-                    if (webRecs.Length > 0) Ui.RenderRecommendationsPanel("Web Recommendations", webRecs);
-                }
-                if (stages[3].Enabled) Ui.RenderReputationTree(hc, advanced);
-                if (Options.PersonaLive && stages[3].Enabled && stageLogs.TryGetValue(3, out var repLines) && repLines.Count > 0)
-                    Ui.RenderPersonaLogPanel("Reputation Activity", repLines);
-                if (stages[3].Enabled)
-                {
-                    var repRecs = Ui.FilterRecommendationsForStage(allViews, 3).Take(5).ToArray();
-                    if (repRecs.Length > 0) Ui.RenderRecommendationsPanel("Reputation Recommendations", repRecs);
-                }
-
-                if (stages.Count > 4 && stages[4].Enabled) {
+            if (customSelection) {
+                AnsiConsole.MarkupLine($"[green]Selected checks completed for {Options.Domain.EscapeMarkup()}[/]");
+                if (!summaryOnly) {
                     var analyses = hc.GetAnalysisMap();
-                    foreach (var check in stages[4].Types) {
+                    foreach (var check in plan) {
                         if (analyses.TryGetValue(check, out var analysis) && analysis != null) {
                             CliHelpers.ShowPropertiesTable($"{check} for {Options.Domain}", analysis, false);
                         }
                     }
                 }
+            } else {
+                Fx.FinalSummary(hc, Options.Domain);
+                Ui.RenderPosturePanels(hc);
+                if (!summaryOnly)
+                {
+                    if (stages[0].Enabled) { Ui.RenderDnsTree(hc, advanced); }
+                    if (Options.PersonaLive && stageLogs.TryGetValue(0, out var dnsLines) && dnsLines.Count > 0)
+                        Ui.RenderPersonaLogPanel("DNS Activity", dnsLines);
+                    var allViews = hc.GetRecommendationViews();
+                    var dnsRecs = Ui.FilterRecommendationsForStage(allViews, 0).Take(5).ToArray();
+                    if (dnsRecs.Length > 0) Ui.RenderRecommendationsPanel("DNS Recommendations", dnsRecs);
+                    if (stages[1].Enabled) { Ui.RenderMailTree(hc, advanced); }
+                    if (Options.PersonaLive && stageLogs.TryGetValue(1, out var mailLines) && mailLines.Count > 0)
+                        Ui.RenderPersonaLogPanel("Mail Activity", mailLines);
+                    var mailRecs = Ui.FilterRecommendationsForStage(allViews, 1).Take(5).ToArray();
+                    if (mailRecs.Length > 0) Ui.RenderRecommendationsPanel("Mail Recommendations", mailRecs);
+                    if (stages[2].Enabled) Ui.RenderWebTree(hc, advanced);
+                    if (Options.PersonaLive && stages[2].Enabled && stageLogs.TryGetValue(2, out var webLines) && webLines.Count > 0)
+                        Ui.RenderPersonaLogPanel("Web Activity", webLines);
+                    if (stages[2].Enabled)
+                    {
+                        var webRecs = Ui.FilterRecommendationsForStage(allViews, 2).Take(5).ToArray();
+                        if (webRecs.Length > 0) Ui.RenderRecommendationsPanel("Web Recommendations", webRecs);
+                    }
+                    if (stages[3].Enabled) Ui.RenderReputationTree(hc, advanced);
+                    if (Options.PersonaLive && stages[3].Enabled && stageLogs.TryGetValue(3, out var repLines) && repLines.Count > 0)
+                        Ui.RenderPersonaLogPanel("Reputation Activity", repLines);
+                    if (stages[3].Enabled)
+                    {
+                        var repRecs = Ui.FilterRecommendationsForStage(allViews, 3).Take(5).ToArray();
+                        if (repRecs.Length > 0) Ui.RenderRecommendationsPanel("Reputation Recommendations", repRecs);
+                    }
 
-                var displayedMode = stages[3].Enabled ? ScanMode.Full : stages[2].Enabled ? ScanMode.Default : ScanMode.Quick;
-                Ui.RenderCheckSummariesPanel(hc, Options.ActiveMailProbes, displayedMode);
+                    var displayedMode = stages[3].Enabled ? ScanMode.Full : stages[2].Enabled ? ScanMode.Default : ScanMode.Quick;
+                    Ui.RenderCheckSummariesPanel(hc, Options.ActiveMailProbes, displayedMode);
+                }
+
             }
 
             // Persona-driven recommendations summary from assessments
