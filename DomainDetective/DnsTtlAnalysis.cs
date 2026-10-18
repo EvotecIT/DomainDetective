@@ -79,7 +79,7 @@ namespace DomainDetective {
         /// Maximum number of concurrent authoritative-server TTL queries performed by
         /// <see cref="AnalyzeUniformityAcrossServers"/>.
         /// </summary>
-        public int UniformityMaxParallelism { get; set; } = 8;
+        public int UniformityMaxParallelism { get; set; } = 16;
 
 	        // Per-authoritative-server TTL uniformity results
 	        /// <summary>Gets or sets the server ttl a value.</summary>
@@ -114,6 +114,27 @@ namespace DomainDetective {
         /// </summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
+        private readonly Func<System.Net.IPAddress, string, DnsRecordType, int, System.Threading.CancellationToken, bool, Task<DnsResponse?>> _queryAuthoritative;
+
+        /// <summary>Creates TTL analysis using the native DNS wire transport.</summary>
+        public DnsTtlAnalysis() : this(QueryAuthoritativeAsync) { }
+
+        /// <summary>Supplies the authoritative transport boundary without changing recursive discovery.</summary>
+        internal DnsTtlAnalysis(Func<System.Net.IPAddress, string, DnsRecordType, int, System.Threading.CancellationToken, bool, Task<DnsResponse?>> queryAuthoritative) {
+            _queryAuthoritative = queryAuthoritative ?? throw new ArgumentNullException(nameof(queryAuthoritative));
+        }
+
+        private static async Task<DnsResponse?> QueryAuthoritativeAsync(System.Net.IPAddress ip, string name,
+            DnsRecordType type, int timeoutMs, System.Threading.CancellationToken ct, bool preflight) {
+            if (preflight) {
+                return await Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), name, type, timeoutMs, ct, acceptRefused: true).ConfigureAwait(false);
+            }
+            var query = new DnsMessage(name, type, new DnsMessageOptions(RecursionDesired: false));
+            var result = await DnsWireQueryClient.QueryUdpAsync(ip.ToString(), 53, query, timeoutMs,
+                useTcpFallback: true, cancellationToken: ct).ConfigureAwait(false);
+            return result.Response;
+        }
+
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, System.Threading.CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             if (QueryDnsOverride != null) {
@@ -133,14 +154,15 @@ namespace DomainDetective {
         }
 
         private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
-            var query = new DnsMessage(name, (DnsRecordType)qtype, new DnsMessageOptions(RecursionDesired: false));
-            DnsWireQueryResult result = await DnsWireQueryClient.QueryUdpAsync(
-                ip.ToString(), 53, query, timeoutMs > 0 ? timeoutMs : 4000, useTcpFallback: true,
-                cancellationToken: ct).ConfigureAwait(false);
-            if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(result.Response)) { return (null, false); }
-            var answers = result.Response.Answers ?? Array.Empty<DnsAnswer>();
+            var response = await _queryAuthoritative(ip, name, (DnsRecordType)qtype, timeoutMs > 0 ? timeoutMs : 4000, ct, false).ConfigureAwait(false);
+            return ReadAuthoritativeTtl(response, (DnsRecordType)qtype);
+        }
+
+        private static (int? Ttl, bool Succeeded) ReadAuthoritativeTtl(DnsResponse? response, DnsRecordType type) {
+            if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(response)) { return (null, false); }
+            var answers = response!.Answers ?? Array.Empty<DnsAnswer>();
             int? answerTtl = answers
-                .Where(item => item.Type == (DnsRecordType)qtype)
+                .Where(item => item.Type == type)
                 .Select(item => (int?)item.TTL)
                 .FirstOrDefault();
             if (answerTtl.HasValue) return (answerTtl, true);
@@ -259,6 +281,16 @@ namespace DomainDetective {
 	        /// Compares TTLs across authoritative name servers for core RRsets (A, AAAA, NS, CNAME).
 	        /// </summary>
 	        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+            try {
+                await AnalyzeUniformityCoreAsync(domainName, logger, ct).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+                throw new OperationCanceledException(ct);
+            }
+        }
+
+        private async Task AnalyzeUniformityCoreAsync(string domainName, InternalLogger logger, System.Threading.CancellationToken ct) {
             using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TTL", target: domainName);
             UniformityIncomplete = false;
 	            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
@@ -293,16 +325,27 @@ namespace DomainDetective {
                 return;
             }
 
-            // Probe each address once before scheduling the record matrix. A silent address
-            // must not consume a separate full timeout for every requested record type.
-            var reachability = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(nsIps, async ip =>
-                (Ip: ip, Response: await DomainDetective.Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), domainName, DnsRecordType.NS, timeoutMs, ct, acceptRefused: true)),
-                concurrency: maxParallelism, cancellationToken: ct);
-            var reachable = new HashSet<System.Net.IPAddress>(reachability.Where(item => item.Response != null).Select(item => item.Ip));
+            // Each responsive address can start its matrix while another address is still
+            // probing reachability. Every network operation shares the same admission bound.
+            var reachable = new System.Collections.Concurrent.ConcurrentDictionary<System.Net.IPAddress, byte>();
             var unavailableLabels = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
-            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps.Select(ip => ip.ToString()), reachable.Select(ip => ip.ToString()), logger);
-            async Task<int?> SafeQuery(System.Net.IPAddress server, string name, ushort qtype, string label) {
-                if (!reachable.Contains(server)) { unavailableLabels.TryAdd(label, 0); return null; }
+            async Task<DnsResponse?> ProbeServer(System.Net.IPAddress server) {
+                await semaphore.WaitAsync(ct).ConfigureAwait(false);
+                try {
+                    return await _queryAuthoritative(server, domainName, DnsRecordType.NS, timeoutMs, ct, true).ConfigureAwait(false);
+                } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception error) when (Helpers.AuthoritativeDnsProbes.IsTransportFailure(error)) { return null; }
+                finally { semaphore.Release(); }
+            }
+            async Task<int?> SafeQuery(System.Net.IPAddress server, string name, ushort qtype, string label, DnsResponse? preflight = null) {
+                if (!reachable.ContainsKey(server)) { unavailableLabels.TryAdd(label, 0); return null; }
+                // Only a completed authoritative answer fulfills the NS matrix query.
+                // Reachable refusals/referrals still need the ordinary record query.
+                if (Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(preflight)) {
+                    var observed = ReadAuthoritativeTtl(preflight, (DnsRecordType)qtype);
+                    if (!observed.Succeeded) { unavailableLabels.TryAdd(label, 0); }
+                    return observed.Ttl;
+                }
                 await semaphore.WaitAsync(ct);
                 try {
                     var response = await QueryTtlFromServer(server, name, qtype, ct, timeoutMs);
@@ -324,28 +367,30 @@ namespace DomainDetective {
             var ipTasks = nsIps.Select(async ip => {
                 ct.ThrowIfCancellationRequested();
                 var key = ip.ToString();
+                var preflight = await ProbeServer(ip).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                if (preflight != null && Helpers.AuthoritativeDnsProbes.IsUsableResponse(preflight, acceptRefused: true)) {
+                    reachable.TryAdd(ip, 0);
+                }
 
                 var aTask = SafeQuery(ip, domainName, 1, "A");
                 var aaaaTask = SafeQuery(ip, domainName, 28, "AAAA");
-	                var nsTask = SafeQuery(ip, domainName, 2, "NS");
+	                var nsTask = SafeQuery(ip, domainName, 2, "NS", preflight);
 	                var cnameTask = SafeQuery(ip, domainName, 5, "CNAME");
 	                var txtSpfTask = SafeQuery(ip, domainName, 16, "SPF TXT");
 	                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "DMARC TXT");
 	                var txtMtastsTask = SafeQuery(ip, $"_mta-sts.{domainName}", 16, "MTA-STS TXT");
 	                var txtTlsRptTask = SafeQuery(ip, $"_smtp._tls.{domainName}", 16, "TLS-RPT TXT");
 
-	                await Task.WhenAll(aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask, txtMtastsTask, txtTlsRptTask);
-
 	                var dkim = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+	                var dkimTasks = dkimSelectors.Select(async sel => {
+                        var name = $"{sel}._domainkey.{domainName}";
+                        var ttl = await SafeQuery(ip, name, 16, $"DKIM TXT ({name})");
+                        return (Name: name, Ttl: ttl);
+                    }).ToArray();
+	                await Task.WhenAll(new Task[] { aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask, txtMtastsTask, txtTlsRptTask }
+                        .Concat(dkimTasks)).ConfigureAwait(false);
 	                if (dkimSelectors.Length > 0) {
-	                    var dkimTasks = dkimSelectors
-	                        .Select(async sel => {
-                            var name = $"{sel}._domainkey.{domainName}";
-                            var ttl = await SafeQuery(ip, name, 16, $"DKIM TXT ({name})");
-                            return (Name: name, Ttl: ttl);
-                        })
-	                        .ToArray();
-
 	                    var dkimResults = await Task.WhenAll(dkimTasks);
 	                    foreach (var dkimResult in dkimResults) {
 	                        dkim[dkimResult.Name] = dkimResult.Ttl;
@@ -356,6 +401,7 @@ namespace DomainDetective {
 	            }).ToArray();
 
 	            var results = await Task.WhenAll(ipTasks);
+            DomainDetective.Helpers.AuthoritativeDnsProbes.ReportIpv6Reachability(nsIps.Select(ip => ip.ToString()), reachable.Keys.Select(ip => ip.ToString()), logger);
             UniformityIncomplete = !unavailableLabels.IsEmpty;
 
 	            foreach (var r in results) {

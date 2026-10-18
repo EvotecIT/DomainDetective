@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -19,24 +20,25 @@ public partial class MXAnalysis {
         return selected;
     }
 
-    private async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryRecursiveEvidenceAsync(string owner, DnsRecordType type) {
+    private async Task<(DnsAnswer[]? Answers, bool NxDomain)> QueryRecursiveEvidenceAsync(string owner, DnsRecordType type, CancellationToken cancellationToken = default) {
         try {
-            var response = await QueryRecursiveResponseAsync(owner, type);
+            var response = await QueryRecursiveResponseAsync(owner, type, cancellationToken);
             if (response == null) { return (null, false); }
             return (FilterRecursiveAnswers(response.Answers, type), response.Status == DnsResponseCode.NXDomain);
-        } catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException ||
             ex is System.Net.Sockets.SocketException || ex is InvalidOperationException || ex is FormatException || ex is ArgumentException || ex is DnsClientException) { return (null, false); }
     }
 
-    internal async Task<(List<string> Addresses, bool Incomplete)> DiscoverAuthoritativeServersAsync(string domain) {
-        var ns = await QueryRecursiveEvidenceAsync(domain, DnsRecordType.NS);
+    internal async Task<(List<string> Addresses, bool Incomplete)> DiscoverAuthoritativeServersAsync(string domain, CancellationToken cancellationToken = default) {
+        var ns = await QueryRecursiveEvidenceAsync(domain, DnsRecordType.NS, cancellationToken);
         var hosts = (ns.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == DnsRecordType.NS)
             .Select(answer => NormalizeHost(answer.Data)).Where(host => host.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         bool incomplete = ns.Answers == null || hosts.Length == 0;
         var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var host in hosts) {
-            var a = QueryRecursiveEvidenceAsync(host, DnsRecordType.A);
-            var aaaa = QueryRecursiveEvidenceAsync(host, DnsRecordType.AAAA);
+            var a = QueryRecursiveEvidenceAsync(host, DnsRecordType.A, cancellationToken);
+            var aaaa = QueryRecursiveEvidenceAsync(host, DnsRecordType.AAAA, cancellationToken);
             await Task.WhenAll(a, aaaa);
             incomplete |= a.Result.Answers == null || aaaa.Result.Answers == null;
             bool resolved = false;

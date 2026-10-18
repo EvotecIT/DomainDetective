@@ -23,7 +23,7 @@ namespace DomainDetective {
             }
             var mx = await GetMxRecordsAsync(domainName, cancellationToken);
             MXAnalysis.Subject = domainName;
-            await MXAnalysis.AnalyzeMxRecords(mx, _logger);
+            await MXAnalysis.AnalyzeMxRecords(mx, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -37,7 +37,7 @@ namespace DomainDetective {
                     DataRaw = mxRecord,
                     Type = DnsRecordType.MX
                 }
-            }, _logger);
+            }, _logger, cancellationToken);
         }
     }
 }
