@@ -189,16 +189,16 @@ internal static partial class CommandUtilities {
         var autodiscoverEndpoints = AnsiConsole.Confirm("Show Autodiscover HTTP endpoints?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
-        return 0;
+        return await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
     }
 
-	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
+	internal static async Task<int> RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
+            bool renderProgress = showProgress && !outputJson;
             var activePlan = (checks == null || checks.Length == 0 ? DomainHealthCheck.DefaultChecks : checks)
                 .Concat(checkWeb ? new[] { HealthCheckType.WEBSITE } : Array.Empty<HealthCheckType>()).Distinct().ToArray();
             DomainHealthCheck CreateHealthCheck(string domain) {
-	            var logger = new InternalLogger { IsProgress = showProgress };
-	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
+	            var logger = new InternalLogger { IsProgress = renderProgress };
+	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = renderProgress };
                 if (dnsEndpoints != null && dnsEndpoints.Length > 0)
                 {
                     hc.DnsEndpoints.Clear();
@@ -223,9 +223,9 @@ internal static partial class CommandUtilities {
                 return hc;
             }
             var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
-                CreateHealthCheck, showProgress, checkHttp, checkTakeover, cancellationToken);
+                CreateHealthCheck, renderProgress, checkHttp, checkTakeover, cancellationToken);
             try {
-                WriteBatchResults(runs, activePlan, checkHttp, checkWeb, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, unicodeOutput);
+                return WriteBatchResults(runs, activePlan, checkHttp, checkWeb, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, unicodeOutput);
             } finally {
                 foreach (var run in runs) { run.HealthCheck?.Dispose(); }
             }

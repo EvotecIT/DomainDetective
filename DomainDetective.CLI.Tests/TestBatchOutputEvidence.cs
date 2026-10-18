@@ -35,15 +35,19 @@ public class TestBatchOutputEvidence {
         AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
         AnsiConsole.Profile.Width = 200;
         try {
-            var thrown = Assert.Throws<InvalidOperationException>(() => CommandUtilities.WriteBatchResults(runs, checks,
-                false, false, false, false, format == "json", format == "summary", false));
-            Assert.Same(error, thrown);
+            if (format == "json") {
+                Assert.Equal(1, CommandUtilities.WriteBatchResults(runs, checks, false, false, false, false, true, false, false));
+            } else {
+                var thrown = Assert.Throws<InvalidOperationException>(() => CommandUtilities.WriteBatchResults(runs, checks,
+                    false, false, false, false, false, format == "summary", false));
+                Assert.Same(error, thrown);
+                Assert.Contains(originalFrame, thrown.StackTrace);
+            }
             var text = output.ToString();
             _output.WriteLine(text);
             Assert.Contains("partial.example", text);
             Assert.Contains("factory.example", text);
             Assert.Contains("complete.example", text);
-            Assert.Contains(originalFrame, thrown.StackTrace);
             if (format == "json") {
                 var documents = ParseJsonValues(text);
                 try {
@@ -51,6 +55,9 @@ public class TestBatchOutputEvidence {
                     Assert.False(documents[0].RootElement.GetProperty("VerificationCompleted").GetBoolean());
                     Assert.False(documents[1].RootElement.GetProperty("VerificationCompleted").GetBoolean());
                     Assert.True(documents[2].RootElement.GetProperty("VerificationCompleted").GetBoolean());
+                    Assert.Equal("partial.example", documents[0].RootElement.GetProperty("DomainName").GetString());
+                    Assert.Equal("factory.example", documents[1].RootElement.GetProperty("DomainName").GetString());
+                    Assert.Equal("complete.example", documents[2].RootElement.GetProperty("DomainName").GetString());
                 } finally { foreach (var document in documents) { document.Dispose(); } }
             } else {
                 Assert.Contains("incomplete", text, StringComparison.OrdinalIgnoreCase);
@@ -61,6 +68,28 @@ public class TestBatchOutputEvidence {
                 }
             }
         } finally { AnsiConsole.Console = previous; Console.SetOut(previousOut); }
+    }
+
+    [Fact]
+    public async Task RejectedInputsReturnIdentifiedJsonAndFailureWithoutHumanOutput() {
+        var previous = Console.Out;
+        using var output = new StringWriter();
+        Console.SetOut(output);
+        try {
+            int result = await CommandUtilities.RunChecks(new[] { "bad[one]", "bad[two]" }, new[] { HealthCheckType.CAA },
+                false, false, false, false, true, false, false, false, null, true, false, null);
+            Assert.Equal(1, result);
+            var documents = ParseJsonValues(output.ToString());
+            try {
+                Assert.Equal(2, documents.Count);
+                for (int index = 0; index < documents.Count; index++) {
+                    var root = documents[index].RootElement;
+                    Assert.Equal(index == 0 ? "bad[one]" : "bad[two]", root.GetProperty("DomainName").GetString());
+                    Assert.False(root.GetProperty("VerificationCompleted").GetBoolean());
+                    Assert.Contains("Invalid host name", root.GetProperty("VerificationError").GetString());
+                }
+            } finally { foreach (var document in documents) { document.Dispose(); } }
+        } finally { Console.SetOut(previous); }
     }
 
     [Fact]

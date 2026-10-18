@@ -629,6 +629,9 @@ public partial class DomainHealthCheck {
                 DnsConfiguration = DnsConfiguration.CloneForIndependentOwner(),
                 MtaStsPolicyUrlOverride = MtaStsPolicyUrlOverride
             };
+            // The public configuration setter enables reuse for a new health check;
+            // a snapshot preserves the source owner's explicit transport policy.
+            filtered.DnsConfiguration.ReuseResolverClients = DnsConfiguration.ReuseResolverClients;
             filtered.VerificationCompleted = VerificationCompleted;
             filtered.VerificationError = VerificationError;
             filtered.VerificationRequestedChecks = VerificationRequestedChecks.Where(active.Contains).ToArray();

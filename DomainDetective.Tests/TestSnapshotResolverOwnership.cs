@@ -4,6 +4,14 @@ using DnsClientX;
 namespace DomainDetective.Tests;
 
 public class TestSnapshotResolverOwnership {
+    [Fact]
+    public void FilteredResolverPreservesAnExplicitNoReusePolicy() {
+        using var source = new DomainHealthCheck();
+        source.DnsConfiguration.ReuseResolverClients = false;
+        using var snapshot = source.FilterAnalyses(new[] { HealthCheckType.NS });
+        Assert.False(snapshot.DnsConfiguration.ReuseResolverClients);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

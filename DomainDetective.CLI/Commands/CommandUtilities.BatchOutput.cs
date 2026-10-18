@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Spectre.Console;
 
 namespace DomainDetective.CLI;
 
 internal static partial class CommandUtilities {
     /// <summary>Renders every collected domain run before returning the first batch failure to the command.</summary>
-    internal static void WriteBatchResults(IReadOnlyList<DomainHealthCheckRun> runs, HealthCheckType[] checks,
+    internal static int WriteBatchResults(IReadOnlyList<DomainHealthCheckRun> runs, HealthCheckType[] checks,
         bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool unicodeOutput) {
         ExceptionDispatchInfo? failure = null;
         foreach (var run in runs) {
@@ -17,9 +18,15 @@ internal static partial class CommandUtilities {
             var hc = run.HealthCheck;
             if (outputJson) {
                 // Keep JSON output machine-readable, including a factory failure with no analysis instance.
-                Console.WriteLine(hc != null ? hc.ToJson() : JsonSerializer.Serialize(new {
-                    DomainName = run.DomainName, VerificationCompleted = false, VerificationError = run.Error?.Message
-                }));
+                if (hc != null) {
+                    var json = JsonNode.Parse(hc.ToJson())!.AsObject();
+                    json["DomainName"] = run.DomainName;
+                    Console.WriteLine(json.ToJsonString(DomainDetective.Helpers.JsonOptions.Default));
+                } else {
+                    Console.WriteLine(JsonSerializer.Serialize(new {
+                        DomainName = run.DomainName, VerificationCompleted = false, VerificationError = run.Error?.Message
+                    }));
+                }
                 continue;
             }
             if (run.Error != null) {
@@ -33,7 +40,10 @@ internal static partial class CommandUtilities {
                 WriteDetailedRun(run.DomainName, hc, checks, checkHttp, checkWeb, checkTakeover, autodiscoverEndpoints, unicodeOutput);
             }
         }
+        // Returning a JSON command status avoids Spectre appending a human error to stdout.
+        if (outputJson) { return failure == null ? 0 : 1; }
         failure?.Throw();
+        return 0;
     }
 
     private static void WriteDetailedRun(string domain, DomainHealthCheck hc, HealthCheckType[] checks,
