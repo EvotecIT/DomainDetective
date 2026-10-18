@@ -10,7 +10,7 @@ public partial class DomainHealthCheck {
         var tasks = new List<Task>();
         if (options.IncludePlainHttp) {
             VerificationPlainHttpCompleted = false;
-            PlainHttpAnalysis.Subject = new UriBuilder($"http://{domainName}").Uri.GetLeftPart(UriPartial.Authority);
+            PlainHttpAnalysis.Subject = $"http://{EndpointHostNormalizer.FormatUriAuthority(new Uri($"http://{domainName}"))}";
             tasks.Add(RunAdmittedCheckAsync(async () => {
                 await PlainHttpAnalysis.AnalyzeUrl(PlainHttpAnalysis.Subject!, false, _logger, cancellationToken: cancellationToken).ConfigureAwait(false);
                 VerificationPlainHttpCompleted = true;

@@ -6,6 +6,17 @@ namespace DomainDetective.Tests;
 
 public class TestIdnValidation
 {
+    [Theory]
+    [InlineData("fe80::1%12", "[fe80::1%12]")]
+    [InlineData("[fe80::1%12]", "[fe80::1%12]")]
+    [InlineData("[fe80::1%12]:8443", "[fe80::1%12]:8443")]
+    [InlineData("[fe80::1%12]:80", "[fe80::1%12]")]
+    public void ValidateHostNamePreservesScopedIpv6(string input, string expected) {
+        var method = typeof(DomainHealthCheck)
+            .GetMethod("ValidateHostName", BindingFlags.NonPublic | BindingFlags.Static)!;
+        Assert.Equal(expected, (string)method.Invoke(null, new object[] { input })!);
+    }
+
     [Fact]
     public void ValidateHostNameConvertsUnicode()
     {

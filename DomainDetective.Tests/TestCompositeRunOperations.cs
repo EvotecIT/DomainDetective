@@ -84,15 +84,20 @@ public class TestCompositeRunOperations {
     [InlineData("example.com", "example.com")]
     [InlineData("2001:db8::1", "[2001:db8::1]")]
     [InlineData("[2001:db8::1]", "[2001:db8::1]")]
+    [InlineData("fe80::1%12", "[fe80::1%12]")]
+    [InlineData("[fe80::1%12]", "[fe80::1%12]")]
     public async Task CombinedWebPlanKeepsPlainHttpSeparateAndHonorsHttpsPort(string domain, string authority) {
         using var health = new DomainHealthCheck();
         var requested = new ConcurrentBag<Uri>();
+        var resolved = new ConcurrentBag<string>();
         health.HttpAnalysis.HttpHandlerFactory = () => new WebHandler(requested);
         health.PlainHttpAnalysis.HttpHandlerFactory = () => new WebHandler(requested);
         health.CertificateAnalysis.PreferTlsHandshakeOnlyProbe = true;
         health.CertificateAnalysis.CaptureExtendedMetadata = false;
-        health.CertificateAnalysis.OutboundAddressResolver = (_, _) =>
-            Task.FromResult<IReadOnlyList<IPAddress>>(Array.Empty<IPAddress>());
+        health.CertificateAnalysis.OutboundAddressResolver = (host, _) => {
+            resolved.Add(host);
+            return Task.FromResult<IReadOnlyList<IPAddress>>(Array.Empty<IPAddress>());
+        };
         var options = new HealthCheckExecutionOptions { IncludePlainHttp = true, WebsitePort = 8443 };
         await health.Verify(domain, new[] { HealthCheckType.HTTP, HealthCheckType.WEBSITE, HealthCheckType.CERT }, executionOptions: options);
         Assert.Equal(2, requested.Count);
@@ -100,6 +105,10 @@ public class TestCompositeRunOperations {
         Assert.Contains(requested, uri => uri.Scheme == "http" && uri.Port == 80);
         Assert.Equal($"https://{authority}:8443", health.HttpAnalysis.Subject);
         Assert.Equal($"http://{authority}", health.PlainHttpAnalysis.Subject);
+        var expectedHost = new Uri($"https://{authority}").IdnHost;
+        Assert.All(requested, uri => Assert.Equal(expectedHost, uri.IdnHost));
+        Assert.Equal(expectedHost, Assert.Single(resolved));
+        Assert.Equal(expectedHost, new Uri(health.CertificateAnalysis.Url!).IdnHost);
         Assert.True(health.HttpAnalysis.IsReachable);
         Assert.True(health.PlainHttpAnalysis.IsReachable);
     }

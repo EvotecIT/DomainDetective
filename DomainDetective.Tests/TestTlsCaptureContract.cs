@@ -50,19 +50,25 @@ public class TestTlsCaptureContract {
 #endif
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DirectNegotiationDoesNotEstablishProxyProtocolSupport(bool detailsPhase) {
+    [InlineData(false, "fixture.example")]
+    [InlineData(true, "fixture.example")]
+    [InlineData(false, "[fe80::1%12]")]
+    [InlineData(true, "[fe80::1%12]")]
+    public async Task DirectNegotiationDoesNotEstablishProxyProtocolSupport(bool detailsPhase, string authority) {
         string[] names = { "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy" };
         var previous = names.ToDictionary(name => name, Environment.GetEnvironmentVariable);
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int requests = 0;
+        var connectLines = new System.Collections.Concurrent.ConcurrentBag<string>();
         var server = Task.Run(async () => {
             try {
                 while (true) {
                     using var client = await listener.AcceptTcpClientAsync();
                     Interlocked.Increment(ref requests);
+                    using var reader = new StreamReader(client.GetStream(), System.Text.Encoding.ASCII, false, 1024, true);
+                    connectLines.Add((await reader.ReadLineAsync())!);
+                    while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
                     var response = System.Text.Encoding.ASCII.GetBytes("HTTP/1.1 502 No origin connection\r\n\r\n");
                     await client.GetStream().WriteAsync(response, 0, response.Length);
                 }
@@ -87,16 +93,17 @@ public class TestTlsCaptureContract {
             using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             if (detailsPhase) {
                 var finalizing = (Task)typeof(CertificateAnalysis).GetMethod("FinalizeCapturedCertificateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                    .Invoke(analysis, new object[] { "https://fixture.example", 443, new InternalLogger(), guard.Token })!;
+                    .Invoke(analysis, new object[] { $"https://{authority}", 443, new InternalLogger(), guard.Token })!;
                 await Assert.ThrowsAsync<IOException>(() => finalizing);
                 Assert.Equal(1, Volatile.Read(ref requests));
             } else {
                 await (Task)typeof(CertificateAnalysis).GetMethod("ProbeProtocolSupport", BindingFlags.NonPublic | BindingFlags.Instance)!
-                    .Invoke(analysis, new object[] { new Uri("https://fixture.example"), 443, new InternalLogger(), guard.Token })!;
+                    .Invoke(analysis, new object[] { new Uri($"https://{authority}"), 443, new InternalLogger(), guard.Token })!;
                 Assert.Equal(4, Volatile.Read(ref requests));
                 Assert.False(analysis.SupportsTls12);
                 Assert.False(analysis.ProtocolSupportComplete);
             }
+            Assert.All(connectLines, line => Assert.Equal($"CONNECT {authority}:443 HTTP/1.1", line));
         } finally {
             listener.Stop();
             await server;

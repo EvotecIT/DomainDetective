@@ -57,10 +57,11 @@ internal static class HttpRequestBoundary {
                 && !currentUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
                 throw new HttpRequestException("Only HTTP and HTTPS URLs are supported.");
             }
-            if (!visited.Add(currentUri.AbsoluteUri)) {
+            string endpointUrl = EndpointHostNormalizer.FormatUri(currentUri);
+            if (!visited.Add(endpointUrl)) {
                 throw new InvalidOperationException("Redirect loop detected.");
             }
-            visitedUrls?.Add(currentUri.AbsoluteUri);
+            visitedUrls?.Add(endpointUrl);
             using var request = new HttpRequestMessage(method, currentUri);
             if (requestVersion != null) {
                 request.Version = requestVersion;

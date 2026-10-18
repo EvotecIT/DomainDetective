@@ -581,7 +581,7 @@ public partial class DomainHealthCheck {
                 throw new ArgumentException($"Invalid host name '{trimmed}'.", nameof(domainName));
             }
 
-            var host = uri.HostNameType == UriHostNameType.IPv6 ? uri.Host : uri.IdnHost;
+            var host = EndpointHostNormalizer.FormatUriHost(uri);
             if (uri.HostNameType == UriHostNameType.Dns) {
                 var labels = host.Split('.');
                 if (labels.Length == 0 ||

@@ -19,12 +19,12 @@ public partial class DomainHealthCheck {
         });
         var website = new Lazy<Uri>(() => {
             ValidatePort(options.WebsitePort);
-            var uri = new UriBuilder($"https://{domainName}");
-            if (options.WebsitePort != 443 || uri.Uri.IsDefaultPort) { uri.Port = options.WebsitePort; }
-            return uri.Uri;
+            var uri = new Uri($"https://{domainName}");
+            return options.WebsitePort != 443 || uri.IsDefaultPort
+                ? EndpointHostNormalizer.WithPort(uri, options.WebsitePort) : uri;
         });
-        var http = new Lazy<Task>(() => VerifyWebsiteHttps(website.Value.Authority, cancellationToken));
-        var certificate = new Lazy<Task>(() => VerifyWebsiteCertificate(website.Value.GetLeftPart(UriPartial.Authority), website.Value.Port, cancellationToken));
+        var http = new Lazy<Task>(() => VerifyWebsiteHttps(EndpointHostNormalizer.FormatUriAuthority(website.Value), cancellationToken));
+        var certificate = new Lazy<Task>(() => VerifyWebsiteCertificate($"https://{EndpointHostNormalizer.FormatUriAuthority(website.Value)}", website.Value.Port, cancellationToken));
         actions[HealthCheckType.NS] = () => ns.Value;
         actions[HealthCheckType.DELEGATION] = async () => {
             var child = RunPrerequisiteAsync(HealthCheckType.NS, domainName, () => ns.Value);
