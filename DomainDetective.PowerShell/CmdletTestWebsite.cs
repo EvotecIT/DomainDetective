@@ -40,8 +40,8 @@ namespace DomainDetective.PowerShell {
 
             logger.WriteVerbose("Checking website certificate and HTTPS for {0}:{1}", domain, Port);
             healthCheck.CertificateAnalysis.SkipRevocation = SkipRevocation;
-                await healthCheck.VerifyWebsiteCertificate(domain, Port, cancellationToken: CancelToken);
-                await healthCheck.VerifyWebsiteHttps(domain, cancellationToken: CancelToken);
+                healthCheck.ExecutionOptions.WebsitePort = Port;
+                await healthCheck.Verify(domain, new[] { HealthCheckType.WEBSITE }, cancellationToken: CancelToken);
 
                 var certView = DomainDetective.Views.Converters.Convert(healthCheck.CertificateAnalysis);
                 var httpView = DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis);

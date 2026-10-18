@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
@@ -30,7 +31,7 @@ public sealed class WizardOptions
     public bool DisableLive { get; init; } = false; // force simple streaming UI
 }
 
-public sealed class DomainWizard
+public sealed partial class DomainWizard
 {
     public WizardOptions Options { get; }
     public DomainWizard(WizardOptions options) => Options = options;
@@ -44,60 +45,31 @@ public sealed class DomainWizard
 
         // Wire internal logger; we'll map progress to Spectre tasks
         var ilog = new InternalLogger();
-        var hc = new DomainHealthCheck(internalLogger: ilog) { Progress = false, Verbose = false };
+        var hc = new DomainHealthCheck(internalLogger: ilog) { Progress = true, Verbose = false };
+        try { return await RunCoreAsync(hc, ilog, ct).ConfigureAwait(false); }
+        catch { hc.Dispose(); throw; }
+    }
 
-        HealthCheckType[] dnsChecks;
-        List<HealthCheckType> mailChecksList;
-        HealthCheckType[] webChecks;
-        HealthCheckType[] repChecks;
-
-        if (Options.Checks != null && Options.Checks.Length > 0)
-        {
-            var set = new HashSet<HealthCheckType>(Options.Checks);
-            dnsChecks = new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL }.Where(set.Contains).ToArray();
-            var mailBase = new[] { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT };
-            mailChecksList = mailBase.Where(set.Contains).ToList();
-            // If user selected any active probes include them; otherwise honor ActiveMailProbes flag
-            var probes = new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY };
-            var selectedProbes = probes.Where(set.Contains).ToArray();
-            if (selectedProbes.Length > 0)
-                mailChecksList.AddRange(selectedProbes);
-            else if (Options.ActiveMailProbes)
-                mailChecksList.AddRange(probes);
-            webChecks = new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE }.Where(set.Contains).ToArray();
-            repChecks = new[] { HealthCheckType.DNSBL, HealthCheckType.RDAP, HealthCheckType.RPKI }.Where(set.Contains).ToArray();
-        }
-        else
-        {
-            dnsChecks = new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL };
-            mailChecksList = new List<HealthCheckType> { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT };
-            if (Options.ActiveMailProbes)
-            {
-                mailChecksList.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
-            }
-            webChecks = new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE };
-            repChecks = new[] { HealthCheckType.DNSBL, HealthCheckType.RDAP, HealthCheckType.RPKI };
-        }
-
-        var stages = new List<(string Title, HealthCheckType[] Types, bool Enabled)>
-        {
-            ("🧭 DNS", dnsChecks, dnsChecks.Length > 0),
-            ("📧 Mail", mailChecksList.ToArray(), mailChecksList.Count > 0),
-            ("🌐 Web", webChecks, webChecks.Length > 0 && Options.Mode != ScanMode.Quick),
-            ("🛡 Reputation", repChecks, repChecks.Length > 0 && Options.Mode == ScanMode.Full)
-        };
+    private async Task<DomainHealthCheck> RunCoreAsync(DomainHealthCheck hc, InternalLogger ilog, CancellationToken ct) {
+        var (stages, plan) = BuildPlan(Options);
 
         var typeToStage = new Dictionary<HealthCheckType, int>();
         for (int i = 0; i < stages.Count; i++)
             if (stages[i].Enabled)
                 foreach (var t in stages[i].Types) typeToStage[t] = i;
 
-        ProgressTask[] stageTasks = Array.Empty<ProgressTask>();
-        var activeStages = stages.Select((s, idx) => (s, idx)).Where(t => t.s.Enabled).ToArray();
-        var stageIndexMap = activeStages.Select((t, activeIdx) => (t.idx, activeIdx)).ToDictionary(x => x.idx, x => x.activeIdx);
         // Persona live narration buffer per stage
-        var stageLogs = new Dictionary<int, List<string>>();
-        var stageLastLine = new Dictionary<int, string>();
+        async Task RunPlanAsync() => await hc.Verify(Options.Domain, plan, cancellationToken: ct,
+            useDefaultChecksWhenEmpty: false).ConfigureAwait(false);
+
+        var completedChecks = new ConcurrentDictionary<HealthCheckType, byte>();
+        int StagePercent(HealthCheckType type, int stage) {
+            completedChecks.TryAdd(type, 0);
+            var types = stages[stage].Types;
+            return types.Length == 0 ? 100 : types.Count(completedChecks.ContainsKey) * 100 / types.Length;
+        }
+        var stageLogs = new ConcurrentDictionary<int, List<string>>();
+        var stageLastLine = new ConcurrentDictionary<int, string>();
         PersonaKind personaKind = Options.Persona?.ToLowerInvariant() switch {
             "funny" => PersonaKind.Funny,
             "geek"  => PersonaKind.Geek,
@@ -116,35 +88,16 @@ public sealed class DomainWizard
                 Message = message
             };
             var line = PersonaFormatter.Format(a, personaKind);
-            if (!stageLogs.TryGetValue(currentStageIdx, out var list)) { list = new List<string>(); stageLogs[currentStageIdx] = list; }
-            list.Add(line);
-            if (list.Count > 50) list.RemoveAt(0);
-            stageLastLine[currentStageIdx] = line;
-        }
-
-        ilog.OnProgressMessage += (_, e) =>
-        {
-            if (stageTasks.Length == 0) return;
-            if (!Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation ?? string.Empty, ignoreCase: true, out var ht)) return;
-            if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
-            if (!stageIndexMap.TryGetValue(fullIdx, out var idx)) return;
-            var task = stageTasks[idx];
-            if (!task.IsFinished)
-            {
-                var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
-                var friendly = Ui.FriendlyOpName(ht);
-                var stepColor = PersonaFormatter.StepColor(personaKind);
-                var desc = $"{stages[idx].Title} [{stepColor}]{verb} {friendly}[/]";
-                if (Options.PersonaLive && stageLastLine.TryGetValue(idx, out var last))
-                {
-                    // Keep the inline narration short to avoid flicker
-                    var shortLast = last.Length > 80 ? last.Substring(0, 77) + "…" : last;
-                    desc = $"{desc} [grey]|[/] {shortLast}";
-                }
-                task.Description = desc;
-                task.Value = Math.Clamp(e.ProgressPercentage ?? 0, 0, 100);
+            var category = code?.Split('.')[0] ?? string.Empty;
+            int stage = Enum.TryParse<HealthCheckType>(category, true, out var type) && typeToStage.TryGetValue(type, out var mapped)
+                ? mapped : currentStageIdx;
+            lock (stageLogs) {
+                if (!stageLogs.TryGetValue(stage, out var list)) { list = new List<string>(); stageLogs[stage] = list; }
+                list.Add(line);
+                if (list.Count > 50) list.RemoveAt(0);
+                stageLastLine[stage] = line;
             }
-        };
+        }
 
         if (Options.PersonaLive)
         {
@@ -161,13 +114,13 @@ public sealed class DomainWizard
         if (Options.Output == "console")
         {
             var canLive = AnsiConsole.Profile.Capabilities.Ansi && AnsiConsole.Profile.Capabilities.Interactive && !Options.DisableLive;
-            var liveLines = new List<string>();
+            var liveLines = new ConcurrentQueue<string>();
             var progressLineNeedsRedraw = false;
             var termLock = new object();
-            string ComposeProgressLine(Dictionary<int,int> progress, Dictionary<int,string> ops)
+            string ComposeProgressLine(ConcurrentDictionary<int,int> progress, ConcurrentDictionary<int,string> ops)
             {
                 var parts = new List<string>();
-                string[] names = new[] { "DNS", "Mail", "Web", "Rep" };
+                string[] names = new[] { "DNS", "Mail", "Web", "Rep", "Other" };
                 for (int i = 0; i < stages.Count && i < names.Length; i++)
                 {
                     if (!stages[i].Enabled) continue;
@@ -183,8 +136,8 @@ public sealed class DomainWizard
                 // Normalize multi-line messages into a single, concise line
                 var compact = string.Join(' ', (line ?? string.Empty).Split(new[] {"\r\n", "\n", "\r"}, StringSplitOptions.RemoveEmptyEntries)).Trim();
                 if (compact.Length > 220) compact = compact.Substring(0, 217) + "…";
-                liveLines.Add(compact);
-                if (liveLines.Count > 400) liveLines.RemoveAt(0);
+                liveLines.Enqueue(compact);
+                while (liveLines.Count > 400) { liveLines.TryDequeue(out _); }
                 if (!canLive)
                 {
                     // In simple UI, print log on a fresh line and re-draw status pinned line
@@ -217,16 +170,16 @@ public sealed class DomainWizard
                 };
             }
 
-            var stageProgress = new Dictionary<int, int>();
-            var stageOp = new Dictionary<int, string>();
+            var stageProgress = new ConcurrentDictionary<int, int>();
+            var stageOp = new ConcurrentDictionary<int, string>();
             for (int i = 0; i < stages.Count; i++) if (stages[i].Enabled) stageProgress[i] = 0;
 
             ilog.OnProgressMessage += (_, e) =>
             {
                 if (!Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation ?? string.Empty, ignoreCase: true, out var ht)) return;
                 if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
-                if (!stageIndexMap.TryGetValue(fullIdx, out var idx)) return;
-                stageProgress[idx] = Math.Clamp(e.ProgressPercentage ?? 0, 0, 100);
+                var idx = fullIdx;
+                stageProgress[idx] = StagePercent(ht, fullIdx);
                 var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
                 var stepColor = PersonaFormatter.StepColor(personaKind);
                 stageOp[idx] = $"[{stepColor}]{verb} {Ui.FriendlyOpName(ht)}[/]";
@@ -238,7 +191,7 @@ public sealed class DomainWizard
                     new Layout("prog").Ratio(1)
                 );
 
-            static Table BuildProgressTable(List<(string Title, HealthCheckType[] Types, bool Enabled)> stages, Dictionary<int,int> progress, Dictionary<int,string> ops)
+            static Table BuildProgressTable(List<(string Title, HealthCheckType[] Types, bool Enabled)> stages, ConcurrentDictionary<int,int> progress, ConcurrentDictionary<int,string> ops)
             {
                 var table = new Table();
                 table.Border = TableBorder.None;
@@ -270,15 +223,15 @@ public sealed class DomainWizard
                 // Fallback: stream logs while running checks sequentially and keep a pinned status line
                 AnsiConsole.Write(new Panel(new Markup("[bold]Live Narration[/]\n[grey]Streaming…[/]")) { Border = BoxBorder.Rounded });
                 // progress trackers
-                var sProgress = new Dictionary<int, int>();
-                var sOp = new Dictionary<int, string>();
+                var sProgress = new ConcurrentDictionary<int, int>();
+                var sOp = new ConcurrentDictionary<int, string>();
                 for (int i = 0; i < stages.Count; i++) if (stages[i].Enabled) sProgress[i] = 0;
                 ilog.OnProgressMessage += (_, e) =>
                 {
                     if (!Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation ?? string.Empty, ignoreCase: true, out var ht)) return;
                     if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
-                    if (!stageIndexMap.TryGetValue(fullIdx, out var idx)) return;
-                    sProgress[idx] = Math.Clamp(e.ProgressPercentage ?? 0, 0, 100);
+                    var idx = fullIdx;
+                    sProgress[idx] = StagePercent(ht, fullIdx);
                     var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
                     sOp[idx] = $"{verb} {Ui.FriendlyOpName(ht)}";
                     progressLineNeedsRedraw = true;
@@ -306,37 +259,16 @@ public sealed class DomainWizard
 
                 try
                 {
-                    for (int i = 0; i < stages.Count; i++)
-                    {
-                        var (title, types, enabled) = stages[i];
-                        if (!enabled) continue;
+                    await RunPlanAsync();
+                    for (int i = 0; i < stages.Count; i++) {
+                        if (!stages[i].Enabled) continue;
                         currentStageIdx = i;
-
-                        // Persona stage start
                         var stageName = Ui.FriendlyStageName(i);
-                        var verbStart = PersonaLexicon.StepVerb(personaKind, $"Stage:{stageName}");
-                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Start", $"{verbStart} {stageName}");
-                        if (stageLastLine.TryGetValue(i, out var startLine)) AppendGlobal(startLine);
-
-                        try
-                        {
-                            await hc.Verify(Options.Domain, types, cancellationToken: ct);
-                            if (i == 3 /* Reputation */)
-                            {
-                                await hc.CheckWHOIS(Options.Domain, ct);
-                            }
-
-                            // Persona stage finish
-                            AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
-                            if (stageLastLine.TryGetValue(i, out var doneLine)) AppendGlobal(doneLine);
-                        }
-                        catch (Exception ex)
-                        {
-                            AppendGlobal($"[red]{title} failed[/]: {ex.Message.EscapeMarkup()}");
-                        }
+                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
+                        if (stageLastLine.TryGetValue(i, out var line)) AppendGlobal(line);
                         sProgress[i] = 100;
-                        progressLineNeedsRedraw = true;
                     }
+                    progressLineNeedsRedraw = true;
                 }
                 finally
                 {
@@ -361,40 +293,16 @@ public sealed class DomainWizard
                 var done = false;
                 var runner = Task.Run(async () =>
                 {
-                    for (int i = 0; i < stages.Count; i++)
-                    {
-                        var (title, types, enabled) = stages[i];
-                        if (!enabled) continue;
-                        currentStageIdx = i;
-                        stageProgress[i] = 0;
-
-                        // Persona stage start
-                        var stageName = Ui.FriendlyStageName(i);
-                        var verbStart = PersonaLexicon.StepVerb(personaKind, $"Stage:{stageName}");
-                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Start", $"{verbStart} {stageName}");
-                        var startLine = PersonaFormatter.Format(new Assessment { Severity = AssessmentSeverity.Info, Code = $"{stageName}.Start", Message = $"{verbStart} {stageName}" }, personaKind);
-                        AppendGlobal(startLine);
-
-                        try
-                        {
-                            await hc.Verify(Options.Domain, types, cancellationToken: ct);
-                            if (i == 3 /* Reputation */)
-                            {
-                                await hc.CheckWHOIS(Options.Domain, ct);
-                            }
-
-                            // Persona stage finish
+                    try {
+                        await RunPlanAsync();
+                        for (int i = 0; i < stages.Count; i++) {
+                            if (!stages[i].Enabled) continue;
+                            currentStageIdx = i;
+                            var stageName = Ui.FriendlyStageName(i);
                             AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
-                            var doneLine = PersonaFormatter.Format(new Assessment { Severity = AssessmentSeverity.Info, Code = $"{stageName}.Done", Message = $"Completed {stageName}" }, personaKind);
-                            AppendGlobal(doneLine);
+                            stageProgress[i] = 100;
                         }
-                        catch (Exception ex)
-                        {
-                            AppendGlobal($"[red]{title} failed[/]: {ex.Message.EscapeMarkup()}");
-                        }
-                        stageProgress[i] = 100;
-                    }
-                    done = true;
+                    } finally { done = true; }
                 });
 
                 // UI refresh loop
@@ -420,15 +328,7 @@ public sealed class DomainWizard
         }
         else
         {
-            // Non-console outputs: run sequentially
-            if (stages[0].Enabled) await hc.Verify(Options.Domain, stages[0].Types, cancellationToken: ct);
-            if (stages[1].Enabled) await hc.Verify(Options.Domain, stages[1].Types, cancellationToken: ct);
-            if (stages[2].Enabled) await hc.Verify(Options.Domain, stages[2].Types, cancellationToken: ct);
-            if (stages[3].Enabled)
-            {
-                await hc.Verify(Options.Domain, stages[3].Types, cancellationToken: ct);
-                await hc.CheckWHOIS(Options.Domain, ct);
-            }
+            await RunPlanAsync();
         }
 
         if (Options.Output == "console")
@@ -440,36 +340,45 @@ public sealed class DomainWizard
             Ui.RenderPosturePanels(hc);
             if (!summaryOnly)
             {
-                Ui.RenderDnsTree(hc, advanced);
+                if (stages[0].Enabled) { Ui.RenderDnsTree(hc, advanced); }
                 if (Options.PersonaLive && stageLogs.TryGetValue(0, out var dnsLines) && dnsLines.Count > 0)
                     Ui.RenderPersonaLogPanel("DNS Activity", dnsLines);
                 var allViews = hc.GetRecommendationViews();
                 var dnsRecs = Ui.FilterRecommendationsForStage(allViews, 0).Take(5).ToArray();
                 if (dnsRecs.Length > 0) Ui.RenderRecommendationsPanel("DNS Recommendations", dnsRecs);
-                Ui.RenderMailTree(hc, advanced);
+                if (stages[1].Enabled) { Ui.RenderMailTree(hc, advanced); }
                 if (Options.PersonaLive && stageLogs.TryGetValue(1, out var mailLines) && mailLines.Count > 0)
                     Ui.RenderPersonaLogPanel("Mail Activity", mailLines);
                 var mailRecs = Ui.FilterRecommendationsForStage(allViews, 1).Take(5).ToArray();
                 if (mailRecs.Length > 0) Ui.RenderRecommendationsPanel("Mail Recommendations", mailRecs);
-                if (Options.Mode != ScanMode.Quick) Ui.RenderWebTree(hc, advanced);
-                if (Options.PersonaLive && Options.Mode != ScanMode.Quick && stageLogs.TryGetValue(2, out var webLines) && webLines.Count > 0)
+                if (stages[2].Enabled) Ui.RenderWebTree(hc, advanced);
+                if (Options.PersonaLive && stages[2].Enabled && stageLogs.TryGetValue(2, out var webLines) && webLines.Count > 0)
                     Ui.RenderPersonaLogPanel("Web Activity", webLines);
-                if (Options.Mode != ScanMode.Quick)
+                if (stages[2].Enabled)
                 {
                     var webRecs = Ui.FilterRecommendationsForStage(allViews, 2).Take(5).ToArray();
                     if (webRecs.Length > 0) Ui.RenderRecommendationsPanel("Web Recommendations", webRecs);
                 }
-                if (Options.Mode == ScanMode.Full) Ui.RenderReputationTree(hc, advanced);
-                if (Options.PersonaLive && Options.Mode == ScanMode.Full && stageLogs.TryGetValue(3, out var repLines) && repLines.Count > 0)
+                if (stages[3].Enabled) Ui.RenderReputationTree(hc, advanced);
+                if (Options.PersonaLive && stages[3].Enabled && stageLogs.TryGetValue(3, out var repLines) && repLines.Count > 0)
                     Ui.RenderPersonaLogPanel("Reputation Activity", repLines);
-                if (Options.Mode == ScanMode.Full)
+                if (stages[3].Enabled)
                 {
                     var repRecs = Ui.FilterRecommendationsForStage(allViews, 3).Take(5).ToArray();
                     if (repRecs.Length > 0) Ui.RenderRecommendationsPanel("Reputation Recommendations", repRecs);
                 }
 
-                // Area/Check Status Summaries (compact, scannable)
-                Ui.RenderCheckSummariesPanel(hc, Options.ActiveMailProbes, Options.Mode);
+                if (stages.Count > 4 && stages[4].Enabled) {
+                    var analyses = hc.GetAnalysisMap();
+                    foreach (var check in stages[4].Types) {
+                        if (analyses.TryGetValue(check, out var analysis) && analysis != null) {
+                            CliHelpers.ShowPropertiesTable($"{check} for {Options.Domain}", analysis, false);
+                        }
+                    }
+                }
+
+                var displayedMode = stages[3].Enabled ? ScanMode.Full : stages[2].Enabled ? ScanMode.Default : ScanMode.Quick;
+                Ui.RenderCheckSummariesPanel(hc, Options.ActiveMailProbes, displayedMode);
             }
 
             // Persona-driven recommendations summary from assessments
@@ -497,43 +406,4 @@ public sealed class DomainWizard
         return hc;
     }
 
-    private static async Task RunDnsAsync(DomainHealthCheck hc, string domain, CancellationToken ct)
-    {
-        FxLog.Enqueue("[grey]> DNS: NS/SOA/DNSSEC/Wildcard/OpenResolver/AXFR/TTL…[/]");
-        var checks = new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL };
-        await hc.Verify(domain, checks, cancellationToken: ct);
-        FxLog.Enqueue("[green]✓[/] DNS phase complete");
-    }
-
-    private static async Task RunMailAsync(DomainHealthCheck hc, string domain, bool activeProbes, CancellationToken ct)
-    {
-        FxLog.Enqueue("[grey]> Mail: MX/SPF/DKIM/DMARC/BIMI/MTA-STS/TLS-RPT…[/]");
-        var checks = new List<HealthCheckType> { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT };
-        if (activeProbes)
-        {
-            checks.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
-        }
-        await hc.Verify(domain, checks.ToArray(), cancellationToken: ct);
-        FxLog.Enqueue("[green]✓[/] Mail phase complete");
-    }
-
-    private static async Task RunWebAsync(DomainHealthCheck hc, string domain, CancellationToken ct)
-    {
-        FxLog.Enqueue("[grey]> Web: HTTP/HSTS/SecHeaders + HTTPS/TLS + DANE…[/]");
-        await hc.VerifyPlainHttp(domain, ct);
-        await hc.VerifyWebsiteCertificate(domain, 443, ct);
-        await hc.VerifyDANE(domain, new[] { ServiceType.HTTPS }, ct);
-        FxLog.Enqueue("[green]✓[/] Web phase complete");
-    }
-
-    private static async Task RunReputationAsync(DomainHealthCheck hc, string domain, CancellationToken ct)
-    {
-        FxLog.Enqueue("[grey]> Reputation: WHOIS/RDAP/RPKI/DNSBL…[/]");
-        await hc.Verify(domain, new[] { HealthCheckType.DNSBL }, cancellationToken: ct);
-        await hc.CheckWHOIS(domain, ct);
-        await hc.QueryRDAP(domain, ct);
-        await hc.VerifyRPKI(domain, ct);
-        FxLog.Enqueue("[green]✓[/] Reputation phase complete");
-    }
 }
-

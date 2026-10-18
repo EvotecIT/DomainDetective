@@ -15,7 +15,7 @@ namespace DomainDetective.CLI;
 /// <summary>
 /// Helper methods used by CLI commands.
 /// </summary>
-internal static class CommandUtilities {
+internal static partial class CommandUtilities {
     internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
     internal static readonly string[] DomainCheckNames = Enum
         .GetValues<HealthCheckType>()
@@ -194,7 +194,9 @@ internal static class CommandUtilities {
     }
 
 	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
-	        foreach (var domain in domains) {
+            var activePlan = (checks == null || checks.Length == 0 ? DomainHealthCheck.DefaultChecks : checks)
+                .Concat(checkWeb ? new[] { HealthCheckType.WEBSITE } : Array.Empty<HealthCheckType>()).Distinct().ToArray();
+            DomainHealthCheck CreateHealthCheck(string domain) {
 	            var logger = new InternalLogger { IsProgress = showProgress };
 	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
                 if (dnsEndpoints != null && dnsEndpoints.Length > 0)
@@ -218,59 +220,17 @@ internal static class CommandUtilities {
                 }
 	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 	
-	            if (showProgress) {
-                ProgressContext? ctxRef = null;
-                try {
-                    await AnsiConsole.Progress().StartAsync(async ctx => {
-                        ctxRef = ctx;
-                        ProgressTask? portTask = null;
-                        ProgressTask? hcTask = null;
-                    void Handler(object? _, LogEventArgs e) {
-                        if (e.ProgressActivity == "PortScan" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
-                            portTask ??= ctx.AddTask($"Port scan for {domain}", maxValue: e.ProgressTotalSteps.Value);
-                            portTask.Value = e.ProgressCurrentSteps.Value;
-                            if (!string.IsNullOrEmpty(e.ProgressCurrentOperation)) {
-                                portTask.Description = $"Port {e.ProgressCurrentOperation}";
-                            }
-                        } else if (e.ProgressActivity == "HealthCheck" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
-                            hcTask ??= ctx.AddTask($"Health checks for {domain}", maxValue: e.ProgressTotalSteps.Value);
-                            hcTask.Value = e.ProgressCurrentSteps.Value;
-                        }
-                    }
-
-                    logger.OnProgressMessage += Handler;
-                    try {
-                        await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
-                        if (checkHttp) {
-                            await hc.VerifyPlainHttp(domain, cancellationToken);
-                        }
-                        if (checkWeb) {
-                            await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
-                            await hc.VerifyWebsiteHttps(domain, cancellationToken);
-                        }
-                        if (checkTakeover) {
-                            await hc.VerifyTakeoverCname(domain, cancellationToken);
-                        }
-                    } finally {
-                        logger.OnProgressMessage -= Handler;
-                    }
-                    });
-                } finally {
-                    ctxRef?.Dispose();
-                }
-            } else {
-                await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
-                if (checkHttp) {
-                    await hc.VerifyPlainHttp(domain, cancellationToken);
-                }
-                if (checkWeb) {
-                    await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
-                    await hc.VerifyWebsiteHttps(domain, cancellationToken);
-                }
-                if (checkTakeover) {
-                    await hc.VerifyTakeoverCname(domain, cancellationToken);
-                }
+	                hc.ExecutionOptions.IncludePlainHttp = checkHttp;
+                return hc;
             }
+            var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
+                CreateHealthCheck, showProgress, checkHttp, cancellationToken);
+            try {
+            foreach (var run in runs) {
+                var domain = run.DomainName;
+                if (run.Error != null) { throw run.Error; }
+                var hc = run.HealthCheck!;
+                if (checkTakeover) { await hc.VerifyTakeoverCname(domain, cancellationToken); }
 
             if (outputJson) {
                 Console.WriteLine(hc.ToJson());
@@ -297,7 +257,7 @@ internal static class CommandUtilities {
                 }
             }
             if (checkHttp) {
-                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, unicodeOutput);
+                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.PlainHttpAnalysis, unicodeOutput);
             }
             if (checkWeb) {
                 CliHelpers.ShowPropertiesTable($"WEB CERT for {domain}", hc.CertificateAnalysis, unicodeOutput);
@@ -306,6 +266,9 @@ internal static class CommandUtilities {
             if (checkTakeover) {
                 CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, unicodeOutput);
             }
-        }
+            }
+            } finally {
+                foreach (var run in runs) { run.HealthCheck?.Dispose(); }
+            }
     }
 }

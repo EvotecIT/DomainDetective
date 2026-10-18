@@ -454,9 +454,10 @@ internal static class WizardMode {
         PortScanProfileDefinition.PortScanProfile[]? portProfiles = null) {
         
         foreach (var domain in domains) {
-            var hc = new DomainHealthCheck {
+            var logger = new InternalLogger(false);
+            var hc = new DomainHealthCheck(internalLogger: logger) {
                 UseSubdomainPolicy = subdomainPolicy,
-                Progress = false, // Disable internal progress
+                Progress = true, // Disable internal progress
                 Verbose = false   // Disable verbose logging
             };
             
@@ -478,16 +479,20 @@ internal static class WizardMode {
                 .StartAsync(async ctx => {
                     var mainTask = ctx.AddTask($"[green]Analyzing {domain}[/]", maxValue: checks.Length + (checkHttp ? 1 : 0) + (checkTakeover ? 1 : 0));
                     
-                    // Run each check individually with progress updates
-                    foreach (var check in checks) {
-                        mainTask.Description = $"[green]{domain}[/]: [yellow]{check}[/]";
-                        await hc.Verify(domain, new[] { check }, null, null, danePorts, portProfiles, cancellationToken);
-                        mainTask.Increment(1);
+                    void OnProgress(object? sender, LogEventArgs e) {
+                        if (e.ProgressActivity == "HealthCheck" && e.ProgressCurrentSteps.HasValue) {
+                            mainTask.Value = e.ProgressCurrentSteps.Value;
+                            mainTask.Description = $"[green]{domain}[/]: [yellow]{e.ProgressCurrentOperation}[/]";
+                        }
                     }
-                    
+                    logger.OnProgressMessage += OnProgress;
+                    try {
+                        hc.ExecutionOptions.IncludePlainHttp = checkHttp;
+                        await hc.Verify(domain, checks, null, null, danePorts, portProfiles, cancellationToken);
+                    } finally { logger.OnProgressMessage -= OnProgress; }
+
                     if (checkHttp) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]HTTP Check[/]";
-                        await hc.VerifyPlainHttp(domain, cancellationToken);
                         mainTask.Increment(1);
                     }
                     
@@ -592,7 +597,7 @@ internal static class WizardMode {
         }
         
         if (checkHttp && hc.HttpAnalysis != null) {
-            CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, false);
+            CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.PlainHttpAnalysis, false);
         }
         
         if (checkTakeover && hc.TakeoverCnameAnalysis != null) {

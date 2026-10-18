@@ -323,6 +323,7 @@ internal static partial class Ui
         1 => "Mail",
         2 => "Web",
         3 => "Reputation",
+        4 => "Other",
         _ => $"Stage{idx}"
     };
 }
