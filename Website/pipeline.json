@@ -296,7 +296,7 @@
     {
       "task": "llms",
       "id": "build-llms",
-      "dependsOn": "build-llms-publication-catalog",
+      "dependsOn": ["build-llms-publication-catalog", "merge-xref"],
       "skipModes": ["dev"],
       "siteRoot": "./_site",
       "contentKind": "Package",
