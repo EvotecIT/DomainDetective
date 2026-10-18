@@ -30,10 +30,13 @@ internal sealed class ScanObservations : IDisposable {
     }
 
     internal static ScanObservations? Current => Slot.Value;
-    internal SemaphoreSlim DirectDnsAdmission { get; }
+    internal SemaphoreSlim? DirectDnsAdmission { get; }
 
-    internal ScanObservations(int directDnsParallelism = 32) {
-        DirectDnsAdmission = new SemaphoreSlim(Math.Max(1, directDnsParallelism));
+    internal ScanObservations(int? directDnsParallelism = null) {
+        // Each direct-probe consumer already owns a bounded window. An explicit
+        // caller cap coordinates those windows; the default retains their prior
+        // combined capacity instead of adding another competing queue.
+        DirectDnsAdmission = directDnsParallelism is > 0 ? new SemaphoreSlim(directDnsParallelism.Value) : null;
         _previous = Slot.Value;
         Slot.Value = this;
     }

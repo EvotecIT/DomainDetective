@@ -130,7 +130,7 @@ public partial class DomainHealthCheck {
                 var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
                 var previousResolverBulkAdmission = configuration.ResolverBulkQueryAdmissionGate;
                 int dnsParallelism = (executionOptions ?? ExecutionOptions).GetEffectiveDnsParallelism();
-                using var observations = new ScanObservations(dnsParallelism);
+                using var observations = new ScanObservations((executionOptions ?? ExecutionOptions).DnsParallelism);
                 // Async-only gates allocate no wait handle. A public configuration query may
                 // outlive Verify after borrowing this gate, so let its last borrower release it to GC.
                 var ownedAdmission = previousAdmission == null
