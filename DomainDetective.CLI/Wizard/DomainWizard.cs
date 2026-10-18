@@ -366,12 +366,16 @@ public sealed partial class DomainWizard
             if (planFailure != null) {
                 AnsiConsole.MarkupLine($"[yellow]Scan incomplete for {Options.Domain.EscapeMarkup()}: {planFailure.Message.EscapeMarkup()}[/]");
             }
-            if (customSelection) {
+            if (customSelection || planFailure != null) {
                 if (planFailure == null) { AnsiConsole.MarkupLine($"[green]Selected checks completed for {Options.Domain.EscapeMarkup()}[/]"); }
                 if (summaryOnly) { RenderSelectedSummary(hc, plan, completedChecks.Keys.ToHashSet()); }
                 else {
                     var analyses = hc.GetAnalysisMap();
                     foreach (var check in plan) {
+                        if (!completedChecks.ContainsKey(check)) {
+                            AnsiConsole.MarkupLine($"[yellow]{check}: Incomplete; collected evidence may be partial.[/]");
+                            continue;
+                        }
                         if (analyses.TryGetValue(check, out var analysis) && analysis != null) {
                             CliHelpers.ShowPropertiesTable($"{check} for {Options.Domain}", analysis, false);
                         }

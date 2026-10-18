@@ -20,6 +20,10 @@ namespace DomainDetective {
     ///   </code>
     /// </example>
     public class DomainSummary {
+        /// <summary>Checks completed in the source Verify run. Boolean values for other checks are compatibility
+        /// defaults, not evidence of absence. Null preserves standalone-analysis callers without a Verify plan.</summary>
+        public IReadOnlyList<HealthCheckType>? AssessedChecks { get; init; }
+
         /// <summary>Indicates whether the domain has an SPF record.</summary>
         public bool HasSpfRecord { get; init; }
 

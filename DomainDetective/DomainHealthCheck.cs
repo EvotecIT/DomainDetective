@@ -270,7 +270,7 @@ namespace DomainDetective {
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
         /// <summary>Plain HTTP evidence collected by a combined run when requested in its execution options.</summary>
-        public HttpAnalysis PlainHttpAnalysis { get; } = new HttpAnalysis();
+        public HttpAnalysis PlainHttpAnalysis { get; private set; } = new HttpAnalysis();
 
         /// <summary>
         /// Gets the HPKP analysis.

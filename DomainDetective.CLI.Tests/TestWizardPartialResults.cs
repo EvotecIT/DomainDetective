@@ -11,6 +11,49 @@ public class TestWizardPartialResults {
     private readonly ITestOutputHelper _output;
     public TestWizardPartialResults(ITestOutputHelper output) => _output = output;
 
+    [Theory]
+    [InlineData("standard")]
+    [InlineData("advanced")]
+    public async Task DetailedPartialSelectionDoesNotRenderFailedAnalysisDefaults(string details) {
+        var logger = new InternalLogger();
+        using var health = new DomainHealthCheck(internalLogger: logger) { Progress = false };
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => type == DnsRecordType.SOA
+            ? throw new InvalidOperationException("Synthetic SOA failure")
+            : Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        var previous = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
+        try {
+            var wizard = new DomainWizard(new WizardOptions { Domain = "fixture.example", Checks = new[] { HealthCheckType.CAA, HealthCheckType.SOA },
+                Details = details, DisableLive = true, PersonaLive = false, ShowTitle = false });
+            await (Task<DomainHealthCheck>)typeof(DomainWizard).GetMethod("RunCoreAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(wizard, new object[] { health, logger, CancellationToken.None })!;
+            Assert.Contains("CAA", output.ToString());
+            Assert.Contains("Incomplete", output.ToString());
+            Assert.DoesNotContain("SerialNumber", output.ToString());
+            _output.WriteLine(output.ToString());
+        } finally { AnsiConsole.Console = previous; }
+    }
+
+    [Fact]
+    public async Task PosturePanelsDistinguishUnrequestedAndIncompleteEvidence() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => type == DnsRecordType.SOA
+            ? throw new InvalidOperationException("Synthetic SOA failure")
+            : Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("fixture.example", new[] { HealthCheckType.CAA, HealthCheckType.SOA }));
+        var previous = AnsiConsole.Console;
+        using var output = new StringWriter();
+        AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Ansi = AnsiSupport.No, Out = new AnsiConsoleOutput(output) });
+        try {
+            Ui.RenderPosturePanels(health);
+            Assert.Contains("Not assessed", output.ToString());
+            Assert.DoesNotContain("CLOSED", output.ToString());
+            Assert.DoesNotContain("HTTP: NO", output.ToString());
+            _output.WriteLine(output.ToString());
+        } finally { AnsiConsole.Console = previous; }
+    }
+
     [Fact]
     public async Task SelectedDkimSummaryRendersTheSelectorCollection() {
         using var health = new DomainHealthCheck();

@@ -287,7 +287,7 @@ public partial class DomainHealthCheck {
                 actions[HealthCheckType.BIMI] = () => VerifyBIMI(domainName, true, cancellationToken);
             }
             if (!healthCheckTypes.Contains(HealthCheckType.DANE)) {
-                actions[HealthCheckType.DANE] = () => VerifyDANE(domainName, new[] { ServiceType.SMTP }, cancellationToken);
+                actions[HealthCheckType.DANE] = () => EnsureDaneAsync(domainName, new[] { ServiceType.SMTP }, null, cancellationToken);
             }
             int checkParallelism = exec.EnableParallelism ? exec.GetEffectiveMaxParallelism() : 1;
             using var checkAdmission = new SemaphoreSlim(checkParallelism, checkParallelism);
@@ -458,6 +458,7 @@ public partial class DomainHealthCheck {
                 a.ValidPublicKey && a.ValidKeyLength && a.ValidKeyType && a.ValidFlags);
 
             var hints = new List<string>();
+            bool Assessed(HealthCheckType type) => !VerificationCompleted.HasValue || _completedVerificationChecks.ContainsKey(type);
 
             static void AddHint(List<string> list, HealthCheckType type) {
                 var hint = CheckDescriptions.Get(type)?.Remediation;
@@ -466,26 +467,27 @@ public partial class DomainHealthCheck {
                 }
             }
 
-            if (!spfValid && spf?.DnsQueryFailed != true) {
+            if (Assessed(HealthCheckType.SPF) && !spfValid && spf?.DnsQueryFailed != true) {
                 AddHint(hints, HealthCheckType.SPF);
             }
-            if (!dmarcValid && (dmarc?.DnsQueryFailed != true || dmarc.DmarcRecordExists)) {
+            if (Assessed(HealthCheckType.DMARC) && !dmarcValid && (dmarc?.DnsQueryFailed != true || dmarc.DmarcRecordExists)) {
                 AddHint(hints, HealthCheckType.DMARC);
             }
-            if (!dkimValid) {
+            if (Assessed(HealthCheckType.DKIM) && !dkimValid) {
                 AddHint(hints, HealthCheckType.DKIM);
             }
-            if (MXAnalysis is { MxRecordExists: false }) {
+            if (Assessed(HealthCheckType.MX) && MXAnalysis is { MxRecordExists: false }) {
                 AddHint(hints, HealthCheckType.MX);
             }
-            if (!(DnsSecAnalysis?.ChainValid ?? false)) {
+            if (Assessed(HealthCheckType.DNSSEC) && !(DnsSecAnalysis?.ChainValid ?? false)) {
                 AddHint(hints, HealthCheckType.DNSSEC);
             }
-            if (whois?.IsExpired == true || whois?.ExpiresSoon == true) {
+            if (Assessed(HealthCheckType.WHOIS) && (whois?.IsExpired == true || whois?.ExpiresSoon == true)) {
                 hints.Add("Renew the domain registration.");
             }
 
             return new DomainSummary {
+                AssessedChecks = VerificationCompleted.HasValue ? VerificationCompletedChecks : null,
                 HasSpfRecord = spf?.SpfRecordExists ?? false,
                 SpfDnsQueryFailed = spf?.DnsQueryFailed ?? false,
                 SpfValid = spfValid,
@@ -607,7 +609,9 @@ public partial class DomainHealthCheck {
             return host;
         }
 
-        /// <summary>Creates a copy with only the specified analyses included.</summary>
+        /// <summary>Creates a copy with the specified analyses and the source run's failure provenance.</summary>
+        /// <remarks>Requested/completed check sets are restricted to the retained selection. Optional plain HTTP
+        /// and takeover phases have no distinct check type; their run outcome and collected evidence are retained.</remarks>
         /// <param name="healthCheckTypes">
         /// <para>Health checks that should remain in the returned
         /// <see cref="DomainHealthCheck"/>.</para>
@@ -625,6 +629,16 @@ public partial class DomainHealthCheck {
                 DnsConfiguration = DnsConfiguration,
                 MtaStsPolicyUrlOverride = MtaStsPolicyUrlOverride
             };
+            filtered.VerificationCompleted = VerificationCompleted;
+            filtered.VerificationError = VerificationError;
+            filtered.VerificationRequestedChecks = VerificationRequestedChecks.Where(active.Contains).ToArray();
+            foreach (var type in VerificationCompletedChecks.Where(active.Contains)) {
+                filtered._completedVerificationChecks.TryAdd(type, 0);
+            }
+            filtered.VerificationPlainHttpCompleted = VerificationPlainHttpCompleted;
+            filtered.VerificationTakeoverCompleted = VerificationTakeoverCompleted;
+            if (VerificationPlainHttpCompleted.HasValue) { filtered.PlainHttpAnalysis = CloneAnalysis(PlainHttpAnalysis); }
+            if (VerificationTakeoverCompleted.HasValue) { filtered.TakeoverCnameAnalysis = CloneAnalysis(TakeoverCnameAnalysis); }
 
             filtered.DmarcAnalysis = active.Contains(HealthCheckType.DMARC) ? CloneAnalysis(DmarcAnalysis) : null!;
             filtered.SpfAnalysis =

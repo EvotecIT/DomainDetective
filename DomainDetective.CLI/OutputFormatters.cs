@@ -583,7 +583,10 @@ internal static class OutputFormatters {
         
         // Add summary
         var summary = hc.BuildSummary();
-        if (summary != null && hc.VerificationCompleted != false) {
+        var summaryChecks = new[] { HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC,
+            HealthCheckType.MX, HealthCheckType.DNSSEC, HealthCheckType.WHOIS };
+        if (summary != null && hc.VerificationCompleted != false
+            && (!hc.VerificationCompleted.HasValue || summaryChecks.All(hc.VerificationCompletedChecks.Contains))) {
             sb.AppendLine("<h2>Summary</h2>");
             sb.AppendLine("<pre>" + JsonSerializer.Serialize(summary, DomainDetective.Helpers.JsonOptions.Default) + "</pre>");
         }

@@ -220,12 +220,10 @@ internal static partial class CommandUtilities {
                 }
 	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 	
-	                hc.ExecutionOptions.IncludePlainHttp = checkHttp;
-                    hc.ExecutionOptions.IncludeTakeoverCname = checkTakeover;
                 return hc;
             }
             var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
-                CreateHealthCheck, showProgress, checkHttp, cancellationToken);
+                CreateHealthCheck, showProgress, checkHttp, checkTakeover, cancellationToken);
             try {
             foreach (var run in runs) {
                 var domain = run.DomainName;
@@ -238,8 +236,7 @@ internal static partial class CommandUtilities {
             }
 
             if (summaryOnly) {
-                var summary = hc.BuildSummary();
-                CliHelpers.ShowPropertiesTable($"Summary for {domain}", summary, unicodeOutput);
+                OutputFormatters.FormatAsRichTable(domain, hc, hc.VerificationRequestedChecks.ToArray());
                 continue;
             }
 

@@ -11,6 +11,43 @@ public class TestLegacyCompletionEvidence {
     public TestLegacyCompletionEvidence(ITestOutputHelper output) => _output = output;
 
     [Fact]
+    public async Task BatchCliRetainsTheRequestedSupplementalLookup() {
+        int cnameQueries = 0;
+        using var health = new DomainHealthCheck();
+        health.ExecutionOptions.IncludeTakeoverCname = true;
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => {
+            if (type == DnsRecordType.CNAME) { Interlocked.Increment(ref cnameQueries); }
+            return Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        };
+        Func<string, DomainHealthCheck> factory = _ => health;
+        var runs = await (Task<IReadOnlyList<DomainHealthCheckRun>>)typeof(CommandUtilities)
+            .GetMethod("RunDomainBatchAsync", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, new object?[] { new[] { "fixture.example" }, new[] { HealthCheckType.CAA }, null, null,
+                factory, false, false, true, CancellationToken.None })!;
+        Assert.Null(Assert.Single(runs).Error);
+        Assert.Equal(1, cnameQueries);
+        Assert.True(health.VerificationTakeoverCompleted);
+    }
+
+    [Fact]
+    public async Task SelectedOnlyHtmlDoesNotAssessUnrequestedSummaryFields() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        await health.Verify("fixture.example", new[] { HealthCheckType.CAA });
+        var folder = Path.Combine(Path.GetTempPath(), "dd-selected-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try {
+            var path = Path.Combine(folder, "scan.html");
+            OutputFormatters.ExportToHtml("fixture.example", health, path);
+            var html = File.ReadAllText(path);
+            Assert.Contains("<h3>CAA</h3>", html);
+            Assert.DoesNotContain("HasSpfRecord", html);
+            Assert.Empty(health.BuildSummary().Hints);
+            Assert.Equal(new[] { HealthCheckType.CAA }, health.BuildSummary().AssessedChecks);
+        } finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task RequestedTakeoverFailureRetainsPrimaryEvidenceAndMarksExportsIncomplete() {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => {
