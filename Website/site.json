@@ -106,7 +106,13 @@
   },
   "StructuredData": {
     "Enabled": true,
-    "Breadcrumbs": true
+    "Breadcrumbs": true,
+    "WebPage": true,
+    "SoftwareSourceCode": true,
+    "OrganizationName": "Evotec",
+    "OrganizationUrl": "https://evotec.xyz/",
+    "OrganizationLogo": "https://evotec.xyz/favicon.svg",
+    "OrganizationSameAs": ["https://github.com/EvotecIT"]
   },
   "Seo": {
     "CrawlPolicy": {
@@ -182,7 +188,8 @@
         "ReadOnly": true
       }
     ],
-    "MarkdownNegotiation": false
+    "MarkdownNegotiation": false,
+    "MarkdownArtifacts": { "Enabled": true, "MaxPages": 0 }
   },
   "Cloudflare": {
     "Cache": {
