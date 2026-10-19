@@ -56,7 +56,7 @@ public partial class DomainHealthCheck {
         // Factory-owned configurations may have independent borrowers after this batch.
         // This async-only gate has no native wait handle and is reclaimed with its last borrower.
         var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
-        var bulkDnsAdmission = new SemaphoreSlim(Math.Max(1, options.GetEffectiveDnsParallelism() / 2));
+        var bulkDnsAdmission = new SemaphoreSlim(Math.Max(1, options.GetEffectiveDnsParallelism() - 1));
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var gate = new object();
         int nextIndex = 0;
