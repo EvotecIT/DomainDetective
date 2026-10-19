@@ -31,6 +31,10 @@ public partial class DomainHealthCheck : IHasAssessments {
         lock (_executionLock) { return _checkFailures.ContainsKey(check); }
     }
 
+    private bool HasRecordedCheckFailure() {
+        lock (_executionLock) { return _checkFailureExceptions.Count > 0; }
+    }
+
     /// <summary>Execution failures from the last verification run. Analysis findings are available through <see cref="GetAllAssessments"/>.</summary>
     public List<Assessment> Assessments { get; } = new();
 
@@ -39,7 +43,8 @@ public partial class DomainHealthCheck : IHasAssessments {
             if (_checkFailures.TryGetValue(check, out var failure)) { return failure; }
             // Explicit view selections and policies may name a check that this run never admitted.
             // A manually assembled health object has no verification domain and remains convertible.
-            return VerificationDomain != null && !LastVerifiedChecks.Contains(check) ? new Assessment {
+            return VerificationDomain != null && !LastVerifiedChecks.Contains(check)
+                && !_completedVerificationChecks.ContainsKey(check) ? new Assessment {
                 Severity = AssessmentSeverity.Warning, Code = "Verification.Check.NotRun",
                 Category = check.ToString(), Source = nameof(Verify), Target = VerificationDomain,
                 Message = $"{check}: no current result is available because this verification run did not admit the check."
