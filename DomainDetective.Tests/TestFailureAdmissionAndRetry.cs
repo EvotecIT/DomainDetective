@@ -88,6 +88,84 @@ public class TestFailureAdmissionAndRetry {
     }
 
     [Fact]
+    public async Task CallerCanCancelADirectRetryWaitingForTheOwner() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("First run failed.");
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
+        var pending = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queries = 0;
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => { Interlocked.Increment(ref queries); entered.TrySetResult(true); return pending.Task; };
+        var first = health.VerifyCAA("example.test");
+        try {
+            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(TimeSpan.FromSeconds(10))));
+            using var caller = new CancellationTokenSource();
+            var waiting = health.VerifyCAA("example.test", caller.Token);
+            caller.Cancel();
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+            Assert.Equal(caller.Token, error.CancellationToken);
+            Assert.Equal(1, queries);
+        } finally {
+            pending.TrySetResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"ca.example.test\"" } });
+            await first;
+        }
+    }
+
+    [Fact]
+    public async Task OlderDirectRetryCannotOverwriteANewerSuccessfulRun() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("First run failed.");
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
+        var pending = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => { entered.TrySetResult(true); return pending.Task; };
+        var direct = health.VerifyCAA("example.test");
+        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(TimeSpan.FromSeconds(10))));
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(new[] {
+            new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"new-run.example.test\"" }
+        });
+        var newer = health.Verify("example.test", new[] { HealthCheckType.CAA });
+        pending.TrySetResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"old-retry.example.test\"" } });
+        await Task.WhenAll(direct, newer);
+        var view = Assert.IsType<CaaInfo>(Assert.Single(Converters.ConvertChecks(health)));
+        Assert.Equal(new[] { "new-run.example.test" }, view.CanIssueCertificatesForDomain);
+    }
+
+    [Fact]
+    public async Task ADirectResultForAnotherDomainDoesNotCompleteTheFailedRunOwner() {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("Original owner failed.");
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("first.example.test", new[] { HealthCheckType.CAA }));
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(new[] {
+            new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"other-ca.example.test\"" }
+        });
+        await health.VerifyCAA("second.example.test");
+        var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health)));
+        Assert.Equal("first.example.test", failure.Subject);
+        Assert.DoesNotContain(HealthCheckType.CAA, health.VerificationCompletedChecks);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlainHttpRetryReplacesTheCanceledHttpResult(bool useRequestOptions) {
+        using var health = new DomainHealthCheck();
+        using var caller = new CancellationTokenSource();
+        health.HttpAnalysis.HttpHandlerFactory = () => new HttpStubMessageHandler((_, _) => {
+            caller.Cancel();
+            throw new OperationCanceledException(caller.Token);
+        });
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.test", new[] { HealthCheckType.HTTP }, cancellationToken: caller.Token));
+        Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health)));
+        health.HttpAnalysis.HttpHandlerFactory = () => new HttpStubMessageHandler((_, _) =>
+            new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent("<html></html>") });
+        if (useRequestOptions) { await health.VerifyPlainHttp("example.test", new HttpRequestOptions()); }
+        else { await health.VerifyPlainHttp("example.test"); }
+        Assert.IsType<HttpInfo>(Assert.Single(Converters.ConvertChecks(health)));
+        Assert.Contains(HealthCheckType.HTTP, health.VerificationCompletedChecks);
+    }
+
+    [Fact]
     public async Task OlderDirectRetryCannotEraseANewerRunFailure() {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("First run failed.");
@@ -96,14 +174,12 @@ public class TestFailureAdmissionAndRetry {
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         health.DnsConfiguration.QueryDnsOverride = (_, _) => { entered.TrySetResult(true); return pending.Task; };
         var direct = health.VerifyCAA("example.test");
-        try {
-            Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(TimeSpan.FromSeconds(10))));
-            health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("Newer run failed.");
-            await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
-        } finally {
-            pending.TrySetResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"old-retry.example.test\"" } });
-            await direct;
-        }
+        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, Task.Delay(TimeSpan.FromSeconds(10))));
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("Newer run failed.");
+        var newer = health.Verify("example.test", new[] { HealthCheckType.CAA });
+        pending.TrySetResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"old-retry.example.test\"" } });
+        await direct;
+        await Assert.ThrowsAsync<TimeoutException>(() => newer);
         var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health)));
         Assert.Contains("Newer run failed", Assert.Single(failure.Assessments).Message);
     }

@@ -124,6 +124,7 @@ public partial class DomainHealthCheck {
             HealthCheckExecutionOptions? executionOptions = null,
             bool useDefaultChecksWhenEmpty = true) {
             await _verificationAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+            _ownsVerification.Value = true;
             try {
                 VerificationCompleted = false;
                 VerificationError = null;
@@ -170,7 +171,7 @@ public partial class DomainHealthCheck {
                 }
                 VerificationError = exception.Message;
                 throw;
-            } finally { _verificationAdmission.Release(); }
+            } finally { _ownsVerification.Value = false; _verificationAdmission.Release(); }
         }
 
         private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,
@@ -405,7 +406,7 @@ public partial class DomainHealthCheck {
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <param name="options">Optional agent-readiness analysis options.</param>
         public Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) =>
-            CompleteDirectCheckAsync(HealthCheckType.AGENTREADINESS, () => VerifyAgentReadinessAsyncDirectCore(domainName, cancellationToken, options));
+            CompleteDirectCheckAsync(HealthCheckType.AGENTREADINESS, () => VerifyAgentReadinessAsyncDirectCore(domainName, cancellationToken, options), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyAgentReadinessAsyncDirectCore(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
             var previous = AgentReadinessAnalysis;

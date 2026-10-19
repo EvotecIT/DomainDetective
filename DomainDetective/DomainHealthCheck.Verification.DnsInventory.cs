@@ -11,7 +11,7 @@ public partial class DomainHealthCheck
     /// and recording answers (and optionally authority/additional sections).
     /// </summary>
     public Task VerifyDnsInventoryAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.DNSINVENTORY, () => VerifyDnsInventoryAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.DNSINVENTORY, () => VerifyDnsInventoryAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifyDnsInventoryAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {

@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyCAA(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.CAA, () => VerifyCAADirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.CAA, () => VerifyCAADirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyCAADirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -56,7 +56,7 @@ namespace DomainDetective {
         /// <param name="caaRecord">CAA record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckCAA(string caaRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.CAA, () => CheckCAADirectCore(caaRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.CAA, () => CheckCAADirectCore(caaRecord, cancellationToken), cancellationToken);
 
         private async Task CheckCAADirectCore(string caaRecord, CancellationToken cancellationToken = default) {
             await CAAAnalysis.AnalyzeCAARecords(new List<DnsAnswer> {
@@ -73,7 +73,7 @@ namespace DomainDetective {
         /// <param name="caaRecords">Collection of CAA record texts.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckCAA(List<string> caaRecords, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.CAA, () => CheckCAADirectCore(caaRecords, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.CAA, () => CheckCAADirectCore(caaRecords, cancellationToken), cancellationToken);
 
         private async Task CheckCAADirectCore(List<string> caaRecords, CancellationToken cancellationToken = default) {
             var dnsResults = caaRecords.Select(record => new DnsAnswer {

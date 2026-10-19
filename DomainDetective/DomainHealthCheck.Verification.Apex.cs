@@ -11,7 +11,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyApexAddresses(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.APEXADDRESS, () => VerifyApexAddressesDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.APEXADDRESS, () => VerifyApexAddressesDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyApexAddressesDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {

@@ -7,7 +7,7 @@ namespace DomainDetective {
         /// Detects dangling CNAME records for the domain.
         /// </summary>
         public Task VerifyDanglingCname(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DANGLINGCNAME, () => VerifyDanglingCnameDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DANGLINGCNAME, () => VerifyDanglingCnameDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyDanglingCnameDirectCore(string domainName, CancellationToken cancellationToken = default) {
             domainName = NormalizeDomain(domainName);

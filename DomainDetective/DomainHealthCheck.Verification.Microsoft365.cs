@@ -9,7 +9,7 @@ public partial class DomainHealthCheck {
     /// Builds a Microsoft 365 aggregate view by reusing identity, DNS inventory, subdomain, and Autodiscover analyses.
     /// </summary>
     public Task VerifyMicrosoft365TenantAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.MICROSOFT365, () => VerifyMicrosoft365TenantAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.MICROSOFT365, () => VerifyMicrosoft365TenantAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifyMicrosoft365TenantAsyncDirectCore(string domainName, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(domainName)) {

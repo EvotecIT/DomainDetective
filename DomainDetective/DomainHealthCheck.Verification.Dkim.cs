@@ -14,7 +14,7 @@ namespace DomainDetective {
         /// <param name="selectors">Selectors to query or <c>null</c> to auto detect.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => VerifyDKIMDirectCore(domainName, selectors, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => VerifyDKIMDirectCore(domainName, selectors, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private Task VerifyDKIMDirectCore(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
             return VerifyDKIM(domainName, selectors, includeMissingSelectors: false, cancellationToken);
@@ -28,7 +28,7 @@ namespace DomainDetective {
         /// <param name="includeMissingSelectors">When <c>true</c>, <c>AnalysisResults</c> will include entries for selectors that have no published DKIM record and warnings will be logged for those missing records. When <c>false</c>, selectors with no published DKIM record are omitted from <c>AnalysisResults</c> and no warnings are logged for them.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDKIM(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => VerifyDKIMDirectCore(domainName, selectors, includeMissingSelectors, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => VerifyDKIMDirectCore(domainName, selectors, includeMissingSelectors, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private Task VerifyDKIMDirectCore(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) =>
             VerifyDkimCoreAsync(domainName, selectors, includeMissingSelectors, cancellationToken, false);
@@ -108,7 +108,7 @@ namespace DomainDetective {
         /// <param name="selector">Selector associated with the record.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckDKIM(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => CheckDKIMDirectCore(dkimRecord, selector, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DKIM, () => CheckDKIMDirectCore(dkimRecord, selector, cancellationToken), cancellationToken);
 
         private async Task CheckDKIMDirectCore(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) {
             DKIMAnalysis.Reset();

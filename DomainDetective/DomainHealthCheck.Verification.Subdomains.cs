@@ -11,7 +11,7 @@ public partial class DomainHealthCheck
     /// whether the discovered names still resolve in DNS.
     /// </summary>
     public Task VerifySubdomainsAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.SUBDOMAINS, () => VerifySubdomainsAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.SUBDOMAINS, () => VerifySubdomainsAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifySubdomainsAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {

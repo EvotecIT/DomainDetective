@@ -10,7 +10,7 @@ public partial class DomainHealthCheck
     /// Builds a certificate transparency (CT) timeline for the specified domain.
     /// </summary>
     public Task VerifyCtTimelineAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.CTTIMELINE, () => VerifyCtTimelineAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.CTTIMELINE, () => VerifyCtTimelineAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifyCtTimelineAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {

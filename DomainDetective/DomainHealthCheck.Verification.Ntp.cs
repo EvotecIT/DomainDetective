@@ -8,7 +8,7 @@ namespace DomainDetective {
         /// <param name="port">NTP port number.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task TestNtpServer(string host, int port = 123, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.NTP, () => TestNtpServerDirectCore(host, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.NTP, () => TestNtpServerDirectCore(host, port, cancellationToken), cancellationToken, ownerDomain: host);
 
         private async Task TestNtpServerDirectCore(string host, int port = 123, CancellationToken cancellationToken = default) {
             ValidatePort(port);
@@ -20,7 +20,7 @@ namespace DomainDetective {
         /// <param name="port">NTP port number.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task TestNtpServer(NtpServer server, int port = 123, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.NTP, () => TestNtpServerDirectCore(server, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.NTP, () => TestNtpServerDirectCore(server, port, cancellationToken), cancellationToken);
 
         private Task TestNtpServerDirectCore(NtpServer server, int port = 123, CancellationToken cancellationToken = default) =>
             TestNtpServer(server.ToHost(), port, cancellationToken);

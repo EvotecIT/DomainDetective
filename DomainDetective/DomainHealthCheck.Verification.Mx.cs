@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyMX(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.MX, () => VerifyMXDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.MX, () => VerifyMXDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyMXDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -35,7 +35,7 @@ namespace DomainDetective {
         /// <param name="mxRecord">MX record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckMX(string mxRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.MX, () => CheckMXDirectCore(mxRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.MX, () => CheckMXDirectCore(mxRecord, cancellationToken), cancellationToken);
 
         private async Task CheckMXDirectCore(string mxRecord, CancellationToken cancellationToken = default) {
             await MXAnalysis.AnalyzeMxRecords(new List<DnsAnswer> {

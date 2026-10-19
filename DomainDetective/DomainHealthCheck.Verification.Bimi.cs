@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="skipIndicatorDownload">When true, do not download the SVG indicator.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckBIMI(string bimiRecord, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.BIMI, () => CheckBIMIDirectCore(bimiRecord, skipIndicatorDownload, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.BIMI, () => CheckBIMIDirectCore(bimiRecord, skipIndicatorDownload, cancellationToken), cancellationToken);
 
         private async Task CheckBIMIDirectCore(string bimiRecord, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) {
             BimiAnalysis.SkipIndicatorDownload = skipIndicatorDownload;
@@ -32,7 +32,7 @@ namespace DomainDetective {
         /// <param name="skipIndicatorDownload">When true, do not download the SVG indicator.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyBIMI(string domainName, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.BIMI, () => VerifyBIMIDirectCore(domainName, skipIndicatorDownload, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.BIMI, () => VerifyBIMIDirectCore(domainName, skipIndicatorDownload, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyBIMIDirectCore(string domainName, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {

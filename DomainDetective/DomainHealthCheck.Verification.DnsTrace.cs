@@ -10,7 +10,7 @@ public partial class DomainHealthCheck
     /// Captures an iterative, authoritative-style DNS trace (root to answer) with a hop-by-hop log.
     /// </summary>
     public Task VerifyDnsTraceAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.DNSTRACE, () => VerifyDnsTraceAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.DNSTRACE, () => VerifyDnsTraceAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifyDnsTraceAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {

@@ -11,7 +11,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyEdnsSupport(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.EDNSSUPPORT, () => VerifyEdnsSupportDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.EDNSSUPPORT, () => VerifyEdnsSupportDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyEdnsSupportDirectCore(string domainName, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();

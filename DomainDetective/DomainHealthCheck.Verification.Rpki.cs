@@ -11,7 +11,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyRPKI(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.RPKI, () => VerifyRPKIDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.RPKI, () => VerifyRPKIDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyRPKIDirectCore(string domainName, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();

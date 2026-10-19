@@ -11,7 +11,7 @@ namespace DomainDetective {
         /// Checks all MX hosts for STARTTLS support.
         /// </summary>
         public Task VerifySTARTTLS(string domainName, int port = 25, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => VerifySTARTTLSDirectCore(domainName, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => VerifySTARTTLSDirectCore(domainName, port, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifySTARTTLSDirectCore(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -35,7 +35,7 @@ namespace DomainDetective {
         /// Checks all MX hosts for SMTP TLS configuration.
         /// </summary>
         public Task VerifySMTPTLS(string domainName, int port, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => VerifySMTPTLSDirectCore(domainName, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => VerifySMTPTLSDirectCore(domainName, port, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private Task VerifySMTPTLSDirectCore(string domainName, int port, CancellationToken cancellationToken = default)
             => EnsureSmtpTlsAsync(domainName, port, cancellationToken);
@@ -73,7 +73,7 @@ namespace DomainDetective {
         /// Checks all MX hosts for SMTP TLS configuration using the default port.
         /// </summary>
         public Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => VerifySMTPTLSDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => VerifySMTPTLSDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private Task VerifySMTPTLSDirectCore(string domainName, CancellationToken cancellationToken = default)
             => VerifySMTPTLS(domainName, 25, cancellationToken);
@@ -100,7 +100,7 @@ namespace DomainDetective {
         /// Checks all MX hosts for IMAP TLS configuration.
         /// </summary>
         public Task VerifyIMAPTLS(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => VerifyIMAPTLSDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => VerifyIMAPTLSDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyIMAPTLSDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -120,7 +120,7 @@ namespace DomainDetective {
         /// Checks all MX hosts for POP3 TLS configuration.
         /// </summary>
         public Task VerifyPOP3TLS(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => VerifyPOP3TLSDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => VerifyPOP3TLSDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyPOP3TLSDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -140,7 +140,7 @@ namespace DomainDetective {
         /// Collects SMTP banners from all MX hosts.
         /// </summary>
         public Task VerifySMTPBanner(string domainName, int port = 25, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMTPBANNER, () => VerifySMTPBannerDirectCore(domainName, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMTPBANNER, () => VerifySMTPBannerDirectCore(domainName, port, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifySMTPBannerDirectCore(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -159,7 +159,7 @@ namespace DomainDetective {
         /// Retrieves SMTP AUTH capabilities from all MX hosts.
         /// </summary>
         public Task VerifySmtpAuth(string domainName, int port = 25, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMTPAUTH, () => VerifySmtpAuthDirectCore(domainName, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMTPAUTH, () => VerifySmtpAuthDirectCore(domainName, port, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifySmtpAuthDirectCore(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -179,7 +179,7 @@ namespace DomainDetective {
         /// Measures mail server connection and banner latency across all MX hosts.
         /// </summary>
         public Task VerifyMailLatency(string domainName, int port = 25, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.MAILLATENCY, () => VerifyMailLatencyDirectCore(domainName, port, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.MAILLATENCY, () => VerifyMailLatencyDirectCore(domainName, port, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyMailLatencyDirectCore(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {

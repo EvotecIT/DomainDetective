@@ -10,7 +10,7 @@ public partial class DomainHealthCheck
     /// Enriches discovered IPs (apex, MX, NS) with reverse DNS, ASN/org and geo hints.
     /// </summary>
     public Task VerifyIpEnrichmentAsync(string domainName, CancellationToken cancellationToken = default) =>
-        CompleteDirectCheckAsync(HealthCheckType.IPENRICHMENT, () => VerifyIpEnrichmentAsyncDirectCore(domainName, cancellationToken));
+        CompleteDirectCheckAsync(HealthCheckType.IPENRICHMENT, () => VerifyIpEnrichmentAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
     private async Task VerifyIpEnrichmentAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {

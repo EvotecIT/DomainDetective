@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyNS(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.NS, () => VerifyNSDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => VerifyNSDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyNSDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -48,7 +48,7 @@ namespace DomainDetective {
         /// <param name="nsRecord">NS record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckNS(string nsRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecord, cancellationToken), cancellationToken);
 
         private async Task CheckNSDirectCore(string nsRecord, CancellationToken cancellationToken = default) {
             NSAnalysis.Subject = null;
@@ -66,7 +66,7 @@ namespace DomainDetective {
         /// <param name="nsRecords">Collection of NS record texts.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckNS(List<string> nsRecords, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecords, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecords, cancellationToken), cancellationToken);
 
         private async Task CheckNSDirectCore(List<string> nsRecords, CancellationToken cancellationToken = default) {
             NSAnalysis.Subject = null;

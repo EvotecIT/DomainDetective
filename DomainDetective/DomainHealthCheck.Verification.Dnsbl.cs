@@ -12,7 +12,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDNSBL(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => VerifyDNSBLDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => VerifyDNSBLDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyDNSBLDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -34,7 +34,7 @@ namespace DomainDetective {
         /// <param name="clearExisting">Whether to clear previous results prior to running.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDNSBLWithMode(string domainName, DomainIpScanMode scanMode, bool clearExisting = true, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => VerifyDNSBLWithModeDirectCore(domainName, scanMode, clearExisting, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => VerifyDNSBLWithModeDirectCore(domainName, scanMode, clearExisting, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyDNSBLWithModeDirectCore(string domainName, DomainIpScanMode scanMode, bool clearExisting = true, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -54,7 +54,7 @@ namespace DomainDetective {
         /// <param name="nameOrIpAddress">IP address or domain to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckDNSBL(string nameOrIpAddress, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => CheckDNSBLDirectCore(nameOrIpAddress, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => CheckDNSBLDirectCore(nameOrIpAddress, cancellationToken), cancellationToken);
 
         private async Task CheckDNSBLDirectCore(string nameOrIpAddress, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(nameOrIpAddress)) {
@@ -86,7 +86,7 @@ namespace DomainDetective {
         /// <param name="nameOrIpAddresses">Inputs to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckDNSBL(string[] nameOrIpAddresses, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => CheckDNSBLDirectCore(nameOrIpAddresses, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DNSBL, () => CheckDNSBLDirectCore(nameOrIpAddresses, cancellationToken), cancellationToken);
 
         private async Task CheckDNSBLDirectCore(string[] nameOrIpAddresses, CancellationToken cancellationToken = default) {
             if (nameOrIpAddresses == null) {

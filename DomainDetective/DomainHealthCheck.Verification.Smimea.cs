@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="smimeaRecord">SMIMEA record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckSMIMEA(string smimeaRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMIMEA, () => CheckSMIMEADirectCore(smimeaRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMIMEA, () => CheckSMIMEADirectCore(smimeaRecord, cancellationToken), cancellationToken);
 
         private async Task CheckSMIMEADirectCore(string smimeaRecord, CancellationToken cancellationToken = default) {
             await SmimeaAnalysis.AnalyzeSMIMEARecords(new List<DnsAnswer> {
@@ -29,7 +29,7 @@ namespace DomainDetective {
         /// <param name="emailAddress">Email address to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifySMIMEA(string emailAddress, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMIMEA, () => VerifySMIMEADirectCore(emailAddress, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SMIMEA, () => VerifySMIMEADirectCore(emailAddress, cancellationToken), cancellationToken, ownerDomain: emailAddress);
 
         private async Task VerifySMIMEADirectCore(string emailAddress, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(emailAddress)) {

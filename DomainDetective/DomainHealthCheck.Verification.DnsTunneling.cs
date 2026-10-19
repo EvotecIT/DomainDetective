@@ -11,7 +11,7 @@ namespace DomainDetective {
 
         /// <summary>Executes the check dns tunneling async operation.</summary>
         public Task CheckDnsTunnelingAsync(string domainName, CancellationToken ct = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DNSTUNNELING, () => CheckDnsTunnelingAsyncDirectCore(domainName, ct));
+            CompleteDirectCheckAsync(HealthCheckType.DNSTUNNELING, () => CheckDnsTunnelingAsyncDirectCore(domainName, ct), ct, ownerDomain: domainName);
 
         private async Task CheckDnsTunnelingAsyncDirectCore(string domainName, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();

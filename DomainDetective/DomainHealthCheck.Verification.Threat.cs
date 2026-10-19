@@ -9,7 +9,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain or IP address to check.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyThreatIntel(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.THREATINTEL, () => VerifyThreatIntelDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.THREATINTEL, () => VerifyThreatIntelDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyThreatIntelDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -24,7 +24,7 @@ namespace DomainDetective {
         /// <param name="ipAddress">IP address to check.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyThreatFeed(string ipAddress, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.THREATFEED, () => VerifyThreatFeedDirectCore(ipAddress, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.THREATFEED, () => VerifyThreatFeedDirectCore(ipAddress, cancellationToken), cancellationToken);
 
         private async Task VerifyThreatFeedDirectCore(string ipAddress, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(ipAddress)) {

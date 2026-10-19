@@ -10,7 +10,7 @@ namespace DomainDetective {
         /// Attempts zone transfers against authoritative name servers.
         /// </summary>
         public Task VerifyZoneTransfer(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.ZONETRANSFER, () => VerifyZoneTransferDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.ZONETRANSFER, () => VerifyZoneTransferDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyZoneTransferDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -27,7 +27,7 @@ namespace DomainDetective {
         /// Validates delegation information against the parent zone.
         /// </summary>
         public Task VerifyDelegation(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DELEGATION, () => VerifyDelegationDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.DELEGATION, () => VerifyDelegationDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyDelegationDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {

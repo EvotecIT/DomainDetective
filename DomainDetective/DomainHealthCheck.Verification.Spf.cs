@@ -13,7 +13,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifySPF(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SPF, () => VerifySPFDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SPF, () => VerifySPFDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifySPFDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -92,7 +92,7 @@ namespace DomainDetective {
         /// <param name="spfRecord">SPF record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckSPF(string spfRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SPF, () => CheckSPFDirectCore(spfRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.SPF, () => CheckSPFDirectCore(spfRecord, cancellationToken), cancellationToken);
 
         private async Task CheckSPFDirectCore(string spfRecord, CancellationToken cancellationToken = default) {
             SpfAnalysis.Subject ??= string.Empty;

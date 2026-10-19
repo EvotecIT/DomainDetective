@@ -12,7 +12,7 @@ namespace DomainDetective {
         /// <param name="contactRecord">Contact record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task CheckContactInfo(string contactRecord, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.CONTACT, () => CheckContactInfoDirectCore(contactRecord, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.CONTACT, () => CheckContactInfoDirectCore(contactRecord, cancellationToken), cancellationToken);
 
         private async Task CheckContactInfoDirectCore(string contactRecord, CancellationToken cancellationToken = default) {
             await ContactInfoAnalysis.AnalyzeContactRecords(new List<DnsAnswer> {
@@ -29,7 +29,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyContactInfo(string domainName, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.CONTACT, () => VerifyContactInfoDirectCore(domainName, cancellationToken));
+            CompleteDirectCheckAsync(HealthCheckType.CONTACT, () => VerifyContactInfoDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
 
         private async Task VerifyContactInfoDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
