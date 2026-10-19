@@ -25,7 +25,7 @@ internal sealed class DomainAssessmentViewReader {
     };
 
     private readonly PropertyInfo? _check, _area, _subject, _summary, _assessments, _recommendations, _positives,
-        _references, _raw, _narrative, _highlights, _errorCount, _warningCount;
+        _references, _raw, _narrative, _highlights, _errorCount, _warningCount, _status;
     private readonly PropertyInfo[] _other;
 
     private DomainAssessmentViewReader(Type type) {
@@ -38,6 +38,7 @@ internal sealed class DomainAssessmentViewReader {
         _area = Find("Area") is { } area && area.PropertyType == typeof(AnalysisArea) ? area : null;
         _subject = Find("Subject") is { } subject && subject.PropertyType == typeof(string) ? subject : null;
         _summary = Find("Summary") is { } summary && summary.PropertyType == typeof(string) ? summary : null;
+        _status = Find("Status");
         _assessments = Find("Assessments");
         _recommendations = Find("Recommendations");
         _positives = Find("Positives");
@@ -82,6 +83,13 @@ internal sealed class DomainAssessmentViewReader {
     public int ErrorCount(object view) => _errorCount != null && Get(_errorCount, view) is int count ? Math.Max(0, count) : 0;
 
     public int WarningCount(object view) => _warningCount != null && Get(_warningCount, view) is int count ? Math.Max(0, count) : 0;
+
+    public bool EvidenceComplete(object view) {
+        if (view is DomainDetective.Views.CheckFailureInfo) return false;
+        if (_status != null && string.Equals(Get(_status, view)?.ToString(), "Incomplete", StringComparison.OrdinalIgnoreCase)) return false;
+        if (view is DomainDetective.Views.DnssecStatusInfo dnssec && dnssec.ValidationStatus == DnssecValidationStatus.Indeterminate) return false;
+        return true;
+    }
 
     /// <summary>
     /// Scalar members as facts, record-like strings and long text as code, and collections as lists or tables.
@@ -128,6 +136,11 @@ internal sealed class DomainAssessmentViewReader {
     }
 
     private static void AddSequence(string label, IEnumerable sequence, List<CheckEvidence> evidence, int maxRows) {
+        int nestedRowsRemaining = maxRows;
+        AddSequence(label, sequence, evidence, maxRows, 0, ref nestedRowsRemaining);
+    }
+
+    private static void AddSequence(string label, IEnumerable sequence, List<CheckEvidence> evidence, int maxRows, int depth, ref int nestedRowsRemaining) {
         var items = new List<object>();
         var total = 0;
         try {
@@ -141,6 +154,7 @@ internal sealed class DomainAssessmentViewReader {
             // A collection that cannot be enumerated is left out of the evidence.
         }
         if (items.Count == 0) return;
+        if (depth > 0) nestedRowsRemaining = Math.Max(0, nestedRowsRemaining - items.Count);
         if (items.All(static item => IsScalar(item.GetType()))) {
             var list = new CheckEvidence { Title = label, Kind = CheckEvidenceKind.List };
             list.Items.AddRange(items.Select(Format).Where(static text => text.Length > 0));
@@ -154,7 +168,6 @@ internal sealed class DomainAssessmentViewReader {
             .Where(static p => p.CanRead && p.GetIndexParameters().Length == 0 && (IsScalar(p.PropertyType) || IsScalarSequence(p.PropertyType)))
             .ToArray();
         PropertyInfo[] columns = all.Where(p => !IsKnownFlag(p, all)).Take(16).ToArray();
-        if (columns.Length == 0) return;
         var table = new CheckEvidence { Title = label, Kind = CheckEvidenceKind.Table };
         table.Columns.AddRange(columns.Select(static c => Humanize(c.Name)));
         foreach (object item in items) {
@@ -165,6 +178,23 @@ internal sealed class DomainAssessmentViewReader {
         table.Omitted = Math.Max(0, total - items.Count);
         DropEmptyColumns(table);
         if (table.Columns.Count > 0) evidence.Add(table);
+        // Preserve records inside inventory queries and propagation results. The
+        // shared nested-row budget bounds expansion across all parents, and the
+        // parent row number keeps each captured record tied to its query.
+        var nested = elementType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(static p => p.CanRead && p.GetIndexParameters().Length == 0 && p.PropertyType != typeof(string)
+                && typeof(IEnumerable).IsAssignableFrom(p.PropertyType) && !IsScalarSequence(p.PropertyType)).ToArray();
+        for (int index = 0; index < items.Count; index++) {
+            foreach (var property in nested) {
+                if (!property.DeclaringType!.IsInstanceOfType(items[index]) || Get(property, items[index]) is not IEnumerable children) continue;
+                string childLabel = label + " [" + (index + 1).ToString(CultureInfo.InvariantCulture) + "] · " + Humanize(property.Name);
+                if (depth >= 2 || nestedRowsRemaining <= 0) {
+                    evidence.Add(new CheckEvidence { Title = childLabel, Kind = CheckEvidenceKind.List, Items = { "Further nested evidence exceeds the report limit." } });
+                    continue;
+                }
+                AddSequence(childLabel, children, evidence, Math.Min(maxRows, nestedRowsRemaining), depth + 1, ref nestedRowsRemaining);
+            }
+        }
     }
 
     private static void DropEmptyColumns(CheckEvidence table) {

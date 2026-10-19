@@ -13,14 +13,6 @@ namespace DomainDetective.Reports.Html;
 /// of every check. Areas without a summary still list their checks, so new checks need no layout work.
 /// </summary>
 public static partial class AssessmentHtmlReport {
-    // CAA identifiers of the issuers DD sees most, so the served certificate can be checked against the CAA record.
-    private static readonly (string IssuerText, string CaaDomain)[] CaaIssuers = {
-        ("Google Trust Services", "pki.goog"), ("Let's Encrypt", "letsencrypt.org"), ("Lets Encrypt", "letsencrypt.org"),
-        ("DigiCert", "digicert.com"), ("Sectigo", "sectigo.com"), ("COMODO", "comodoca.com"), ("ZeroSSL", "sectigo.com"),
-        ("GoDaddy", "godaddy.com"), ("Starfield", "starfieldtech.com"), ("Amazon", "amazon.com"), ("GlobalSign", "globalsign.com"),
-        ("Entrust", "entrust.net"), ("SSL.com", "ssl.com"), ("Microsoft", "microsoft.com"), ("Buypass", "buypass.com")
-    };
-
     private static void RenderDomainProfile(AssessmentReportSection section, DomainAssessment domain, CheckIds ids, DateTimeOffset generatedAt) {
         CheckAssessment? Check(string key) => domain.Checks.FirstOrDefault(c => c.Key == key);
         string? Link(CheckAssessment? check) => check == null ? null : ids.Check(domain, check);
@@ -132,17 +124,13 @@ public static partial class AssessmentHtmlReport {
                     }
                     if (caa != null) {
                         string[] allowed = ListItems(caa, "Can issue certificates for domain").ToArray();
-                        string? servedIssuer = cert == null ? null : ServedIssuer(cert);
-                        string? servedCaa = servedIssuer == null ? null : CaaIssuers.FirstOrDefault(i => Has(servedIssuer, i.IssuerText)).CaaDomain;
+                        string[] wildcard = ListItems(caa, "Can issue wildcard certificates for domain").ToArray();
                         panel.AssessmentChips(chips => {
-                            chips.Label(allowed.Length == 0 ? "Who may issue certificates (no CAA record: anyone)" : "Who may issue certificates (CAA)");
-                            foreach (string issuer in allowed) {
-                                bool current = servedCaa != null && string.Equals(issuer, servedCaa, StringComparison.OrdinalIgnoreCase);
-                                chips.Chip(current ? issuer + " · issued the current certificate" : issuer, current ? Severity.Good : null, Link(caa));
-                            }
-                            if (allowed.Length > 0 && servedIssuer != null && servedCaa != null && !allowed.Contains(servedCaa, StringComparer.OrdinalIgnoreCase)) {
-                                chips.Chip($"{servedIssuer} issued the current certificate but is not allowed: renewal will fail", Severity.High, Link(caa));
-                            }
+                            chips.Label("Captured certificate authority policy (CAA)");
+                            if (!caa.EvidenceComplete) chips.Chip("Policy lookup incomplete", Severity.Elevated, Link(caa));
+                            foreach (string issuer in allowed) chips.Chip(issuer + " · general issuance", null, Link(caa));
+                            foreach (string issuer in wildcard) chips.Chip(issuer + " · wildcard issuance", null, Link(caa));
+                            if (allowed.Length == 0 && wildcard.Length == 0) chips.Chip("No issuer names captured; inspect the CAA evidence", null, Link(caa));
                         });
                     }
                     if (ttl != null && TopFinding(ttl) is { } ttlNote) {
@@ -190,13 +178,14 @@ public static partial class AssessmentHtmlReport {
 
         CheckAssessment? dnsbl = Check("dnsbl");
         if (dnsbl != null) {
-            string listed = Fact(dnsbl, "Hosts listed") ?? "0";
+            string? listed = Fact(dnsbl, "Hosts listed");
+            bool complete = dnsbl.EvidenceComplete && listed != null;
             section.ReportPanel(panel => panel
                 .Title("Reputation").TitleIcon(TablerIconType.ShieldCheck)
                 .Subtitle("The domain and every address behind its mail servers, checked against blocklists.")
                 .Settings(s => s.Flush())
                 .AssessmentStats(stats => stats
-                    .Stat(listed == "0" ? "Clean" : listed + " listed", "Blocklist result", listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
+                    .Stat(!complete ? "Incomplete" : listed == "0" ? "No listings observed" : listed + " listed", "Blocklist result", !complete ? Severity.Elevated : listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
                     .Stat(Fact(dnsbl, "Providers checked") ?? "-", "Blocklists checked")
                     .Stat(Fact(dnsbl, "Hosts checked") ?? "-", "Hosts and addresses checked")));
         }
@@ -212,7 +201,8 @@ public static partial class AssessmentHtmlReport {
             .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
             .ToArray();
         string first = strengths == null ? string.Empty : strengths + " ";
-        string second = fixes.Length == 0 ? "Every check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
+        string second = fixes.Length == 0 ? domain.Checks.Any(c => !c.EvidenceComplete)
+            ? "Some checks have incomplete evidence." : "Every scored check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
         return first + second;
     }
 
@@ -227,7 +217,8 @@ public static partial class AssessmentHtmlReport {
         else if (dmarc != null && string.Equals(Metric(dmarc, "Record"), "Unknown", StringComparison.OrdinalIgnoreCase)) strengths.Add("the DMARC policy could not be read (DNS lookup failed)");
         else if (dmarc != null) strengths.Add("DMARC does not stop spoofed mail yet");
         if (spf != null && (Metric(spf, "Ends with") ?? string.Empty).StartsWith("-all", StringComparison.Ordinal)) strengths.Add("SPF hard-fails unknown senders");
-        if (domain.Checks.FirstOrDefault(c => c.Key == "dnssec") is { Outcome: CheckOutcome.Pass }) strengths.Add("DNSSEC is valid");
+        if (domain.Checks.FirstOrDefault(c => c.Key == "dnssec") is { Outcome: CheckOutcome.Pass, EvidenceComplete: true } dnssec
+            && string.Equals(Fact(dnssec, "Validation status"), "Secure", StringComparison.OrdinalIgnoreCase)) strengths.Add("DNSSEC is valid");
         return strengths.Count == 0 ? null : Capitalize(string.Join(", ", strengths)) + ".";
     }
 

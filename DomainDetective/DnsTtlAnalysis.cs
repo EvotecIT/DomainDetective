@@ -150,19 +150,22 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct);
         }
 
-        private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
+        private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs, bool requireMatchingRrset = false) {
             var response = await _queryAuthoritative(ip, name, (DnsRecordType)qtype, timeoutMs > 0 ? timeoutMs : 4000, ct, false).ConfigureAwait(false);
-            return ReadAuthoritativeTtl(response, (DnsRecordType)qtype);
+            return ReadAuthoritativeTtl(response, (DnsRecordType)qtype, requireMatchingRrset ? name : null);
         }
 
-        private static (int? Ttl, bool Succeeded) ReadAuthoritativeTtl(DnsResponse? response, DnsRecordType type) {
+        private static (int? Ttl, bool Succeeded) ReadAuthoritativeTtl(DnsResponse? response, DnsRecordType type, string? owner = null) {
             if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(response)) { return (null, false); }
             var answers = response!.Answers ?? Array.Empty<DnsAnswer>();
             int? answerTtl = answers
-                .Where(item => item.Type == type)
+                .Where(item => item.Type == type && (owner == null || string.Equals(item.Name?.TrimEnd('.'), owner.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)))
                 .Select(item => (int?)item.TTL)
                 .FirstOrDefault();
             if (answerTtl.HasValue) return (answerTtl, true);
+            // An alias lifetime belongs to its CNAME RRset, not the requested
+            // A/TXT RRset. Keep the recursive value unverified in that case.
+            if (owner != null) return (null, true);
             return (answers
                 .Where(item => item.Type == DnsRecordType.CNAME)
                 .Select(item => (int?)item.TTL)

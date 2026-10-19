@@ -173,6 +173,7 @@ public static class DomainAssessmentBuilder {
         var genericEvidence = new List<CheckEvidence>();
         foreach (object view in check.Sources) {
             DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
+            check.EvidenceComplete &= reader.EvidenceComplete(view);
             foreach (Assessment assessment in reader.Assessments(view)) {
                 if (string.IsNullOrWhiteSpace(assessment.Message)) continue;
                 check.Findings.Add(new CheckFinding {
@@ -242,9 +243,10 @@ public static class DomainAssessmentBuilder {
         }
         check.Outcome = check.ErrorCount > 0 ? CheckOutcome.Error
             : check.WarningCount > 0 ? CheckOutcome.Warning
+            : !check.EvidenceComplete ? CheckOutcome.Incomplete
             : check.Scored ? CheckOutcome.Pass
             : CheckOutcome.Info;
-        check.Score = DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount);
+        check.Score = check.EvidenceComplete ? DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount) : null;
     }
 
     /// <summary>

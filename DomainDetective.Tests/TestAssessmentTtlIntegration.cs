@@ -4,6 +4,31 @@ using System.Net;
 namespace DomainDetective.Tests;
 
 public class TestAssessmentTtlIntegration {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnAliasTtlIsNotPresentedAsTheAuthoritativeDkimTxtLifetime(bool includeDestinationTxt) {
+        const string owner = "selector._domainkey.example.test";
+        var analysis = new DnsTtlAnalysis((_, name, type, _, _, _) => Task.FromResult<DnsResponse?>(new DnsResponse {
+            IsAuthoritativeAnswer = true, Status = DnsResponseCode.NoError,
+            Answers = name == owner && type == DnsRecordType.TXT
+                ? new[] { new DnsAnswer { Name = owner, Type = DnsRecordType.CNAME, DataRaw = "key.provider.test", TTL = 300 } }
+                    .Concat(includeDestinationTxt ? new[] { new DnsAnswer { Name = "key.provider.test", Type = DnsRecordType.TXT, DataRaw = "v=DKIM1; p=synthetic", TTL = 1800 } } : Array.Empty<DnsAnswer>()).ToArray()
+                : Array.Empty<DnsAnswer>()
+        })) { DkimSelectors = new List<string> { "selector" } };
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError, Answers = type == DnsRecordType.NS
+            ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "ns.example.test", TTL = 3600 } }
+            : type == DnsRecordType.A && name == "ns.example.test"
+                ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.53", TTL = 3600 } }
+                : type == DnsRecordType.TXT && name == owner
+                    ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DKIM1; p=synthetic", TTL = 3600 } }
+                    : Array.Empty<DnsAnswer>() });
+        await analysis.Analyze("example.test", new InternalLogger());
+        Assert.Equal(new[] { 3600 }, analysis.DkimTxtTtls[owner]);
+        Assert.False(analysis.TtlsFromAuthoritativeServers);
+        Assert.DoesNotContain(analysis.Assessments, value => value.Code == TtlCodes.TooShort && value.Message.Contains("DKIM"));
+    }
+
     [Fact]
     public async Task OneAuthoritativeSetDoesNotValidateAnotherSetsCacheCountdown() {
         var analysis = new DnsTtlAnalysis {

@@ -75,7 +75,7 @@ public partial class DnsTtlAnalysis {
                 try {
                     int? ttl = AuthoritativeTtlOverride != null
                         ? await AuthoritativeTtlOverride(request.Owner, request.Type).ConfigureAwait(false)
-                        : (await QueryTtlFromServer(server!, request.Owner, (ushort)request.Type, deadline.Token, budget).ConfigureAwait(false)).Ttl;
+                        : (await QueryTtlFromServer(server!, request.Owner, (ushort)request.Type, deadline.Token, budget, requireMatchingRrset: true).ConfigureAwait(false)).Ttl;
                     if (ttl.HasValue) { observed[request.Label] = ttl.Value; }
                     return true;
                 } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }

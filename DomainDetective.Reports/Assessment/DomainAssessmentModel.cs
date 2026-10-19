@@ -80,7 +80,9 @@ public enum CheckOutcome {
     /// <summary>At least one warning, no errors.</summary>
     Warning,
     /// <summary>At least one error.</summary>
-    Error
+    Error,
+    /// <summary>The available evidence cannot establish the check's result.</summary>
+    Incomplete
 }
 
 /// <summary>One check (SPF, DMARC, DNSSEC, ...) for one domain.</summary>
@@ -109,8 +111,11 @@ public sealed class CheckAssessment {
     /// <summary>Whether the check counts toward the domain score. Inventory and discovery checks do not.</summary>
     public bool Scored { get; set; }
 
-    /// <summary>Check score (0–100).</summary>
-    public int Score { get; set; }
+    /// <summary>Whether the check collected enough evidence to establish its result.</summary>
+    public bool EvidenceComplete { get; set; } = true;
+
+    /// <summary>Check score (0–100), or null when the evidence is incomplete.</summary>
+    public int? Score { get; set; }
 
     /// <summary>Weight of the check in the domain score.</summary>
     public int Weight { get; set; } = 1;

@@ -116,6 +116,7 @@ public static partial class AssessmentHtmlReport {
     private static Severity OutcomeSeverity(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => Severity.High,
         CheckOutcome.Warning => Severity.Elevated,
+        CheckOutcome.Incomplete => Severity.Elevated,
         CheckOutcome.Pass => Severity.Good,
         _ => Severity.Informational
     };
@@ -123,6 +124,7 @@ public static partial class AssessmentHtmlReport {
     private static string OutcomeLabel(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => "Error",
         CheckOutcome.Warning => "Warning",
+        CheckOutcome.Incomplete => "Incomplete",
         CheckOutcome.Pass => "Pass",
         _ => "Info"
     };

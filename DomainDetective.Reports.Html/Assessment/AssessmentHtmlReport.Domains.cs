@@ -71,8 +71,12 @@ public static partial class AssessmentHtmlReport {
             .ScopeLabel(domain.Domain)
             .SearchTerms(string.Join(" ", new[] { check.Key, check.LongTitle, domain.Domain }.Where(static s => !string.IsNullOrEmpty(s))));
         if (!string.IsNullOrWhiteSpace(check.LongTitle)) row.Subtitle(check.LongTitle!);
-        if (check.Scored) row.Meta($"score {check.Score.ToString(CultureInfo.InvariantCulture)}");
-        if (failed > 0 || check.Positives.Count > 0) row.Progress(check.Positives.Count, failed);
+        if (check.Scored && check.Score.HasValue) row.Meta($"score {check.Score.Value.ToString(CultureInfo.InvariantCulture)}");
+        if (!check.EvidenceComplete) row.Meta("Incomplete evidence");
+        List<string> positives = check.Positives.Where(positive => check.EvidenceComplete && (options.ShowInfoFindings
+            || !check.Findings.Any(finding => finding.Severity == AssessmentSeverity.Info && string.Equals(finding.Message, positive, StringComparison.Ordinal))))
+            .ToList();
+        if (failed > 0 || positives.Count > 0) row.Progress(positives.Count, failed);
         if (check.Outcome == CheckOutcome.Error) row.Open();
 
         string? lead = check.Summary ?? check.Description;
@@ -86,7 +90,7 @@ public static partial class AssessmentHtmlReport {
         List<CheckFinding> findings = check.Findings
             .Where(f => options.ShowInfoFindings || f.Severity != AssessmentSeverity.Info)
             .ToList();
-        if (findings.Count > 0 || check.Positives.Count > 0) {
+        if (findings.Count > 0 || positives.Count > 0) {
             row.AssessmentAssertions(assertions => {
                 assertions.Settings(s => s.Labels("Findings", "No findings", "{0} things done well", observed: "Where"));
                 foreach (CheckFinding finding in findings) {
@@ -95,7 +99,7 @@ public static partial class AssessmentHtmlReport {
                         if (!string.IsNullOrWhiteSpace(finding.Code)) a.SeverityLabel(finding.Code);
                     });
                 }
-                foreach (string positive in check.Positives) {
+                foreach (string positive in positives) {
                     assertions.Assertion(positive, Severity.Good, true);
                 }
             });

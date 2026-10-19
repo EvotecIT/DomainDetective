@@ -28,12 +28,13 @@ public static partial class AssessmentHtmlReport {
     /// drawer; previous and next walk the rows as filtered, so a reader can go through "every DMARC warning" or "every
     /// finding on one name server" without leaving the table.
     /// </summary>
-    private static void RenderExplore(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
+    private static void RenderExplore(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids, AssessmentHtmlOptions options) {
         List<CheckRow> checks = report.Domains
             .SelectMany(d => d.Checks.Select(c => new CheckRow { Domain = d, Check = c, Target = ids.Check(d, c) }))
             .ToList();
         List<FindingRow> findings = checks
-            .SelectMany(static row => row.Check.Findings.Select(f => new FindingRow { Owner = row, Finding = f }))
+            .SelectMany(row => row.Check.Findings.Where(f => options.ShowInfoFindings || f.Severity != AssessmentSeverity.Info)
+                .Select(f => new FindingRow { Owner = row, Finding = f }))
             .ToList();
 
         ReportDataset checkData = ReportDataset.Create("checks", checks, b => b
@@ -43,7 +44,7 @@ public static partial class AssessmentHtmlReport {
             .Category("area", "Area", static r => AreaLabel(r.Check.Area))
             .Category("check", "Check", static r => r.Check.Title)
             .Category("outcome", "Outcome", static r => OutcomeLabel(r.Check.Outcome), c => c
-                .Tone(Severity.High, "Error").Tone(Severity.Elevated, "Warning").Tone(Severity.Good, "Pass").Tone(Severity.Informational, "Info"))
+                .Tone(Severity.High, "Error").Tone(Severity.Elevated, "Warning", "Incomplete").Tone(Severity.Good, "Pass").Tone(Severity.Informational, "Info"))
             .Text("headline", "Key number", static r => Headline(r.Check) is { } m ? m.Label + ": " + m.Value : null)
             .Number("score", "Score", static r => r.Check.Scored ? r.Check.Score : null)
             .Number("errors", "Errors", static r => r.Check.ErrorCount)

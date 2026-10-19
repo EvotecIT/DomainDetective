@@ -258,9 +258,9 @@ public static class DomainAssessmentCatalog {
         int weight = 0;
         double total = 0;
         foreach (CheckAssessment check in checks) {
-            if (!check.Scored) continue;
+            if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue) continue;
             weight += check.Weight;
-            total += (double)check.Score * check.Weight;
+            total += (double)check.Score.Value * check.Weight;
         }
         if (weight == 0) return null;
         return (int)Math.Round(total / weight, MidpointRounding.AwayFromZero);

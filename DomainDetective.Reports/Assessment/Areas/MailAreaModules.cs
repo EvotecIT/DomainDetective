@@ -90,7 +90,8 @@ internal sealed class DmarcAreaModule : IAssessmentAreaModule {
             return true;
         }
 
-        string policy = PolicyWord(dmarc.Policy);
+        string policy = PolicyWord(dmarc.EffectivePolicy);
+        Fact(check, "Published policy", dmarc.Policy);
         check.Metrics.Add(Metric("Policy", string.IsNullOrEmpty(policy) ? "Invalid" : policy, PolicyState(policy)));
         // The analysis reports an inherited subdomain policy as "reject (inherited)".
         string subText = Lower(dmarc.SubPolicy);
@@ -126,7 +127,7 @@ internal sealed class DmarcAreaModule : IAssessmentAreaModule {
     private static string Authorization(DmarcRecordInfo dmarc, string address) {
         string? host = AddressDomain(address);
         if (host == null) return "Unknown";
-        if (SameOrganization(host, dmarc.Subject)) return "Not needed";
+        if (SameOrganization(host, dmarc.OrganizationalDomain ?? dmarc.Subject)) return "Not needed";
         if (dmarc.UnauthorizedExternalReportDomains.Any(d => string.Equals(d, host, StringComparison.OrdinalIgnoreCase))) return "Missing";
         return dmarc.ExternalReportAuthorization.TryGetValue(host, out bool authorized) ? authorized ? "Published" : "Missing" : "Not checked";
     }

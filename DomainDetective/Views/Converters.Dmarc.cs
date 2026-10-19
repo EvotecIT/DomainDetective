@@ -26,6 +26,7 @@ public static partial class Converters
             IsPolicyValid = analysis.IsPolicyValid,
             Policy = analysis.Policy,
             EffectivePolicy = analysis.EffectivePolicyShort,
+            OrganizationalDomain = analysis.OrganizationalDomain,
             IsTestMode = analysis.IsTestMode,
             DnsQueryFailed = analysis.DnsQueryFailed,
             ReportingQueryFailed = analysis.ReportingQueryFailed,
@@ -111,6 +112,8 @@ public class DmarcRecordInfo
     public string Policy { get; set; } = string.Empty;
     /// <summary>Policy governing the subject after inheritance, fallback and test mode.</summary>
     public string EffectivePolicy { get; set; } = string.Empty;
+    /// <summary>Organizational domain established by canonical policy discovery.</summary>
+    public string? OrganizationalDomain { get; set; }
     /// <summary>Whether the published policy enables test mode.</summary>
     public bool IsTestMode { get; set; }
     /// <summary>Whether policy discovery failed.</summary>

@@ -160,7 +160,7 @@ internal static class CompositionReportDispatcher
                 null);
             if (methodWithInfo != null)
             {
-                var themeValue = Enum.Parse(themeType, "Light", ignoreCase: true);
+                var themeValue = Enum.Parse(themeType, themeName, ignoreCase: true);
                 return Invoke(methodWithInfo, new object?[] {
                     outputPath, items, request.Scope, request.OpenInBrowser, request.NarrativePlacement,
                     request.Title, request.Creator, request.Subject, request.Ordering.DomainOrder,

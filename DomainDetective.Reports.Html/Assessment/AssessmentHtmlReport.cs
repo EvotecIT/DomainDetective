@@ -106,7 +106,7 @@ public static partial class AssessmentHtmlReport {
                 section.Key("explore").NavigationIcon(TablerIconType.ListSearch)
                     .NavigationDetail("Every check and finding")
                     .Count(attention, anyError ? Severity.High : attention > 0 ? Severity.Elevated : Severity.Good, "checks need attention");
-                RenderExplore(section, report, ids);
+                RenderExplore(section, report, ids, options);
             });
 
             if (report.Domains.Count == 1) {
@@ -146,12 +146,13 @@ public static partial class AssessmentHtmlReport {
         int warnings = checks.Count(static c => c.Outcome == CheckOutcome.Warning);
         int passed = checks.Count(static c => c.Outcome == CheckOutcome.Pass);
         int info = checks.Count(static c => c.Outcome == CheckOutcome.Info);
+        int incomplete = checks.Count(static c => !c.EvidenceComplete);
 
         section.AssessmentPosture(posture => {
             posture.Headline(ReportVerdict(report, errors, warnings), ReportVerdictDetail(report, checks));
             posture.Score(report.Score ?? 0, "of 100", report.Score.HasValue ? null : "Nothing scored");
             if (report.Score.HasValue) posture.Grade(report.Grade);
-            posture.ScoreNote(ScoreNote(report.Score, errors, warnings));
+            posture.ScoreNote(ScoreNote(report.Score, errors, warnings) + (incomplete > 0 ? $" {incomplete} checks have incomplete evidence and are excluded from the score." : string.Empty));
             foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
                 int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
                 if (scores.Length > 0) posture.Meter(AreaLabel(area), (int)Math.Round(scores.Average()));
@@ -161,6 +162,7 @@ public static partial class AssessmentHtmlReport {
             posture.Severity(Severity.Elevated, warnings, "Warnings");
             posture.Severity(Severity.Good, passed, "Passed");
             posture.Severity(Severity.Informational, info, "Informational");
+            if (incomplete > 0) posture.Severity(Severity.Elevated, incomplete, "Incomplete evidence");
             posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), report.Domains.Count == 1 ? "domain" : "domains");
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
         });
@@ -241,7 +243,8 @@ public static partial class AssessmentHtmlReport {
     /// <summary>What needs attention in an area, in one line.</summary>
     private static string AreaLine(DomainAssessmentReport report, List<CheckAssessment> checks) {
         var titles = FixOrder(checks).Select(static c => c.Title).Distinct(StringComparer.Ordinal).ToList();
-        if (titles.Count == 0) return checks.All(static c => !c.Scored) ? "Informational checks only." : $"All {Plural(checks.Count, "check")} pass.";
+        if (titles.Count == 0) return checks.Any(static c => !c.EvidenceComplete) ? "Some checks have incomplete evidence."
+            : checks.All(static c => !c.Scored) ? "Informational checks only." : $"All {Plural(checks.Count, "check")} pass.";
         string list = titles.Count <= 3 ? string.Join(", ", titles) : string.Join(", ", titles.Take(3)) + $" and {Plural(titles.Count - 3, "more")}";
         return report.Domains.Count == 1 ? "Needs attention: " + list + "." : "Needs attention on some domains: " + list + ".";
     }
@@ -251,7 +254,7 @@ public static partial class AssessmentHtmlReport {
         int open = errors + warnings;
         string need = open == 1 ? "needs" : "need";
         string attention = open == 0
-            ? "Every check passed."
+            ? report.Domains.Any(d => d.Checks.Any(c => !c.EvidenceComplete)) ? "Some checks have incomplete evidence." : "Every scored check passed."
             : errors == 0
                 ? $"{Plural(open, "check")} {need} attention; none has errors."
                 : open == 1
@@ -263,10 +266,12 @@ public static partial class AssessmentHtmlReport {
         }
         int withErrors = report.Domains.Count(static d => d.ErrorChecks > 0);
         int warningsOnly = report.Domains.Count(static d => d.ErrorChecks == 0 && d.WarningChecks > 0);
-        int clean = report.Domains.Count - withErrors - warningsOnly;
+        int incomplete = report.Domains.Count(static d => d.ErrorChecks == 0 && d.WarningChecks == 0 && d.Checks.Any(c => !c.EvidenceComplete));
+        int clean = report.Domains.Count - withErrors - warningsOnly - incomplete;
         var parts = new List<string>();
         if (withErrors > 0) parts.Add($"{withErrors.ToString(CultureInfo.InvariantCulture)} with errors");
         if (warningsOnly > 0) parts.Add($"{warningsOnly.ToString(CultureInfo.InvariantCulture)} with warnings only");
+        if (incomplete > 0) parts.Add($"{incomplete.ToString(CultureInfo.InvariantCulture)} with incomplete evidence");
         if (clean > 0) parts.Add($"{clean.ToString(CultureInfo.InvariantCulture)} passing every check");
         return $"Of {Plural(report.Domains.Count, "domain")}, " + JoinList(parts) + ".";
     }
@@ -275,8 +280,10 @@ public static partial class AssessmentHtmlReport {
         int areas = checks.Select(static c => c.Area).Distinct().Count();
         int passed = checks.Count(static c => c.Outcome == CheckOutcome.Pass);
         int info = checks.Count(static c => c.Outcome == CheckOutcome.Info);
+        int incomplete = checks.Count(static c => !c.EvidenceComplete);
         string what = $"{Plural(checks.Count, "check")} in {Plural(areas, "area")}: {passed.ToString(CultureInfo.InvariantCulture)} passed";
         if (info > 0) what += $", {info.ToString(CultureInfo.InvariantCulture)} informational";
+        if (incomplete > 0) what += $", {incomplete.ToString(CultureInfo.InvariantCulture)} with incomplete evidence";
         return what + (report.Domains.Count > 1 ? ". The overall grade averages the domain scores." : ".");
     }
 
@@ -385,3 +392,4 @@ public static partial class AssessmentHtmlReport {
         return $"{Plural(errors, "check")} with errors and {Plural(warnings, "check")} with warnings.";
     }
 }
+
