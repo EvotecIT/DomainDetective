@@ -107,6 +107,9 @@ public class TestAssessmentEvidenceCompletion {
         var denied = Converters.Convert(health.CAAAnalysis);
         Assert.Equal(1, denied.ValidRecords);
         Assert.Empty(denied.CanIssueCertificatesForDomain);
+        Assert.Contains("0 issue \";\"", denied.Records);
+        var check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { denied }).Domains).Checks);
+        Assert.Contains(check.Evidence, block => block.Items.Contains("0 issue \";\""));
         Assert.DoesNotContain("no CAA record: anyone", Render(denied));
     }
 
