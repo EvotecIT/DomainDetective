@@ -360,7 +360,7 @@ public static partial class AssessmentHtmlReport {
                             string title = $"{check.Title} · {domain.Domain} · {OutcomeLabel(check.Outcome)}"
                                 + (headline != null ? $" · {headline.Label}: {headline.Value}" : string.Empty)
                                 + (failed > 0 ? $" · {Plural(failed, "finding")}" : string.Empty);
-                            cells.Cell(ids.Domain(domain), OutcomeSeverity(check.Outcome), failed == 0 ? 1 : 0, failed,
+                            cells.Cell(ids.Domain(domain), OutcomeSeverity(check.Outcome), check.Outcome == CheckOutcome.Pass ? 1 : 0, failed,
                                 label, ids.Check(domain, check), title);
                         }
                     });
