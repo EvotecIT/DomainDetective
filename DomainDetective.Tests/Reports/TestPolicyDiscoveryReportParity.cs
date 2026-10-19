@@ -43,11 +43,15 @@ public class TestPolicyDiscoveryReportParity {
             var htmlPath = Path.Combine(directory, "policies.html");
             var wordPath = Path.Combine(directory, "policies.docx");
             var excelPath = Path.Combine(directory, "policies.xlsx");
-            HtmlCompositionReport.Generate(htmlPath, items, ReportScope.Detailed, profile: HtmlProfile.Document);
+            HtmlCompositionReport.Generate(htmlPath, items, ReportScope.Detailed);
             WordCompositionReport.Generate(wordPath, items, ReportScope.Detailed, showInfoFindings: false);
             ExcelCompositionReport.Generate(excelPath, items, ReportScope.Detailed, profile: ExcelProfile.Workbook);
 
-            AssertUnknownPresence(NormalizeText(File.ReadAllText(htmlPath)));
+            // The assessment report states the record as unknown, never missing, when the lookup failed.
+            string htmlText = NormalizeText(File.ReadAllText(htmlPath));
+            Assert.True(Regex.Matches(htmlText, @"Unknown\s+Record").Count >= 2, "The SPF and DMARC checks should each show an unknown record.");
+            Assert.DoesNotContain("anyone can send as this domain", htmlText);
+            Assert.DoesNotContain("spoofed mail is not rejected", htmlText);
             AssertUnknownPresence(ReadWordText(wordPath));
             var rows = ReadExcelRows(excelPath);
             Assert.True(rows.Count(row => row.Contains("Record Present | Unknown")) >= 2,

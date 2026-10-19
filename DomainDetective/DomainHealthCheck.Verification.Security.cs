@@ -25,8 +25,19 @@ namespace DomainDetective {
                 }
             } catch { /* best effort */ }
 
-            await DnsTtlAnalysis.Analyze(domainName, _logger, cancellationToken);
-            await DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken);
+            // The value and cross-server matrices own distinct result collections.
+            // Start value initialization first, then overlap their network phases and
+            // observe both before publishing the TTL check's completion.
+            var values = DnsTtlAnalysis.Analyze(domainName, _logger, cancellationToken);
+            if (DnsConfiguration.ResolverMaxConcurrency == 1 || DnsConfiguration.MultiResolverMaxParallelism == 1) {
+                // A caller choosing one resolver slot retains foreground value
+                // collection before best-effort cross-server reachability work.
+                await values.ConfigureAwait(false);
+                await DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            var uniformity = DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken);
+            await Task.WhenAll(values, uniformity).ConfigureAwait(false);
         }
 
         private Task VerifyFlatteningServiceAsync(string domainName, CancellationToken cancellationToken) {

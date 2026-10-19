@@ -26,7 +26,7 @@ namespace DomainDetective.Tests {
             var dns = options.GetEffectiveDnsParallelism();
 
             Assert.InRange(max, 4, 32);
-            Assert.InRange(dns, 4, 32);
+            Assert.InRange(dns, 4, 64);
         }
     }
 }

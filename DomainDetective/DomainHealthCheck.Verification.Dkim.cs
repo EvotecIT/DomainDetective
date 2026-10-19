@@ -8,6 +8,13 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     public partial class DomainHealthCheck {
         /// <summary>
+        /// Selectors of common mail providers that <see cref="Verify"/> tries when no DKIM selectors are given. Callers
+        /// that know a domain's own selectors can add them to this list.
+        /// </summary>
+        public static IReadOnlyList<string> DefaultDkimSelectors { get; } =
+            Definitions.DKIMSelectors.GuessSelectors().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        /// <summary>
         /// Verifies DKIM records for the specified domain.
         /// </summary>
         /// <param name="domainName">Domain to inspect.</param>

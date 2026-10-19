@@ -17,6 +17,7 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.TTL),
             Subject = analysis.Subject,
             DnssecSigned = analysis.DnsSecSigned,
+            TtlsFromAuthoritativeServers = analysis.TtlsFromAuthoritativeServers,
             UniformityIncomplete = analysis.UniformityIncomplete,
             ATtls = analysis.ATtls,
             AaaaTtls = analysis.AaaaTtls,
@@ -52,6 +53,8 @@ public class TtlInfo
     public string? Subject { get; set; }
     /// <summary>Gets or sets the dnssec signed value.</summary>
     public bool DnssecSigned { get; set; }
+    /// <summary>Whether all evaluated TTL sets have authoritative or fixed replay evidence.</summary>
+    public bool TtlsFromAuthoritativeServers { get; set; }
     /// <summary>Whether the authoritative TTL comparison lacks complete evidence.</summary>
     public bool UniformityIncomplete { get; set; }
     /// <summary>Gets or sets the a ttls value.</summary>

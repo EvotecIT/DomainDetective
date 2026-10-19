@@ -141,10 +141,10 @@ namespace DomainDetective {
             await Task.WhenAll(aTask, aaaaTask);
             var aRecords = aTask.Result;
             var aaaaRecords = aaaaTask.Result ?? Array.Empty<DnsAnswer>();
-            foreach (var record in aRecords.Concat(aaaaRecords)) {
+            var addressResults = await Helpers.AuthoritativeDnsProbes.RunAsync(aRecords.Concat(aaaaRecords).ToArray(), async record => {
                 var recData = record.Data ?? record.DataRaw;
                 if (!IPAddress.TryParse(recData, out var ip)) {
-                    continue;
+                    return (ReverseDnsResult?)null;
                 }
 
                 var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == AddressFamily.InterNetworkV6 ? ".ip6.arpa" : ".in-addr.arpa");
@@ -158,7 +158,7 @@ namespace DomainDetective {
                         if (QueryDnsOverride != null) {
                             ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR).WaitWithCancellation(cancellationToken);
                         } else {
-                            var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
+                            using var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
                             ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR, cancellationToken: cancellationToken);
                         }
                         if (ptrAnswers.Length == 0) {
@@ -215,9 +215,10 @@ namespace DomainDetective {
                     }
                 }
 
-                results.Add(result);
                 logger?.WriteVerbose($"PTR for {ip} -> {string.Join(", ", ptrs)}");
-            }
+                return result;
+            }, ParallelLookupLimit, cancellationToken).ConfigureAwait(false);
+            results.AddRange(addressResults.Where(result => result != null).Cast<ReverseDnsResult>());
 
             return results;
         }

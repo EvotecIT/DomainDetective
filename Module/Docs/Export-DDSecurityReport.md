@@ -271,18 +271,20 @@ Accept wildcard characters: False
 ### -HtmlProfile
 Choose the HTML presentation profile.
 
-Document provides a narrative, document-style layout; Dashboard focuses on
-high-level, concise summaries suitable for quick review or portals.
+Assessment (default) is a scored assessment report: a summary with what to fix first, coverage across
+domains, and every check with findings, evidence and guidance. It works offline and follows the viewer's
+light or dark theme. Document and Dashboard were retired; they remain accepted so existing
+scripts keep working, and render the assessment report.
 
 ```yaml
 Type: String
 Parameter Sets: Default, Inline
 Aliases: None
-Possible values: Document, Dashboard
+Possible values: Assessment, Document, Dashboard
 
 Required: False
 Position: named
-Default value: None
+Default value: Assessment
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

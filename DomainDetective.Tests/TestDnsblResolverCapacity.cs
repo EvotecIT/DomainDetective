@@ -9,6 +9,8 @@ public class TestDnsblResolverCapacity {
     [InlineData(8, false)]
     [InlineData(8, true)]
     [InlineData(32, false)]
+    [InlineData(64, false)]
+    [InlineData(64, true)]
     public async Task ProvidersUseAvailableCapacityWhileLeavingForegroundRoom(int dnsParallelism, bool batch) {
         using var health = CreateHealth(MultiResolverStrategy.SequentialFallback);
         health.MultiResolverMaxParallelism = dnsParallelism;

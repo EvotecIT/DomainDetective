@@ -51,11 +51,11 @@ namespace DomainDetective {
         /// <summary>
         /// Queries DNS for Autodiscover related records.
         /// </summary>
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, DnsConfiguration config) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, DnsConfiguration config, CancellationToken cancellationToken) {
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
             }
-            return await config.QueryDNS(name, type);
+            return await config.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>Gets the assessments value.</summary>
@@ -67,52 +67,67 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             Subject = domainName;
-
-            var srv = await QueryDns($"_autodiscover._tcp.{domainName}", DnsRecordType.SRV, config);
-            if (srv != null && srv.Length > 0) {
-                SrvRecordExists = true;
-                var parts = srv[0].Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 4 && int.TryParse(parts[2], out var port)) {
-                    SrvPort = port;
-                    SrvTarget = parts[3].TrimEnd('.');
-                }
-                if (string.IsNullOrWhiteSpace(SrvTarget)) {
+            SrvRecordExists = AutoconfigCnameExists = AutodiscoverCnameExists = false;
+            SrvTarget = AutoconfigTarget = AutodiscoverTarget = null;
+            SrvPort = 0;
+            Assessments.Clear();
+            _endpoints.Clear();
+            var srvTask = QueryDns($"_autodiscover._tcp.{domainName}", DnsRecordType.SRV, config, cancellationToken);
+            var acTask = QueryDns($"autoconfig.{domainName}", DnsRecordType.CNAME, config, cancellationToken);
+            var adTask = QueryDns($"autodiscover.{domainName}", DnsRecordType.CNAME, config, cancellationToken);
+            try {
+                var srv = await srvTask.ConfigureAwait(false);
+                if (srv != null && srv.Length > 0) {
+                    SrvRecordExists = true;
+                    var parts = srv[0].Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 4 && int.TryParse(parts[2], out var port)) {
+                        SrvPort = port;
+                        SrvTarget = parts[3].TrimEnd('.');
+                    }
+                    if (string.IsNullOrWhiteSpace(SrvTarget)) {
+                        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: domainName);
+                        logger.WriteWarningCode(AutodiscoverCodes.BadSrvTarget, "_autodiscover._tcp SRV target missing or invalid");
+                    }
+                } else {
+                    SrvRecordExists = false;
                     using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: domainName);
-                    logger.WriteWarningCode(AutodiscoverCodes.BadSrvTarget, "_autodiscover._tcp SRV target missing or invalid");
+                    logger.WriteWarningCode(AutodiscoverCodes.MissingSrv, "_autodiscover._tcp SRV record missing");
                 }
-            } else {
-                SrvRecordExists = false;
-                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: domainName);
-                logger.WriteWarningCode(AutodiscoverCodes.MissingSrv, "_autodiscover._tcp SRV record missing");
-            }
 
-            var ac = await QueryDns($"autoconfig.{domainName}", DnsRecordType.CNAME, config);
-            if (ac != null && ac.Length > 0) {
-                AutoconfigCnameExists = true;
-                AutoconfigTarget = ac[0].Data.TrimEnd('.');
-                if (string.IsNullOrWhiteSpace(AutoconfigTarget)) {
+                var ac = await acTask.ConfigureAwait(false);
+                if (ac != null && ac.Length > 0) {
+                    AutoconfigCnameExists = true;
+                    AutoconfigTarget = ac[0].Data.TrimEnd('.');
+                    if (string.IsNullOrWhiteSpace(AutoconfigTarget)) {
+                        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autoconfig.{domainName}");
+                        logger.WriteWarningCode(AutodiscoverCodes.BadAutoconfigTarget, "Autoconfig CNAME target invalid");
+                    }
+                } else {
+                    AutoconfigCnameExists = false;
                     using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autoconfig.{domainName}");
-                    logger.WriteWarningCode(AutodiscoverCodes.BadAutoconfigTarget, "Autoconfig CNAME target invalid");
+                    logger.WriteWarningCode(AutodiscoverCodes.MissingAutoconfigCname, "Autoconfig CNAME missing");
                 }
-            } else {
-                AutoconfigCnameExists = false;
-                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autoconfig.{domainName}");
-                logger.WriteWarningCode(AutodiscoverCodes.MissingAutoconfigCname, "Autoconfig CNAME missing");
-            }
 
-            var ad = await QueryDns($"autodiscover.{domainName}", DnsRecordType.CNAME, config);
-            if (ad != null && ad.Length > 0) {
-                AutodiscoverCnameExists = true;
-                AutodiscoverTarget = ad[0].Data.TrimEnd('.');
-                if (string.IsNullOrWhiteSpace(AutodiscoverTarget)) {
+                var ad = await adTask.ConfigureAwait(false);
+                if (ad != null && ad.Length > 0) {
+                    AutodiscoverCnameExists = true;
+                    AutodiscoverTarget = ad[0].Data.TrimEnd('.');
+                    if (string.IsNullOrWhiteSpace(AutodiscoverTarget)) {
+                        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autodiscover.{domainName}");
+                        logger.WriteWarningCode(AutodiscoverCodes.BadAutodiscoverTarget, "Autodiscover CNAME target invalid");
+                    }
+                } else {
+                    AutodiscoverCnameExists = false;
                     using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autodiscover.{domainName}");
-                    logger.WriteWarningCode(AutodiscoverCodes.BadAutodiscoverTarget, "Autodiscover CNAME target invalid");
+                    logger.WriteWarningCode(AutodiscoverCodes.MissingAutodiscoverCname, "Autodiscover CNAME missing");
                 }
-            } else {
-                AutodiscoverCnameExists = false;
-                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autodiscover.{domainName}");
-                logger.WriteWarningCode(AutodiscoverCodes.MissingAutodiscoverCname, "Autodiscover CNAME missing");
+                cancellationToken.ThrowIfCancellationRequested();
+            } finally {
+                // Preserve the first failure while observing every admitted hint.
+                try { await Task.WhenAll(srvTask, acTask, adTask).ConfigureAwait(false); } catch { }
+                cancellationToken.ThrowIfCancellationRequested();
             }
         }
     }

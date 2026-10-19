@@ -89,6 +89,19 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Verify = "Inspect Authentication-Results headers for aligned DKIM/SPF on test mail."
         };
 
+        map[DmarcCodes.ExternalReportUnauthorized] = new RecommendationAdvice {
+            Code = DmarcCodes.ExternalReportUnauthorized,
+            Title = "External DMARC report address not authorised",
+            Why = "Receivers only send reports to another domain when that domain publishes a record agreeing to receive them, so these reports are lost.",
+            How = "Ask the report provider to publish <your-domain>._report._dmarc.<their-domain> TXT \"v=DMARC1\", or remove the address from rua/ruf.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7489#section-7.1" },
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "reporting" },
+            Impact = "Missing aggregate reports hide who sends mail as the domain.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Query TXT <your-domain>._report._dmarc.<their-domain> and expect v=DMARC1."
+        };
+
         map[DmarcCodes.UriInvalid] = new RecommendationAdvice {
             Code = DmarcCodes.UriInvalid,
             Title = "Invalid DMARC report URI",

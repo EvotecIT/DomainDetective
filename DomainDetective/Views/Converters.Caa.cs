@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -21,6 +22,7 @@ public static partial class Converters
             InvalidRecords = analysis.InvalidRecords,
             Conflicting = analysis.Conflicting,
             HasDuplicateIssuers = analysis.HasDuplicateIssuers,
+            Records = analysis.AnalysisResults.Select(record => record.CAARecord).ToArray(),
             CanIssueCertificatesForDomain = analysis.CanIssueCertificatesForDomain,
             CanIssueWildcardCertificatesForDomain = analysis.CanIssueWildcardCertificatesForDomain,
             CanIssueMail = analysis.CanIssueMail,
@@ -61,6 +63,8 @@ public class CaaInfo
     public bool Conflicting { get; set; }
     /// <summary>Gets or sets the has duplicate issuers value.</summary>
     public bool HasDuplicateIssuers { get; set; }
+    /// <summary>Captured CAA record text, including explicit denials and records that failed validation.</summary>
+    public IReadOnlyList<string> Records { get; set; } = System.Array.Empty<string>();
     /// <summary>Issuers authorized to issue domain certificates.</summary>
     public IReadOnlyList<string> CanIssueCertificatesForDomain { get; set; } = System.Array.Empty<string>();
     /// <summary>Issuers authorized to issue wildcard certificates.</summary>

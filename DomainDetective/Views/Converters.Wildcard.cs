@@ -15,7 +15,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.WILDCARDDNS,
             Area = AreaForKind(HealthCheckType.WILDCARDDNS),
-            Subject = string.Empty,
+            Subject = analysis.DomainName ?? string.Empty,
             CatchAll = analysis.CatchAll,
             SoaExists = analysis.SoaExists,
             NsExists = analysis.NsExists,

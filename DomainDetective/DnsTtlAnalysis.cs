@@ -14,7 +14,7 @@ namespace DomainDetective {
     /// Typical TTL thresholds are based on operational best practices and may
     /// be adjusted to suit specific environments.
     /// </remarks>
-    public class DnsTtlAnalysis : IHasAssessments {
+    public partial class DnsTtlAnalysis : IHasAssessments {
         private readonly List<string> _warnings = new();
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
@@ -129,10 +129,7 @@ namespace DomainDetective {
             if (preflight) {
                 return await Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), name, type, timeoutMs, ct, acceptRefused: true).ConfigureAwait(false);
             }
-            var query = new DnsMessage(name, type, new DnsMessageOptions(RecursionDesired: false));
-            var result = await DnsWireQueryClient.QueryUdpAsync(ip.ToString(), 53, query, timeoutMs,
-                useTcpFallback: true, cancellationToken: ct).ConfigureAwait(false);
-            return result.Response;
+            return await Helpers.AuthoritativeDnsProbes.QueryAsync(ip.ToString(), name, type, timeoutMs, ct).ConfigureAwait(false);
         }
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, System.Threading.CancellationToken ct = default) {
@@ -153,19 +150,22 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct);
         }
 
-        private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
+        private async Task<(int? Ttl, bool Succeeded)> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs, bool requireMatchingRrset = false) {
             var response = await _queryAuthoritative(ip, name, (DnsRecordType)qtype, timeoutMs > 0 ? timeoutMs : 4000, ct, false).ConfigureAwait(false);
-            return ReadAuthoritativeTtl(response, (DnsRecordType)qtype);
+            return ReadAuthoritativeTtl(response, (DnsRecordType)qtype, requireMatchingRrset ? name : null);
         }
 
-        private static (int? Ttl, bool Succeeded) ReadAuthoritativeTtl(DnsResponse? response, DnsRecordType type) {
+        private static (int? Ttl, bool Succeeded) ReadAuthoritativeTtl(DnsResponse? response, DnsRecordType type, string? owner = null) {
             if (!DomainDetective.Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(response)) { return (null, false); }
             var answers = response!.Answers ?? Array.Empty<DnsAnswer>();
             int? answerTtl = answers
-                .Where(item => item.Type == type)
+                .Where(item => item.Type == type && (owner == null || string.Equals(item.Name?.TrimEnd('.'), owner.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)))
                 .Select(item => (int?)item.TTL)
                 .FirstOrDefault();
             if (answerTtl.HasValue) return (answerTtl, true);
+            // An alias lifetime belongs to its CNAME RRset, not the requested
+            // A/TXT RRset. Keep the recursive value unverified in that case.
+            if (owner != null) return (null, true);
             return (answers
                 .Where(item => item.Type == DnsRecordType.CNAME)
                 .Select(item => (int?)item.TTL)
@@ -185,6 +185,8 @@ namespace DomainDetective {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNS", target: domainName);
             Subject = domainName;
             UniformityIncomplete = false;
+            TtlsFromAuthoritativeServers = false;
+            _authoritativeTtlLabels.Clear();
             _warnings.Clear();
             ATtls = Array.Empty<int>();
             AaaaTtls = Array.Empty<int>();
@@ -257,11 +259,14 @@ namespace DomainDetective {
                     var dkimTxt = selectorRecord.Records;
                     var list = dkimTxt.Select(r => r.TTL).ToArray();
                     DkimTxtTtls[name] = list;
-                    // Evaluate per selector
-                    Evaluate($"DKIM TXT ({sel})", list, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
                 }
             }
 
+            await UseAuthoritativeTtlsAsync(domainName, nsRecords, soaRecords.Length > 0, logger, ct).ConfigureAwait(false);
+            foreach (var dkim in DkimTxtTtls) {
+                var selector = dkim.Key.Substring(0, dkim.Key.IndexOf("._domainkey.", StringComparison.OrdinalIgnoreCase));
+                Evaluate($"DKIM TXT ({selector})", dkim.Value, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
+            }
             Evaluate("A", ATtls, 300, 86400, DnsSecSigned, logger);
             Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned, logger);
             Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned, logger);
@@ -467,6 +472,14 @@ namespace DomainDetective {
             var list = ttls?.ToArray() ?? Array.Empty<int>();
             var allGood = true;
             foreach (var ttl in list) {
+                if (!_authoritativeTtlLabels.Contains(recordType)) {
+                    if (ttl > max) {
+                        var message = $"{recordType} TTL {ttl} exceeds recommended {max} seconds.";
+                        _warnings.Add(message);
+                        logger?.WriteWarningCode(TtlCodes.TooLong, message);
+                    }
+                    continue;
+                }
                 if (dnssecSigned && ttl >= min && ttl < 3600) {
                     var msg = $"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.";
                     _warnings.Add(msg);
@@ -486,11 +499,12 @@ namespace DomainDetective {
                 }
             }
 
-            if (list.Any() && allGood) {
+            if (list.Any() && allGood && _authoritativeTtlLabels.Contains(recordType)) {
                 logger?.WriteInformationCode(TtlCodes.Optimal, $"{recordType} TTLs within recommended range.");
             }
 
-            if ((recordType == "A" || recordType == "AAAA") && ATtls.Any() && AaaaTtls.Any()) {
+            if ((recordType == "A" || recordType == "AAAA") && _authoritativeTtlLabels.Contains("A")
+                && _authoritativeTtlLabels.Contains("AAAA") && ATtls.Any() && AaaaTtls.Any()) {
                 var avgA = ATtls.Average();
                 var avgAaaa = AaaaTtls.Average();
                 var ratio = Math.Max(avgA, avgAaaa) / Math.Min(avgA, avgAaaa);

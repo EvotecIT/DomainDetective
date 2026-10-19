@@ -139,6 +139,8 @@ namespace DomainDetective {
             MinMxTtl = null;
             MaxMxTtl = null;
             AvgMxTtl = null;
+            TtlsFromAuthoritativeServers = false;
+            _authoritativeTtlAnswers.Clear();
             MxRecordExists = false;
             PointsToCname = false;
             CnameQueryFailed = false;
@@ -355,29 +357,6 @@ namespace DomainDetective {
                     logger.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
             }
 
-            // TTL uniformity across MX RRset
-            if (mxRecordList.Count > 1) {
-                var ttls = mxRecordList.Select(r => r.TTL).Distinct().ToList();
-                if (ttls.Count > 1) {
-                    MxTtlUniform = false;
-                    using (_collector.PushTarget(Subject ?? string.Empty))
-                        logger.WriteWarningCode(MxCodes.TtlNonUniform, "MX RRset TTLs differ across records");
-                }
-            }
-
-            // TTL uniformity across A/AAAA per MX host
-            foreach (var item in hostResults) {
-                var host = item.Host;
-                var a = item.A;
-                var aaaa = item.Aaaa;
-                var addrTtls = (a ?? Array.Empty<DnsAnswer>()).Concat(aaaa ?? Array.Empty<DnsAnswer>())
-                    .Select(x => x.TTL).Distinct().ToList();
-                if (addrTtls.Count > 1) {
-                    using (_collector.PushTarget(host))
-                        logger.WriteWarningCode(MxCodes.TargetTtlNonUniform, "A/AAAA TTLs differ for MX host");
-                }
-            }
-
             // Cross-NS RRset and address consistency (best-effort)
             try {
                 if (!string.IsNullOrWhiteSpace(Subject)) {
@@ -389,6 +368,7 @@ namespace DomainDetective {
                 TargetAddressComparisonIncomplete = true;
                 logger.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
             }
+            await EvaluateAuthoritativeTtlsAsync(mxRecordList, hostResults.Select(item => (item.Host, item.A, item.Aaaa)), logger, _collector, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

@@ -11,8 +11,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
+    <!-- Local source qualification is explicit; normal builds use the public package. -->
     <HtmlForgeXProjectPath Condition="'$(HtmlForgeXProjectPath)' == ''">..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj</HtmlForgeXProjectPath>
+    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,7 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(HtmlForgeXProjectPath)" Condition="'$(UseLocalHtmlForgeX)' == 'true' And Exists('$(HtmlForgeXProjectPath)')" />
-    <PackageReference Include="HtmlForgeX" Version="1.4.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
+    <PackageReference Include="HtmlForgeX" Version="2.0.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
   </ItemGroup>
 
 </Project>

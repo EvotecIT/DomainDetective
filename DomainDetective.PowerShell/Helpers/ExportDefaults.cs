@@ -9,6 +9,11 @@ namespace DomainDetective.PowerShell {
         public static ReportFormat Format { get; set; } = ReportFormat.Html;
         /// <summary>Open generated reports in the browser.</summary>
         public static bool OpenInBrowser { get; set; } = true;
+        /// <summary>
+        /// HTML profile for per-check and domain-health exports. Every profile renders the assessment report;
+        /// <c>Document</c> and <c>Dashboard</c> are retired and accepted only for compatibility.
+        /// </summary>
+        public static DomainDetective.Reports.Html.HtmlProfile HtmlProfile { get; set; } = DomainDetective.Reports.Html.HtmlProfile.Assessment;
         /// <summary>Base directory for exported reports.</summary>
         public static string OutputDirectory { get; set; } = string.Empty;
         /// <summary>Emit artifact files alongside reports.</summary>

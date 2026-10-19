@@ -47,6 +47,13 @@ public partial class MXAnalysis {
         }, concurrency, cancellationToken).ConfigureAwait(false);
 
         var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in responses) {
+            if (!Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(item.Response)) { continue; }
+            var key = TtlAnswerKey(item.Owner, item.Type);
+            if (!_authoritativeTtlAnswers.ContainsKey(key)) {
+                _authoritativeTtlAnswers[key] = (item.Response!.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == item.Type).ToArray();
+            }
+        }
         foreach (var item in responses.Where(item => item.Type == DnsRecordType.MX)) {
             if (!Helpers.AuthoritativeDnsProbes.IsAuthoritativeResponse(item.Response)) { continue; }
             mxByServer[item.Server] = new HashSet<string>((item.Response!.Answers ?? Array.Empty<DnsAnswer>())

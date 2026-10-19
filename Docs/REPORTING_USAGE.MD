@@ -5,12 +5,16 @@
 ### C# Library Usage
 
 ```csharp
-// Basic usage
+// Basic usage: the assessment report for every check the run executed
 var healthCheck = new DomainHealthCheck();
 await healthCheck.Verify("example.com");
 
-var report = new DomainSecurityReport(healthCheck, "example.com");
-report.GenerateReport("report.html", openInBrowser: true);
+var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck);
+AssessmentHtmlReport.Generate("report.html", items, openInBrowser: true);
+
+// The same model as JSON
+var assessment = DomainAssessmentBuilder.Build(items);
+File.WriteAllText("report.json", DomainAssessmentJson.Serialize(assessment));
 ```
 
 ### CLI Usage
@@ -19,8 +23,8 @@ report.GenerateReport("report.html", openInBrowser: true);
 # Generate HTML report
 ddcli report example.com
 
-# Generate with specific format and template
-ddcli report example.com --format html --template executive --output executive_report.html
+# Choose the format and output path; HTML uses the assessment layout
+ddcli report example.com --format html --output assessment_report.html
 
 # Generate without opening browser
 ddcli report example.com --no-open
@@ -45,8 +49,8 @@ Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 # HTML report with custom path
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "C:\Reports\exec_report.html"
 
-# HTML dashboard profile (compact KPIs + grids)
-Export-DDSecurityReport -ExportFormat Html -HtmlProfile Dashboard -ExportPath ".\\dashboard.html" {
+# Compose an assessment report from the checks in the block
+Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\assessment.html" {
     Test-DDDomainOverallHealth -DomainName "example.com"
 }
 
@@ -130,70 +134,35 @@ Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: rep
 
 Use `RunsList` and `RunsOpen` to discover and open recent runs from the index.
 
-## Templates
+## HTML Layout and Compatibility
 
-### Default Template
-- Comprehensive overview
-- All security checks visible
-- Technical details included
-- Suitable for IT teams
+Every HTML report uses the assessment layout: summary, coverage matrix, filterable checks and domain sections.
+The report follows the viewer's light or dark theme by default.
 
-### Executive Template
-- High-level summary
-- Focus on business impact
-- Risk assessment
-- Action items only
-
-### Technical Template
-- Detailed analysis
-- Configuration examples
-- RFC references
-- Implementation guides
-
-### Compliance Template
-- Regulatory focus
-- Audit trail
-- Evidence collection
-- Policy compliance
+The CLI accepts `--template` for compatibility; it does not select another HTML layout. PowerShell's
+`-HtmlProfile Document` and `-HtmlProfile Dashboard` values are also accepted for compatibility and render the
+assessment report with the same default theme behavior.
 
 ## Scoring System
 
-The security score is calculated based on weighted criteria:
+Completed checks receive scores based on their findings. Incomplete checks retain their known evidence and
+findings without receiving a passing score; area, domain and overall grades are withheld while scored evidence
+is incomplete. Inventory and discovery checks are visible but do not contribute to the score.
 
-| Category | Weight | Checks |
-|----------|--------|--------|
-| **Impersonation** (35%) | | SPF (10pts), DMARC (15pts), DKIM (10pts) |
-| **Privacy** (30%) | | TLS (15pts), MTA-STS (10pts), DANE (5pts) |
-| **Infrastructure** (25%) | | DNSSEC (10pts), NS (5pts), MX (5pts), CAA (5pts) |
-| **Branding** (10%) | | BIMI (5pts), Certificate (5pts) |
-
-### Risk Levels
-- **80-100**: Low Risk 🟢
-- **60-79**: Medium Risk 🟡
-- **40-59**: High Risk 🟠
-- **0-39**: Critical Risk 🔴
+See [assessment scoring](../DomainDetective.Reports.Html/README.md#scoring) for weights, penalties and grade thresholds.
 
 ## Advanced Usage
 
 ### Custom Report Options
 
 ```csharp
-var options = new ReportOptions {
-    Title = "Security Audit - Q4 2024",
-    TemplateName = "Executive",
-    Theme = ReportTheme.Professional,
-    IncludeTechnicalDetails = false,
-    IncludeRecommendations = true,
-    CustomProperties = new Dictionary<string, object> {
-        ["CompanyLogo"] = "/path/to/logo.png",
-        ["ShowHistoricalData"] = true,
-        ["ComparisonDomains"] = new[] { "competitor1.com", "competitor2.com" }
-    }
+var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck);
+var options = new DomainAssessmentOptions { Title = "Domain security assessment" };
+var htmlOptions = new AssessmentHtmlOptions {
+    Theme = HtmlForgeX.ThemeMode.System,
+    ShowInfoFindings = true
 };
-
-// Future API
-var generator = new HtmlReportGenerator();
-var result = await generator.GenerateAsync(healthCheck, options);
+AssessmentHtmlReport.Generate("report.html", items, options, htmlOptions);
 ```
 
 ### Batch Processing with Progress
@@ -208,8 +177,7 @@ foreach (var domain in domains) {
     var hc = new DomainHealthCheck();
     await hc.Verify(domain);
     
-    var report = new DomainSecurityReport(hc, domain);
-    report.GenerateReport($"reports/{domain}.html", false);
+    AssessmentHtmlReport.Generate($"reports/{domain}.html", Converters.ConvertChecks(hc));
     
     reports.Add(new ReportResult { 
         Success = true, 
@@ -217,8 +185,7 @@ foreach (var domain in domains) {
     });
 }
 
-// Generate summary report
-GenerateSummaryReport(reports);
+Console.WriteLine($"Generated {reports.Count} reports.");
 ```
 
 ### Integration with CI/CD
@@ -230,7 +197,7 @@ GenerateSummaryReport(reports);
     ddcli report ${{ vars.DOMAIN }} --format html --output report.html
     
 - name: Upload Report
-  uses: actions/upload-artifact@v2
+  uses: actions/upload-artifact@v7
   with:
     name: security-report
     path: report.html
@@ -238,42 +205,15 @@ GenerateSummaryReport(reports);
 
 ## Customization
 
-### Custom Templates (Coming Soon)
-
-```csharp
-public class CustomTemplate : IHtmlTemplate {
-    public string Name => "Custom";
-    
-    public void Render(TagPage page, SecurityScore score) {
-        // Custom rendering logic
-    }
-}
-
-// Register custom template
-ReportTemplateRegistry.Register(new CustomTemplate());
-```
-
-### Custom Scoring Rules
-
-```csharp
-public class CustomScoringEngine : IScoringEngine {
-    public SecurityScore Calculate(DomainHealthCheck healthCheck) {
-        // Custom scoring logic
-        return new SecurityScore {
-            OverallScore = CalculateCustomScore(healthCheck)
-        };
-    }
-}
-```
+Use `DomainAssessmentOptions` for the report title and domain order, and `AssessmentHtmlOptions` for the
+brand, subtitle, theme and informational finding visibility. These options retain the assessment layout and
+its evidence-based scoring.
 
 ## Examples
 
-See the `DomainDetective.Example` project for complete examples:
-
-- `ExampleHtmlReport.cs` - Basic HTML report generation
-- `ExampleBatchReporting.cs` - Batch processing multiple domains
-- `ExampleCustomTemplate.cs` - Creating custom report templates
-- `ExampleScoringSystem.cs` - Understanding the scoring algorithm
+See [ReportingHtmlExample.cs](../DomainDetective.Example/ReportingHtmlExample.cs) for HTML and JSON generation
+through the assessment model, and the [HTML reports guide](../DomainDetective.Reports.Html/README.md) for options
+and scoring rules.
 
 ## Troubleshooting
 

@@ -73,7 +73,7 @@ public class TestDnsPropagationReportSmoke
     }
 
     [Fact]
-    public void Html_Document_Renders_DnsPropagation()
+    public void Html_Renders_DnsPropagation()
     {
         var domain = "example.org";
         var items = new List<object>
@@ -85,10 +85,10 @@ public class TestDnsPropagationReportSmoke
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
         try
         {
-            HtmlCompositionReport.Generate(tmp, items, ReportScope.Minimal, profile: HtmlProfile.Document);
+            HtmlCompositionReport.Generate(tmp, items, ReportScope.Minimal);
             var html = File.ReadAllText(tmp);
             Assert.Contains("DNS Propagation", html, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("World map", html, StringComparison.OrdinalIgnoreCase);
+
         }
         finally
         {

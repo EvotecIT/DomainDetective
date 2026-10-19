@@ -33,6 +33,9 @@ public class WildcardDnsAnalysis : IHasAssessments
     /// <summary>Whether the domain has NS records.</summary>
     public bool NsExists { get; private set; }
 
+    /// <summary>Domain that was analyzed.</summary>
+    public string? DomainName { get; private set; }
+
     /// <summary>Configuration used for DNS lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
@@ -69,6 +72,7 @@ public class WildcardDnsAnalysis : IHasAssessments
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "WILDCARD", target: domainName);
+        DomainName = domainName;
         TestedNames.Clear();
         ResolvedNames.Clear();
         ResolvedAddresses.Clear();

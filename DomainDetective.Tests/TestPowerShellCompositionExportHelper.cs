@@ -11,6 +11,54 @@ namespace DomainDetective.Tests;
 [Collection("ExportDefaults")]
 public class TestPowerShellCompositionExportHelper
 {
+    [Theory]
+    [InlineData("Assessment", false)]
+    [InlineData("Document", false)]
+    [InlineData("Dashboard", false)]
+    [InlineData("Assessment", true)]
+    [InlineData("Document", true)]
+    [InlineData("Dashboard", true)]
+    public async Task HtmlProfilesFollowSystemThemeAcrossExportSurfaces(string profile, bool dispatcher)
+    {
+        var snapshot = ExportDefaultsSnapshot.Capture();
+        var directory = Path.Combine(Path.GetTempPath(), $"dd-export-theme-{Guid.NewGuid():N}");
+        var path = Path.Combine(directory, "report.html");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var items = new List<object> { CreateSpfView() };
+            if (dispatcher)
+            {
+                var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
+                    Items = items, Formats = new[] { ReportFormat.Html }, ExportPath = path,
+                    HtmlProfile = profile, OpenInBrowser = false, AutoCollectTtl = false
+                });
+                var report = Assert.Single(result.Reports);
+                Assert.True(report.Success, report.ErrorMessage);
+            }
+            else
+            {
+                ExportDefaults.HtmlProfile = (DomainDetective.Reports.Html.HtmlProfile)Enum.Parse(
+                    typeof(DomainDetective.Reports.Html.HtmlProfile), profile);
+                var paths = CompositionExportHelper.WriteReports(items, new[] { ReportFormat.Html }, path,
+                    "example.com", ReportScope.Normal, "Theme contract", false, null, out var unsupported);
+                Assert.False(unsupported);
+                Assert.Equal(path, Assert.Single(paths));
+            }
+            var html = File.ReadAllText(path);
+            var root = System.Text.RegularExpressions.Regex.Match(html, "<html\\b[^>]*>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            Assert.True(root.Success);
+            Assert.Contains("data-hfx-theme-selection=\"auto\"", root.Value, StringComparison.Ordinal);
+            Assert.Contains("hfx-shell-panel-summary", html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            snapshot.Restore();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void WriteReports_Generates_Word_And_Html_For_Requested_Formats()
     {
@@ -163,6 +211,7 @@ public class TestPowerShellCompositionExportHelper
         private readonly string _companyName;
         private readonly string _companyAddress;
         private readonly string _companyYear;
+        private readonly DomainDetective.Reports.Html.HtmlProfile _htmlProfile;
 
         private ExportDefaultsSnapshot()
         {
@@ -187,6 +236,7 @@ public class TestPowerShellCompositionExportHelper
             _companyName = ExportDefaults.CompanyName;
             _companyAddress = ExportDefaults.CompanyAddress;
             _companyYear = ExportDefaults.CompanyYear;
+            _htmlProfile = ExportDefaults.HtmlProfile;
         }
 
         internal static ExportDefaultsSnapshot Capture()
@@ -217,6 +267,7 @@ public class TestPowerShellCompositionExportHelper
             ExportDefaults.CompanyName = _companyName;
             ExportDefaults.CompanyAddress = _companyAddress;
             ExportDefaults.CompanyYear = _companyYear;
+            ExportDefaults.HtmlProfile = _htmlProfile;
         }
     }
 }
