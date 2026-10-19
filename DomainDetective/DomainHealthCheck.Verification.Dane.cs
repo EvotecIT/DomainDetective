@@ -112,7 +112,7 @@ namespace DomainDetective {
         /// <param name="services">Services to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDANE(ServiceDefinition[] services, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.DANE, () => VerifyDANEDirectCore(services, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => VerifyDANEDirectCore(services, cancellationToken), cancellationToken, ownerDomains: services?.Select(service => service.Host));
 
         private async Task VerifyDANEDirectCore(ServiceDefinition[] services, CancellationToken cancellationToken = default) {
             if (services == null || services.Length == 0) {

@@ -146,23 +146,50 @@ public class TestFailureAdmissionAndRetry {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PlainHttpRetryReplacesTheCanceledHttpResult(bool useRequestOptions) {
+    [InlineData(false, "example.test")]
+    [InlineData(true, "example.test")]
+    [InlineData(false, "example.test:8443")]
+    [InlineData(true, "example.test:8443")]
+    public async Task PlainHttpRetryReplacesTheCanceledHttpResult(bool useRequestOptions, string owner) {
         using var health = new DomainHealthCheck();
         using var caller = new CancellationTokenSource();
         health.HttpAnalysis.HttpHandlerFactory = () => new HttpStubMessageHandler((_, _) => {
             caller.Cancel();
             throw new OperationCanceledException(caller.Token);
         });
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.test", new[] { HealthCheckType.HTTP }, cancellationToken: caller.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify(owner, new[] { HealthCheckType.HTTP }, cancellationToken: caller.Token));
         Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health)));
         health.HttpAnalysis.HttpHandlerFactory = () => new HttpStubMessageHandler((_, _) =>
             new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent("<html></html>") });
-        if (useRequestOptions) { await health.VerifyPlainHttp("example.test", new HttpRequestOptions()); }
-        else { await health.VerifyPlainHttp("example.test"); }
+        if (useRequestOptions) { await health.VerifyPlainHttp(owner, new HttpRequestOptions()); }
+        else { await health.VerifyPlainHttp(owner); }
         Assert.IsType<HttpInfo>(Assert.Single(Converters.ConvertChecks(health)));
         Assert.Contains(HealthCheckType.HTTP, health.VerificationCompletedChecks);
+    }
+
+    [Theory]
+    [InlineData(HealthCheckType.STARTTLS)]
+    [InlineData(HealthCheckType.SMTPTLS)]
+    [InlineData(HealthCheckType.IMAPTLS)]
+    [InlineData(HealthCheckType.POP3TLS)]
+    [InlineData(HealthCheckType.DANE)]
+    [InlineData(HealthCheckType.DNSBL)]
+    public async Task StructuredOtherHostResultsDoNotSatisfyTheStoredOwner(HealthCheckType check) {
+        using var health = new DomainHealthCheck();
+        health.OutboundAddressResolver = (_, _) => Task.FromResult<IReadOnlyList<System.Net.IPAddress>>(Array.Empty<System.Net.IPAddress>());
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        await health.Verify("first.example.test", Array.Empty<HealthCheckType>(), useDefaultChecksWhenEmpty: false);
+        var endpoint = new MailTransportEndpoint("second.example.test", 25);
+        switch (check) {
+            case HealthCheckType.STARTTLS: await health.CheckStartTlsHost(endpoint); break;
+            case HealthCheckType.SMTPTLS: await health.CheckSmtpTlsHost(endpoint); break;
+            case HealthCheckType.IMAPTLS: await health.CheckImapTlsHost(endpoint); break;
+            case HealthCheckType.POP3TLS: await health.CheckPop3TlsHost(endpoint); break;
+            case HealthCheckType.DANE: await health.VerifyDANE(new[] { new ServiceDefinition("second.example.test", 443) }); break;
+            case HealthCheckType.DNSBL: await health.CheckDNSBL(new[] { "second.example.test" }); break;
+        }
+        Assert.DoesNotContain(check, health.VerificationCompletedChecks);
+        Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { check })));
     }
 
     [Fact]

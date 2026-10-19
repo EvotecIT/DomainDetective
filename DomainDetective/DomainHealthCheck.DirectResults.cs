@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,12 +12,13 @@ public partial class DomainHealthCheck {
     // Public per-check calls can retry a failed full-run owner. Their successful
     // result must replace that owner's failure without clearing another check.
     private Task CompleteDirectCheckAsync(HealthCheckType check, Func<Task> operation,
-        CancellationToken cancellationToken = default, string? ownerDomain = null) {
+        CancellationToken cancellationToken = default, string? ownerDomain = null, IEnumerable<string>? ownerDomains = null) {
         if (_ownsVerification.Value) { return operation(); }
         if (VerificationDomain == null && _verificationAdmission.CurrentCount != 0) {
             PrepareDirectRetry(check);
             return operation();
         }
+        var owners = ownerDomains?.ToArray();
         return CompleteAsync();
 
         async Task CompleteAsync() {
@@ -25,7 +27,7 @@ public partial class DomainHealthCheck {
             try {
                 var version = PrepareDirectRetry(check);
                 await operation().ConfigureAwait(false);
-                CompleteDirectResult(check, version, ownerDomain);
+                CompleteDirectResult(check, version, ownerDomain, owners);
             } finally {
                 _ownsVerification.Value = false;
                 _verificationAdmission.Release();
@@ -34,12 +36,13 @@ public partial class DomainHealthCheck {
     }
 
     private Task<T> CompleteDirectCheckAsync<T>(HealthCheckType check, Func<Task<T>> operation,
-        CancellationToken cancellationToken = default, string? ownerDomain = null) {
+        CancellationToken cancellationToken = default, string? ownerDomain = null, IEnumerable<string>? ownerDomains = null) {
         if (_ownsVerification.Value) { return operation(); }
         if (VerificationDomain == null && _verificationAdmission.CurrentCount != 0) {
             PrepareDirectRetry(check);
             return operation();
         }
+        var owners = ownerDomains?.ToArray();
         return CompleteAsync();
 
         async Task<T> CompleteAsync() {
@@ -48,7 +51,7 @@ public partial class DomainHealthCheck {
             try {
                 var version = PrepareDirectRetry(check);
                 var result = await operation().ConfigureAwait(false);
-                CompleteDirectResult(check, version, ownerDomain);
+                CompleteDirectResult(check, version, ownerDomain, owners);
                 return result;
             } finally {
                 _ownsVerification.Value = false;
@@ -75,10 +78,13 @@ public partial class DomainHealthCheck {
         }
     }
 
-    private void CompleteDirectResult(HealthCheckType check, long version, string? ownerDomain) {
+    private void CompleteDirectResult(HealthCheckType check, long version, string? ownerDomain, string[]? ownerDomains) {
         lock (_executionLock) {
             if (VerificationDomain == null || _executionStateVersion != version || _runOperations != null) { return; }
             if (ownerDomain != null && !IsVerificationOwner(ownerDomain)) { return; }
+            // A mixed or empty target set cannot repair the current domain's
+            // failed owner. Raw-record APIs deliberately have no target set.
+            if (ownerDomains != null && (ownerDomains.Length == 0 || !ownerDomains.All(IsVerificationOwner))) { return; }
             _checkFailures.Remove(check);
             _checkFailureExceptions.Remove(check);
             Assessments.RemoveAll(value => value.Source == nameof(Verify) && value.Category == check.ToString()
@@ -90,9 +96,17 @@ public partial class DomainHealthCheck {
     private bool IsVerificationOwner(string ownerDomain) {
         // URL- and host-based entry points may include a scheme or explicit port.
         // A direct result for another host cannot satisfy the stored run owner.
-        if (!Uri.TryCreate(ownerDomain.Contains("://") ? ownerDomain : "http://" + ownerDomain, UriKind.Absolute, out var uri)) { return false; }
+        if (!TryOwnerUri(ownerDomain, out var incoming) || !TryOwnerUri(VerificationDomain!, out var stored)) { return false; }
         try {
-            return string.Equals(NormalizeDomain(uri.IdnHost.TrimEnd('.')), NormalizeDomain(VerificationDomain!), StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(NormalizeDomain(incoming!.IdnHost.TrimEnd('.')), NormalizeDomain(stored!.IdnHost.TrimEnd('.')), StringComparison.OrdinalIgnoreCase)) { return false; }
+            return incoming.Port == stored.Port || incoming.Port < 0 && stored.Port is 80 or 443 || stored.Port < 0 && incoming.Port is 80 or 443;
         } catch (ArgumentException) { return false; }
+    }
+
+    private static bool TryOwnerUri(string value, out Uri? uri) {
+        int scheme = value.IndexOf("://", StringComparison.Ordinal);
+        // tcp has no implicit port, preserving explicit :80 and :443 too.
+        string authority = scheme >= 0 ? value.Substring(scheme + 3) : EndpointHostNormalizer.FormatForUriAuthority(value);
+        return Uri.TryCreate("tcp://" + authority, UriKind.Absolute, out uri);
     }
 }

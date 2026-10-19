@@ -72,9 +72,9 @@ public static class CompositionBuilder
             switch (it)
             {
                 case DomainDetective.Views.WebsiteInfo website when !string.IsNullOrWhiteSpace(website.Subject):
-                    Ensure(website.Subject);
-                    if (website.Certificate?.Assessments?.Count > 0) { AddEvidence(new AssessmentEvidenceInfo(website.Subject, website.Certificate.Assessments)); }
-                    map[website.Subject].Http = website.Http;
+                    Ensure(website.Subject!);
+                    if (website.Certificate?.Assessments?.Count > 0) { AddEvidence(new AssessmentEvidenceInfo(website.Subject!, website.Certificate.Assessments)); }
+                    map[website.Subject!].Http = website.Http;
                     break;
                 case AssessmentEvidenceInfo evidence when !string.IsNullOrWhiteSpace(evidence.Subject): AddEvidence(evidence); break;
                 case DomainDetective.Views.CheckFailureInfo failure when !string.IsNullOrWhiteSpace(failure.Subject):

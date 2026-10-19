@@ -50,7 +50,7 @@ namespace DomainDetective {
         /// Checks an explicitly targeted host for STARTTLS support while preserving the logical hostname.
         /// </summary>
         public Task CheckStartTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => CheckStartTlsHostDirectCore(endpoint, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => CheckStartTlsHostDirectCore(endpoint, cancellationToken), cancellationToken, ownerDomain: endpoint?.HostName);
 
         private async Task CheckStartTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
@@ -77,7 +77,7 @@ namespace DomainDetective {
         /// Checks an explicitly targeted host for SMTP TLS capabilities while preserving the logical hostname.
         /// </summary>
         public Task CheckSmtpTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => CheckSmtpTlsHostDirectCore(endpoint, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => CheckSmtpTlsHostDirectCore(endpoint, cancellationToken), cancellationToken, ownerDomain: endpoint?.HostName);
 
         private async Task CheckSmtpTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
@@ -104,7 +104,7 @@ namespace DomainDetective {
         /// Checks an explicitly targeted host for IMAP TLS capabilities while preserving the logical hostname.
         /// </summary>
         public Task CheckImapTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => CheckImapTlsHostDirectCore(endpoint, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => CheckImapTlsHostDirectCore(endpoint, cancellationToken), cancellationToken, ownerDomain: endpoint?.HostName);
 
         private async Task CheckImapTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
@@ -131,7 +131,7 @@ namespace DomainDetective {
         /// Checks an explicitly targeted host for POP3 TLS capabilities while preserving the logical hostname.
         /// </summary>
         public Task CheckPop3TlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => CheckPop3TlsHostDirectCore(endpoint, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => CheckPop3TlsHostDirectCore(endpoint, cancellationToken), cancellationToken, ownerDomain: endpoint?.HostName);
 
         private async Task CheckPop3TlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {

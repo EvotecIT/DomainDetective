@@ -24,7 +24,7 @@ namespace DomainDetective {
         /// <param name="ipAddress">IP address to check.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyThreatFeed(string ipAddress, CancellationToken cancellationToken = default) =>
-            CompleteDirectCheckAsync(HealthCheckType.THREATFEED, () => VerifyThreatFeedDirectCore(ipAddress, cancellationToken), cancellationToken);
+            CompleteDirectCheckAsync(HealthCheckType.THREATFEED, () => VerifyThreatFeedDirectCore(ipAddress, cancellationToken), cancellationToken, ownerDomain: ipAddress);
 
         private async Task VerifyThreatFeedDirectCore(string ipAddress, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(ipAddress)) {
