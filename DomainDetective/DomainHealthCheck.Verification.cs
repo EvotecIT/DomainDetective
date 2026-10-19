@@ -272,14 +272,15 @@ public partial class DomainHealthCheck {
                     [HealthCheckType.MICROSOFT365] = () => VerifyMicrosoft365TenantAsync(domainName, cancellationToken)
 		            };
 
-            // Reject invalid selections before replacing the last valid run's evidence.
+            ConfigureSharedChecks(actions, domainName, cancellationToken, exec);
+            // Shared NS and website operations are valid selections too. Reject invalid
+            // selections only after all supported actions exist, without replacing evidence.
             foreach (var check in healthCheckTypes) {
                 if (!actions.ContainsKey(check)) { throw new NotSupportedException($"Health check type not implemented: {(int)check}"); }
             }
             ResetExecutionState();
             LastVerifiedChecks = Array.Empty<HealthCheckType>();
             VerificationDomain = domainName;
-            ConfigureSharedChecks(actions, domainName, cancellationToken, exec);
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 actions[HealthCheckType.DANE] = async () => {
