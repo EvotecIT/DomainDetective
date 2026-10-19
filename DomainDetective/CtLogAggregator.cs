@@ -263,10 +263,14 @@ public sealed partial class CtLogAggregator
                     }
                 }
 
-                using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                // Headers-only completion avoids buffering retryable error bodies. Keep
+                // the client's original per-attempt timeout over successful bodies too.
+                using var attemptDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                if (client.Timeout != Timeout.InfiniteTimeSpan) { attemptDeadline.CancelAfter(client.Timeout); }
+                using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, attemptDeadline.Token).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await ReadResponseContentAsync(client, response.Content, cancellationToken).ConfigureAwait(false);
+                    var content = await ReadResponseContentAsync(client, response.Content, attemptDeadline.Token).ConfigureAwait(false);
                     return request.ResponseParser == CtResponseParserKind.CrtShCertificate
                         ? ParseCrtShCertificatePage(content, request.ExpectedFingerprint!)
                         : ParseFetchResult(content, request.ResponseParser);
@@ -398,7 +402,7 @@ public sealed partial class CtLogAggregator
 
     private static bool IsTransientException(Exception exception, CancellationToken cancellationToken)
     {
-        if (exception is TaskCanceledException)
+        if (exception is OperationCanceledException)
         {
             return !cancellationToken.IsCancellationRequested;
         }

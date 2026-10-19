@@ -73,6 +73,9 @@ public sealed partial class CtLogAggregator {
             }
             cancellationToken.ThrowIfCancellationRequested();
             return new CtLogQueryResult(entries, complete, sources, errors);
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            complete = false;
+            throw new OperationCanceledException(cancellationToken);
         } catch {
             complete = false;
             throw;

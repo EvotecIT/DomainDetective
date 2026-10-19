@@ -46,9 +46,14 @@ public partial class DnsTtlAnalysis {
         try {
             if (AuthoritativeTtlOverride != null) {
                 await Helpers.AuthoritativeDnsProbes.RunAsync(requests, async request => {
-                    int? ttl = await AuthoritativeTtlOverride(request.Owner, request.Type).ConfigureAwait(false);
-                    if (ttl.HasValue) { observed.TryAdd(request.Label, ttl.Value); }
-                    return true;
+                    try {
+                        int? ttl = await AuthoritativeTtlOverride(request.Owner, request.Type).ConfigureAwait(false);
+                        if (ttl.HasValue) { observed.TryAdd(request.Label, ttl.Value); }
+                        return true;
+                    } catch (Exception error) when (Helpers.AuthoritativeDnsProbes.IsTransportFailure(error)) {
+                        token.ThrowIfCancellationRequested();
+                        return false;
+                    }
                 }, concurrency: 8, cancellationToken: deadline.Token).ConfigureAwait(false);
             } else if (requests.Count > 0) {
                 var hosts = nsRecords.Where(answer => answer.Type == DnsRecordType.NS)
@@ -56,26 +61,31 @@ public partial class DnsTtlAnalysis {
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var queries = hosts.SelectMany(host => new[] { (host, DnsRecordType.A), (host, DnsRecordType.AAAA) });
                 using var alternatives = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
-                using var probes = new SemaphoreSlim(8);
+                // Reserve a small worker window for each admitted server. A stalled
+                // alternative must not queue ahead of remaining RRsets on a healthy
+                // server. Four servers with two probes each retain the total cap of eight.
+                using var servers = new SemaphoreSlim(4);
                 var attempted = new ConcurrentDictionary<IPAddress, byte>();
                 async Task ReadServer(IPAddress server) {
-                    await Helpers.AuthoritativeDnsProbes.RunAsync(requests, async request => {
-                        if (observed.ContainsKey(request.Label)) { return true; }
-                        await probes.WaitAsync(alternatives.Token).ConfigureAwait(false);
-                        try {
+                    await servers.WaitAsync(alternatives.Token).ConfigureAwait(false);
+                    try {
+                        await Helpers.AuthoritativeDnsProbes.RunAsync(requests, async request => {
                             if (observed.ContainsKey(request.Label)) { return true; }
-                            var result = await QueryTtlFromServer(server, request.Owner, (ushort)request.Type,
-                                alternatives.Token, budget, requireMatchingRrset: true).ConfigureAwait(false);
-                            if (result.Ttl.HasValue) {
-                                observed.TryAdd(request.Label, result.Ttl.Value);
-                                if (observed.Count == requests.Count) { alternatives.Cancel(); }
+                            try {
+                                if (observed.ContainsKey(request.Label)) { return true; }
+                                var result = await QueryTtlFromServer(server, request.Owner, (ushort)request.Type,
+                                    alternatives.Token, budget, requireMatchingRrset: true).ConfigureAwait(false);
+                                if (result.Ttl.HasValue) {
+                                    observed.TryAdd(request.Label, result.Ttl.Value);
+                                    if (observed.Count == requests.Count) { alternatives.Cancel(); }
+                                }
+                                return true;
+                            } catch (Exception error) when (Helpers.AuthoritativeDnsProbes.IsTransportFailure(error)) {
+                                token.ThrowIfCancellationRequested();
+                                return false;
                             }
-                            return true;
-                        } catch (Exception error) when (Helpers.AuthoritativeDnsProbes.IsTransportFailure(error)) {
-                            token.ThrowIfCancellationRequested();
-                            return false;
-                        } finally { probes.Release(); }
-                    }, concurrency: 8, cancellationToken: alternatives.Token).ConfigureAwait(false);
+                        }, concurrency: 2, cancellationToken: alternatives.Token).ConfigureAwait(false);
+                    } finally { servers.Release(); }
                 }
                 try {
                     await Helpers.AuthoritativeDnsProbes.RunAsync(queries, async query => {
