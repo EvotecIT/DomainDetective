@@ -126,25 +126,6 @@ Describe 'Report ordering and composition (Pester)' {
         ([regex]::Matches($xmlText, 'b.example').Count) | Should -BeGreaterThan 1
     }
 
-    It 'respects domain order in HTML composition' {
-        $reportPath = Join-Path $TestDrive 'ordering-html.html'
-        $items = @()
-        $items += New-TestViews -Domain 'b.example'
-        $items += New-TestViews -Domain 'a.example'
-
-        # The assessment report keeps the input order of domains; sections follow the area and chapter order.
-        $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
-
-        Test-Path -Path $reportPath | Should -BeTrue
-
-        $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        $idxDomainB = $html.IndexOf('b.example')
-        $idxDomainA = $html.IndexOf('a.example')
-        $idxDomainB | Should -BeGreaterThan -1
-        $idxDomainA | Should -BeGreaterThan -1
-        $idxDomainB | Should -BeLessThan $idxDomainA
-        $html | Should -Match 'Do these first'
-    }
     It 'flattens piped arrays for HTML composition' {
         $reportPath = Join-Path $TestDrive 'flattening.html'
         $domain = 'example.com'
@@ -179,16 +160,17 @@ Describe 'Report ordering and composition (Pester)' {
 
     It 'keeps input domain order in the assessment layout' {
         $reportPath = Join-Path $TestDrive 'ordering-assessment.html'
-        $items = @()
-        $items += New-TestViews -Domain 'b.example'
-        $items += New-TestViews -Domain 'a.example'
+        $items = @(
+            New-TestViews -Domain 'b.example'
+            New-TestViews -Domain 'a.example'
+        )
 
         $items | Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
 
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        $idxDomainB = $html.IndexOf('id="hfx-asr-panel-domain-b-example"')
-        $idxDomainA = $html.IndexOf('id="hfx-asr-panel-domain-a-example"')
-        $idxDomainB | Should -BeGreaterThan -1
-        $idxDomainA | Should -BeGreaterThan $idxDomainB
+        # DomainDetective owns these markers; HtmlForgeX owns its panel ids.
+        $domainsInReport = @([regex]::Matches($html, 'data-dd-domain="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+        $domainsInReport | Should -Be @('b.example', 'a.example')
+        $html | Should -Match 'Do these first'
     }
 }
