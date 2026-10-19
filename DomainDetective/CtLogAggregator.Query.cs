@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,16 +51,22 @@ public sealed partial class CtLogAggregator {
                 } else {
                     var requests = BuildDiscoveryRequests(fingerprint, sources, errors);
                     bool valid = requests.Count > 0 && errors.Count == 0;
-                    foreach (var request in requests) {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        if (TryGetCachedEntries(request.CacheKey, out var cached)) {
-                            AppendEntries(cached, entries);
-                            continue;
+                    var fetched = new FetchResult?[requests.Count];
+                    try {
+                        await Helpers.BoundedAsync.RunAsync(System.Linq.Enumerable.Range(0, requests.Count).ToArray(), async index => {
+                            var request = requests[index];
+                            fetched[index] = TryGetCachedEntries(request.CacheKey, out var cached)
+                                ? new FetchResult(true, cached)
+                                : await FetchSharedAsync(request, cancellationToken).ConfigureAwait(false);
+                            return true;
+                        }, 4, cancellationToken).ConfigureAwait(false);
+                    } finally {
+                        // Merge after every admitted request drains, retaining partial evidence
+                        // on cancellation and stable configured-source order on success.
+                        foreach (var result in fetched) {
+                            valid &= result?.Complete == true;
+                            if (result != null) { AppendEntries(result.Entries, entries); }
                         }
-                        var fetched = await FetchSharedAsync(request, cancellationToken).ConfigureAwait(false);
-                        valid &= fetched.Complete;
-                        if (fetched.Complete) { CacheEntries(request.CacheKey, fetched.Entries); }
-                        AppendEntries(fetched.Entries, entries);
                     }
                     complete = valid;
                 }

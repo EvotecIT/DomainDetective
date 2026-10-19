@@ -29,17 +29,24 @@ public partial class SpfAnalysis {
             RetainFlatteningDependency(term, "sender-dependent macros prevent a concrete address projection", logger);
             return result;
         }
-        DnsAnswer[]? mxAnswers = name == "mx" ? await QuerySpfAddressDns(domain, DnsRecordType.MX, term, logger) : null;
+        var mxResponse = name == "mx" ? await QuerySpfAddressDns(domain, DnsRecordType.MX) : default;
+        if (mxResponse.Error != null) { RetainFlatteningDependency(term, mxResponse.Error, logger); }
+        var mxAnswers = mxResponse.Answers;
         if (name == "mx" && mxAnswers == null) return result;
         var hosts = name == "a" ? new[] { domain } : mxAnswers!
             .Where(answer => answer.Type == DnsRecordType.MX).Take(10).Select(answer => {
                 var parts = answer.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 return parts.Length == 0 ? string.Empty : parts[parts.Length - 1].TrimEnd('.');
             }).Where(host => !string.IsNullOrWhiteSpace(host)).ToArray();
-        foreach (string host in hosts) {
-            var ipv4 = await QuerySpfAddressDns(host, DnsRecordType.A, term, logger);
-            var ipv6 = await QuerySpfAddressDns(host, DnsRecordType.AAAA, term, logger);
-            foreach (var answer in (ipv4 ?? Array.Empty<DnsAnswer>()).Concat(ipv6 ?? Array.Empty<DnsAnswer>())) {
+        var questions = hosts.SelectMany(host => new[] { (Host: host, Type: DnsRecordType.A), (Host: host, Type: DnsRecordType.AAAA) }).ToArray();
+        var replies = await Helpers.AuthoritativeDnsProbes.RunAsync(questions,
+            question => QuerySpfAddressDns(question.Host, question.Type),
+            Math.Max(1, Math.Min(16, DnsConfiguration.ResolverMaxConcurrency ?? 16))).ConfigureAwait(false);
+        // Only independent address RRsets overlap. SPF policy evaluation and
+        // the publication of limitations retain their original ordered semantics.
+        foreach (var reply in replies) {
+            if (reply.Error != null) { RetainFlatteningDependency(term, reply.Error, logger); }
+            foreach (var answer in reply.Answers ?? Array.Empty<DnsAnswer>()) {
                 if (answer.Type != DnsRecordType.A && answer.Type != DnsRecordType.AAAA || !IPAddress.TryParse(answer.Data, out var address)) continue;
                 bool isIpv4 = address.AddressFamily == AddressFamily.InterNetwork;
                 int prefix = isIpv4 ? ipv4Prefix : ipv6Prefix;
@@ -49,15 +56,15 @@ public partial class SpfAnalysis {
         return result;
     }
 
-    private async Task<DnsAnswer[]?> QuerySpfAddressDns(string name, DnsRecordType type, string term, InternalLogger? logger) {
+    private async Task<(DnsAnswer[]? Answers, string? Error)> QuerySpfAddressDns(string name, DnsRecordType type) {
         try {
-            return QueryDnsOverride != null
+            var answers = QueryDnsOverride != null
                 ? await QueryDnsOverride(name, type)
                 : await DnsConfiguration.QueryPolicyDNS(name, type);
+            return (answers, null);
         } catch (Exception exception) when (exception is DnsQueryFailureException || exception is TaskCanceledException ||
             exception is TimeoutException || exception is System.Net.Http.HttpRequestException) {
-            RetainFlatteningDependency(term, $"address lookup failed for {name} ({type}): {exception.Message}", logger);
-            return null;
+            return (null, $"address lookup failed for {name} ({type}): {exception.Message}");
         }
     }
 

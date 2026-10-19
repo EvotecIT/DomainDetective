@@ -263,10 +263,10 @@ public sealed partial class CtLogAggregator
                     }
                 }
 
-                using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
+                using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var content = await ReadResponseContentAsync(client, response.Content, cancellationToken).ConfigureAwait(false);
                     return request.ResponseParser == CtResponseParserKind.CrtShCertificate
                         ? ParseCrtShCertificatePage(content, request.ExpectedFingerprint!)
                         : ParseFetchResult(content, request.ResponseParser);
@@ -278,6 +278,7 @@ public sealed partial class CtLogAggregator
                 }
 
                 var delay = MaxDelay(ComputeBackoff(attempt), ComputeRetryAfterDelay(response));
+                response.Dispose();
                 if (delay > TimeSpan.Zero)
                 {
                     await DelayAsync(delay, cancellationToken).ConfigureAwait(false);

@@ -14,19 +14,27 @@ namespace DomainDetective;
 public partial class DNSBLAnalysis {
     // A single analysis also supports concurrent append runs. Keep their aggregate
     // provider admission bounded while each run retains its own budget and cap.
-    private readonly SemaphoreSlim _providerAdmission = new(32);
+    private const int MaxProviderParallelism = 64;
+    private readonly object _queryRunGate = new();
+    private SemaphoreSlim _providerAdmission = new(MaxProviderParallelism);
+    private int _providerAdmissionLimit = MaxProviderParallelism;
+    private int _activeQueryRuns;
     internal sealed class QueryRun : IDisposable {
         internal CancellationToken CallerToken { get; }
         internal Stopwatch Budget { get; } = Stopwatch.StartNew();
         internal SemaphoreSlim ProviderGate { get; }
+        internal SemaphoreSlim AnalysisGate { get; }
+        private readonly Action _finished;
         internal int MaxParallelism { get; }
         internal ConcurrentDictionary<string, string> BlockedProviders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        internal QueryRun(CancellationToken callerToken, int maxParallelism) {
+        internal QueryRun(CancellationToken callerToken, int maxParallelism, SemaphoreSlim analysisGate, Action finished) {
             CallerToken = callerToken;
             MaxParallelism = maxParallelism;
             ProviderGate = new SemaphoreSlim(maxParallelism);
+            AnalysisGate = analysisGate;
+            _finished = finished;
         }
-        public void Dispose() => ProviderGate.Dispose();
+        public void Dispose() { ProviderGate.Dispose(); _finished(); }
     }
     /// <summary>Whether MX and address discovery completed without query failures.</summary>
     public bool DiscoverySucceeded { get; private set; } = true;
@@ -44,7 +52,20 @@ public partial class DNSBLAnalysis {
 
     internal QueryRun BeginQueryRun(CancellationToken caller) {
         int parallelism = Math.Min(DnsConfiguration.ResolverMaxConcurrency ?? 16, DnsConfiguration.GetReusableQueryParallelism());
-        return new(caller, Math.Min(32, Math.Max(1, parallelism)));
+        parallelism = Math.Min(MaxProviderParallelism, Math.Max(1, parallelism));
+        lock (_queryRunGate) {
+            // Concurrent append runs borrow one aggregate gate. Reconfigure it
+            // only between fully drained waves, including explicit smaller caps.
+            if (_activeQueryRuns == 0 && _providerAdmissionLimit != parallelism) {
+                _providerAdmission.Dispose();
+                _providerAdmission = new SemaphoreSlim(parallelism);
+                _providerAdmissionLimit = parallelism;
+            }
+            _activeQueryRuns++;
+            return new(caller, parallelism, _providerAdmission, () => {
+                lock (_queryRunGate) { _activeQueryRuns--; }
+            });
+        }
     }
 
     private async Task<DnsAnswer[]> QueryDiscoveryAsync(QueryRun run, string owner, DnsRecordType type, InternalLogger? logger, params DnsblIpSource[] sources) {
@@ -122,7 +143,7 @@ public partial class DNSBLAnalysis {
             if (remaining.HasValue) { deadline.CancelAfter(remaining.Value); }
             await run.ProviderGate.WaitAsync(deadline.Token).ConfigureAwait(false);
             runAdmitted = true;
-            await _providerAdmission.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await run.AnalysisGate.WaitAsync(deadline.Token).ConfigureAwait(false);
             analysisAdmitted = true;
             if (run.BlockedProviders.TryGetValue(zone, out blocked)) { return Failed(blocked); }
             remaining = RemainingBudget(run);
@@ -167,7 +188,7 @@ public partial class DNSBLAnalysis {
         catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is SocketException || ex is InvalidOperationException || ex is UriFormatException) {
             return Failed(ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
         } finally {
-            if (analysisAdmitted) { _providerAdmission.Release(); }
+            if (analysisAdmitted) { run.AnalysisGate.Release(); }
             if (runAdmitted) { run.ProviderGate.Release(); }
         }
     }

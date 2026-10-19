@@ -36,13 +36,16 @@ public partial class MXAnalysis {
             .Select(answer => NormalizeHost(answer.Data)).Where(host => host.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         bool incomplete = ns.Answers == null || hosts.Length == 0;
         var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var host in hosts) {
-            var a = QueryRecursiveEvidenceAsync(host, DnsRecordType.A, cancellationToken);
-            var aaaa = QueryRecursiveEvidenceAsync(host, DnsRecordType.AAAA, cancellationToken);
-            await Task.WhenAll(a, aaaa);
-            incomplete |= a.Result.Answers == null || aaaa.Result.Answers == null;
+        var requests = hosts.SelectMany(host => new[] { (Host: host, Type: DnsRecordType.A), (Host: host, Type: DnsRecordType.AAAA) }).ToArray();
+        var responses = await Helpers.AuthoritativeDnsProbes.RunAsync(requests,
+            request => QueryRecursiveEvidenceAsync(request.Host, request.Type, cancellationToken),
+            Math.Max(1, Math.Min(16, DnsConfiguration.ResolverMaxConcurrency ?? 16)), cancellationToken).ConfigureAwait(false);
+        for (int index = 0; index < hosts.Length; index++) {
+            var a = responses[index * 2];
+            var aaaa = responses[index * 2 + 1];
+            incomplete |= a.Answers == null || aaaa.Answers == null;
             bool resolved = false;
-            foreach (var answer in (a.Result.Answers ?? Array.Empty<DnsAnswer>()).Concat(aaaa.Result.Answers ?? Array.Empty<DnsAnswer>())) {
+            foreach (var answer in (a.Answers ?? Array.Empty<DnsAnswer>()).Concat(aaaa.Answers ?? Array.Empty<DnsAnswer>())) {
                 if (IPAddress.TryParse(answer.Data, out var ip)) { addresses.Add(ip.ToString()); resolved = true; }
                 else { incomplete = true; }
             }

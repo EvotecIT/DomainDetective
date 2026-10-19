@@ -24,6 +24,7 @@ public sealed class HealthCheckExecutionOptions {
 
     /// <summary>
     /// Optional override for DNS resolver concurrency hints and the shared recursive-query admission cap across a batch.
+    /// The default scales with processor count up to 64 in-flight queries.
     /// </summary>
     public int? DnsParallelism { get; set; }
 
@@ -80,7 +81,7 @@ public sealed class HealthCheckExecutionOptions {
         if (DnsParallelism.HasValue && DnsParallelism.Value > 0) {
             return DnsParallelism.Value;
         }
-        return Clamp(Environment.ProcessorCount * 2, 4, 32);
+        return Clamp(Environment.ProcessorCount * 2, 4, 64);
     }
 
     private static int Clamp(int value, int min, int max) {

@@ -253,7 +253,7 @@ namespace DomainDetective {
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var asnLookupTimeoutMs = AsnLookupTimeoutMs > 0 ? AsnLookupTimeoutMs : 5000;
-            var asnResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(allIps, async ip => {
+            var asnTask = DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(allIps, async ip => {
                 try {
                     if (LookupAsnOverride != null) { return (Ip: ip, Asn: await LookupAsnOverride(ip)); }
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -262,6 +262,9 @@ namespace DomainDetective {
                 } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch { return (Ip: ip, Asn: (int?)null); }
             }, concurrency: 16, cancellationToken: ct);
+            var chaosTask = FingerprintChaosSafelyAsync(nsIps, logger, _collector, ct);
+            await Task.WhenAll(asnTask, chaosTask).ConfigureAwait(false);
+            var asnResults = await asnTask.ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             foreach (var item in asnResults) {
                 if (item.Asn.HasValue) { AsnByIp[item.Ip] = item.Asn.Value; }
@@ -303,19 +306,17 @@ namespace DomainDetective {
                 logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {asnCount})");
             }
 
-            // Best-effort CHAOS TXT fingerprinting for version/hostname disclosure
-            if (DnsConfiguration.QueryDnsOverride == null) {
-                try
-                {
-                    await FingerprintChaosAsync(nsIps, logger, _collector, ct);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch
-                {
-                }
-            } else {
+        }
+
+        private async Task FingerprintChaosSafelyAsync(IEnumerable<(string Host, IPAddress Ip)> servers,
+            InternalLogger logger, AssessmentCollector collector, CancellationToken ct) {
+            if (DnsConfiguration.QueryDnsOverride != null) {
                 logger.WriteVerbose("Skipping CHAOS fingerprinting because DNS queries are running through an override.");
+                return;
             }
+            try { await FingerprintChaosAsync(servers, logger, collector, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch { }
         }
 
         private static async Task<int?> LookupAsnAsync(string ip, CancellationToken ct)

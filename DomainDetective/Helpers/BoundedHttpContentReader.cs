@@ -14,7 +14,7 @@ internal static class BoundedHttpContentReader {
         if (content.Headers.ContentLength is long length && length > maxBytes) throw new HttpRequestException("Evidence exceeds the response byte limit.");
         using Stream stream = await content.ReadAsStreamAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
         using var output = new MemoryStream();
-        var buffer = new byte[Math.Min(81920, maxBytes + 1)];
+        var buffer = new byte[(int)Math.Min(81920L, (long)maxBytes + 1)];
         while (true) {
             Task<int> reading = stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
             int read;
