@@ -93,8 +93,7 @@ internal static class CompositionExportHelper
                     titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? defaultTitle : ExportDefaults.NarrativeTitle,
                     authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
                     descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    profile: ExportDefaults.HtmlProfile,
-                    themeMode: ExportDefaults.HtmlProfile == HtmlProfile.Assessment ? HtmlForgeX.ThemeMode.System : HtmlForgeX.ThemeMode.Light);
+                    profile: ExportDefaults.HtmlProfile);
 
                 generatedPaths.Add(outputPath);
                 continue;

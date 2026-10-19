@@ -140,8 +140,8 @@ internal static class CompositionReportDispatcher
             return false;
         }
         var profileValue = ParseEnum(profileType, request.HtmlProfile, "Assessment");
-        // The assessment report follows the viewer's theme; the legacy layouts were designed for light.
-        string themeName = string.Equals(profileValue.ToString(), "Assessment", StringComparison.OrdinalIgnoreCase) ? "System" : "Light";
+        // Every profile renders the assessment report, which follows the viewer's theme.
+        const string themeName = "System";
 
         // vNext: includes ThemeMode; keep fallback for older signatures.
         var themeType = GetType(HtmlThemeModeType, HtmlForgeXAssembly, out _);

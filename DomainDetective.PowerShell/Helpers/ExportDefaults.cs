@@ -10,8 +10,8 @@ namespace DomainDetective.PowerShell {
         /// <summary>Open generated reports in the browser.</summary>
         public static bool OpenInBrowser { get; set; } = true;
         /// <summary>
-        /// HTML layout for per-check and domain-health exports: <c>Assessment</c> (default), or the previous
-        /// <c>Document</c> and <c>Dashboard</c> layouts.
+        /// HTML profile for per-check and domain-health exports. Every profile renders the assessment report;
+        /// <c>Document</c> and <c>Dashboard</c> are retired and accepted only for compatibility.
         /// </summary>
         public static DomainDetective.Reports.Html.HtmlProfile HtmlProfile { get; set; } = DomainDetective.Reports.Html.HtmlProfile.Assessment;
         /// <summary>Base directory for exported reports.</summary>
