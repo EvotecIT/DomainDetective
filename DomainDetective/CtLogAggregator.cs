@@ -407,7 +407,7 @@ public sealed partial class CtLogAggregator
             return !cancellationToken.IsCancellationRequested;
         }
 
-        return exception is HttpRequestException ||
+        return exception is HttpRequestException || exception is System.IO.IOException ||
                exception is TimeoutException;
     }
 

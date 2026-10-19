@@ -68,6 +68,39 @@ public class TestCtSourceScheduling {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
     }
 
+    [Fact]
+    public async Task TransientSuccessfulBodyDisconnectRetriesAndRetainsRecoveredEntries() {
+        int attempts = 0;
+        var aggregator = new CtLogAggregator {
+            MinimumRequestSpacing = TimeSpan.Zero, RetryDelay = TimeSpan.Zero,
+            HttpHandlerFactory = () => new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = Interlocked.Increment(ref attempts) == 1
+                    ? new StreamContent(new DisconnectedStream()) : new StringContent("[{\"id\":7}]")
+            }))
+        };
+        aggregator.ApiTemplates.Clear();
+        aggregator.ApiTemplates.Add("https://" + Guid.NewGuid().ToString("N") + ".example.test/{0}");
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var result = await aggregator.QueryWithResultAsync("synthetic", guard.Token);
+        Assert.True(result.Complete);
+        Assert.Equal(7, Assert.Single(result.Entries).GetProperty("id").GetInt32());
+        Assert.Equal(2, attempts);
+    }
+
+    private sealed class DisconnectedStream : Stream {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("Synthetic disconnect.");
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken token) => Task.FromException<int>(new IOException("Synthetic disconnect."));
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class HeldContent(Task release) : HttpContent {
         internal int Reads;
         internal bool Disposed;
