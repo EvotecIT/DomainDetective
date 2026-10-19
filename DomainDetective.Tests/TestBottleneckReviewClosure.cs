@@ -72,8 +72,11 @@ public class TestTtlBottleneckReviewClosure {
         Assert.False(analysis.TtlsFromAuthoritativeServers);
     }
 
-    [Fact]
-    public async Task BlackholedAlternativeCannotStarveNinthRrsetOnHealthyServer() {
+    [Theory]
+    [InlineData(20, true)]
+    [InlineData(900, false)]
+    [InlineData(1500, true)]
+    public async Task HealthyServerCompletesEveryRrsetWithinOriginalBudget(int replyDelay, bool alternative) {
         var firstWave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var alternativeEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         int healthyStarted = 0;
@@ -83,13 +86,14 @@ public class TestTtlBottleneckReviewClosure {
                 await Task.Delay(Timeout.Infinite, token);
             } else {
                 if (Interlocked.Increment(ref healthyStarted) == 1) { firstWave.TrySetResult(true); }
-                await alternativeEntered.Task.WaitWithCancellation(token);
-                await Task.Delay(20, token);
+                if (alternative) { await alternativeEntered.Task.WaitWithCancellation(token); }
+                await Task.Delay(replyDelay, token);
             }
             return new DnsResponse { IsAuthoritativeAnswer = true, Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "synthetic", TTL = 600 } } };
-        }) { UniformityQueryTimeoutMs = 2000 };
+        }) { UniformityQueryTimeoutMs = 4000 };
         analysis.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, token) => {
             if (owner == "ns.example.test") {
+                if (type == DnsRecordType.AAAA && !alternative) { return new DnsResponse(); }
                 if (type == DnsRecordType.AAAA) { await firstWave.Task.WaitWithCancellation(token); }
                 return new DnsResponse { Answers = new[] { Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1") } };
             }
@@ -103,6 +107,31 @@ public class TestTtlBottleneckReviewClosure {
         Assert.Equal(9, healthyStarted);
         Assert.Equal(600, Assert.Single(analysis.TlsRptTxtTtls));
         Assert.True(analysis.TtlsFromAuthoritativeServers);
+    }
+
+    [Fact]
+    public async Task CallerCancellationDrainsEveryAdmittedTtlProbe() {
+        int active = 0;
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var analysis = new DnsTtlAnalysis(async (_, _, _, _, token, _) => {
+            Interlocked.Increment(ref active);
+            entered.TrySetResult(true);
+            try { await Task.Delay(Timeout.Infinite, token); return null; }
+            finally { Interlocked.Decrement(ref active); }
+        });
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (owner, type, _) => Task.FromResult(new DnsResponse {
+            Answers = owner == "ns.example.test" ? type == DnsRecordType.A ? new[] { Answer(type, "192.0.2.1") } : Array.Empty<DnsAnswer>()
+                : type == DnsRecordType.A ? new[] { Answer(type, "192.0.2.44") }
+                    : type == DnsRecordType.NS ? new[] { Answer(type, "ns.example.test") } : Array.Empty<DnsAnswer>()
+        });
+        var run = analysis.Analyze("example.test", new InternalLogger(), caller.Token);
+        await entered.Task.WaitWithCancellation(caller.Token);
+        caller.Cancel();
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal(caller.Token, error.CancellationToken);
+        Assert.Equal(0, Volatile.Read(ref active));
+        Assert.False(analysis.TtlsFromAuthoritativeServers);
     }
 
     private static DnsAnswer Answer(DnsRecordType type, string value) => new() { Type = type, DataRaw = value, TTL = 300 };
