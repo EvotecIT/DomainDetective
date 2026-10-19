@@ -104,6 +104,20 @@ public class TestFailureIntegrationClosure {
             executionOptions: new HealthCheckExecutionOptions { IncludeTakeoverCname = true })));
     }
 
+    [Fact]
+    public async Task FatalSelectedExceptionWinsOverCancellationWhileAuxiliaryFailureDrains() {
+        using var health = new DomainHealthCheck();
+        using var caller = new CancellationTokenSource();
+        var fatal = new OutOfMemoryException("Synthetic fatal selected boundary; no allocation pressure.");
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, type, _) => {
+            if (type == DnsRecordType.CAA) { caller.Cancel(); throw fatal; }
+            if (type == DnsRecordType.CNAME) { throw new InvalidOperationException("Ordinary auxiliary failure."); }
+            return Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
+        };
+        Assert.Same(fatal, await Assert.ThrowsAsync<OutOfMemoryException>(() => health.Verify("fixture.example.test", new[] { HealthCheckType.CAA },
+            cancellationToken: caller.Token, executionOptions: new HealthCheckExecutionOptions { IncludeTakeoverCname = true })));
+    }
+
     private sealed class Handler : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html></html>") });

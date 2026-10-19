@@ -386,7 +386,6 @@ public partial class DomainHealthCheck {
                     && (executionFailure != null || HasRecordedCheckFailure())) {
                     // Selected ordinary failures are deferred until independent work finishes.
                     // Draining an auxiliary must not replace that original failure.
-                    cancellationToken.ThrowIfCancellationRequested();
                 }
                 if (cancellationToken.IsCancellationRequested) {
                     foreach (var check in LastVerifiedChecks.Where(check => !_completedVerificationChecks.ContainsKey(check))) {
