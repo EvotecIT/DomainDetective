@@ -345,7 +345,8 @@ public partial class DomainHealthCheck {
             async Task RunCheckWithProgressAsync(HealthCheckType healthCheckType) {
                 await RunCheckAsync(healthCheckType).ConfigureAwait(false);
                 var done = Interlocked.Increment(ref processedChecks);
-                _logger.WriteInformation("{0} check completed", healthCheckType);
+                _logger.WriteInformation(HasCheckExecutionFailure(healthCheckType)
+                    ? "{0} check did not complete" : "{0} check completed", healthCheckType);
                 ReportProgress(healthCheckType.ToString(), done);
             }
 
@@ -357,7 +358,8 @@ public partial class DomainHealthCheck {
                         ReportProgress(healthCheckType.ToString(), processedChecks);
                         await RunCheckAsync(healthCheckType);
                         processedChecks++;
-                        _logger.WriteInformation("{0} check completed", healthCheckType);
+                        _logger.WriteInformation(HasCheckExecutionFailure(healthCheckType)
+                            ? "{0} check did not complete" : "{0} check completed", healthCheckType);
                         ReportProgress(healthCheckType.ToString(), processedChecks);
                     }
                 } else {
