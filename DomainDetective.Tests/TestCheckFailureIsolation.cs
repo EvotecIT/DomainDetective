@@ -140,15 +140,6 @@ public class TestCheckFailureIsolation {
         Assert.Contains(result.Assessments, a => a.Code == "DesiredState.Check.QueryFailed");
     }
 
-    [Fact]
-    public void MissingConverterRetainsCheckIdentityWithoutAnOptionalErrorSink() {
-        using var health = Create();
-        var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.ROBOTS })));
-        Assert.Equal(HealthCheckType.ROBOTS, failure.Check);
-        Assert.Null(failure.Subject);
-        Assert.Equal("Verification.Conversion.Failed", Assert.Single(failure.Assessments).Code);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

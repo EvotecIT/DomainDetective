@@ -24,6 +24,7 @@ namespace DomainDetective.Tests {
                 item => Assert.IsType<SpfRecordInfo>(item),
                 item => Assert.IsType<DmarcRecordInfo>(item),
                 item => Assert.IsType<NsInfo>(item),
+                item => Assert.Equal(HealthCheckType.DELEGATION, Assert.IsType<NsInfo>(item).Check),
                 item => Assert.IsType<WildcardDnsInfo>(item));
         }
 

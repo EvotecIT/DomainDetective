@@ -16,13 +16,13 @@ public partial class DnsTtlAnalysis {
     public bool TtlsFromAuthoritativeServers { get; private set; }
     private readonly HashSet<string> _authoritativeTtlLabels = new(StringComparer.Ordinal);
 
-    private async Task UseAuthoritativeTtlsAsync(string domain, DnsAnswer[] nsRecords, InternalLogger logger, CancellationToken token) {
+    private async Task UseAuthoritativeTtlsAsync(string domain, DnsAnswer[] nsRecords, bool hasSoaRecord, InternalLogger logger, CancellationToken token) {
         var requests = new List<(string Label, string Owner, DnsRecordType Type, IReadOnlyList<int> Values, Action<int[]> Apply)> {
             ("A", domain, DnsRecordType.A, ATtls, values => ATtls = values),
             ("AAAA", domain, DnsRecordType.AAAA, AaaaTtls, values => AaaaTtls = values),
             ("MX", domain, DnsRecordType.MX, MxTtls, values => MxTtls = values),
             ("NS", domain, DnsRecordType.NS, NsTtls, values => NsTtls = values),
-            ("SOA", domain, DnsRecordType.SOA, SoaTtl > 0 ? new[] { SoaTtl } : Array.Empty<int>(), values => SoaTtl = values[0]),
+            ("SOA", domain, DnsRecordType.SOA, hasSoaRecord ? new[] { SoaTtl } : Array.Empty<int>(), values => SoaTtl = values[0]),
             ("SPF TXT", domain, DnsRecordType.TXT, SpfTxtTtls, values => SpfTxtTtls = values),
             ("DMARC TXT", $"_dmarc.{domain}", DnsRecordType.TXT, DmarcTxtTtls, values => DmarcTxtTtls = values),
             ("MTA-STS TXT", $"_mta-sts.{domain}", DnsRecordType.TXT, MtastsTxtTtls, values => MtastsTxtTtls = values),

@@ -259,7 +259,7 @@ namespace DomainDetective {
                 }
             }
 
-            await UseAuthoritativeTtlsAsync(domainName, nsRecords, logger, ct).ConfigureAwait(false);
+            await UseAuthoritativeTtlsAsync(domainName, nsRecords, soaRecords.Length > 0, logger, ct).ConfigureAwait(false);
             foreach (var dkim in DkimTxtTtls) {
                 var selector = dkim.Key.Substring(0, dkim.Key.IndexOf("._domainkey.", StringComparison.OrdinalIgnoreCase));
                 Evaluate($"DKIM TXT ({selector})", dkim.Value, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
