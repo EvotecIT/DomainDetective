@@ -27,6 +27,7 @@ public partial class DomainHealthCheck {
             _checkFailureExceptions.Clear();
             _admittedVerificationChecks.Clear();
             Assessments.Clear();
+            MailDomainClassification = null;
             ResetSharedExecutionState();
         }
     }
@@ -41,7 +42,6 @@ public partial class DomainHealthCheck {
             _daneTask = null;
             _daneKey = null;
             _cacheDomain = null;
-            MailDomainClassification = null;
         }
     }
 
