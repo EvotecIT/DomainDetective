@@ -12,7 +12,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyNS(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyNS(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => VerifyNSDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyNSDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -44,7 +47,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="nsRecord">NS record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckNS(string nsRecord, CancellationToken cancellationToken = default) {
+        public Task CheckNS(string nsRecord, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecord, cancellationToken), cancellationToken);
+
+        private async Task CheckNSDirectCore(string nsRecord, CancellationToken cancellationToken = default) {
             NSAnalysis.Subject = null;
             await NSAnalysis.AnalyzeNsRecords(new List<DnsAnswer> {
                 new DnsAnswer {
@@ -59,7 +65,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="nsRecords">Collection of NS record texts.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckNS(List<string> nsRecords, CancellationToken cancellationToken = default) {
+        public Task CheckNS(List<string> nsRecords, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.NS, () => CheckNSDirectCore(nsRecords, cancellationToken), cancellationToken);
+
+        private async Task CheckNSDirectCore(List<string> nsRecords, CancellationToken cancellationToken = default) {
             NSAnalysis.Subject = null;
             var dnsResults = nsRecords.Select(record => new DnsAnswer {
                 DataRaw = record,

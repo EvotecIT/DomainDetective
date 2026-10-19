@@ -11,7 +11,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="tlsRptRecord">TLSRPT record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckTLSRPT(string tlsRptRecord, CancellationToken cancellationToken = default) {
+        public Task CheckTLSRPT(string tlsRptRecord, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.TLSRPT, () => CheckTLSRPTDirectCore(tlsRptRecord, cancellationToken), cancellationToken);
+
+        private async Task CheckTLSRPTDirectCore(string tlsRptRecord, CancellationToken cancellationToken = default) {
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = tlsRptRecord,
@@ -25,7 +28,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.TLSRPT, () => VerifyTLSRPTDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyTLSRPTDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

@@ -12,7 +12,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="daneRecord">TLSA record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckDANE(string daneRecord, CancellationToken cancellationToken = default) {
+        public Task CheckDANE(string daneRecord, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => CheckDANEDirectCore(daneRecord, cancellationToken), cancellationToken);
+
+        private async Task CheckDANEDirectCore(string daneRecord, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
                 new DnsAnswer {
@@ -26,7 +29,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="daneRecords">Collection of TLSA record texts.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckDANE(IEnumerable<string> daneRecords, CancellationToken cancellationToken = default) {
+        public Task CheckDANE(IEnumerable<string> daneRecords, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => CheckDANEDirectCore(daneRecords, cancellationToken), cancellationToken);
+
+        private async Task CheckDANEDirectCore(IEnumerable<string> daneRecords, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             var answers = daneRecords.Select(record => new DnsAnswer {
                 DataRaw = record
@@ -42,6 +48,9 @@ namespace DomainDetective {
         /// <param name="ports">Ports to check for DANE.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => VerifyDANEDirectCore(domainName, ports, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private Task VerifyDANEDirectCore(string domainName, int[] ports, CancellationToken cancellationToken = default) =>
             VerifyDanePortsAsync(domainName, ports, cancellationToken, false);
 
         private async Task VerifyDanePortsAsync(string domainName, int[] ports, CancellationToken cancellationToken, bool includeMxSmtp) {
@@ -102,7 +111,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="services">Services to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDANE(ServiceDefinition[] services, CancellationToken cancellationToken = default) {
+        public Task VerifyDANE(ServiceDefinition[] services, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => VerifyDANEDirectCore(services, cancellationToken), cancellationToken, ownerDomains: services?.Select(service => service.Host));
+
+        private async Task VerifyDANEDirectCore(ServiceDefinition[] services, CancellationToken cancellationToken = default) {
             if (services == null || services.Length == 0) {
                 throw new ArgumentException("No services provided.", nameof(services));
             }
@@ -157,7 +169,10 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to query.</param>
         /// <param name="serviceTypes">Services to investigate.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) {
+        public Task VerifyDANE(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DANE, () => VerifyDANEDirectCore(domainName, serviceTypes, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyDANEDirectCore(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

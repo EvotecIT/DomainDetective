@@ -18,13 +18,22 @@ public partial class DomainHealthCheck {
     private Task? _daneTask;
     private string? _daneKey;
     private string? _cacheDomain;
+    private long _executionStateVersion;
 
     private void ResetExecutionState() {
         lock (_executionLock) {
+            _executionStateVersion++;
             _checkFailures.Clear();
             _checkFailureExceptions.Clear();
             _admittedVerificationChecks.Clear();
             Assessments.Clear();
+            MailDomainClassification = null;
+            ResetSharedExecutionState();
+        }
+    }
+
+    private void ResetSharedExecutionState() {
+        lock (_executionLock) {
             _spfTask = null;
             _mxRecordsTask = null;
             _mxHostsTask = null;
@@ -33,7 +42,6 @@ public partial class DomainHealthCheck {
             _daneTask = null;
             _daneKey = null;
             _cacheDomain = null;
-            MailDomainClassification = null;
         }
     }
 

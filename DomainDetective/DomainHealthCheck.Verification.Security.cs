@@ -5,7 +5,10 @@ using System.Linq;
 namespace DomainDetective {
     public partial class DomainHealthCheck {
         /// <summary>Executes the verify security txt operation.</summary>
-        public async Task VerifySecurityTxt(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifySecurityTxt(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SECURITYTXT, () => VerifySecurityTxtDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifySecurityTxtDirectCore(string domainName, CancellationToken cancellationToken = default) {
             SecurityTXTAnalysis = new SecurityTXTAnalysis();
             await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger, cancellationToken: cancellationToken);
         }

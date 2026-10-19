@@ -8,7 +8,10 @@ namespace DomainDetective
         /// <summary>
         /// Probes OIDC discovery and GetUserRealm to collect tenant hints.
         /// </summary>
-        public async Task VerifyIdpInfo(string domain, CancellationToken cancellationToken = default)
+        public Task VerifyIdpInfo(string domain, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.IDENTITYPROVIDER, () => VerifyIdpInfoDirectCore(domain, cancellationToken), cancellationToken, ownerDomain: domain);
+
+        private async Task VerifyIdpInfoDirectCore(string domain, CancellationToken cancellationToken = default)
         {
             IdpInfoAnalysis = new IdpInfoAnalysis {
                 HttpClientFactory = HttpClientFactory

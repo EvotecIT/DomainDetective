@@ -18,7 +18,10 @@ namespace DomainDetective {
         /// </remarks>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyAutodiscover(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyAutodiscover(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.AUTODISCOVER, () => VerifyAutodiscoverDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyAutodiscoverDirectCore(string domainName, CancellationToken cancellationToken = default) {
             domainName = NormalizeDomain(domainName);
             AutodiscoverAnalysis = new AutodiscoverAnalysis {
                 DnsConfiguration = DnsConfiguration

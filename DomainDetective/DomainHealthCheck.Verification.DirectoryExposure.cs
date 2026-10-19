@@ -6,7 +6,10 @@ namespace DomainDetective {
         /// <summary>
         /// Scans common directories for public exposure.
         /// </summary>
-        public async Task VerifyDirectoryExposure(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyDirectoryExposure(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DIRECTORYEXPOSURE, () => VerifyDirectoryExposureDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyDirectoryExposureDirectCore(string domainName, CancellationToken cancellationToken = default) {
             domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
             DirectoryExposureAnalysis = new DirectoryExposureAnalysis();

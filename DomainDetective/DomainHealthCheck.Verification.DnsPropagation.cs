@@ -12,7 +12,10 @@ public partial class DomainHealthCheck
     /// <summary>
     /// Compares DNS answers across multiple public resolvers (global visibility).
     /// </summary>
-    public async Task VerifyDnsPropagationAsync(string domainName, CancellationToken cancellationToken = default)
+    public Task VerifyDnsPropagationAsync(string domainName, CancellationToken cancellationToken = default) =>
+        CompleteDirectCheckAsync(HealthCheckType.DNSPROPAGATION, () => VerifyDnsPropagationAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+    private async Task VerifyDnsPropagationAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(domainName))
         {

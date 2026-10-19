@@ -9,7 +9,10 @@ public partial class DomainHealthCheck {
     /// </summary>
     /// <param name="domainName">Domain, host, sitemap URL, or HTTP/HTTPS URL to analyze.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    public async Task VerifySitemapAsync(string domainName, CancellationToken cancellationToken = default) {
+    public Task VerifySitemapAsync(string domainName, CancellationToken cancellationToken = default) =>
+        CompleteDirectCheckAsync(HealthCheckType.SITEMAP, () => VerifySitemapAsyncDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+    private async Task VerifySitemapAsyncDirectCore(string domainName, CancellationToken cancellationToken = default) {
         var previous = SitemapAnalysis;
         SitemapAnalysis = new SitemapAnalysis {
             HttpHandlerFactory = previous.HttpHandlerFactory
