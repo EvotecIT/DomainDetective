@@ -51,6 +51,10 @@ public static partial class HtmlCompositionReport
                 continue;
             }
 
+            foreach (var findings in (b.AdditionalEvidence?.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                .GroupBy(assessment => string.IsNullOrWhiteSpace(assessment.Category) ? "Additional evidence" : assessment.Category!)) {
+                Add(domain, findings.Key, findings);
+            }
             Add(domain, "MX", b.Mx?.Assessments);
             Add(domain, "SPF", b.Spf?.Assessments);
             Add(domain, "DMARC", b.Dmarc?.Assessments);

@@ -6,6 +6,27 @@ namespace DomainDetective.Tests;
 
 public class TestReportExecutionEvidence {
     [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(7)]
+    public void HtmlDomainCardsCountAndPrioritizeExecutionFailures(int domains) {
+        var items = Enumerable.Range(1, domains).Select(index => (object)new AssessmentEvidenceInfo(
+            $"domain{index}.example.test", new[] { new Assessment {
+                Severity = AssessmentSeverity.Error, Code = "Verification.Check.Failed", Category = "CAA",
+                Target = $"domain{index}.example.test", Message = "Current CAA lookup failed."
+            } })).ToArray();
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
+        try {
+            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(path, items, ReportScope.Detailed);
+            var html = File.ReadAllText(path);
+            Assert.Contains("0 warning(s), 1 error(s)", html);
+            Assert.Contains("Error •", System.Net.WebUtility.HtmlDecode(html));
+            Assert.DoesNotContain("0 warning(s), 0 error(s)", html);
+            Assert.DoesNotContain("No diagnostics data available.", html);
+        } finally { if (File.Exists(path)) { File.Delete(path); } }
+    }
+
+    [Theory]
     [InlineData(ReportFormat.Html, ".html")]
     [InlineData(ReportFormat.Markdown, ".md")]
     [InlineData(ReportFormat.Word, ".docx")]

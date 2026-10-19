@@ -134,6 +134,8 @@ public static partial class HtmlCompositionReport {
 
         int warn = 0;
         int err = 0;
+        warn += b.AdditionalEvidence?.WarningCount ?? 0;
+        err += b.AdditionalEvidence?.ErrorCount ?? 0;
 
         static void Add(ref int warn, ref int err, int w, int e) {
             warn += w;
@@ -225,6 +227,7 @@ public static partial class HtmlCompositionReport {
             }
         }
 
+        foreach (var a in FromList(b.AdditionalEvidence?.Assessments)) yield return a;
         foreach (var a in FromList(b.Mx?.Assessments)) yield return a;
         foreach (var a in FromList(b.Spf?.Assessments)) yield return a;
         foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;
@@ -436,6 +439,7 @@ public static partial class HtmlCompositionReport {
 
     private sealed class DomainBucket {
         public string Subject { get; set; } = string.Empty;
+        public AssessmentEvidenceInfo? AdditionalEvidence { get; set; }
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
@@ -534,6 +538,7 @@ public static partial class HtmlCompositionReport {
     private static DomainBucket Map(CompositionBuilder.DomainBucket s) {
         var b = new DomainBucket {
             Subject = s.Subject,
+            AdditionalEvidence = s.AdditionalEvidence,
             Mx = s.Mx,
             Spf = s.Spf,
             Dmarc = s.Dmarc,
