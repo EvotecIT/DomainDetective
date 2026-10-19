@@ -382,7 +382,11 @@ public partial class DomainHealthCheck {
                 throw;
             } finally {
                 try { await Task.WhenAll(auxiliaryTasks).ConfigureAwait(false); }
-                catch when (executionFailure != null) { /* Drain all owners without replacing the primary failure. */ }
+                catch (Exception exception) when (exception is not OutOfMemoryException
+                    && (executionFailure != null || HasRecordedCheckFailure())) {
+                    // Selected ordinary failures are deferred until independent work finishes.
+                    // Draining an auxiliary must not replace that original failure.
+                }
                 if (cancellationToken.IsCancellationRequested) {
                     foreach (var check in LastVerifiedChecks.Where(check => !_completedVerificationChecks.ContainsKey(check))) {
                         RecordCheckCancellation(check, domainName);

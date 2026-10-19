@@ -176,6 +176,12 @@ public static class HealthCheckReportItems {
                 foreach (var assessment in owner.Assessments) { eligible.Add(assessment); }
             }
         }
-        return all.Where(eligible.Contains);
+        if (healthCheck.VerificationTakeoverCompleted == true) {
+            foreach (var assessment in healthCheck.TakeoverCnameAnalysis.Assessments) { eligible.Add(assessment); }
+        }
+        var plainHttp = healthCheck.VerificationPlainHttpCompleted == true
+            ? healthCheck.PlainHttpAnalysis.Assessments : Enumerable.Empty<Assessment>();
+        foreach (var assessment in plainHttp) { eligible.Add(assessment); }
+        return all.Concat(plainHttp).Where(eligible.Contains).Distinct();
     }
 }
