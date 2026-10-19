@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +18,7 @@ namespace DomainDetective;
 /// <summary>
 /// Downloads, parses, and validates sitemap XML documents and optionally probes listed URLs.
 /// </summary>
-public sealed class SitemapAnalysis : IHasAssessments {
+public sealed partial class SitemapAnalysis : IHasAssessments {
     private const string SitemapNamespace = "http://www.sitemaps.org/schemas/sitemap/0.9";
     private static readonly Lazy<XmlSchemaSet> _protocolSchemas = new(LoadProtocolSchemas);
     private static readonly XNamespace _sitemapNs = SitemapNamespace;
@@ -82,6 +80,9 @@ public sealed class SitemapAnalysis : IHasAssessments {
     /// <summary>Factory for HTTP message handlers; mainly useful for tests.</summary>
     public Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
+    /// <summary>Whether discovery, parsing and the configured URL probe set finished within the analysis budget.</summary>
+    public bool AnalysisComplete { get; private set; }
+
     /// <summary>Executes sitemap analysis for a domain, host, sitemap URL, or HTTP/HTTPS URL.</summary>
     public async Task AnalyzeAsync(string subject, InternalLogger? logger = null, SitemapAnalysisOptions? options = null, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(subject)) {
@@ -89,8 +90,23 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         options ??= new SitemapAnalysisOptions();
+        if (options.AnalysisTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(options.AnalysisTimeout)); }
+        if (options.MaxUrlProbeParallelism <= 0) { throw new ArgumentOutOfRangeException(nameof(options.MaxUrlProbeParallelism)); }
         Reset(subject);
+        AnalysisComplete = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.AnalysisTimeout);
+        try {
+            await AnalyzeCoreAsync(subject, logger, options, deadline.Token).ConfigureAwait(false);
+            deadline.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
+            AnalysisComplete = true;
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+            AddAssessment(AssessmentSeverity.Warning, "SITEMAP.Analysis.Incomplete", "Sitemap analysis budget exhausted; remaining documents and URLs were not checked.", Subject);
+        }
+    }
 
+    private async Task AnalyzeCoreAsync(string subject, InternalLogger? logger, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
         using var client = CreateClient(options);
         var trimmedSubject = subject.Trim();
         var seeds = await DiscoverSeedSitemapsAsync(client, trimmedSubject, options, cancellationToken).ConfigureAwait(false);
@@ -113,40 +129,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
 
         logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entries, {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
-    }
-
-    private async Task ProcessSitemapQueueAsync(HttpClient client, IEnumerable<Uri> seeds, HashSet<string> seenDocs, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var pending = new Queue<Uri>(seeds);
-
-        while (pending.Count > 0 && Documents.Count < Math.Max(1, options.MaxSitemapDocuments)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var sitemapUri = pending.Dequeue();
-            if (!seenDocs.Add(sitemapUri.AbsoluteUri)) {
-                continue;
-            }
-
-            var parsed = await FetchAndParseSitemapAsync(client, sitemapUri, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
-            if (parsed.Document != null) {
-                Documents.Add(parsed.Document);
-            }
-
-            foreach (var nested in parsed.NestedSitemaps) {
-                if (Documents.Count + pending.Count >= Math.Max(1, options.MaxSitemapDocuments)) {
-                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "Sitemap document limit reached before all sitemapindex entries were fetched.", sitemapUri.AbsoluteUri);
-                    break;
-                }
-                if (!IsTrustedRemoteUri(nested, options)) {
-                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CrossHostSitemap, "Skipped sitemap index entry outside the analyzed origin host: " + nested.Host + ".", nested.AbsoluteUri);
-                    continue;
-                }
-                pending.Enqueue(nested);
-            }
-
-            if (Entries.Count >= Math.Max(1, options.MaxEntries)) {
-                AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "Sitemap URL entry limit reached before all urlset entries were parsed.", sitemapUri.AbsoluteUri);
-                break;
-            }
-        }
     }
 
     private void Reset(string subject) {
@@ -244,7 +226,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
     }
 
-    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
+    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken, SitemapHttpResult? downloaded = null) {
         var result = new SitemapParseResult();
         var docInfo = new SitemapDocument {
             Url = sitemapUri.AbsoluteUri
@@ -252,7 +234,7 @@ public sealed class SitemapAnalysis : IHasAssessments {
 
         AddCrossHostSitemapAssessment(sitemapUri);
 
-        var response = await SendFollowingRedirectsAsync(
+        var response = downloaded ?? await SendFollowingRedirectsAsync(
             client,
             sitemapUri,
             options,
@@ -563,106 +545,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
         }
     }
 
-    private async Task ProbeSitemapUrlsAsync(HttpClient client, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var probeLimit = Math.Max(0, Math.Min(options.MaxUrlProbes, Entries.Count));
-        if (Entries.Count > probeLimit) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "URL probe limit reached; checked " + probeLimit.ToString(CultureInfo.InvariantCulture) + " of " + Entries.Count.ToString(CultureInfo.InvariantCulture) + " sitemap entries.", Subject);
-        }
-
-        foreach (var entry in Entries.Where(entry => entry.LocationValid).Take(probeLimit)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (options.RestrictRemoteFetchesToOriginHost &&
-                Uri.TryCreate(entry.Location, UriKind.Absolute, out var entryUri) &&
-                !IsTrustedRemoteUri(entryUri, options)) {
-                AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, "Skipped sitemap URL probe outside the analyzed origin host.", entry.Location);
-                continue;
-            }
-
-            var probe = await ProbeUrlAsync(client, entry.Location, options, cancellationToken).ConfigureAwait(false);
-            UrlProbes.Add(probe);
-            AddProbeAssessment(probe);
-        }
-    }
-
-    private async Task<SitemapUrlProbe> ProbeUrlAsync(HttpClient client, string url, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var probe = new SitemapUrlProbe {
-            Url = url
-        };
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) {
-            probe.Error = "Invalid URL.";
-            return probe;
-        }
-
-        var response = await SendFollowingRedirectsAsync(client, uri, options, readBody: options.CheckCanonical, cancellationToken).ConfigureAwait(false);
-        probe.StatusCode = response.StatusCode;
-        probe.ContentType = response.ContentType;
-        probe.FinalUrl = response.FinalUri?.AbsoluteUri;
-        probe.Error = response.Error;
-        probe.WasRedirected = response.WasRedirected;
-        probe.RedirectLoop = response.RedirectLoop;
-        probe.RedirectHopCount = response.RedirectChain.Count > 0 ? Math.Max(0, response.RedirectChain.Count - 1) : 0;
-        foreach (var item in response.RedirectChain) {
-            probe.RedirectChain.Add(item);
-        }
-
-        var status = response.StatusCode ?? 0;
-        probe.Success = status >= 200 && status < 300 && !probe.RedirectLoop;
-        if (probe.Success && options.CheckCanonical) {
-            probe.NoIndex = HasNoIndex(response.Headers, response.Body);
-            probe.CanonicalUrl = ExtractCanonical(response.FinalUri ?? uri, response.Body);
-            if (!string.IsNullOrWhiteSpace(probe.CanonicalUrl) && response.FinalUri != null) {
-                probe.CanonicalMismatch = !UrlsEqualWithoutFragment(probe.CanonicalUrl!, response.FinalUri.AbsoluteUri);
-            }
-        }
-
-        return probe;
-    }
-
-    private void AddProbeAssessment(SitemapUrlProbe probe) {
-        if (probe.RedirectLoop) {
-            RedirectLoopCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlRedirectLoop, "Sitemap URL has a redirect loop.", probe.Url);
-            return;
-        }
-
-        if (!probe.StatusCode.HasValue || probe.StatusCode.Value == 0) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, probe.Error ?? "Sitemap URL fetch failed.", probe.Url);
-            return;
-        }
-
-        if (probe.StatusCode.Value >= 300 && probe.StatusCode.Value < 400) {
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlFetchFailed, probe.Error ?? "Sitemap URL redirect could not be followed.", probe.Url);
-            return;
-        }
-
-        if (probe.StatusCode.Value >= 500) {
-            ServerErrorCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlServerError, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + ".", probe.Url);
-        } else if (probe.StatusCode.Value == 401 || probe.StatusCode.Value == 403) {
-            ClientErrorCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlAccessForbidden, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + " to the unauthenticated probe. The page may still exist for browser sessions.", probe.Url);
-        } else if (probe.StatusCode.Value >= 400) {
-            ClientErrorCount++;
-            AddAssessment(AssessmentSeverity.Error, SitemapCodes.UrlClientError, "Sitemap URL returned HTTP " + probe.StatusCode.Value.ToString(CultureInfo.InvariantCulture) + ".", probe.Url);
-        } else if (probe.WasRedirected) {
-            RedirectCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlRedirect, "Sitemap URL redirects to " + (probe.FinalUrl ?? "another URL") + ".", probe.Url);
-        } else {
-            AddAssessment(AssessmentSeverity.Info, SitemapCodes.UrlOk, "Sitemap URL returned a successful response.", probe.Url);
-        }
-
-        if (probe.NoIndex) {
-            NoIndexCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.UrlNoIndex, "Sitemap URL is marked noindex.", probe.Url);
-        }
-
-        if (probe.CanonicalMismatch) {
-            CanonicalMismatchCount++;
-            AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CanonicalMismatch, "Sitemap URL canonicalizes to " + probe.CanonicalUrl + ".", probe.Url);
-        }
-    }
-
     private async Task<SitemapHttpResult> SendFollowingRedirectsAsync(HttpClient client, Uri startUri, SitemapAnalysisOptions options, bool readBody, CancellationToken cancellationToken, int? maxBodyCharacters = null) {
         var result = new SitemapHttpResult();
         var current = startUri;
@@ -758,152 +640,6 @@ public sealed class SitemapAnalysis : IHasAssessments {
             }
         }
         return headers;
-    }
-
-    private static async Task<string?> ReadLimitedBodyAsync(HttpContent content, int maxCharacters, bool decompressGzip, CancellationToken cancellationToken) {
-        var limit = Math.Max(1024, maxCharacters);
-
-        Encoding encoding;
-        try {
-            var charset = content.Headers.ContentType?.CharSet;
-            var trimmedCharset = string.Empty;
-            if (!string.IsNullOrWhiteSpace(charset)) {
-                trimmedCharset = charset!.Trim('"');
-            }
-
-            encoding = string.IsNullOrWhiteSpace(trimmedCharset)
-                ? Encoding.UTF8
-                : Encoding.GetEncoding(trimmedCharset);
-        } catch (ArgumentException) {
-            encoding = Encoding.UTF8;
-        }
-
-        using var stream = await content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var readableStream = await CreateReadableBodyStreamAsync(stream, decompressGzip, cancellationToken).ConfigureAwait(false);
-        using var reader = new StreamReader(readableStream, encoding, detectEncodingFromByteOrderMarks: true, bufferSize: 8192);
-        var builder = new StringBuilder(Math.Min(limit, 8192));
-        var buffer = new char[Math.Min(limit, 8192)];
-
-        while (builder.Length < limit) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var remaining = limit - builder.Length;
-            var read = await reader.ReadAsync(buffer, 0, Math.Min(buffer.Length, remaining)).ConfigureAwait(false);
-            if (read == 0) {
-                break;
-            }
-
-            builder.Append(buffer, 0, read);
-        }
-
-        return builder.ToString();
-    }
-
-    private static async Task<Stream> CreateReadableBodyStreamAsync(Stream stream, bool decompressGzip, CancellationToken cancellationToken) {
-        if (decompressGzip) {
-            return new GZipStream(stream, CompressionMode.Decompress);
-        }
-
-        var prefix = new byte[2];
-        var read = 0;
-        while (read < prefix.Length) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var count = await stream.ReadAsync(prefix, read, prefix.Length - read).ConfigureAwait(false);
-            if (count == 0) {
-                break;
-            }
-
-            read += count;
-        }
-
-        var prefixedStream = new PrefixedStream(prefix, read, stream);
-        if (read >= 2 && prefix[0] == 0x1f && prefix[1] == 0x8b) {
-            return new GZipStream(prefixedStream, CompressionMode.Decompress);
-        }
-
-        return prefixedStream;
-    }
-
-    private static bool HasGzipHeader(HttpContent content) {
-        if (content.Headers.ContentEncoding.Any(value => value.Equals("gzip", StringComparison.OrdinalIgnoreCase))) {
-            return true;
-        }
-
-        return HasGzipMediaType(content.Headers.ContentType?.MediaType);
-    }
-
-    private static bool HasGzipMediaType(string? mediaType) {
-        if (string.IsNullOrWhiteSpace(mediaType)) {
-            return false;
-        }
-
-        return mediaType!.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
-    private sealed class PrefixedStream : Stream {
-        private readonly byte[] _prefix;
-        private readonly int _prefixLength;
-        private readonly Stream _inner;
-        private int _prefixOffset;
-
-        public PrefixedStream(byte[] prefix, int prefixLength, Stream inner) {
-            _prefix = prefix;
-            _prefixLength = prefixLength;
-            _inner = inner;
-        }
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush() {
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) {
-            var copied = CopyPrefix(buffer, offset, count);
-            if (copied == count) {
-                return copied;
-            }
-
-            return copied + _inner.Read(buffer, offset + copied, count - copied);
-        }
-
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) {
-            var copied = CopyPrefix(buffer, offset, count);
-            if (copied == count) {
-                return copied;
-            }
-
-            return copied + await _inner.ReadAsync(buffer, offset + copied, count - copied, cancellationToken).ConfigureAwait(false);
-        }
-
-        public override long Seek(long offset, SeekOrigin origin) {
-            throw new NotSupportedException();
-        }
-
-        public override void SetLength(long value) {
-            throw new NotSupportedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count) {
-            throw new NotSupportedException();
-        }
-
-        private int CopyPrefix(byte[] buffer, int offset, int count) {
-            if (_prefixOffset >= _prefixLength || count == 0) {
-                return 0;
-            }
-
-            var available = _prefixLength - _prefixOffset;
-            var copy = Math.Min(available, count);
-            Buffer.BlockCopy(_prefix, _prefixOffset, buffer, offset, copy);
-            _prefixOffset += copy;
-            return copy;
-        }
     }
 
     private static bool HasNoIndex(Dictionary<string, string> headers, string? body) {

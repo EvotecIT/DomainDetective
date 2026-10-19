@@ -1,0 +1,84 @@
+# Running domain checks efficiently
+
+`DomainHealthCheck.Verify` shares compatible work within a domain run. Selecting HTTP, CERT, and WEBSITE reuses the HTTP and certificate analyses needed by WEBSITE. NS and DELEGATION share child nameserver discovery; delegation still obtains its separate parent evidence. A new verification performs fresh analysis rather than reusing the previous run's mutable results.
+
+DNS queries use DnsClientX resolver reuse, response caching, and concurrent-query coalescing. The default health-check configuration enables response caching. Assigning a custom `DnsConfiguration` preserves its response-cache setting. DNSSEC validation continues through the resolver's validation and cache policy.
+
+## Control concurrency
+
+```csharp
+using var health = new DomainHealthCheck();
+var execution = new HealthCheckExecutionOptions {
+    MaxParallelism = 8,
+    DnsParallelism = 16
+};
+
+await health.Verify("example.com", new[] {
+    HealthCheckType.HTTP,
+    HealthCheckType.CERT,
+    HealthCheckType.WEBSITE,
+    HealthCheckType.NS,
+    HealthCheckType.DELEGATION,
+    HealthCheckType.DNSSEC
+}, cancellationToken: cancellationToken, executionOptions: execution);
+```
+
+`MaxParallelism` limits active checks. `DnsParallelism` limits recursive DNS queries across the run, including DNSSEC and DNSBL. In `VerifyBatchAsync` and `ProcessBatchAsync`, that DNS limit is shared across admitted domains; `MaxDomainParallelism` controls the number of active domains. The recursive-query limit does not cover direct authoritative DNS probes, HTTP requests, or TLS connections, which have their own bounds.
+
+DNSBL provider requests share at most half of the recursive-query slots, with a minimum of one. The allowance is shared across batch domains too. Each resolver also limits provider admission according to its configured endpoint cap and strategy's endpoint fan-out, leaving execution capacity for target discovery, SPF, TTL, and other recursive checks. If one provider request can occupy every available slot, the scheduled DNSBL check runs after the other checks in that verification. Explicit endpoint selection and resolver limits remain in effect.
+
+Use independent health-check instances for concurrent domains. A health check contains mutable analysis state and should have one active verification at a time. Dispose health checks and batch results when their evidence is no longer needed.
+
+Increasing concurrency helps independent queries overlap. Resolver throttling, remote latency, failed connections, and configured analysis budgets can still determine elapsed time.
+
+## Time budgets and incomplete evidence
+
+Caller cancellation propagates as cancellation. An internal analysis deadline retains the available evidence and marks the affected coverage incomplete. Read completion and error fields alongside the verdict: a failed probe does not establish that a feature is absent.
+
+| Analysis | Default budgets and concurrency | Evidence to inspect |
+| --- | --- | --- |
+| HTTP | 30 seconds per request operation | Reachability and failure details |
+| NS and delegation | Bounded nameserver address discovery; 5-second parent discovery/probe budget (`ParentDelegationTimeout`); resolver query limits remain in effect | `NsLookupComplete`, `DelegationAnalysisComplete`, `DnsQueryFailed`, `DnsQueryErrors`, `ParentAuthorityServer` |
+| Certificate | 60 seconds overall; 5 seconds per TLS version probe; 10 seconds for CT discovery | `AnalysisComplete`, `ProtocolSupportComplete`, `LegacyProtocolSupportComplete`, `CtLookupComplete` |
+| DNSSEC | 5 seconds per query; 15 seconds overall | Validation status, `MetadataQueriesComplete`, `MetadataQueryFailures` |
+| DNSBL | 8 seconds overall; 2 seconds per provider query after recursive admission; 2 seconds per discovery lookup including admission | `DiscoverySucceeded`, `DiscoveryErrors`, per-record `QuerySucceeded` and `Error` |
+| Sitemap | 20 seconds per HTTP probe; 60 seconds overall; 8 concurrent URL probes | `AnalysisComplete` and retained URL results |
+| Typosquatting | 60 seconds overall; 8 candidate workers | `AnalysisComplete`, incomplete DNS checks and query errors |
+| Static web scan | 60 seconds overall; 5 seconds for TLS; 10 seconds per RDAP lookup | `AnalysisComplete`, host TLS and DNS enrichment errors |
+
+For example, a CT deadline can leave a successfully captured certificate and entries from an earlier CT source intact while setting `CtLookupComplete` and `AnalysisComplete` to false. `PresentInCtLogs = false` with incomplete CT coverage does not confirm absence. Likewise, a local TLS policy error or timeout leaves protocol coverage incomplete rather than proving that the server rejects that protocol.
+
+For NS checks, a server failure or timeout leaves record presence unknown. A successful empty answer or NXDOMAIN remains conclusive negative evidence. Child NS discovery retains successful records when an address lookup fails, and parent/glue results remain unverified until the applicable delegation checks complete. The core NS view and narrative carry these distinctions.
+
+`ChildDnsQueryFailed` identifies child lookup failures independently of parent probes; `DnsQueryFailed` retains the combined operational status. `AddressResultKnown`, `CnameResultKnown` and `DiversityResultKnown` describe whether each corresponding result is conclusive. A confirmed missing address remains a finding even if another host times out, and observed positive evidence remains usable. `AsnDiversityComplete` distinguishes a complete ASN count from an observed lower bound. Desired-state evaluation uses only the evidence required by the requested conditions, so a parent failure or unrelated CNAME failure cannot invalidate a confirmed child result.
+
+`GluePresenceKnown` and `GlueConsistencyKnown` preserve confirmed missing glue or a confirmed mismatch when another comparison is unavailable. A failed lookup for an unused parent-server address remains diagnostic; a successful referral and completed glue comparisons still establish the delegation result. Typed network answers contribute only records of the requested role, and address presence requires a parsed IP address. A CNAME without a terminal address cannot satisfy an address requirement.
+
+Glue consistency compares the address families advertised in the observed parent response. A matching A-only glue RRset remains consistent when the child also publishes AAAA records, and vice versa. The comparison skips queries for unadvertised families. Missing usable glue and failed queries for advertised families retain their separate completeness and certainty states.
+
+Delegation locates the enclosing parent authority and queries a discovered server directly with recursion disabled. The selected server's non-authoritative referral supplies the parent NS set and glue. A child answer does not establish parent evidence, including when the parent and child share a server address. The first usable parent response is retained, with its address in `ParentAuthorityServer`. This checks the observed parent response against child evidence; it does not establish agreement across every parent server. A custom `QueryDnsFullOverride` must supply the parent response itself. Desired-state checks remain nonconforming when required evidence is unavailable, without claiming that records are confirmed missing or glue is confirmed inconsistent.
+
+Configure the owning analysis when a workflow needs different budgets:
+
+```csharp
+health.CertificateAnalysis.AnalysisTimeout = TimeSpan.FromSeconds(90);
+health.CertificateAnalysis.CtLookupTimeout = TimeSpan.FromSeconds(20);
+health.DnsConfiguration.DnsSecQueryTimeout = TimeSpan.FromSeconds(5);
+health.DnsConfiguration.DnsSecAnalysisTimeout = TimeSpan.FromSeconds(20);
+health.DNSBLAnalysis.AnalysisTimeout = TimeSpan.FromSeconds(12);
+health.DNSBLAnalysis.DiscoveryTimeout = TimeSpan.FromSeconds(3);
+```
+
+DNSBL checks resolved targets while other discovery continues. Slow or unavailable providers can still consume its overall budget. Compare completed provider coverage and discovery errors when comparing scan times; a shorter incomplete scan is not equivalent to a completed scan.
+
+Repeated canonical IP addresses share provider work within one analysis. Results retain the source hosts and discovery paths that produced each address, and a later analysis performs fresh provider work. Repeated address answers do not create duplicate source records or identical listing assessments.
+
+With a single resolver slot, DNSBL caps each discovery lookup at half the remaining overall budget so that a slow address family leaves time to check an already-resolved target. An IPv6 provider's A and AAAA requests share one provider execution deadline, starting when the first request obtains recursive admission.
+
+## HTTP transport and reference data
+
+Optional OpenSSL OCSP probes retain explicit stapling evidence captured before their local deadline. Caller cancellation still stops the child and propagates after both output streams are drained. Diagnostic or partial output without an OCSP result leaves stapling unknown; it does not establish that stapling is missing. Mail checks retain their overall timeout classification alongside any captured OCSP evidence.
+
+Anonymous HTTP posture probes reuse connections. Requests with explicit headers, cookies, proxy settings, custom handlers, or certificate-validation changes retain isolated transport. Cookies received during an anonymous request stay within that request's redirect chain.
+
+Bundled public-suffix and HSTS data use shared immutable snapshots, reducing repeated health-check construction costs. Explicit reference-data refreshes and custom inputs retain their own load behavior.

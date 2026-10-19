@@ -18,7 +18,7 @@ namespace DomainDetective;
 /// Provides TLS analysis for various mail protocols.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class MailTlsAnalysis : IHasAssessments {
+public partial class MailTlsAnalysis : IHasAssessments {
     /// <summary>Gets or sets the subject value.</summary>
     public string? Subject { get; set; }
     /// <summary>Supported mail protocols.</summary>
@@ -51,6 +51,10 @@ public class MailTlsAnalysis : IHasAssessments {
         public bool SupportsTls13 { get; set; }
         /// <summary>Gets or sets the supports tls12 value.</summary>
         public bool SupportsTls12 { get; set; }
+        /// <summary>Whether all auxiliary TLS protocol probes completed within their budget.</summary>
+        public bool ProtocolSupportComplete { get; set; }
+        /// <summary>Whether TLS 1.0 and TLS 1.1 support were both conclusively probed.</summary>
+        public bool LegacyProtocolSupportComplete { get; set; }
         /// <summary>Gets or sets the supports tls11 value.</summary>
         public bool SupportsTls11 { get; set; }
         /// <summary>Gets or sets the supports tls10 value.</summary>
@@ -113,8 +117,12 @@ public class MailTlsAnalysis : IHasAssessments {
 
     /// <summary>Stores results for each server.</summary>
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
-    /// <summary>Timeout for connections.</summary>
+    /// <summary>Maximum duration of connected protocol and TLS work, including secondary probes.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>Maximum time to establish a TCP connection, including address resolution.</summary>
+    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
+    /// <summary>Maximum number of mail endpoints probed concurrently.</summary>
+    public int MaxConcurrency { get; set; } = 4;
     /// <summary>Address family used by hostname-based probes.</summary>
     public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
     /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
@@ -135,19 +143,25 @@ public class MailTlsAnalysis : IHasAssessments {
         if (endpoint == null) {
             throw new ArgumentNullException(nameof(endpoint));
         }
-        ServerResults.Clear();
+        ResetEvidence();
         var result = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
         ServerResults[endpoint.Key] = result;
     }
 
     /// <summary>Analyzes multiple hosts.</summary>
     public async Task AnalyzeServers(MailProtocol protocol, IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-        ServerResults.Clear();
+        if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+        ResetEvidence();
+        cancellationToken.ThrowIfCancellationRequested();
+        var endpoints = new List<MailTransportEndpoint>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var host in hosts) {
             cancellationToken.ThrowIfCancellationRequested();
             var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
-            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+            if (seen.Add(endpoint.Key)) { endpoints.Add(endpoint); }
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        await AnalyzeServers(protocol, endpoints, logger, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Analyzes multiple explicitly targeted mail endpoints.</summary>
@@ -155,7 +169,15 @@ public class MailTlsAnalysis : IHasAssessments {
         if (endpoints == null) {
             throw new ArgumentNullException(nameof(endpoints));
         }
-        var targets = endpoints.ToArray();
+        ResetEvidence();
+        cancellationToken.ThrowIfCancellationRequested();
+        var materialized = new List<MailTransportEndpoint>();
+        foreach (var endpoint in endpoints) {
+            cancellationToken.ThrowIfCancellationRequested();
+            materialized.Add(endpoint);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var targets = materialized.ToArray();
         if (targets.Any(endpoint => endpoint == null)) {
             throw new ArgumentException("Endpoint collection cannot contain null values.", nameof(endpoints));
         }
@@ -167,11 +189,23 @@ public class MailTlsAnalysis : IHasAssessments {
                 $"Endpoint collection contains duplicate logical result key '{duplicateKey}'. Analyze each backend separately to retain its connection evidence.",
                 nameof(endpoints));
         }
-        ServerResults.Clear();
-        foreach (var endpoint in targets) {
-            cancellationToken.ThrowIfCancellationRequested();
-            ServerResults[endpoint.Key] = await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+        using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
+        var results = await Task.WhenAll(targets.Select(async endpoint => {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try {
+                return await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
+            } finally {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
+        for (int i = 0; i < targets.Length; i++) {
+            ServerResults[targets[i].Key] = results[i];
         }
+    }
+
+    internal void ResetEvidence() {
+        ServerResults.Clear();
+        Assessments.Clear();
     }
 
     private static string GetQuitCommand(MailProtocol protocol) => protocol switch {
@@ -181,6 +215,10 @@ public class MailTlsAnalysis : IHasAssessments {
 
     private static void PopulateNegotiatedTlsDetails(TlsResult result, SslStream ssl)
     {
+        // Capture before the post-handshake writer can close the stream.
+        result.Protocol = ssl.SslProtocol;
+        result.SupportsTls13 = (int)result.Protocol == 12288;
+        result.Tls13Used = result.SupportsTls13;
         var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
         result.CipherAlgorithm = tlsInfo.CipherAlgorithm;
         result.CipherStrength = tlsInfo.CipherStrength;
@@ -197,12 +235,15 @@ public class MailTlsAnalysis : IHasAssessments {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
         var result = new TlsResult { Connection = MailTransportConnectionEvidence.FromTarget(endpoint) };
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(Timeout);
+        timeoutCts.CancelAfter(MailTransportConnector.GetConnectTimeout(ConnectTimeout, Timeout));
+        bool connected = false;
         try {
             using var client = await ConnectAsync(endpoint, timeoutCts.Token).ConfigureAwait(false);
+            connected = true;
+            timeoutCts.CancelAfter(Timeout);
             result.Connection.Capture(client);
             using NetworkStream network = client.GetStream();
-            bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
+            bool directTls = UsesDirectTls(protocol, port);
             if (directTls) {
                 using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
                     result.CertificateValid = errors == SslPolicyErrors.None;
@@ -301,128 +342,24 @@ public class MailTlsAnalysis : IHasAssessments {
                     SetFailure(result, ioex);
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
-                    try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-                    result.SupportsTls13 = (int)result.Protocol == 12288;
-                    result.Tls13Used = result.SupportsTls13;
-                    // Probe protocol support (best-effort)
-                    await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
-                    if (result.SupportsTls10 || result.SupportsTls11) {   
-                        logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
-                            result.SupportsTls10 ? "1.0" : string.Empty,
-                            result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                            host, port);
-                    }
                     result.StartTlsAdvertised = true;
-                    // Grade and legacy detection
                     ComputeGrade(result);
                     if (result.LegacyEnabled) {
                         logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
+                    // Probe protocol support (best-effort)
+                    await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
                     if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
-                        await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
+                        await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                     }
                 }
+                cancellationToken.ThrowIfCancellationRequested();
                 return result;
             }
 
-            using var reader = new StreamReader(network);
-            using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-            await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-            timeoutCts.Token.ThrowIfCancellationRequested();
-            var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            switch (protocol) {
-                case MailProtocol.Smtp:
-                    await writer.WriteLineAsync("EHLO example.com");
-                    string? line;
-                    while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger.WriteVerbose($"EHLO response: {line}");
-                        if (line.StartsWith("250")) {
-                            string capLine = line.Substring(4).Trim();
-                            foreach (var part in capLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
-                                capabilities.Add(part);
-                            }
-                            if (!line.StartsWith("250-")) {
-                                break;
-                            }
-                        } else if (line.StartsWith("4") || line.StartsWith("5")) {
-                            break;
-                        }
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
-                    break;
-                case MailProtocol.Imap:
-                    await writer.WriteLineAsync("A1 CAPABILITY");
-                    while (true) {
-                        var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                    if (resp == null) {
-                        break;
-                    }
-                    logger.WriteVerbose($"CAPABILITY response: {resp}");
-                    if (resp.StartsWith("*")) {
-                        var capLine = resp.Substring(1).Trim();
-                        if (capLine.StartsWith("CAPABILITY", StringComparison.OrdinalIgnoreCase)) {
-                            var caps = capLine.Substring(10).Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var cap in caps) {
-                                    capabilities.Add(cap);
-                                }
-                            }
-                        } else if (resp.StartsWith("A1", StringComparison.OrdinalIgnoreCase)) {
-                            break;
-                        }
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
-                    break;
-                case MailProtocol.Pop3:
-                    await writer.WriteLineAsync("CAPA");
-                    string? popLine;
-                    while ((popLine = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
-                        timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger.WriteVerbose($"CAPA response: {popLine}");
-                        if (popLine == ".") {
-                            break;
-                        }
-                        capabilities.Add(popLine.Trim());
-                    }
-                    result.StartTlsAdvertised = capabilities.Contains("STLS");
-                    if (!result.StartTlsAdvertised) {
-                        await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
-                        await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-                        await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                        return result;
-                    }
-                    break;
-            }
-
-            if (!result.StartTlsAdvertised) {
-                await writer.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
-                await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                return result;
-            }
-
-            var startTlsCommand = protocol switch {
-                MailProtocol.Smtp => "STARTTLS",
-                MailProtocol.Imap => "A2 STARTTLS",
-                MailProtocol.Pop3 => "STLS",
-                _ => "STARTTLS"
-            };
-            await writer.WriteLineAsync(startTlsCommand).WaitWithCancellation(timeoutCts.Token);
-            var startTlsResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-            bool proceed = protocol switch {
-                MailProtocol.Smtp => startTlsResp != null && startTlsResp.StartsWith("220"),
-                MailProtocol.Imap => startTlsResp != null &&
-                    startTlsResp.StartsWith("A2", StringComparison.OrdinalIgnoreCase) &&
-                    startTlsResp.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0,
-                MailProtocol.Pop3 => startTlsResp != null && startTlsResp.StartsWith("+OK"),
-                _ => false
-            };
-            if (!proceed) {
-                logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {startTlsResp}");
-                return result;
-            }
-
+            var preparation = await NegotiateStartTlsAsync(protocol, network, logger, timeoutCts.Token, result).ConfigureAwait(false);
+            result.StartTlsAdvertised = preparation.Advertised;
+            if (!preparation.Ready) { cancellationToken.ThrowIfCancellationRequested(); return result; }
             using var sslStream = new SslStream(network, false, (sender, certificate, chain, errors) => {
                 result.CertificateValid = errors == SslPolicyErrors.None;
                 result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -516,30 +453,32 @@ public class MailTlsAnalysis : IHasAssessments {
                 SetFailure(result, ioex);
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
-                try { result.Protocol = sslStream.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-                result.SupportsTls13 = (int)result.Protocol == 12288;
-                result.Tls13Used = result.SupportsTls13;
-                // Probe protocol support (best-effort)
-                await ProbeProtocolSupport(endpoint, result, cancellationToken).ConfigureAwait(false);
-                if (result.SupportsTls10 || result.SupportsTls11) {       
-                    logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
-                        result.SupportsTls10 ? "1.0" : string.Empty,
-                        result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                        host, port);
-                }
                 ComputeGrade(result);
                 if (result.LegacyEnabled) {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
-                if (OutboundAddressResolver == null) {
-                    await ProbeOcspStaplingWithOpenSsl(endpoint, result, logger, cancellationToken).ConfigureAwait(false);
+                // Probe protocol support (best-effort)
+                await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
+                    await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                 }
             }
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        } catch (Exception ex) when (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
+            SetFailure(result, ex is OperationCanceledException ? new TimeoutException("Mail connection budget exhausted.", ex) : ex);
+            logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
+        } catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested) {
+            if (result.FailureKind == CertificateFailureKind.None) {
+                SetFailure(result, new TimeoutException("Connected mail TLS budget exhausted; protocol support is incomplete.", ex));
+            }
+            logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "Connected TLS checks timed out for {0}:{1}; protocol support is incomplete.", host, port);
         } catch (Exception ex) {
             SetFailure(result, ex);
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 
@@ -552,22 +491,65 @@ public class MailTlsAnalysis : IHasAssessments {
         result.FailureKind = CertificateFailureClassifier.Classify(exception);
     }
 
-    private async Task ProbeProtocolSupport(MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
+    private async Task ProbeAndReportProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
+        try {
+            await ProbeProtocolSupport(protocol, endpoint, result, token).ConfigureAwait(false);
+        } finally {
+            if (result.SupportsTls10 || result.SupportsTls11) {
+                logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
+                    result.SupportsTls10 ? "1.0" : string.Empty,
+                    result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
+                    endpoint.HostName, endpoint.Port);
+            }
+        }
+    }
+
+    private async Task ProbeProtocolSupport(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, CancellationToken token) {
+        bool complete = true;
+        bool legacyComplete = true;
+        result.ProtocolSupportComplete = false;
+        result.LegacyProtocolSupportComplete = false;
+        void MarkIncomplete(SslProtocols proto) {
+            complete = false;
+#pragma warning disable SYSLIB0039
+            if (proto == SslProtocols.Tls || proto == SslProtocols.Tls11) { legacyComplete = false; }
+#pragma warning restore SYSLIB0039
+        }
+        result.SupportsTls12 |= result.Protocol == SslProtocols.Tls12;
+#pragma warning disable SYSLIB0039
+        result.SupportsTls11 |= result.Protocol == SslProtocols.Tls11;
+        result.SupportsTls10 |= result.Protocol == SslProtocols.Tls;
+#pragma warning restore SYSLIB0039
         async Task<bool> TryHandshake(SslProtocols proto) {
+            token.ThrowIfCancellationRequested();
+            Helpers.TlsAlertEvidenceStream? evidence = null;
             try {
                 using var client = await ConnectAsync(endpoint, token).ConfigureAwait(false);
-                using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
+                using var transport = client.GetStream();
+                if (!UsesDirectTls(protocol, endpoint.Port)) {
+                    var preparation = await NegotiateStartTlsAsync(protocol, transport, null, token).ConfigureAwait(false);
+                    if (!preparation.Ready) { MarkIncomplete(proto); return false; }
+                }
+                using var observed = new Helpers.TlsAlertEvidenceStream(transport, leaveOpen: true);
+                evidence = observed;
+                using var ssl = new SslStream(observed, false, static (_, _, _, _) => true);
                 await ssl.AuthenticateAsClientAsync(endpoint.HostName, null, proto, false).WaitWithCancellation(token);
                 return ssl.SslProtocol == proto;
-            } catch { return false; }
+            } catch (Exception ex) when (!token.IsCancellationRequested && ex is not OutOfMemoryException) {
+                if (evidence?.SawProtocolVersionRejection != true) { MarkIncomplete(proto); }
+                return false;
+            }
         }
         result.SupportsTls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
-        result.SupportsTls12 = await TryHandshake(SslProtocols.Tls12);
+        result.SupportsTls12 = result.SupportsTls12 || await TryHandshake(SslProtocols.Tls12);
         // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
 #pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
-        result.SupportsTls11 = await TryHandshake(SslProtocols.Tls11);
-        result.SupportsTls10 = await TryHandshake(SslProtocols.Tls);
+        result.SupportsTls11 = result.SupportsTls11 || await TryHandshake(SslProtocols.Tls11);
+        result.SupportsTls10 = result.SupportsTls10 || await TryHandshake(SslProtocols.Tls);
 #pragma warning restore SYSLIB0039
+        result.LegacyProtocolSupportComplete = legacyComplete;
+        token.ThrowIfCancellationRequested();
+        result.ProtocolSupportComplete = complete;
     }
 
     internal async Task<TcpClient> ConnectAsync(string host, int port, CancellationToken cancellationToken) {
@@ -575,11 +557,15 @@ public class MailTlsAnalysis : IHasAssessments {
         return await ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
     }
 
-    internal Task<TcpClient> ConnectAsync(MailTransportEndpoint endpoint, CancellationToken cancellationToken) =>
-        MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, cancellationToken);
+    internal async Task<TcpClient> ConnectAsync(MailTransportEndpoint endpoint, CancellationToken cancellationToken) {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ConnectTimeout);
+        return await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, deadline.Token).ConfigureAwait(false);
+    }
 
-    private static async Task ProbeOcspStaplingWithOpenSsl(MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token) {
+    private static async Task ProbeOcspStaplingWithOpenSsl(MailProtocol protocol, MailTransportEndpoint endpoint, TlsResult result, InternalLogger? logger, CancellationToken token, CancellationToken callerToken) {
         try {
+            token.ThrowIfCancellationRequested();
             var host = endpoint.HostName;
             var port = endpoint.Port;
             var connectHost = endpoint.ConnectAddress?.ToString() ?? host;
@@ -591,10 +577,11 @@ public class MailTlsAnalysis : IHasAssessments {
                 MailTransportAddressFamily.IPv6 => "-6 ",
                 _ => string.Empty
             };
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             var psi = new System.Diagnostics.ProcessStartInfo {
                 FileName = "openssl",
-                Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host} -starttls {(port == 25 ? "smtp" : port == 110 ? "pop3" : port == 143 ? "imap" : "smtp")} -status -brief",
+                Arguments = $"s_client {familySwitch}-connect {connectHost}:{port} -servername {host}" +
+                    (UsesDirectTls(protocol, port) ? string.Empty : $" -starttls {protocol.ToString().ToLowerInvariant()}") + " -status",
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -602,31 +589,17 @@ public class MailTlsAnalysis : IHasAssessments {
             };
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null) return;
-            var readOut = proc.StandardOutput.ReadToEndAsync();
-            var readErr = proc.StandardError.ReadToEndAsync();
-            var delayTask = Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-#if NET8_0_OR_GREATER
-            var waitTask = proc.WaitForExitAsync(cts.Token);
-#else
-            var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
-#endif
-            await Task.WhenAny(delayTask, waitTask);
-            string output = string.Empty;
-            try { output = await readOut; } catch { }
-            string error = string.Empty;
-            try { error = await readErr; } catch { }
-            var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
-            if (string.IsNullOrWhiteSpace(text)) return;
-            bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                           text.IndexOf("OCSP Response Data:", StringComparison.OrdinalIgnoreCase) >= 0;
-            bool explicitlyMissing = text.IndexOf("OCSP response: no response sent", StringComparison.OrdinalIgnoreCase) >= 0;
-            result.OcspStaplingPresent = present && !explicitlyMissing;
+            var captured = await Helpers.ProcessOutputCapture.ReadUntilExitAsync(proc, token, callerToken).ConfigureAwait(false);
+            result.OcspStaplingPresent = Helpers.OcspStaplingEvidence.Parse(captured.Output, captured.Error);
+            if (result.OcspStaplingPresent == null) return;
             if (result.OcspStaplingPresent == true) {
                 logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", host, port);
             } else {
                 logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", host, port);
             }
-        } catch { }
+        } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch { }
+        finally { token.ThrowIfCancellationRequested(); }
     }
 
     private static void ComputeGrade(TlsResult r) {

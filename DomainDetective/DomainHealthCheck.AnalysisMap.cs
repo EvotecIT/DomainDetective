@@ -176,6 +176,7 @@ public partial class DomainHealthCheck
             case HealthCheckType.MICROSOFT365:
                 return Microsoft365TenantAnalysis;
             case HealthCheckType.WEBSITE:
+                if (CertificateAnalysis == null || HttpAnalysis == null) { return null; }
                 return DomainDetective.Views.Converters.CombineWebsite(
                     DomainDetective.Views.Converters.Convert(CertificateAnalysis),
                     DomainDetective.Views.Converters.Convert(HttpAnalysis));

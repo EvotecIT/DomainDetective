@@ -25,10 +25,10 @@ public partial class DomainHealthCheck {
             return;
         }
 
-        foreach (var owner in owners) {
+        async Task ValidateOwnerAsync(string owner) {
             cancellationToken.ThrowIfCancellationRequested();
             if (!TryParseTlsaOwner(owner, out var host, out var port)) {
-                continue;
+                return;
             }
 
             DaneCertificateEvidence? evidence = null;
@@ -78,13 +78,13 @@ public partial class DomainHealthCheck {
                             HostnameMatch = tls.HostnameMatch,
                             DnssecValidated = tlsaValidated
                         };
-                        DaneAnalysis.ValidateCertificateAssociations(new[] { evidence }, _logger);
+                        lock (DaneAnalysis) { DaneAnalysis.ValidateCertificateAssociations(new[] { evidence }, _logger); }
                         evidence = null;
                     }
                 }
 
                 if (evidence != null) {
-                    DaneAnalysis.ValidateCertificateAssociations(new[] { evidence }, _logger);
+                    lock (DaneAnalysis) { DaneAnalysis.ValidateCertificateAssociations(new[] { evidence }, _logger); }
                 }
             } catch (OperationCanceledException) {
                 throw;
@@ -97,6 +97,10 @@ public partial class DomainHealthCheck {
                 }
             }
         }
+        await Helpers.BoundedAsync.RunAsync(owners, async owner => {
+            await ValidateOwnerAsync(owner).ConfigureAwait(false);
+            return true;
+        }, 4, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<TlsProbe.Result> ProbeDaneTlsAsync(string host, int port, CancellationToken cancellationToken) {

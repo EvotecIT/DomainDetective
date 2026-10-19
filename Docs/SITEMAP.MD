@@ -30,6 +30,9 @@ Useful tuning options:
 | `-MaxEntries` | Caps parsed `urlset` entries. |
 | `-MaxUrlProbes` | Caps live URL probes. Use `0` or `-NoUrlProbe` for XML-only checks. |
 | `-MaxRedirects` | Redirect hop limit before reporting a loop. |
+| `-TimeoutSeconds` | Timeout for one HTTP probe; defaults to 20 seconds. |
+| `-AnalysisTimeoutSeconds` | Total discovery, parsing, and URL-probe budget; defaults to 60 seconds. |
+| `-MaxUrlProbeParallelism` | Concurrent URL probes; defaults to 8. |
 | `-NoCanonicalCheck` | Skips HTML `noindex` and canonical inspection. |
 | `-NoHttpFallback` | Disables HTTP fallback when HTTPS discovery fails. |
 
@@ -43,6 +46,8 @@ Useful tuning options:
 - Structured findings, positives, and references.
 
 ## Notes
+
+URL probes run concurrently and retain their input order. If the overall budget expires, `AnalysisComplete` is false and completed document and URL evidence remains available. Caller cancellation propagates as cancellation.
 
 The analysis is intentionally bounded by default. Large sites should raise `MaxEntries` and `MaxUrlProbes` deliberately, especially when probing URL reachability, because every probed sitemap URL results in an HTTP request.
 

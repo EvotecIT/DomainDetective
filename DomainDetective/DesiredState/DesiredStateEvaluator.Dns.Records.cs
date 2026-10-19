@@ -134,6 +134,24 @@ public static partial class DesiredStateEvaluator {
     private static void EvaluateNs(string domain, NSAnalysis ns, DesiredStateNsPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) return;
 
+        bool requiresEvidence = desired.RequireRecord == true || desired.RequireAtLeastTwo == true
+            || desired.DisallowDuplicates == true || desired.RequireAllHaveAOrAaaa == true
+            || desired.DisallowCnameTargets == true || desired.RequireDiversity == true
+            || desired.MinAsnDiversity.HasValue || desired.AllowedHostSuffixes?.Length > 0;
+        bool incomplete = !ns.NsLookupComplete && requiresEvidence || ns.NsRecordExists && (
+            desired.RequireAllHaveAOrAaaa == true && !ns.AddressResultKnown
+            || desired.DisallowCnameTargets == true && !ns.CnameResultKnown
+            || desired.RequireDiversity == true && !ns.DiversityResultKnown
+            || desired.MinAsnDiversity.HasValue && ns.AsnDistinctCount < desired.MinAsnDiversity.Value && !ns.AsnDiversityComplete);
+        if (incomplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = DesiredStateCodes.NsEvidenceIncomplete,
+                Message = "Nameserver DNS evidence is incomplete; the requested NS requirements could not all be verified."
+            });
+        }
+        if (!ns.NsLookupComplete) { return; }
+
         if (desired.RequireRecord == true && !ns.NsRecordExists) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,
@@ -169,7 +187,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireAllHaveAOrAaaa == true && !ns.AllHaveAOrAaaa) {
+        if (desired.RequireAllHaveAOrAaaa == true && ns.AddressResultKnown && !ns.AllHaveAOrAaaa) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -189,7 +207,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireDiversity == true && !ns.HasDiverseLocations) {
+        if (desired.RequireDiversity == true && ns.DiversityResultKnown && !ns.HasDiverseLocations) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -199,7 +217,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.MinAsnDiversity.HasValue && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
+        if (desired.MinAsnDiversity.HasValue && ns.AsnDiversityComplete && ns.AsnDistinctCount < desired.MinAsnDiversity.Value) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -459,8 +477,10 @@ public static partial class DesiredStateEvaluator {
 
     private static bool IsUniform(Dictionary<string, int?>? map) {
         if (map == null || map.Count == 0) {
-            return true;
+            return false;
         }
+
+        if (map.Values.Any(value => !value.HasValue)) { return false; }
 
         var observed = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
         if (observed.Length == 0) {

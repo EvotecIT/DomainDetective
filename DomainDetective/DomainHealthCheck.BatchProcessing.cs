@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,6 +53,10 @@ public partial class DomainHealthCheck {
         var options = executionOptions ?? new HealthCheckExecutionOptions();
         int maxParallel = options.EnableParallelism ? options.GetEffectiveDomainParallelism() : 1;
         bool ownsHealthChecks = healthCheckFactory == null;
+        // Factory-owned configurations may have independent borrowers after this batch.
+        // This async-only gate has no native wait handle and is reclaimed with its last borrower.
+        var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
+        var bulkDnsAdmission = new SemaphoreSlim(Math.Max(1, options.GetEffectiveDnsParallelism() / 2));
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var gate = new object();
         int nextIndex = 0;
@@ -66,16 +69,19 @@ public partial class DomainHealthCheck {
                 stop.Token.ThrowIfCancellationRequested();
                 health = healthCheckFactory != null ? healthCheckFactory(domain) : new DomainHealthCheck();
                 if (health == null) { throw new InvalidOperationException("Health check factory returned null."); }
-                await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
-                    danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
-                Exception? checkError = null;
-                lock (health._executionLock) {
-                    if (health._checkFailures.Count > 0) {
-                        checkError = new AggregateException("One or more domain checks failed.",
-                            health._checkFailures.Values.Select(failure => new InvalidOperationException(failure.Message)));
-                    }
+                var configuration = health.DnsConfiguration;
+                var previousAdmission = configuration.QueryAdmissionGate;
+                var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+                configuration.QueryAdmissionGate = dnsAdmission;
+                configuration.BulkQueryAdmissionGate = bulkDnsAdmission;
+                try {
+                    await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
+                        danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
+                } finally {
+                    configuration.QueryAdmissionGate = previousAdmission;
+                    configuration.BulkQueryAdmissionGate = previousBulkAdmission;
                 }
-                return new DomainHealthCheckRun(domain, health, checkError, ownsHealthChecks);
+                return new DomainHealthCheckRun(domain, health, null, ownsHealthChecks);
             } catch (OperationCanceledException) when (stop.IsCancellationRequested) {
                 if (ownsHealthChecks) { health?.Dispose(); }
                 throw;

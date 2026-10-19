@@ -484,7 +484,14 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireIpv6Supported == true && !mx.HasNullMx && !mx.Ipv6Supported) {
+        if (desired.RequireIpv6Supported == true && mx.Ipv6QueryFailed && !mx.Ipv6Supported ||
+            mx.AddressExistenceQueryFailed && (desired.DisallowNonExistentTargets == true || desired.DisallowNoAddressTargets == true)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Address.QueryFailed", Message = "Desired state could not verify MX target addresses because recursive lookup evidence is incomplete."
+            });
+        }
+        if (desired.RequireIpv6Supported == true && !mx.HasNullMx && !mx.Ipv6Supported && !mx.Ipv6QueryFailed) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -494,6 +501,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.DisallowCnameTargets == true && mx.CnameQueryFailed) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Cname.QueryFailed",
+                Message = "Desired MX alias state could not be verified because a CNAME query was incomplete."
+            });
+        }
         if (desired.DisallowCnameTargets == true && mx.PointsToCname) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
@@ -554,6 +568,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.RequireRrsetConsistentAcrossNs == true && mx.MxRrsetComparisonIncomplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.Rrset.QueryFailed",
+                Message = "Authoritative MX RRset consistency could not be fully verified."
+            });
+        }
         if (desired.RequireRrsetConsistentAcrossNs == true && !mx.MxRrsetConsistentAcrossNs) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
@@ -564,6 +585,13 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.RequireTargetAddressConsistentAcrossNs == true && mx.TargetAddressComparisonIncomplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.MX.TargetAddress.QueryFailed",
+                Message = "Authoritative MX target address consistency could not be fully verified."
+            });
+        }
         if (desired.RequireTargetAddressConsistentAcrossNs == true && !mx.TargetAddressConsistentAcrossNs) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,

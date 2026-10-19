@@ -104,7 +104,10 @@ namespace DomainDetective {
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
 
-        private DnsConfiguration _dnsConfiguration = new DnsConfiguration { ReuseResolverClients = true };
+        private DnsConfiguration _dnsConfiguration = new DnsConfiguration {
+            ReuseResolverClients = true,
+            EnableResponseCache = true
+        };
 
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
         /// <value>The DNS configuration instance. The health check owns and disposes the assigned configuration.</value>
@@ -122,36 +125,36 @@ namespace DomainDetective {
         }
 
         private void ApplyDnsConfiguration(DnsConfiguration configuration) {
-            DmarcAnalysis.DnsConfiguration = configuration;
-            WhoisAnalysis.DnsConfiguration = configuration;
-            SpfAnalysis.DnsConfiguration = configuration;
-            MXAnalysis.DnsConfiguration = configuration;
-            ReverseDnsAnalysis.DnsConfiguration = configuration;
-            FcrDnsAnalysis.DnsConfiguration = configuration;
-            NSAnalysis.DnsConfiguration = configuration;
-            DNSBLAnalysis.DnsConfiguration = configuration;
-            MTASTSAnalysis.DnsConfiguration = configuration;
-            DanglingCnameAnalysis.DnsConfiguration = configuration;
-            SubdomainsAnalysis.DnsConfiguration = configuration;
-            DnsInventoryAnalysis.DnsConfiguration = configuration;
-            DnsTraceAnalysis.DnsConfiguration = configuration;
-            IpEnrichmentAnalysis.DnsConfiguration = configuration;
-            DnsTtlAnalysis.DnsConfiguration = configuration;
-            DKIMAnalysis.DnsConfiguration = configuration;
-            IPNeighborAnalysis.DnsConfiguration = configuration;
-            RpkiAnalysis.DnsConfiguration = configuration;
-            TyposquattingAnalysis.DnsConfiguration = configuration;
-            WildcardDnsAnalysis.DnsConfiguration = configuration;
-            EdnsSupportAnalysis.DnsConfiguration = configuration;
-            DnsAmplificationAnalysis.DnsConfiguration = configuration;
-            DnsOverTlsAnalysis.DnsConfiguration = configuration;
-            FlatteningServiceAnalysis.DnsConfiguration = configuration;
-            TakeoverCnameAnalysis.DnsConfiguration = configuration;
-            AutodiscoverAnalysis.DnsConfiguration = configuration;
-            WebStaticScanAnalysis.DnsConfiguration = configuration;
-            ApexAddressAnalysis.DnsConfiguration = configuration;
-            DnsHealthAnalysis.DnsConfiguration = configuration;
-            EmailAddressValidationAnalysis.DnsConfiguration = configuration;
+            if (DmarcAnalysis != null) { DmarcAnalysis.DnsConfiguration = configuration; }
+            if (WhoisAnalysis != null) { WhoisAnalysis.DnsConfiguration = configuration; }
+            if (SpfAnalysis != null) { SpfAnalysis.DnsConfiguration = configuration; }
+            if (MXAnalysis != null) { MXAnalysis.DnsConfiguration = configuration; }
+            if (ReverseDnsAnalysis != null) { ReverseDnsAnalysis.DnsConfiguration = configuration; }
+            if (FcrDnsAnalysis != null) { FcrDnsAnalysis.DnsConfiguration = configuration; }
+            if (NSAnalysis != null) { NSAnalysis.DnsConfiguration = configuration; }
+            if (DNSBLAnalysis != null) { DNSBLAnalysis.DnsConfiguration = configuration; }
+            if (MTASTSAnalysis != null) { MTASTSAnalysis.DnsConfiguration = configuration; }
+            if (DanglingCnameAnalysis != null) { DanglingCnameAnalysis.DnsConfiguration = configuration; }
+            if (SubdomainsAnalysis != null) { SubdomainsAnalysis.DnsConfiguration = configuration; }
+            if (DnsInventoryAnalysis != null) { DnsInventoryAnalysis.DnsConfiguration = configuration; }
+            if (DnsTraceAnalysis != null) { DnsTraceAnalysis.DnsConfiguration = configuration; }
+            if (IpEnrichmentAnalysis != null) { IpEnrichmentAnalysis.DnsConfiguration = configuration; }
+            if (DnsTtlAnalysis != null) { DnsTtlAnalysis.DnsConfiguration = configuration; }
+            if (DKIMAnalysis != null) { DKIMAnalysis.DnsConfiguration = configuration; }
+            if (IPNeighborAnalysis != null) { IPNeighborAnalysis.DnsConfiguration = configuration; }
+            if (RpkiAnalysis != null) { RpkiAnalysis.DnsConfiguration = configuration; }
+            if (TyposquattingAnalysis != null) { TyposquattingAnalysis.DnsConfiguration = configuration; }
+            if (WildcardDnsAnalysis != null) { WildcardDnsAnalysis.DnsConfiguration = configuration; }
+            if (EdnsSupportAnalysis != null) { EdnsSupportAnalysis.DnsConfiguration = configuration; }
+            if (DnsAmplificationAnalysis != null) { DnsAmplificationAnalysis.DnsConfiguration = configuration; }
+            if (DnsOverTlsAnalysis != null) { DnsOverTlsAnalysis.DnsConfiguration = configuration; }
+            if (FlatteningServiceAnalysis != null) { FlatteningServiceAnalysis.DnsConfiguration = configuration; }
+            if (TakeoverCnameAnalysis != null) { TakeoverCnameAnalysis.DnsConfiguration = configuration; }
+            if (AutodiscoverAnalysis != null) { AutodiscoverAnalysis.DnsConfiguration = configuration; }
+            if (WebStaticScanAnalysis != null) { WebStaticScanAnalysis.DnsConfiguration = configuration; }
+            if (ApexAddressAnalysis != null) { ApexAddressAnalysis.DnsConfiguration = configuration; }
+            if (DnsHealthAnalysis != null) { DnsHealthAnalysis.DnsConfiguration = configuration; }
+            if (EmailAddressValidationAnalysis != null) { EmailAddressValidationAnalysis.DnsConfiguration = configuration; }
         }
 
         /// <summary>

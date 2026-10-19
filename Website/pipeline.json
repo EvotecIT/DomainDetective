@@ -296,7 +296,7 @@
     {
       "task": "llms",
       "id": "build-llms",
-      "dependsOn": "build-llms-publication-catalog",
+      "dependsOn": ["build-llms-publication-catalog", "merge-xref"],
       "skipModes": ["dev"],
       "siteRoot": "./_site",
       "contentKind": "Package",
@@ -307,8 +307,8 @@
       "nugetOwner": "Evotec",
       "powerShellGalleryOwner": "Przemyslaw.Klys",
       "publicationCatalogMaxAgeHours": 24,
-      "apiIndex": "./_site/api/index.json",
-      "apiBase": "/api",
+      "apiIndexes": ["./_site/api/index.json", "./_site/api/powershell/index.json", "./_site/api/dnsclientx/index.json", "./_site/api/dnsclientx-powershell/index.json"],
+      "discovery": "./config/llms-discovery.md",
       "apiLevel": "Summary",
       "name": "DomainDetective",
       "overview": "DomainDetective is a comprehensive domain analysis toolkit supporting 115+ protocols for DNS, email security, TLS, web security, and threat intelligence analysis.",
@@ -318,6 +318,7 @@
     },
     {
       "task": "sitemap",
+      "includeTextFiles": false,
       "id": "build-sitemap",
       "dependsOn": "build-llms",
       "siteRoot": "./_site",

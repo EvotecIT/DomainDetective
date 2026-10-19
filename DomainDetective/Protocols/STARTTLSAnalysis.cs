@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -13,6 +14,13 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public class STARTTLSAnalysis : IHasAssessments {
+        internal void ResetEvidence() {
+            ServerResults.Clear();
+            DowngradeDetected.Clear();
+            ServerDetails.Clear();
+            Assessments.Clear();
+        }
+
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Gets or sets the server results value.</summary>
@@ -23,6 +31,10 @@ public class STARTTLSAnalysis : IHasAssessments {
         public Dictionary<string, STARTTLSResult> ServerDetails { get; private set; } = new();
         /// <summary>Gets or sets the timeout value.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Maximum time to establish a connection, including DNS resolution.</summary>
+        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
+        /// <summary>Maximum number of endpoints probed concurrently.</summary>
+        public int MaxConcurrency { get; set; } = 4;
         /// <summary>Address family used by hostname-based probes.</summary>
         public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
         /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
@@ -47,9 +59,7 @@ public class STARTTLSAnalysis : IHasAssessments {
             if (endpoint == null) {
                 throw new ArgumentNullException(nameof(endpoint));
             }
-            ServerResults.Clear();
-            DowngradeDetected.Clear();
-            ServerDetails.Clear();
+            ResetEvidence();
             cancellationToken.ThrowIfCancellationRequested();
             var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
             var key = endpoint.Key;
@@ -62,19 +72,39 @@ public class STARTTLSAnalysis : IHasAssessments {
         /// Tests multiple servers for STARTTLS support.
         /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
-            ServerResults.Clear();
-            DowngradeDetected.Clear();
-            ServerDetails.Clear();
+            if (hosts == null) { throw new ArgumentNullException(nameof(hosts)); }
+            if (ports == null) { throw new ArgumentNullException(nameof(ports)); }
+            ResetEvidence();
+            cancellationToken.ThrowIfCancellationRequested();
+            var portList = new List<int>();
+            foreach (var port in ports) {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!portList.Contains(port)) { portList.Add(port); }
+            }
+            var materialized = new List<MailTransportEndpoint>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var host in hosts) {
-                foreach (var port in ports) {
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var port in portList) {
                     cancellationToken.ThrowIfCancellationRequested();
                     var endpoint = new MailTransportEndpoint(host, port) { AddressFamily = AddressFamily };
-                    var detail = await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false);
-                    var key = endpoint.Key;
-                    ServerResults[key] = detail.StartTlsAdvertised || detail.TlsNegotiated;
-                    DowngradeDetected[key] = detail.DowngradeDetected;
-                    ServerDetails[key] = detail;
+                    if (seen.Add(endpoint.Key)) { materialized.Add(endpoint); }
                 }
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var endpoints = materialized.ToArray();
+            using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
+            var details = await Task.WhenAll(endpoints.Select(async endpoint => {
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try { return await CheckStartTls(endpoint, logger, cancellationToken).ConfigureAwait(false); }
+                finally { gate.Release(); }
+            })).ConfigureAwait(false);
+            for (int i = 0; i < endpoints.Length; i++) {
+                var key = endpoints[i].Key;
+                var detail = details[i];
+                ServerResults[key] = detail.StartTlsAdvertised || detail.TlsNegotiated;
+                DowngradeDetected[key] = detail.DowngradeDetected;
+                ServerDetails[key] = detail;
             }
         }
 
@@ -89,9 +119,12 @@ public class STARTTLSAnalysis : IHasAssessments {
             TcpClient? client = null;
             var connection = MailTransportConnectionEvidence.FromTarget(endpoint);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(Timeout);
+            timeoutCts.CancelAfter(MailTransportConnector.GetConnectTimeout(ConnectTimeout, Timeout));
+            bool connected = false;
             try {
                 client = await MailTransportConnector.ConnectAsync(endpoint, OutboundAddressResolver, timeoutCts.Token).ConfigureAwait(false);
+                connected = true;
+                timeoutCts.CancelAfter(Timeout);
                 connection.Capture(client);
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
@@ -214,6 +247,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                     }
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,
@@ -240,7 +274,12 @@ public class STARTTLSAnalysis : IHasAssessments {
                     CertificateThumbprint = resultCertThumbprint,
                 };
             } catch (System.Exception ex) {
-                logger?.WriteErrorCode(StartTlsCodes.CheckFailed, "STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
+                    logger?.WriteInformationCode(MailTlsCodes.ServiceNotOffered, "Mail service not offered at {0}:{1} from this probe: {2}", host, port, ex.Message);
+                } else {
+                    logger?.WriteErrorCode(StartTlsCodes.CheckFailed, "STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
+                }
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,

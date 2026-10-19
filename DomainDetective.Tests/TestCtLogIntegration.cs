@@ -10,6 +10,7 @@ using DomainDetective;
 
 namespace DomainDetective.Tests;
 
+[Collection("CtSharedState")]
 public class TestCtLogIntegration
 {
     public TestCtLogIntegration()

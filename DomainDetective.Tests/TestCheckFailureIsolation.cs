@@ -94,7 +94,7 @@ public class TestCheckFailureIsolation {
     public async Task DisabledPolicyDoesNotRequireAFailedCheck() {
         using var health = Create();
         health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new InvalidOperationException("Query failed.");
-        await health.Verify("example.test", new[] { HealthCheckType.CAA });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
         var result = DesiredStateEvaluator.Evaluate("example.test", health, new DesiredStateProfile {
             Caa = new DesiredStateCaaPolicy { Enabled = false }
         });
@@ -117,7 +117,7 @@ public class TestCheckFailureIsolation {
     public async Task FilteredSnapshotsRetainFailedChecksAfterTheOriginalRunsAgain() {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Discovery failed.");
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA }));
         var snapshot = health.FilterAnalyses(new[] { HealthCheckType.EDNSSUPPORT });
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
         await health.Verify("other.test", new[] { HealthCheckType.EDNSSUPPORT });
@@ -134,7 +134,7 @@ public class TestCheckFailureIsolation {
         var profile = new DesiredStateProfile { Caa = new DesiredStateCaaPolicy { RequireRecord = true } };
         Assert.True(DesiredStateEvaluator.Evaluate("example.test", health, profile).Conforms);
         health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new InvalidOperationException("Current lookup failed.");
-        await health.Verify("example.test", new[] { HealthCheckType.CAA });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
         var result = DesiredStateEvaluator.Evaluate("example.test", health, profile);
         Assert.False(result.Conforms);
         Assert.Contains(result.Assessments, a => a.Code == "DesiredState.Check.QueryFailed");
@@ -155,8 +155,8 @@ public class TestCheckFailureIsolation {
     public async Task DaneFailureDoesNotAbortOrBecomeSmtpTlsFailure(bool parallel) {
         using var health = Create();
         health.DaneDnsOverride = (_, _) => throw new InvalidOperationException("DANE only failed.");
-        await health.Verify("example.test", new[] { HealthCheckType.SMTPTLS, HealthCheckType.DANE },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.SMTPTLS, HealthCheckType.DANE },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel }));
         Assert.Equal(HealthCheckType.DANE, Assert.Single(Converters.ConvertChecks(health).OfType<CheckFailureInfo>()).Check);
         Assert.Single(Converters.ConvertChecks(health).OfType<MailTlsInfo>());
     }
@@ -175,8 +175,8 @@ public class TestCheckFailureIsolation {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Authoritative DNS timed out.");
 
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel, MaxParallelism = 2 });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel, MaxParallelism = 2 }));
 
         var errors = new List<string>();
         var items = Converters.ConvertChecks(health, errors: errors);
@@ -195,7 +195,7 @@ public class TestCheckFailureIsolation {
     public async Task LaterRunClearsExecutionFailures() {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Discovery failed.");
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT }));
 
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
         await health.Verify("other.test", new[] { HealthCheckType.EDNSSUPPORT });
@@ -212,8 +212,8 @@ public class TestCheckFailureIsolation {
     public async Task InternalCancellationIsReportedAsACheckFailure(bool parallel) {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new OperationCanceledException("Internal probe canceled.");
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel });
+        await Assert.ThrowsAsync<OperationCanceledException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel }));
 
         var errors = new List<string>();
         Assert.Single(Converters.ConvertChecks(health, errors: errors).OfType<CaaInfo>());
@@ -251,8 +251,8 @@ public class TestCheckFailureIsolation {
             await Task.Yield();
             throw new TimeoutException("NS failed.");
         };
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = true, MaxParallelism = 2 });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = true, MaxParallelism = 2 }));
         var errors = new List<string>();
         Assert.Equal(2, Converters.ConvertChecks(health, errors: errors).OfType<CheckFailureInfo>().Count());
         Assert.Equal(2, errors.Count);
@@ -270,7 +270,7 @@ public class TestCheckFailureIsolation {
             }
             return Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"letsencrypt.org\"" } });
         };
-        await health.Verify("example.test", new[] { HealthCheckType.MAILCLASSIFICATION, HealthCheckType.CAA });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.MAILCLASSIFICATION, HealthCheckType.CAA }));
         int attempted = mxQueries;
         var errors = new List<string>();
         var views = Converters.ConvertChecks(health, errors: errors);

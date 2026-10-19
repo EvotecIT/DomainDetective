@@ -231,13 +231,27 @@ public class TestConstrainedOutboundConnections {
     public async Task AwaitConnectDisposesSocketWhenCanceled() {
         using var client = new TcpClient();
         var socket = client.Client;
-        var pendingConnect = new TaskCompletionSource<object?>();
+        var pendingConnect = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource();
-
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var connect = MailTransportConnector.AwaitConnectAsync(client, pendingConnect.Task, cancellation.Token);
-        cancellation.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect);
-        Assert.Throws<ObjectDisposedException>(() => socket.Poll(0, SelectMode.SelectRead));
+        bool IsSocketDisposed() {
+            try { socket.Poll(0, SelectMode.SelectRead); return false; }
+            catch (ObjectDisposedException) { return true; }
+            catch (SocketException) { return false; }
+        }
+        try {
+            cancellation.Cancel();
+            Assert.True(SpinWait.SpinUntil(IsSocketDisposed, TimeSpan.FromSeconds(5)));
+            Assert.False(connect.IsCompleted); // The owned native operation must finish before cancellation returns.
+            pendingConnect.TrySetException(new SocketException((int)SocketError.OperationAborted));
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect.WaitWithCancellation(guard.Token));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Throws<ObjectDisposedException>(() => socket.Poll(0, SelectMode.SelectRead));
+        } finally {
+            // This synthetic connect task has no OS socket to complete it on disposal.
+            pendingConnect.TrySetCanceled();
+            try { await connect; } catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        }
     }
 }

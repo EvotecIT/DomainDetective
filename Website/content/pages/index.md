@@ -4,4 +4,8 @@ description: Analyze any domain with 115+ protocol checks for DNS, email securit
 slug: index
 collection: pages
 layout: home
+meta.source_code.name: DomainDetective
+meta.source_code.code_repository: https://github.com/EvotecIT/DomainDetective
+meta.source_code.programming_language: C#
+meta.source_code.license: https://github.com/EvotecIT/DomainDetective/blob/master/LICENSE
 ---

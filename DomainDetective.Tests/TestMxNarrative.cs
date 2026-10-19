@@ -13,10 +13,10 @@ namespace DomainDetective.Tests
         {
             var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]>
             {
-                [("mail1.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.1" } },
+                [("mail1.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "1.1.1.1" } },
                 [("mail1.example.com", DnsRecordType.AAAA)] = System.Array.Empty<DnsAnswer>(),
-                [("mail2.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "2.2.2.2" } },
-                [("mail2.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { DataRaw = "2001::1" } }
+                [("mail2.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "2.2.2.2" } },
+                [("mail2.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { Type = DnsRecordType.AAAA, DataRaw = "2001::1" } }
             };
             return new MXAnalysis
             {

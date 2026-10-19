@@ -269,6 +269,9 @@ namespace DomainDetective {
         /// <value>HTTP endpoint validation results.</value>
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
+        /// <summary>Plain HTTP evidence collected by a combined run when requested in its execution options.</summary>
+        public HttpAnalysis PlainHttpAnalysis { get; private set; } = new HttpAnalysis();
+
         /// <summary>
         /// Gets the HPKP analysis.
         /// </summary>
@@ -435,17 +438,11 @@ namespace DomainDetective {
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
-            var resourceStream = typeof(DomainHealthCheck).Assembly.GetManifestResourceStream("DomainDetective.public_suffix_list.dat");
-            if (resourceStream != null) {
-                using var reader = resourceStream;
-                _publicSuffixList = PublicSuffixList.Load(reader);
-            } else {
-                _publicSuffixList = new PublicSuffixList();
-            }
+            _publicSuffixList = _bundledPublicSuffixList.Value;
 
             var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json.gz");
             if (File.Exists(preloadPath)) {
-                HttpAnalysis.LoadHstsPreloadList(preloadPath);
+                HttpAnalysis.EnsureHstsPreloadListLoaded(preloadPath);
             }
 
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;

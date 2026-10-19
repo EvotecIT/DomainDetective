@@ -14,18 +14,37 @@ public partial class DnsSecAnalysis {
     /// </summary>
     internal static async Task<DnsResponse> QueryValidatedSubjectResponseAsync(
         string name, DnsRecordType type, DnsConfiguration configuration, CancellationToken cancellationToken) {
-        if (configuration.QueryDnsResponseOverride != null) {
-            return await configuration.QueryDnsResponseOverride(name, type, cancellationToken).ConfigureAwait(false);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (configuration.DnsSecQueryTimeout <= TimeSpan.Zero) { throw new ArgumentOutOfRangeException(nameof(configuration.DnsSecQueryTimeout)); }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(configuration.DnsSecQueryTimeout);
+        try {
+            var admissionGate = configuration.QueryAdmissionGate;
+            if (admissionGate != null) { await admissionGate.WaitAsync(deadline.Token).ConfigureAwait(false); }
+            try {
+                if (configuration.QueryDnsResponseOverride != null) {
+                    var overridden = await configuration.QueryDnsResponseOverride(name, type, deadline.Token).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
+                    return overridden;
+                }
 
-        if (configuration.QueryDnsOverride != null) {
-            throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
-        }
+                if (configuration.QueryDnsOverride != null) {
+                    throw new InvalidOperationException("An answer-only DNS override cannot provide DNSSEC validation status.");
+                }
 
-        DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
-            ? configuration.DnsEndpoints.Distinct().ToArray()
-            : new[] { configuration.DnsEndpoint };
-        using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
-        return await resolver.QueryAsync(name, type, cancellationToken).ConfigureAwait(false);
+                DnsEndpoint[] endpoints = configuration.DnsEndpoints.Count > 0
+                    ? configuration.DnsEndpoints.Distinct().ToArray()
+                    : new[] { configuration.DnsEndpoint };
+                using DnsMultiResolver resolver = CreateResolver(endpoints, configuration, validateDnsSec: true);
+                var response = await resolver.QueryAsync(name, type, deadline.Token).ConfigureAwait(false);
+                deadline.Token.ThrowIfCancellationRequested();
+                return response;
+            } finally { admissionGate?.Release(); }
+        } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested) {
+            return new DnsResponse {
+                Status = DnsResponseCode.ServerFailure,
+                Error = "DNSSEC query budget exhausted; the RRset could not be validated."
+            };
+        }
     }
 }

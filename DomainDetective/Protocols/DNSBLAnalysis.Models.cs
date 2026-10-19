@@ -8,6 +8,10 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DNSBLRecord {
+        /// <summary>True when all required provider queries completed with usable DNS responses.</summary>
+        public bool QuerySucceeded { get; set; } = true;
+        /// <summary>Reason this provider could not be completely checked.</summary>
+        public string? Error { get; set; }
         /// <summary>Plain IPv4/IPv6 for IP-based checks; null for domain-based checks.</summary>
         public string? IpAddress { get; set; }
 
@@ -61,7 +65,9 @@ namespace DomainDetective {
             DNSBLRecords.Where(record => record.IsBlackListed).Select(record => record.BlackList).ToList();
 
         /// <summary>Gets the number of lists where the host was not found.</summary>
-        public int NotListed => DNSBLRecords.Count(record => !record.IsBlackListed);
+        public int NotListed => DNSBLRecords.Count(record => record.QuerySucceeded && !record.IsBlackListed);
+        /// <summary>Number of provider records with incomplete query coverage.</summary>
+        public int NotChecked => DNSBLRecords.Count(record => !record.QuerySucceeded);
 
         /// <summary>Gets the total number of DNSBL checks performed.</summary>
         public int Total => DNSBLRecords.Count();

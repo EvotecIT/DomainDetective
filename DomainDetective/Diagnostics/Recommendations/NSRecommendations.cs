@@ -4,6 +4,17 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class NSRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[NSCodes.QueryFailed] = new RecommendationAdvice {
+            Code = NSCodes.QueryFailed,
+            Title = "Retry incomplete nameserver DNS checks",
+            Why = "An operational DNS failure cannot establish missing records or inconsistent delegation.",
+            How = "Check resolver reachability and DNS errors, then repeat the nameserver check.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new[] { "dns", "ns", "availability" },
+            Impact = "Some nameserver or delegation evidence remains unknown.",
+            Effort = RecommendationEffort.Low,
+            Verify = "DNS queries complete and nameserver/delegation evidence is available."
+        };
         map[NSCodes.Missing] = new RecommendationAdvice {
             Code = NSCodes.Missing,
             Title = "Publish authoritative NS records",

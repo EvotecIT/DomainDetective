@@ -19,7 +19,9 @@ public class TestVerificationRunState {
             Status = type == (nameServersFail ? DnsRecordType.NS : DnsRecordType.AAAA) ? DnsResponseCode.ServerFailure : DnsResponseCode.NoError,
             Answers = type == DnsRecordType.NS ? new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } } : Array.Empty<DnsAnswer>()
         });
-        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT });
+        var verification = health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT });
+        if (nameServersFail) { await Assert.ThrowsAsync<InvalidOperationException>(() => verification); }
+        else { await verification; }
         var view = Assert.Single(Converters.ConvertChecks(health));
         if (nameServersFail) {
             Assert.Contains("ServerFailure", Assert.Single(Assert.IsType<CheckFailureInfo>(view).Assessments).Message);
@@ -37,7 +39,7 @@ public class TestVerificationRunState {
     public async Task RejectedInputPreservesTheLastCompletedFailure(bool invalidSelection) {
         using var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("CAA unavailable.");
-        await health.Verify("example.test", new[] { HealthCheckType.CAA });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
         if (invalidSelection) {
             await Assert.ThrowsAsync<NotSupportedException>(() => health.Verify("other.test", new[] { (HealthCheckType)int.MaxValue }));
         } else {
@@ -62,6 +64,14 @@ public class TestVerificationRunState {
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("current.test",
             new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA }, cancellationToken: canceled.Token,
             executionOptions: new HealthCheckExecutionOptions { EnableParallelism = false }));
+        if (preCanceled) {
+            // A canceled waiter never replaces the latest admitted run.
+            Assert.Equal(HealthCheckType.CAA, Assert.Single(health.LastVerifiedChecks));
+            Assert.IsType<CaaInfo>(Assert.Single(Converters.ConvertChecks(health)));
+            Assert.True(health.VerificationCompleted);
+            Assert.Equal("previous.test", health.VerificationDomain);
+            return;
+        }
         Assert.DoesNotContain(HealthCheckType.CAA, health.LastVerifiedChecks);
         Assert.DoesNotContain(Converters.ConvertChecks(health), view => view is CaaInfo);
         Assert.Equal(preCanceled ? 0 : 1, health.LastVerifiedChecks.Count);
@@ -139,7 +149,7 @@ public class TestVerificationRunState {
         }
         Assert.NotNull(result);
         Assert.False(result!.Success);
-        Assert.Contains("EDNS unavailable", Assert.Single(Assert.IsType<AggregateException>(result.Error).InnerExceptions).Message);
+        Assert.Contains("EDNS unavailable", Assert.IsType<TimeoutException>(result.Error).Message);
         Assert.Same(health, result.HealthCheck);
         Assert.Single(Converters.ConvertChecks(health).OfType<CaaInfo>());
     }

@@ -83,6 +83,12 @@ public enum TyposquattingDisposition
 /// </summary>
 public sealed class TyposquattingCandidate
 {
+    /// <summary>Whether required DNS checks failed, were canceled or have not yet been admitted by the analysis.</summary>
+    public bool DnsChecksIncomplete { get; internal set; }
+
+    /// <summary>Errors returned by completed DNS checks. Unadmitted checks are represented by DnsChecksIncomplete.</summary>
+    public IReadOnlyList<string> DnsQueryErrors { get; internal set; } = Array.Empty<string>();
+
     /// <summary>Candidate domain name.</summary>
     public string Domain { get; init; } = string.Empty;
 

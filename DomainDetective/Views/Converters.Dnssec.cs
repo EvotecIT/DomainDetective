@@ -22,6 +22,8 @@ public static partial class Converters
             ValidationStatus = analysis.ValidationStatus,
             ValidatedZone = analysis.ValidatedZone ?? string.Empty,
             ValidationMethod = analysis.ValidationMethod,
+            MetadataQueriesComplete = analysis.MetadataQueriesComplete,
+            MetadataQueryFailures = analysis.MetadataQueryFailures,
             RootAnchorExpiration = analysis.RootAnchorExpiration,
             Assessments = analysis.Assessments,
             Status = status,
@@ -39,6 +41,10 @@ public static partial class Converters
 /// <summary>Provides dnssec status info functionality.</summary>
 public class DnssecStatusInfo
 {
+    /// <summary>Whether all optional DNSSEC metadata queries completed successfully.</summary>
+    public bool MetadataQueriesComplete { get; set; }
+    /// <summary>Unavailable metadata queries and their failure reasons.</summary>
+    public IReadOnlyList<string> MetadataQueryFailures { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
     /// <summary>Gets or sets the area value.</summary>

@@ -22,11 +22,12 @@ public sealed class AssessmentCollector : IDisposable {
     private readonly EventHandler<LogEventArgs> _onInfo;
     private readonly Action<AssessmentSeverity, LogEventArgs> _onSuppressedCoded;
 
-    private readonly object _lock = new();
+    private readonly object _lock;
 
     private AssessmentCollector(InternalLogger logger, List<Assessment> sink, string? defaultCategory = null, string? defaultTarget = null, string? defaultSource = null) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+        _lock = sink;
 
         if (!string.IsNullOrWhiteSpace(defaultCategory) || !string.IsNullOrWhiteSpace(defaultTarget) || !string.IsNullOrWhiteSpace(defaultSource)) {
             _scope.Push(new ScopeFrame(defaultCategory, defaultTarget, defaultSource));
@@ -72,6 +73,11 @@ public sealed class AssessmentCollector : IDisposable {
     /// </summary>
     public void AddInfo(string message, string? code = null, string? category = null, string? target = null, string? source = null) {
         Add(AssessmentSeverity.Info, message, code, category, target, source);
+    }
+
+    /// <summary>Adds a warning directly so an owner can publish evidence before invoking external logger callbacks.</summary>
+    internal void AddWarning(string message, string? code = null, string? category = null, string? target = null, string? source = null) {
+        Add(AssessmentSeverity.Warning, message, code, category, target, source);
     }
 
     private readonly HashSet<string> _seen = new();

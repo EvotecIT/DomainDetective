@@ -288,26 +288,7 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        var records = dnsbl.AllResults ?? new List<DNSBLRecord>();
-        if (desired.RequireAtLeastOneResult == true && records.Count == 0) {
-            sink.Assessments.Add(new Assessment {
-                Severity = AssessmentSeverity.Warning,
-                Category = "DesiredState",
-                Target = domain,
-                Code = DesiredStateCodes.DnsblNoResults,
-                Message = "Desired state requires DNSBL results to be analyzed, but none were produced."
-            });
-            return;
-        }
-
-        if (desired.DisallowListings != true) {
-            return;
-        }
-
-        if (records.Count == 0) {
-            return;
-        }
-
+        var records = dnsbl.GetRecordsSnapshot();
         var ignored = desired.IgnoredBlacklists != null && desired.IgnoredBlacklists.Length > 0
             ? new HashSet<string>(
                 desired.IgnoredBlacklists
@@ -326,25 +307,28 @@ public static partial class DesiredStateEvaluator {
             includeSources = new HashSet<DnsblIpSource>(desired.IncludeIpSources.Distinct());
         }
 
-        foreach (var r in records) {
-            if (r == null) continue;
-            if (!r.IsBlackListed) continue;
-
+        var applicable = records.Where(r => r != null &&
+            !ignored.Contains((r.BlackList ?? string.Empty).Trim().Trim('.')) &&
+            (includeKinds == null || includeKinds.Contains(r.QueryKind)) &&
+            (includeSources == null || !r.IpSource.HasValue || includeSources.Contains(r.IpSource.Value))).ToArray();
+        if (desired.RequireAtLeastOneResult == true && !applicable.Any(r => r.QuerySucceeded || r.IsBlackListed)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = DesiredStateCodes.DnsblNoResults,
+                Message = "Desired state requires usable DNSBL results, but no applicable query produced one."
+            });
+        }
+        if (desired.DisallowListings != true) { return; }
+        if (applicable.Any(r => !r.QuerySucceeded) || dnsbl.HasDiscoveryFailure(includeSources, includeKinds)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.DNSBL.QueryFailed",
+                Message = "Desired state could not verify the absence of DNSBL listings because applicable query coverage is incomplete."
+            });
+        }
+        foreach (var r in applicable.Where(r => r.IsBlackListed)) {
             var blacklist = (r.BlackList ?? string.Empty).Trim().Trim('.');
-            if (blacklist.Length == 0) continue;
-
-            if (ignored.Count > 0 && ignored.Contains(blacklist)) {
-                continue;
-            }
-
-            if (includeKinds != null && includeKinds.Count > 0 && !includeKinds.Contains(r.QueryKind)) {
-                continue;
-            }
-
-            if (includeSources != null && includeSources.Count > 0 && r.IpSource.HasValue && !includeSources.Contains(r.IpSource.Value)) {
-                continue;
-            }
-
+            if (blacklist.Length == 0) { continue; }
             var subject = r.IpAddress ?? r.SourceHost ?? r.Query ?? domain;
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,

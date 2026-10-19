@@ -80,7 +80,8 @@ internal static class PortHelper {
                 Reservations.Remove(port);
             }
 
-            UsedPorts.Remove(port);
+            // HttpListener may bind a different address family than the allocation probe.
+            // Keep issued ports unique for this test process even after releasing the mutex.
         }
     }
 }

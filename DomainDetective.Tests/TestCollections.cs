@@ -10,3 +10,7 @@ public class PortScanCollection : ICollectionFixture<object> { }
 [CollectionDefinition("DnssecCache")]
 public class DnssecCacheCollection : ICollectionFixture<object> { }
 
+// CT aggregators share their request gate, spacing and completed-response cache.
+[CollectionDefinition("CtSharedState", DisableParallelization = true)]
+public class CtSharedStateCollection { }
+

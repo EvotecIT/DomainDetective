@@ -31,6 +31,16 @@ public sealed class CmdletTestSitemap : ExportableAsyncPSCmdlet {
     [ValidateRange(1, 300)]
     public int TimeoutSeconds { get; set; } = 20;
 
+    /// <para>Total time budget in seconds for sitemap discovery, parsing, and URL probes. Exhaustion returns partial results with AnalysisComplete set to false.</para>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 86400)]
+    public int AnalysisTimeoutSeconds { get; set; } = 60;
+
+    /// <para>Maximum number of sitemap URL probes to run concurrently.</para>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(1, 64)]
+    public int MaxUrlProbeParallelism { get; set; } = 8;
+
     /// <para>Maximum sitemap XML documents to fetch, including nested sitemapindex entries.</para>
     [Parameter(Mandatory = false)]
     [ValidateRange(1, 1000)]
@@ -86,6 +96,8 @@ public sealed class CmdletTestSitemap : ExportableAsyncPSCmdlet {
             var analysis = new SitemapAnalysis();
             var options = new SitemapAnalysisOptions {
                 Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
+                AnalysisTimeout = TimeSpan.FromSeconds(AnalysisTimeoutSeconds),
+                MaxUrlProbeParallelism = MaxUrlProbeParallelism,
                 AllowHttpFallback = !NoHttpFallback.IsPresent,
                 ProbeUrls = !NoUrlProbe.IsPresent,
                 CheckCanonical = !NoCanonicalCheck.IsPresent,

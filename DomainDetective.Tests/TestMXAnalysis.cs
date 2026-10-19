@@ -56,8 +56,8 @@ namespace DomainDetective.Tests {
                 DnsConfiguration = new DnsConfiguration(),
                 QueryDnsOverride = (name, type) => {
                     return type switch {
-                        DnsRecordType.A => Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } }),
-                        DnsRecordType.AAAA => Task.FromResult(new[] { new DnsAnswer { DataRaw = "2001::1" } }),
+                        DnsRecordType.A => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "1.1.1.1" } }),
+                        DnsRecordType.AAAA => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.AAAA, DataRaw = "2001::1" } }),
                         _ => Task.FromResult(Array.Empty<DnsAnswer>())
                     };
                 }

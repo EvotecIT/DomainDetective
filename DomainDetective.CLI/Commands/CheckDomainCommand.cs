@@ -138,7 +138,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
                 .ToArray();
         }
 
-        await CommandUtilities.RunChecks(
+        return await CommandUtilities.RunChecks(
             settings.Domains,
             selected.Length > 0 ? selected : null,
             settings.CheckHttp,
@@ -162,6 +162,5 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             subdomainsResolutionMinIntervalMs: settings.SubdomainsResolutionMinIntervalMs,
             cancellationToken: cancellationToken);
 
-        return 0;
     }
 }

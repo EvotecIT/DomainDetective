@@ -942,6 +942,8 @@ Issues, ideas, and pull requests are welcome. If you are not sure where to start
 
 `DomainHealthCheck.VerifyBatchAsync` admits domains as workers become available and returns results in input order. `MaxDomainParallelism` limits active domain runs. Check or factory failures appear in each result's `Error`; caller cancellation stops admission and drains active workers.
 
+See [Running domain checks efficiently](Docs/PERFORMANCE.MD) for shared work, recursive DNS limits, per-analysis budgets, and incomplete-coverage fields.
+
 Dispose each returned `DomainHealthCheckRun` to release library-created health checks. A custom `healthCheckFactory` supplies independent instances and retains ownership of them; disposing a batch result leaves those instances available to the caller. If input enumeration or cancellation prevents a result list from being returned, the library releases its own instances after workers finish.
 
 ```csharp

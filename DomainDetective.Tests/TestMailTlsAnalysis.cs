@@ -47,6 +47,16 @@ public class TestMailTlsAnalysis
             await analysis.AnalyzeServer("localhost", port, new InternalLogger());
             var result = analysis.ServerResults[$"localhost:{port}"];
             Assert.True(result.StartTlsAdvertised);
+            Assert.Equal(SslProtocols.Tls12, result.Protocol);
+            Assert.True(result.SupportsTls12);
+            // Exercise a successful auxiliary version different from the retained primary evidence.
+            var auxiliary = new MailTlsAnalysis.TlsResult { Protocol = (SslProtocols)12288, SupportsTls13 = true };
+            using var probeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            await (Task)probe.Invoke(analysis, new object[] { MailTlsAnalysis.MailProtocol.Imap,
+                new MailTransportEndpoint("localhost", port) { ConnectAddress = IPAddress.Loopback }, auxiliary, probeTimeout.Token })!;
+            Assert.True(auxiliary.SupportsTls12);
+            Assert.Equal((SslProtocols)12288, auxiliary.Protocol);
         }
         finally
         {

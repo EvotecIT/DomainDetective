@@ -8,61 +8,65 @@ public static partial class Converters
     /// <summary>Executes the convert operation.</summary>
     public static DnsblInfo Convert(DNSBLAnalysis analysis)
     {
-        // DNSBLAnalysis already emits assessments for listed/timeouts/failures.
-        Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
-        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-        var narrative = DomainDetective.Narratives.DnsblNarrative.Build(analysis, analysis.Assessments);
-        var hostSummaries = analysis.Results?.Select(kv => new DnsblHostSummary
-        {
-            Key = kv.Key,
-            Total = kv.Value.Total,
-            Listed = kv.Value.Listed,
-            Blacklists = kv.Value.ListedBlacklist
-        }).ToList() ?? new List<DnsblHostSummary>();
+        lock (analysis.SyncRoot) {
+            // DNSBLAnalysis already emits assessments for listed/timeouts/failures.
+            Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+            var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+            var positives = RecommendationEngine.FromPositives(analysis.Assessments);
+            var narrative = DomainDetective.Narratives.DnsblNarrative.Build(analysis, analysis.Assessments);
+            var hostSummaries = analysis.GetCoverageResults().Select(kv => new DnsblHostSummary
+            {
+                Key = kv.Key,
+                Total = kv.Value.Total,
+                NotChecked = kv.Value.NotChecked,
+                Listed = kv.Value.Listed,
+                Blacklists = kv.Value.ListedBlacklist
+            }).ToList() ?? new List<DnsblHostSummary>();
 
-        var allResults = analysis.AllResults?.ToList() ?? new List<DNSBLRecord>();
-        var listedRecords = allResults.Where(r => r.IsBlackListed).ToList();
-        var targets = BuildTargets(allResults, analysis.Results);
-        var listings = BuildListings(listedRecords);
-        var pathways = BuildPathways(allResults);
-        var providerSummaries = BuildProviders(allResults);
-        var listedProviders = listings
-            .Select(static listing => listing.Provider)
-            .Distinct(System.StringComparer.OrdinalIgnoreCase)
-            .Count();
+            var allResults = analysis.AllResults?.ToList() ?? new List<DNSBLRecord>();
+            var listedRecords = allResults.Where(r => r.IsBlackListed).ToList();
+            var targets = BuildTargets(allResults, analysis.Results);
+            var listings = BuildListings(listedRecords);
+            var pathways = BuildPathways(allResults);
+            var providerSummaries = BuildProviders(allResults);
+            var listedProviders = listings
+                .Select(static listing => listing.Provider)
+                .Distinct(System.StringComparer.OrdinalIgnoreCase)
+                .Count();
 
-        return new DnsblInfo
-        {
-            Check = HealthCheckType.DNSBL,
-            Area = AreaForKind(HealthCheckType.DNSBL),
-            // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
-            Subject = analysis.Subject,
-            ProvidersChecked = analysis.GetDNSBL().Count,
-            HostsChecked = analysis.RecordChecked,
-            HostsListed = analysis.Blacklisted,
-            ListedRecords = listedRecords,
-            HostSummaries = hostSummaries,
-            Targets = targets,
-            Listings = listings,
-            Pathways = pathways,
-            ProvidersWithListings = listedProviders,
-            ProviderSummaries = providerSummaries,
-            Assessments = analysis.Assessments,
-            Status = status,
-            WarningCount = warnCount,
-            ErrorCount = errCount,
-            Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}",
-            Recommendations = recs,
-            Positives = positives,
-            References = (narrative.References?.Count ?? 0) > 0
-                ? narrative.References!.ToList()
-                : new [] { "https://datatracker.ietf.org/doc/html/rfc5782" },
-            Narrative = narrative,
-            Highlights = narrative.Highlights?.ToList() ?? new List<string>(),
-            Details = narrative.Details?.ToList() ?? new List<string>(),
-            Raw = analysis
-        };
+            return new DnsblInfo
+            {
+                Check = HealthCheckType.DNSBL,
+                Area = AreaForKind(HealthCheckType.DNSBL),
+                // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
+                Subject = analysis.Subject,
+                ProvidersChecked = allResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
+                HostsChecked = analysis.RecordChecked,
+                HostsListed = analysis.Blacklisted,
+                ListedRecords = listedRecords,
+                HostSummaries = hostSummaries,
+                Targets = targets,
+                Listings = listings,
+                Pathways = pathways,
+                ProvidersWithListings = listedProviders,
+                ProviderSummaries = providerSummaries,
+                Assessments = analysis.Assessments.ToArray(),
+                Status = (!analysis.DiscoverySucceeded || allResults.Any(record => !record.QuerySucceeded)) && errCount == 0 ? "Incomplete" : status,
+                WarningCount = warnCount,
+                ErrorCount = errCount,
+                Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}; provider queries not checked {allResults.Count(record => !record.QuerySucceeded)}",
+                Recommendations = recs,
+                Positives = positives,
+                References = (narrative.References?.Count ?? 0) > 0
+                    ? narrative.References!.ToList()
+                    : new [] { "https://datatracker.ietf.org/doc/html/rfc5782" },
+                Narrative = narrative,
+                Highlights = narrative.Highlights?.ToList() ?? new List<string>(),
+                Details = narrative.Details?.ToList() ?? new List<string>(),
+                Raw = analysis
+            };
+
+        }
     }
 
     private static IReadOnlyList<DnsblTargetInfo> BuildTargets(
@@ -79,9 +83,7 @@ public static partial class Converters
             .Select(group =>
             {
                 var first = group.First();
-                var providersChecked = results != null && results.TryGetValue(group.Key, out var summary)
-                    ? summary.Total
-                    : group.Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
+                var providersChecked = group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count();
                 var listedProviders = group
                     .Where(static item => item.IsBlackListed)
                     .Select(static item => item.BlackList)
@@ -165,9 +167,9 @@ public static partial class Converters
             {
                 Key = group.Key,
                 Label = GetPathwayLabel(group.First()),
-                TargetsChecked = group.Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
+                TargetsChecked = group.Where(static item => item.QuerySucceeded).Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 ListedTargets = group.Where(static item => item.IsBlackListed).Select(GetTargetKey).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
-                ProvidersChecked = group.Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
+                ProvidersChecked = group.Where(static item => item.QuerySucceeded).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 ProvidersWithListings = group.Where(static item => item.IsBlackListed).Select(static item => item.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count(),
                 QueryKinds = group.Select(static item => FormatQueryKind(item.QueryKind)).Distinct(System.StringComparer.OrdinalIgnoreCase).OrderBy(static item => item, System.StringComparer.OrdinalIgnoreCase).ToArray()
             })
@@ -203,20 +205,7 @@ public static partial class Converters
             .ToArray();
     }
 
-    private static string GetTargetKey(DNSBLRecord record)
-    {
-        if (!string.IsNullOrWhiteSpace(record.IpAddress))
-        {
-            return record.IpAddress!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(record.SourceHost))
-        {
-            return record.SourceHost!;
-        }
-
-        return record.Query ?? string.Empty;
-    }
+    private static string GetTargetKey(DNSBLRecord record) => DNSBLAnalysis.GetRecordTargetKey(record);
 
     private static string GetTargetLabel(DNSBLRecord record)
     {
@@ -338,6 +327,8 @@ public class DnsblInfo
 /// </summary>
 public class DnsblHostSummary
 {
+    /// <summary>Provider records that could not be checked completely.</summary>
+    public int NotChecked { get; set; }
     /// <summary>Gets or sets the key value.</summary>
     public string Key { get; set; } = string.Empty;
     /// <summary>Gets or sets the total value.</summary>

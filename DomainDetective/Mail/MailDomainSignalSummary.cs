@@ -8,6 +8,8 @@ public sealed class MailDomainSignalSummary {
     public bool HasNullMX { get; init; }
     /// <summary>Gets or sets the has aor aaaa value.</summary>
     public bool HasAorAAAA { get; init; }
+    /// <summary>Whether both apex address-family lookups completed conclusively.</summary>
+    public bool ApexAddressLookupComplete { get; init; }
     /// <summary>Gets or sets the effective spf sends value.</summary>
     public bool EffectiveSpfSends { get; init; }
     /// <summary>Gets or sets the has dkim value.</summary>

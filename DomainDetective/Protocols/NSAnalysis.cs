@@ -12,7 +12,7 @@ namespace DomainDetective {
     /// Performs analysis of NS records for a domain.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class NSAnalysis : IHasAssessments {
+    public partial class NSAnalysis : IHasAssessments {
         /// <summary>Gets or sets the subject value.</summary>
         public string? Subject { get; set; }
         /// <summary>Configuration used for DNS queries.</summary>
@@ -44,9 +44,9 @@ namespace DomainDetective {
         public List<string> ParentNsRecords { get; private set; } = new();
         /// <summary>Gets or sets the delegation matches value.</summary>
         public bool DelegationMatches { get; private set; }
-        /// <summary>Gets or sets the glue records complete value.</summary>
+        /// <summary>True when the observed parent provides usable glue for every in-bailiwick NS; it need not advertise both address families.</summary>
         public bool GlueRecordsComplete { get; private set; }
-        /// <summary>Gets or sets the glue records consistent value.</summary>
+        /// <summary>True when the address families advertised in parent glue match the corresponding child address records.</summary>
         public bool GlueRecordsConsistent { get; private set; }
 
         /// <summary>Gets or sets the root server responses value.</summary>
@@ -66,7 +66,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the chaos hostname by server value.</summary>
         public Dictionary<string, string> ChaosHostnameByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Optional parsed-response override for direct CHAOS-class probes.</summary>
+        /// <summary>Optional parsed-response transport for direct parent-delegation and CHAOS probes.</summary>
         public Func<IPAddress, DnsMessage, CancellationToken, Task<DnsResponse?>>? QueryResponseOverride { get; set; }
 
         // ASN diversity (provider diversity)
@@ -82,41 +82,48 @@ namespace DomainDetective {
         public int AsnLookupTimeoutMs { get; set; } = 5000;
 
         /// <summary>Gets the assessments value.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
 
         /// <summary>
         /// Executes a DNS query for the specified record type.
         /// </summary>
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
             var queryDnsOverride = QueryDnsOverride;
             if (queryDnsOverride != null) {
                 // Try exact first
                 var res = await queryDnsOverride(name, type);
+                ct.ThrowIfCancellationRequested();
                 if (res != null && res.Length > 0) return res;
                 // Fallback to toggling trailing dot to accommodate tests and mixed data
                 string alt = name.EndsWith(".", StringComparison.Ordinal) ? name.TrimEnd('.') : name + ".";
-                try { res = await queryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
+                res = await queryDnsOverride(alt, type);
+                ct.ThrowIfCancellationRequested();
                 return res ?? Array.Empty<DnsAnswer>();
             }
 
-            return await DnsConfiguration.QueryDNS(name, type) ?? Array.Empty<DnsAnswer>();
+            var answers = await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: ct);
+            return answers.Where(answer => answer.Type == type).ToArray();
         }
 
-        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type) {
+        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
             var queryDnsFullOverride = QueryDnsFullOverride;
             if (queryDnsFullOverride != null) {
-                return await queryDnsFullOverride(name, type);
+                var responses = await queryDnsFullOverride(name, type);
+                ct.ThrowIfCancellationRequested();
+                return responses;
             }
 
-            return await DnsConfiguration.QueryFullDNS(new[] { name }, type) ?? Array.Empty<DnsResponse>();
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type, cancellationToken: ct) ?? Array.Empty<DnsResponse>();
         }
 
         private static string? GetParentZone(string domain) {
-            if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
+            if (string.IsNullOrWhiteSpace(domain) || domain.Trim() == ".") {
                 return null;
             }
             var parts = domain.Trim('.').Split('.');
-            return parts.Length > 1 ? string.Join(".", parts.Skip(1)) : null;
+            return parts.Length > 1 ? string.Join(".", parts.Skip(1)) : ".";
         }
 
         private static bool AnswersMatch(IEnumerable<DnsAnswer>? first, IEnumerable<DnsAnswer>? second) {
@@ -128,22 +135,27 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the parent zone for NS records and glue information.
         /// </summary>
-        public async Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger) {
+        public Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger)
+            => QueryParentNsGlue(domainName, logger, CancellationToken.None);
+
+        /// <summary>Queries parent delegation evidence, observing caller cancellation.</summary>
+        public async Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger, CancellationToken ct) {
             List<string> nsRecords = new();
             Dictionary<string, List<string>> glueRecords = new(StringComparer.OrdinalIgnoreCase);
 
-            var responses = (await QueryFullDns(domainName, DnsRecordType.NS)).ToArray();
-            if (responses.Length == 0) {
-                return (nsRecords, glueRecords);
-            }
-
-            var response = responses[0];
-            foreach (var rec in response.Answers ?? Array.Empty<DnsAnswer>()) {
+            var response = await QueryParentDelegationResponseAsync(domainName, logger, ct).ConfigureAwait(false);
+            DnsConfiguration.EnsureConclusiveResponse(domainName, DnsRecordType.NS, response);
+            var parentRecords = QueryDnsFullOverride != null
+                ? (response.Answers ?? Array.Empty<DnsAnswer>()).Concat(response.Authorities ?? Array.Empty<DnsAnswer>())
+                : response.Authorities ?? Array.Empty<DnsAnswer>();
+            foreach (var rec in parentRecords
+                .Where(record => record.Type == DnsRecordType.NS && (string.Equals(record.Name?.TrimEnd('.'), domainName.TrimEnd('.'), StringComparison.OrdinalIgnoreCase)
+                    || QueryDnsFullOverride != null && string.IsNullOrEmpty(record.Name)))) {
                 nsRecords.Add(rec.Data.Trim('.'));
             }
 
             foreach (var add in response.Additional ?? Array.Empty<DnsAnswer>()) {
-                if (add.Type == DnsRecordType.A || add.Type == DnsRecordType.AAAA) {
+                if ((add.Type == DnsRecordType.A || add.Type == DnsRecordType.AAAA) && nsRecords.Contains(add.Name.TrimEnd('.'), StringComparer.OrdinalIgnoreCase)) {
                     var host = add.Name.Trim('.');
                     if (!glueRecords.TryGetValue(host, out var list)) {
                         list = new List<string>();
@@ -159,17 +171,18 @@ namespace DomainDetective {
         /// <summary>
         /// Processes NS records and determines their properties.
         /// </summary>
-        public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS");
-            NsRecords = new List<string>();
-            NsRecordExists = false;
-            HasDuplicates = false;
-            AtLeastTwoRecords = false;
-            AllHaveAOrAaaa = true;
-            PointsToCname = false;
-            HasDiverseLocations = false;
-            ChaosVersionByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            ChaosHostnameByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger)
+            => AnalyzeNsRecords(dnsResults, logger, CancellationToken.None);
+
+        /// <summary>Analyzes NS records with bounded address discovery and caller cancellation.</summary>
+        public Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken ct) =>
+            AnalyzeNsRecordsCoreAsync(dnsResults, logger, ct, null);
+
+        internal async Task AnalyzeNsRecordsCoreAsync(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger,
+            CancellationToken ct, Action? childReady) {
+            ct.ThrowIfCancellationRequested();
+            ResetNsEvidence();
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: Subject, source: "Child");
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -177,6 +190,8 @@ namespace DomainDetective {
             }
 
             var nsList = dnsResults.ToList();
+            NsLookupComplete = true;
+            AllHaveAOrAaaa = true;
             NsRecordExists = nsList.Any();
             AtLeastTwoRecords = nsList.Count >= 2;
 
@@ -192,19 +207,27 @@ namespace DomainDetective {
 
             var allIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var nsIps = new List<(string Host, IPAddress Ip)>();
-            foreach (var ns in NsRecords) {
-                var cname = await QueryDns(ns, DnsRecordType.CNAME);
+            var hostRecords = await Helpers.AuthoritativeDnsProbes.RunAsync(NsRecords.Distinct(StringComparer.OrdinalIgnoreCase), async ns => {
+                var cnameTask = QueryNsEvidenceAsync(ns, DnsRecordType.CNAME, ct);
+                var aTask = QueryNsEvidenceAsync(ns, DnsRecordType.A, ct);
+                var aaaaTask = QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct);
+                await Task.WhenAll(cnameTask, aTask, aaaaTask).ConfigureAwait(false);
+                return (Host: ns, Cname: await cnameTask, A: await aTask, Aaaa: await aaaaTask);
+            }, concurrency: 8, cancellationToken: ct).ConfigureAwait(false);
+            foreach (var records in hostRecords) {
+                var ns = records.Host;
+                RecordQueryError(ns, DnsRecordType.CNAME, records.Cname.Error, logger);
+                RecordQueryError(ns, DnsRecordType.A, records.A.Error, logger);
+                RecordQueryError(ns, DnsRecordType.AAAA, records.Aaaa.Error, logger);
+                var cname = records.Cname.Answers;
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
 
-                var a = await QueryDns(ns, DnsRecordType.A);
-                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
-                    AllHaveAOrAaaa = false;
-                    missingAddressHosts.Add(ns);
-                }
-
+                var a = records.A.Answers;
+                var aaaa = records.Aaaa.Answers;
+                bool hasAddress = false;
                 foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        hasAddress = true;
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
                         nsIps.Add((ns, ip));
@@ -213,34 +236,44 @@ namespace DomainDetective {
 
                 foreach (var answer in aaaa ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        hasAddress = true;
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
                         nsIps.Add((ns, ip));
                     }
                 }
+                if (!hasAddress) {
+                    AllHaveAOrAaaa = false;
+                    if (records.A.Error == null && records.Aaaa.Error == null) { missingAddressHosts.Add(ns); }
+                }
             }
+
+            childReady?.Invoke();
 
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var asnLookupTimeoutMs = AsnLookupTimeoutMs > 0 ? AsnLookupTimeoutMs : 5000;
-            foreach (var ip in allIps)
-            {
+            var asnResults = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(allIps, async ip => {
                 try {
-                    int? asn;
-                    if (LookupAsnOverride != null) {
-                        asn = await LookupAsnOverride(ip);
-                    } else {
-                        using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
-                        asn = await LookupAsnAsync(ip, cts.Token);
-                    }
-                    if (asn.HasValue) {
-                        AsnByIp[ip] = asn.Value;
-                    }
-                } catch { /* ignore lookup failures */ }
+                    if (LookupAsnOverride != null) { return (Ip: ip, Asn: await LookupAsnOverride(ip)); }
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    cts.CancelAfter(asnLookupTimeoutMs);
+                    return (Ip: ip, Asn: await LookupAsnAsync(ip, cts.Token));
+                } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { return (Ip: ip, Asn: (int?)null); }
+            }, concurrency: 16, cancellationToken: ct);
+            ct.ThrowIfCancellationRequested();
+            foreach (var item in asnResults) {
+                if (item.Asn.HasValue) { AsnByIp[item.Ip] = item.Asn.Value; }
             }
             AsnDistinctCount = AsnByIp.Values.Distinct().Count();
 
             HasDiverseLocations = subnets.Count >= 2 || AsnDistinctCount >= 2;
+            AddressResultKnown = AllHaveAOrAaaa || missingAddressHosts.Count > 0;
+            CnameResultKnown = PointsToCname || hostRecords.All(records => records.Cname.Error == null);
+            AsnDiversityComplete = hostRecords.All(records => records.A.Error == null && records.Aaaa.Error == null)
+                && asnResults.All(result => result.Asn.HasValue);
+            DiversityResultKnown = HasDiverseLocations || AsnDiversityComplete;
 
             // Emit assessments for common NS issues
             if (!NsRecordExists) {
@@ -261,19 +294,22 @@ namespace DomainDetective {
                         logger.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
                 }
             }
-            if (!HasDiverseLocations) {
+            if (!HasDiverseLocations && DiversityResultKnown) {
                 logger.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
-            } else {
+            } else if (HasDiverseLocations) {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
-                logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
+                var asnCount = AsnDiversityComplete ? AsnDistinctCount.ToString()
+                    : AsnDistinctCount > 0 ? $"{AsnDistinctCount}+ (partial)" : "unverified";
+                logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {asnCount})");
             }
 
             // Best-effort CHAOS TXT fingerprinting for version/hostname disclosure
             if (DnsConfiguration.QueryDnsOverride == null) {
                 try
                 {
-                    await FingerprintChaosAsync(nsIps, logger, _collector, CancellationToken.None);
+                    await FingerprintChaosAsync(nsIps, logger, _collector, ct);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch
                 {
                 }
@@ -285,21 +321,7 @@ namespace DomainDetective {
         private static async Task<int?> LookupAsnAsync(string ip, CancellationToken ct)
         {
             try {
-                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
-                using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-#if NET8_0_OR_GREATER
-                var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
-#else
-                var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-                using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-#endif
-                if (!doc.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty("asns", out var asns)) return null;
-                if (asns.ValueKind != JsonValueKind.Array || asns.GetArrayLength() == 0) return null;
-                var first = asns[0];
-                if (first.TryGetProperty("asn", out var asnProp)) return asnProp.GetInt32();
-                return null;
+                return (await Helpers.IpNetworkMetadata.PrefixAsync(SharedHttpClient.Instance, ip, ct).ConfigureAwait(false)).Asn;
             } catch { return null; }
         }
 
@@ -308,12 +330,26 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain being checked.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
-        public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName);
+        public Task AnalyzeParentDelegation(string domainName, InternalLogger logger)
+            => AnalyzeParentDelegation(domainName, logger, CancellationToken.None);
+
+        /// <summary>Compares completed child NS evidence with parent delegation, observing cancellation.</summary>
+        public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger, CancellationToken ct) {
+            ct.ThrowIfCancellationRequested();
+            _delegationDnsQueryErrors.Clear();
+            lock (Assessments) {
+                Assessments.RemoveAll(item => item.Source == "Parent" || item.Code == NSCodes.DelegationMismatch
+                    || item.Code == NSCodes.GlueIncomplete || item.Code == NSCodes.GlueInconsistent);
+            }
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName, source: "Parent");
             ParentNsRecords = new List<string>();
+            ParentAuthorityServer = null;
             DelegationMatches = false;
-            GlueRecordsComplete = true;
-            GlueRecordsConsistent = true;
+            GlueRecordsComplete = false;
+            GlueRecordsConsistent = false;
+            DelegationAnalysisComplete = false;
+            GlueConsistencyKnown = false;
+            if (!NsLookupComplete) { return; }
 
             var parent = GetParentZone(domainName);
             if (string.IsNullOrEmpty(parent)) {
@@ -321,35 +357,75 @@ namespace DomainDetective {
                 return;
             }
 
-            var (parentNs, glue) = await QueryParentNsGlue(domainName, logger);
+            List<string> parentNs;
+            Dictionary<string, List<string>> glue;
+            try {
+                (parentNs, glue) = await QueryParentNsGlue(domainName, logger, ct);
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (IsDnsQueryFailure(ex)) {
+                ct.ThrowIfCancellationRequested();
+                RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, logger, parent: true);
+                return;
+            }
             ParentNsRecords = parentNs;
 
             if (!ParentNsRecords.Any()) {
-                GlueRecordsComplete = false;
                 return;
             }
+
+            bool glueComplete = true;
+            bool glueConsistent = true;
+            bool confirmedGlueMismatch = false;
+            bool glueComparisonsComplete = true;
 
             DelegationMatches = new HashSet<string>(ParentNsRecords, StringComparer.OrdinalIgnoreCase)
                 .SetEquals(NsRecords);
 
             foreach (var ns in ParentNsRecords) {
-                if (!ns.EndsWith('.' + domainName, StringComparison.OrdinalIgnoreCase)) {
+                if (!Helpers.DomainHelper.IsDomainOrSubdomainOf(ns, domainName.TrimEnd('.'))) {
                     continue;
                 }
 
                 glue.TryGetValue(ns, out var parentGlue);
                 if (parentGlue == null || parentGlue.Count == 0) {
-                    GlueRecordsComplete = false;
+                    glueComplete = false;
                     continue;
                 }
+                var parentAddresses = parentGlue.Select(value => IPAddress.TryParse(value, out var ip) ? ip : null)
+                    .Where(ip => ip != null).Select(ip => ip!).ToArray();
+                bool v4Glue = parentAddresses.Any(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                bool v6Glue = parentAddresses.Any(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6);
+                if (!v4Glue && !v6Glue) { glueComplete = false; continue; }
 
-                var childA = await QueryDns(ns, DnsRecordType.A);
-                var childAaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                var combined = childA.Concat(childAaaa ?? Array.Empty<DnsAnswer>()).Select(a => a.Data);
-                if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
-                    GlueRecordsConsistent = false;
+                // Consistency concerns the RRsets actually advertised by the parent.
+                // Other child families need no query and cannot contradict that glue.
+                var childATask = v4Glue ? QueryNsEvidenceAsync(ns, DnsRecordType.A, ct)
+                    : Task.FromResult((Answers: Array.Empty<DnsAnswer>(), Error: (Exception?)null));
+                var childAaaaTask = v6Glue ? QueryNsEvidenceAsync(ns, DnsRecordType.AAAA, ct)
+                    : Task.FromResult((Answers: Array.Empty<DnsAnswer>(), Error: (Exception?)null));
+                await Task.WhenAll(childATask, childAaaaTask).ConfigureAwait(false);
+                var childA = await childATask;
+                var childAaaa = await childAaaaTask;
+                RecordQueryError(ns, DnsRecordType.A, childA.Error, logger, parent: true);
+                RecordQueryError(ns, DnsRecordType.AAAA, childAaaa.Error, logger, parent: true);
+                if (childA.Error != null || childAaaa.Error != null) {
+                    glueConsistent = false;
+                    glueComparisonsComplete = false;
+                }
+                // A conclusive mismatch in either family establishes inconsistency even
+                // when the other family could not be queried.
+                bool mismatch = v4Glue && childA.Error == null && !AddressFamilyMatches(parentAddresses, childA.Answers, System.Net.Sockets.AddressFamily.InterNetwork)
+                    || v6Glue && childAaaa.Error == null && !AddressFamilyMatches(parentAddresses, childAaaa.Answers, System.Net.Sockets.AddressFamily.InterNetworkV6);
+                if (mismatch) {
+                    glueConsistent = false;
+                    confirmedGlueMismatch = true;
                 }
             }
+
+            GlueRecordsComplete = glueComplete;
+            GlueRecordsConsistent = glueComplete && glueConsistent;
+            GlueConsistencyKnown = confirmedGlueMismatch || GlueRecordsConsistent;
+            DelegationAnalysisComplete = glueComparisonsComplete;
 
             if (!DelegationMatches) {
                 logger.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");
@@ -357,7 +433,7 @@ namespace DomainDetective {
             if (!GlueRecordsComplete) {
                 logger.WriteWarningCode(NSCodes.GlueIncomplete, "Parent zone missing glue records for in-bailiwick NS");
             }
-            if (!GlueRecordsConsistent) {
+            if (confirmedGlueMismatch) {
                 logger.WriteWarningCode(NSCodes.GlueInconsistent, "Parent glue records do not match child A/AAAA records");
             }
         }
@@ -419,7 +495,7 @@ namespace DomainDetective {
                     .Select(answer => answer.Data ?? answer.DataRaw)
                     .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 throw;
             }
@@ -450,36 +526,25 @@ namespace DomainDetective {
                 .Take(limit)
                 .ToList();
 
-            foreach (var s in list)
-            {
-                token.ThrowIfCancellationRequested();
-
-                var version = await QueryChaosTxtAsync(s.Ip, "version.bind", logger, token);
-                if (version != null)
-                {
-                    var trimmed = version.Trim();
-                    if (trimmed.Length > 0)
-                    {
-                        ChaosVersionByServer[s.Key] = trimmed;
-                        using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", trimmed);
+            var fingerprints = await DomainDetective.Helpers.AuthoritativeDnsProbes.RunAsync(list, async server => {
+                var version = QueryChaosTxtAsync(server.Ip, "version.bind", logger, token);
+                var hostname = QueryChaosTxtAsync(server.Ip, "hostname.bind", logger, token);
+                await Task.WhenAll(version, hostname);
+                return (server.Key, Version: version.Result, Hostname: hostname.Result);
+            }, cancellationToken: token);
+            foreach (var result in fingerprints) {
+                using (collector.PushTarget(result.Key)) {
+                    if (!string.IsNullOrWhiteSpace(result.Version)) {
+                        ChaosVersionByServer[result.Key] = result.Version!.Trim();
+                        logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", result.Version.Trim());
                     }
-                }
-
-                var hostname = await QueryChaosTxtAsync(s.Ip, "hostname.bind", logger, token);
-                if (hostname != null)
-                {
-                    var trimmed = hostname.Trim();
-                    if (trimmed.Length > 0)
-                    {
-                        ChaosHostnameByServer[s.Key] = trimmed;
-                        using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", trimmed);
+                    if (!string.IsNullOrWhiteSpace(result.Hostname)) {
+                        ChaosHostnameByServer[result.Key] = result.Hostname!.Trim();
+                        logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", result.Hostname.Trim());
                     }
                 }
             }
         }
-
         private async Task<bool> CheckRecursionAsync(string server, InternalLogger logger) {
             var recursionTestOverride = RecursionTestOverride;
             if (recursionTestOverride != null) {
