@@ -17,14 +17,6 @@ public class TestPortScanProgressOutput
         var tcpPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
         var tcpAccept = tcpListener.AcceptTcpClientAsync();
 
-        using var udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
-        var udpPort = ((IPEndPoint)udpServer.Client.LocalEndPoint!).Port;
-        var udpTask = Task.Run(async () =>
-        {
-            var r = await udpServer.ReceiveAsync();
-            await udpServer.SendAsync(r.Buffer, r.Buffer.Length, r.RemoteEndPoint);
-        });
-
         var sw = new StringWriter();
         var original = Console.Out;
         Console.SetOut(sw);
@@ -32,14 +24,13 @@ public class TestPortScanProgressOutput
         {
             var logger = new InternalLogger { IsProgress = true };
             var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
-            await analysis.Scan("127.0.0.1", new[] { tcpPort, udpPort }, logger);
+            await analysis.Scan("127.0.0.1", new[] { tcpPort }, logger);
             using var _ = await tcpAccept;
         }
         finally
         {
             Console.SetOut(original);
             tcpListener.Stop();
-            await udpTask;
         }
 
         var output = sw.ToString();

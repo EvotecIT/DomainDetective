@@ -11,9 +11,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- The assessment report uses HtmlForgeX features newer than the last package; a sibling checkout is preferred. -->
+    <!-- Local source qualification is explicit; normal builds use the public package. -->
     <HtmlForgeXProjectPath Condition="'$(HtmlForgeXProjectPath)' == ''">..\..\HtmlForgeX\HtmlForgeX\HtmlForgeX.csproj</HtmlForgeXProjectPath>
-    <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == '' And Exists('$(HtmlForgeXProjectPath)')">true</UseLocalHtmlForgeX>
     <UseLocalHtmlForgeX Condition="'$(UseLocalHtmlForgeX)' == ''">false</UseLocalHtmlForgeX>
   </PropertyGroup>
 
@@ -24,7 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(HtmlForgeXProjectPath)" Condition="'$(UseLocalHtmlForgeX)' == 'true' And Exists('$(HtmlForgeXProjectPath)')" />
-    <PackageReference Include="HtmlForgeX" Version="1.2.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
+    <PackageReference Include="HtmlForgeX" Version="2.0.0" Condition="'$(UseLocalHtmlForgeX)' != 'true' Or !Exists('$(HtmlForgeXProjectPath)')" />
   </ItemGroup>
 
 </Project>

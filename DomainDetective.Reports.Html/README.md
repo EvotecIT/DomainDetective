@@ -45,6 +45,6 @@ and `Dashboard` layouts were retired; the enum values remain (obsolete) so exist
 
 ## Dependencies
 
-- HtmlForgeX 1.1.0 or later
+- HtmlForgeX 2.0.0 or later
 - DomainDetective
 - DomainDetective.Reports
