@@ -26,6 +26,7 @@ public static partial class Converters {
             DocumentCount = analysis.Documents.Count,
             UrlCount = analysis.Entries.Count,
             ProbeCount = analysis.UrlProbes.Count,
+            AnalysisComplete = analysis.AnalysisComplete,
             DuplicateLocationCount = analysis.DuplicateLocationCount,
             InvalidLocationCount = analysis.InvalidLocationCount,
             RedirectCount = analysis.RedirectCount,
@@ -89,6 +90,8 @@ public static partial class Converters {
 
 /// <summary>View model summarizing sitemap XML validation and sitemap-listed URL probes.</summary>
 public sealed class SitemapInfo {
+    /// <summary>Whether discovery, parsing and configured URL probes finished within the analysis budget.</summary>
+    public bool AnalysisComplete { get; set; }
     /// <summary>Health check represented by this view.</summary>
     public HealthCheckType Check { get; set; }
     /// <summary>Analysis area used for grouping.</summary>

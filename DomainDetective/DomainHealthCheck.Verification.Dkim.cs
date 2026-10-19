@@ -31,7 +31,11 @@ namespace DomainDetective {
         /// <param name="selectors">Selectors to query or <c>null</c> to auto detect.</param>
         /// <param name="includeMissingSelectors">When <c>true</c>, <c>AnalysisResults</c> will include entries for selectors that have no published DKIM record and warnings will be logged for those missing records. When <c>false</c>, selectors with no published DKIM record are omitted from <c>AnalysisResults</c> and no warnings are logged for them.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDKIM(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) {
+        public Task VerifyDKIM(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) =>
+            VerifyDkimCoreAsync(domainName, selectors, includeMissingSelectors, cancellationToken, false);
+
+        private async Task VerifyDkimCoreAsync(string domainName, string[] selectors, bool includeMissingSelectors,
+            CancellationToken cancellationToken, bool discoverWellKnown) {
             DKIMAnalysis.Reset();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
@@ -59,6 +63,11 @@ namespace DomainDetective {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Cast<string>()
                 .ToArray();
+            var explicitSelectors = new HashSet<string>(normalizedSelectors, StringComparer.OrdinalIgnoreCase);
+            if (discoverWellKnown) {
+                normalizedSelectors = normalizedSelectors.Concat(Definitions.DKIMSelectors.GuessSelectors())
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            }
             var results = new DnsAnswer[normalizedSelectors.Length][];
             var errors = new Exception?[normalizedSelectors.Length];
             using var concurrency = new SemaphoreSlim(Math.Max(1, DKIMAnalysis.SelectorQueryConcurrency));
@@ -68,7 +77,7 @@ namespace DomainDetective {
                     results[index] = await DnsConfiguration.QueryDNS(
                         name: DkimDnsName.Lookup(domainName, selector),
                         recordType: DnsRecordType.TXT,
-                        filter: string.Empty,
+                        filter: explicitSelectors.Contains(selector) ? string.Empty : "DKIM1",
                         includeAliasesInFilter: true,
                         cancellationToken: cancellationToken).ConfigureAwait(false);
                 } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException)) {
@@ -83,7 +92,7 @@ namespace DomainDetective {
                 var trimmedSelector = normalizedSelectors[index];
                 if (errors[index] == null) {
                     var dkim = results[index] ?? Array.Empty<DnsAnswer>();
-                    if (dkim.Any() || includeMissingSelectors) {
+                    if (dkim.Any() || includeMissingSelectors && explicitSelectors.Contains(trimmedSelector)) {
                         await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
                     }
                 } else {

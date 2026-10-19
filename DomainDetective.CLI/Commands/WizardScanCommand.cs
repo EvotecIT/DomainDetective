@@ -87,7 +87,7 @@ internal sealed class WizardScanSettings : CommandSettings
 }
 
 /// <summary>Runs the Hacker Wizard scan with Spectre UI.</summary>
-internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
+internal sealed partial class WizardScanCommand : AsyncCommand<WizardScanSettings>
 {
     [RequiresDynamicCode("Calls JSON serialization")]
     public override async Task<int> ExecuteAsync(CommandContext context, WizardScanSettings s, CancellationToken cancellationToken)
@@ -102,6 +102,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
         }
 
         bool runAgain;
+        int exitCode = 0;
         do
         {
             runAgain = false;
@@ -284,14 +285,14 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             DisableLive = s.SimpleUi || !s.LiveUi
         });
 
-            var hc = await wizard.RunAsync(cancellationToken);
+            using var hc = await wizard.RunAsync(cancellationToken);
             // Save domain to recent list
             RecentDomains.Add(s.Domain);
 
             // Console summary: provider chain (primary, gateways, outbound)
             try
             {
-                var pm = hc?.EmailProviderMatch;
+                var pm = hc.EmailProviderMatch;
                 if (pm != null)
                 {
                     var primary = pm.Primary?.DisplayName ?? "(unknown)";
@@ -306,31 +307,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                 }
             } catch { }
 
-            switch (wizard.Options.Output)
-            {
-                case "json":
-                    {
-                        var json = hc!.ToJson();
-                        if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
-                        {
-                            var jsonPath = WizardExportUtilities.WriteJson(hc, wizard.Options.Out!);
-                            AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{jsonPath}[/]");
-                        }
-                        else
-                        {
-                            Console.WriteLine(json);
-                        }
-                        break;
-                    }
-                case "html":
-                    {
-                        var htmlPath = WizardExportUtilities.WriteHtml(hc!, s.Domain, wizard.Options.Out);
-                        AnsiConsole.MarkupLine($"[grey]HTML written to[/] [underline]{htmlPath}[/]");
-                        break;
-                    }
-                default:
-                    break;
-            }
+            exitCode = Math.Max(exitCode, WriteScanOutputs(hc, wizard.Options, s.Domain));
 
             // Post-run next-step menu to keep window open and allow re-runs
             if (s.Interactive || s.PauseExit)
@@ -350,6 +327,6 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
 
         } while (runAgain && !cancellationToken.IsCancellationRequested);
 
-        return 0;
+        return exitCode;
     }
 }

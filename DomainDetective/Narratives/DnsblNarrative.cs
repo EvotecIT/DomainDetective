@@ -12,7 +12,12 @@ public static class DnsblNarrative
     public sealed class Sections : NarrativeSections { }
 
     /// <summary>Executes the build operation.</summary>
-    public static Sections Build(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments = null) {
+        if (analysis == null) { return BuildCore(null, assessments); }
+        lock (analysis.SyncRoot) { return BuildCore(analysis, assessments); }
+    }
+
+    private static Sections BuildCore(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments)
     {
         var subjCandidate = analysis?.Subject;
         string subj;
@@ -50,15 +55,17 @@ public static class DnsblNarrative
             };
         }
 
-        hi.Add($"Providers checked: {analysis.GetDNSBL().Count}");
+        hi.Add($"Providers checked: {analysis.AllResults.Where(record => record.QuerySucceeded).Select(record => record.BlackList).Distinct(System.StringComparer.OrdinalIgnoreCase).Count()}");
         hi.Add($"Hosts checked: {analysis.RecordChecked}");
         hi.Add(analysis.Blacklisted > 0
             ? $"Hosts listed: {analysis.Blacklisted}"
-            : "No hosts were listed on DNSBLs.");
+            : !analysis.DiscoverySucceeded || analysis.AllResults.Any(record => !record.QuerySucceeded)
+                ? "No listings observed; some DNSBL providers could not be checked."
+                : "No hosts were listed on DNSBLs.");
 
-        foreach (var kv in analysis.Results)
+        foreach (var kv in analysis.GetCoverageResults())
         {
-            det.Add($"{kv.Key}: listed {kv.Value.Listed}/{kv.Value.Total}");
+            det.Add($"{kv.Key}: listed {kv.Value.Listed}/{kv.Value.Total}; not checked {kv.Value.NotChecked}");
         }
 
         var refs = new List<string> { "https://datatracker.ietf.org/doc/html/rfc5782" };

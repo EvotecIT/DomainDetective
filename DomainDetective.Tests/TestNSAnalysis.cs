@@ -262,8 +262,10 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.RecursionEnabled["ns1.example.com"]);
         }
 
-        [Fact]
-        public async Task DetectChaosFingerprintingVersionAndHostname()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task DetectChaosFingerprintingVersionAndHostname(bool canceledHostname)
         {
             var answers = new List<DnsAnswer>
             {
@@ -282,6 +284,9 @@ namespace DomainDetective.Tests {
             analysis.QueryResponseOverride = (_, query, __) =>
             {
                 string queryName = query.Name.TrimEnd('.');
+                if (canceledHostname && queryName == "hostname.bind") {
+                    return Task.FromCanceled<DnsResponse?>(new CancellationToken(true));
+                }
                 string? value = queryName.Equals("version.bind", System.StringComparison.OrdinalIgnoreCase)
                     ? "BIND 9.18.0"
                     : queryName.Equals("hostname.bind", System.StringComparison.OrdinalIgnoreCase)
@@ -296,7 +301,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeNsRecords(answers, new InternalLogger());
 
             Assert.Contains(analysis.Assessments, a => a.Code == NSCodes.ChaosVersionExposed);
-            Assert.Contains(analysis.Assessments, a => a.Code == NSCodes.ChaosHostnameExposed);
+            Assert.Equal(!canceledHostname, analysis.Assessments.Any(a => a.Code == NSCodes.ChaosHostnameExposed));
         }
     }
 }

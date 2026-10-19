@@ -73,15 +73,30 @@ namespace DomainDetective.PowerShell {
                 }
 
                 logger.WriteVerbose("Querying domain health for domain: {0}", domain);
-                // Always run checks first (simple flow), then export if requested.
-                await healthCheck.Verify(
-                    domain,
-                    HealthCheckType,
-                    DkimSelectors,
-                    DaneServiceType,
-                    DanePorts,
-                    PortScanProfile,
-                    cancellationToken: CancelToken);
+                // Acquire default document transport policies through the same run owner,
+                // rather than retrying them while converting its results.
+                var requestedChecks = HealthCheckType;
+                if ((requestedChecks == null || requestedChecks.Length == 0) && IsExportRequested()
+                    && GetRequestedFormatsOrDefault(ExportDefaults.Format).Any(format => format is ReportFormat.Word or ReportFormat.Html)) {
+                    requestedChecks = DomainHealthCheck.DefaultChecks.Concat(new[] {
+                        DomainDetective.HealthCheckType.MTASTS, DomainDetective.HealthCheckType.TLSRPT
+                    }).Distinct().ToArray();
+                }
+                System.Exception? verificationFailure = null;
+                try {
+                    await healthCheck.Verify(
+                        domain,
+                        requestedChecks,
+                        DkimSelectors,
+                        DaneServiceType,
+                        DanePorts,
+                        PortScanProfile,
+                        cancellationToken: CancelToken);
+                } catch (System.OperationCanceledException) when (CancelToken.IsCancellationRequested) { throw; }
+                catch (System.Exception exception) when (exception is not System.OutOfMemoryException
+                    && exception is not PipelineStoppedException && exception is not ActionPreferenceStopException) {
+                    verificationFailure = exception;
+                }
 
                 // 1) Always return overall view with Raw property first
                 var overall = DomainDetective.Views.Converters.Convert(healthCheck, domain);
@@ -121,23 +136,12 @@ namespace DomainDetective.PowerShell {
                     // If specific HealthCheckType selection is provided and we support writers for it,
                     // use the composition aggregators for Word/HTML to ensure identical section rendering.
                     if (compositionFormats.Length > 0) {
-                        // Enrich with transport policies when user didn't specify a subset
-                        if (HealthCheckType == null || HealthCheckType.Length == 0) {
-                            try { await healthCheck.VerifyMTASTS(domain, CancelToken); } catch { }
-                            try { await healthCheck.VerifyTLSRPT(domain, CancelToken); } catch { }
-                        }
-
-                        var items = new System.Collections.Generic.List<object>();
-                        // Export exactly what ran: the default checks plus the transport policies verified above.
-                        var selection = HealthCheckType ?? DomainDetective.DomainHealthCheck.DefaultChecks
-                            .Concat(new[] { DomainDetective.HealthCheckType.MTASTS, DomainDetective.HealthCheckType.TLSRPT })
-                            .Distinct()
-                            .ToArray();
-
-                        // Convert existing results, including classification, without rerunning failed checks.
+                        // Conversion retains existing execution evidence and never reruns failed checks.
                         var conversionErrors = new System.Collections.Generic.List<string>();
-                        items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, selection, conversionErrors));
-                        foreach (var conversionError in conversionErrors) WriteWarning($"Report section skipped: {conversionError}");
+                        var items = DomainDetective.Views.Converters.ConvertChecks(healthCheck, healthCheck.LastVerifiedChecks, conversionErrors);
+                        foreach (var conversionError in conversionErrors) {
+                            WriteWarning($"Report evidence is incomplete: {conversionError}");
+                        }
 
                         try {
                             var hadUnsupportedFormats = false;
@@ -172,7 +176,6 @@ namespace DomainDetective.PowerShell {
 
                             if (reportResult.Success) {
                                 WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
-                                if (!string.IsNullOrWhiteSpace(reportResult.ErrorMessage)) WriteWarning(reportResult.ErrorMessage!);
                             } else {
                                 WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                             }
@@ -181,6 +184,9 @@ namespace DomainDetective.PowerShell {
                             }
                         }
                     }
+                }
+                if (verificationFailure != null) {
+                    WriteError(new ErrorRecord(verificationFailure, "DomainCheckFailed", ErrorCategory.InvalidOperation, domain));
                 }
             }
 
@@ -198,3 +204,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

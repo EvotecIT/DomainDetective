@@ -38,6 +38,8 @@ public static partial class Converters
                 IsExpired = r.IsExpired,
                 Protocol = r.Protocol.ToString(),
                 SupportsTls13 = r.SupportsTls13,
+                ProtocolSupportComplete = r.ProtocolSupportComplete,
+                LegacyProtocolSupportComplete = r.LegacyProtocolSupportComplete,
                 Tls13Used = r.Tls13Used,
                 HostnameMatch = r.HostnameMatch,
                 CipherAlgorithm = r.CipherAlgorithm.ToString(),
@@ -150,6 +152,10 @@ public class MailTlsServerInfo
     public string Protocol { get; set; } = null!;
     /// <summary>True when server supports TLS 1.3.</summary>
     public bool SupportsTls13 { get; set; }
+    /// <summary>Whether the server's auxiliary TLS protocol checks completed within their budget.</summary>
+    public bool ProtocolSupportComplete { get; set; }
+    /// <summary>Whether both legacy TLS version probes completed conclusively.</summary>
+    public bool LegacyProtocolSupportComplete { get; set; }
     /// <summary>True when TLS 1.3 was used for the connection.</summary>
     public bool Tls13Used { get; set; }
     /// <summary>True when certificate hostname matches the server name.</summary>

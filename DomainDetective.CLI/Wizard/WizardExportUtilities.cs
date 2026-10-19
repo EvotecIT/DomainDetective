@@ -66,6 +66,13 @@ internal static class WizardExportUtilities
             Domain = domain,
             FinishedUtc = DateTime.UtcNow
         };
+        if (healthCheck.VerificationCompleted == false) {
+            result.Notes.Add("Scan incomplete: " + healthCheck.VerificationError);
+        }
+
+        var completed = new HashSet<HealthCheckType>(healthCheck.VerificationCompletedChecks);
+        bool? Observed(HealthCheckType check, bool? value) =>
+            !healthCheck.VerificationCompleted.HasValue || completed.Contains(check) || value == true ? value : null;
 
         var soa = healthCheck.SOAAnalysis;
         if (!string.IsNullOrWhiteSpace(soa.PrimaryNameServer) ||
@@ -86,8 +93,8 @@ internal static class WizardExportUtilities
             .ToList();
 
         result.Dns.Mx = BuildMxInfos(healthCheck.MXAnalysis?.MxRecords);
-        result.Dns.DnssecEnabled = healthCheck.DnsSecAnalysis?.ChainValid;
-        result.Dns.ZoneTransferOpen = healthCheck.ZoneTransferAnalysis?.ServerResults?.Values.Any(value => value);
+        result.Dns.DnssecEnabled = Observed(HealthCheckType.DNSSEC, healthCheck.DnsSecAnalysis?.ChainValid);
+        result.Dns.ZoneTransferOpen = Observed(HealthCheckType.ZONETRANSFER, healthCheck.ZoneTransferAnalysis?.ServerResults?.Values.Any(value => value));
 
         result.Mail.SpfRecord = NullIfWhiteSpace(healthCheck.SpfAnalysis?.SpfRecord);
         result.Mail.DmarcRecord = NullIfWhiteSpace(healthCheck.DmarcAnalysis?.DmarcRecord);
@@ -95,11 +102,11 @@ internal static class WizardExportUtilities
         result.Mail.MtaStsPolicy = NullIfWhiteSpace(healthCheck.MTASTSAnalysis?.Policy);
         result.Mail.TlsRpt = NullIfWhiteSpace(healthCheck.TLSRPTAnalysis?.TlsRptRecord);
 
-        result.Web.HttpOk = healthCheck.HttpAnalysis?.IsReachable;
-        result.Web.HttpsOk = healthCheck.CertificateAnalysis?.IsReachable;
-        result.Web.Http2 = healthCheck.HttpAnalysis?.Http2Supported;
-        result.Web.Http3 = healthCheck.HttpAnalysis?.Http3Supported;
-        result.Web.Hsts = healthCheck.HttpAnalysis?.HstsPresent;
+        result.Web.HttpOk = Observed(HealthCheckType.HTTP, healthCheck.HttpAnalysis?.IsReachable);
+        result.Web.HttpsOk = Observed(HealthCheckType.CERT, healthCheck.CertificateAnalysis?.IsReachable);
+        result.Web.Http2 = Observed(HealthCheckType.HTTP, healthCheck.HttpAnalysis?.Http2Supported);
+        result.Web.Http3 = Observed(HealthCheckType.HTTP, healthCheck.HttpAnalysis?.Http3Supported);
+        result.Web.Hsts = Observed(HealthCheckType.HTTP, healthCheck.HttpAnalysis?.HstsPresent);
 
         var certificate = healthCheck.CertificateAnalysis?.Certificate;
         if (certificate != null)

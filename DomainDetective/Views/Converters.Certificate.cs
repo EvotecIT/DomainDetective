@@ -35,6 +35,10 @@ public static partial class Converters {
             SupportsTls11 = analysis.SupportsTls11,
             SupportsTls12 = analysis.SupportsTls12,
             SupportsTls13 = analysis.SupportsTls13,
+            AnalysisComplete = analysis.AnalysisComplete,
+            CtLookupComplete = analysis.CtLookupComplete,
+            ProtocolSupportComplete = analysis.ProtocolSupportComplete,
+            LegacyProtocolSupportComplete = analysis.LegacyProtocolSupportComplete,
             TlsProtocol = analysis.TlsProtocol.ToString(),
             CipherAlgorithm = analysis.CipherAlgorithm,
             CipherStrength = analysis.CipherStrength,
@@ -138,6 +142,14 @@ public class CertificateInfo {
     public bool SupportsTls12 { get; set; }
     /// <summary>Gets or sets the supports tls13 value.</summary>
     public bool SupportsTls13 { get; set; }
+    /// <summary>Whether all configured analysis phases finished within the whole-analysis budget.</summary>
+    public bool AnalysisComplete { get; set; }
+    /// <summary>Whether certificate transparency discovery finished within its budget.</summary>
+    public bool CtLookupComplete { get; set; }
+    /// <summary>Whether auxiliary TLS version results are conclusive.</summary>
+    public bool ProtocolSupportComplete { get; set; }
+    /// <summary>Whether legacy TLS version results are conclusive.</summary>
+    public bool LegacyProtocolSupportComplete { get; set; }
     /// <summary>Gets or sets the tls protocol value.</summary>
     public string TlsProtocol { get; set; } = string.Empty;
     /// <summary>Gets or sets the cipher algorithm value.</summary>

@@ -58,6 +58,7 @@ namespace DomainDetective {
                 await QueryCtLogs(cancellationToken).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            AnalysisComplete = !_ctLookupIncomplete;
         }
 
         private void EnsureChainBuilt(X509Certificate2 certificate) {

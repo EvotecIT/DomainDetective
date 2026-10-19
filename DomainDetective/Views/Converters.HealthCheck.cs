@@ -25,15 +25,21 @@ public static partial class Converters {
         foreach (HealthCheckType check in (checks ?? health.LastVerifiedChecks).Distinct()) {
             Assessment? failure = health.GetCheckFailure(check);
             if (failure != null) {
-                errors?.Add(failure.Message);
+                if (failure.Severity == AssessmentSeverity.Error) { errors?.Add(failure.Message); }
                 items.Add(new CheckFailureInfo(check, failure));
                 continue;
             }
             try {
                 foreach (object view in ConvertCheck(health, check, converted)) items.Add(view);
-            } catch (Exception ex) when (ex is not OutOfMemoryException) {
+            } catch (Exception ex) when (ex is not OutOfMemoryException && ex.InnerException is not OutOfMemoryException) {
                 Exception cause = ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
-                errors?.Add($"{check}: {cause.GetType().Name}: {cause.Message}");
+                var conversionFailure = new Assessment {
+                    Severity = AssessmentSeverity.Error, Category = check.ToString(), Code = "Verification.Conversion.Failed",
+                    Source = nameof(ConvertChecks), Target = health.VerificationDomain,
+                    Message = $"{check}: {cause.GetType().Name}: {cause.Message}"
+                };
+                errors?.Add(conversionFailure.Message);
+                items.Add(new CheckFailureInfo(check, conversionFailure));
             }
         }
         return items;
@@ -46,6 +52,13 @@ public static partial class Converters {
 
     private static IEnumerable<object> ConvertCheck(DomainHealthCheck health, HealthCheckType check, HashSet<object> converted) {
         switch (check) {
+            case HealthCheckType.NS:
+            case HealthCheckType.DELEGATION:
+                // Shared acquisition still produces a separate view for each selected check.
+                var ns = Convert(health.NSAnalysis);
+                ns.Check = check;
+                ns.Area = AreaForKind(check);
+                return new object[] { ns };
             case HealthCheckType.DNSPROPAGATION:
                 // One view per record type, as the renderers expect.
                 return health.DnsPropagationSet?.Items.Select(static item => (object)Convert(item)) ?? Enumerable.Empty<object>();
@@ -61,7 +74,7 @@ public static partial class Converters {
         }
 
         object? analysis = health.GetAnalysisFor(check);
-        // Several checks share one analysis (NS and DELEGATION); convert it once.
+        // Avoid repeating the same finished view for aliases that do not have separate check projections.
         if (analysis == null || !converted.Add(analysis)) return Enumerable.Empty<object>();
         // Some checks keep a finished view rather than an analysis (WEBSITE combines HTTP and certificate results).
         if (analysis.GetType().Namespace == typeof(Converters).Namespace) return new[] { analysis };

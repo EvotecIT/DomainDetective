@@ -2127,7 +2127,7 @@ public class TestCertificateInventoryCapture {
 
         Assert.True(analysis.EnableCensysCtSource);
         Assert.True(analysis.EnableShodanCtSource);
-        Assert.Contains("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
+        Assert.Contains(CtLogAggregator.CrtShCertificateTemplate, analysis.CtLogApiTemplates);
         Assert.Contains("https://crt.sh/?identity=%25.{0}&output=json", analysis.CtLogApiTemplates);
     }
 
@@ -2142,7 +2142,7 @@ public class TestCertificateInventoryCapture {
 
         CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, options);
 
-        Assert.DoesNotContain("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
+        Assert.DoesNotContain(CtLogAggregator.CrtShCertificateTemplate, analysis.CtLogApiTemplates);
     }
 
     [Fact]
@@ -2194,7 +2194,7 @@ public class TestCertificateInventoryCapture {
         Assert.False(analysis.CaptureExtendedMetadata);
         Assert.True(analysis.CaptureCtMetadata);
         Assert.True(analysis.SkipRevocation);
-        Assert.Contains("https://crt.sh/?sha256={0}&output=json", analysis.CtLogApiTemplates);
+        Assert.Contains(CtLogAggregator.CrtShCertificateTemplate, analysis.CtLogApiTemplates);
     }
 
     [Fact]

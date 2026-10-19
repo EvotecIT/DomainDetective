@@ -112,8 +112,7 @@ internal static class WizardMode {
             HealthCheckType.DNSSEC
         };
 
-        await RunAndDisplayResults(new[] { domain }, essentialChecks, outputFormat, false, false, cancellationToken);
-        return 0;
+        return await RunAndDisplayResults(new[] { domain }, essentialChecks, outputFormat, false, false, cancellationToken);
     }
 
     private static async Task<int> RunAdvancedAnalysis(CancellationToken cancellationToken) {
@@ -143,18 +142,16 @@ internal static class WizardMode {
         var portScan = includeOptions.Any(o => o.Contains("ports"));
         var skipRevocation = !includeOptions.Any(o => o.Contains("revocation"));
 
-        var checks = Enum.GetValues<HealthCheckType>();
+        var checks = BuildAdvancedChecks();
         
         if (portScan) {
-            checks = checks.Append(HealthCheckType.PORTSCAN).ToArray();
+            checks = checks.Append(HealthCheckType.PORTSCAN).Distinct().ToArray();
         }
 
-        await RunAndDisplayResults(domains, checks, outputFormat, checkHttp, checkTakeover, cancellationToken,
+        return await RunAndDisplayResults(domains, checks, outputFormat, checkHttp, checkTakeover, cancellationToken,
             autodiscoverEndpoints: autodiscoverEndpoints,
             subdomainPolicy: subdomainPolicy,
             skipRevocation: skipRevocation);
-        
-        return 0;
     }
 
     private static async Task<int> RunCustomTests(CancellationToken cancellationToken) {
@@ -199,8 +196,7 @@ internal static class WizardMode {
 
         var outputFormat = PromptForOutputFormat();
         
-        await RunAndDisplayResults(domains, checks, outputFormat, false, false, cancellationToken);
-        return 0;
+        return await RunAndDisplayResults(domains, checks, outputFormat, false, false, cancellationToken);
     }
 
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize")]
@@ -440,7 +436,10 @@ internal static class WizardMode {
         };
     }
 
-    private static async Task RunAndDisplayResults(
+    internal static HealthCheckType[] BuildAdvancedChecks() => Enum.GetValues<HealthCheckType>()
+        .Where(DomainHealthCheck.SupportsDomainVerification).Distinct().ToArray();
+
+    private static async Task<int> RunAndDisplayResults(
         string[] domains,
         HealthCheckType[] checks,
         OutputFormat outputFormat,
@@ -453,10 +452,12 @@ internal static class WizardMode {
         int[]? danePorts = null,
         PortScanProfileDefinition.PortScanProfile[]? portProfiles = null) {
         
+        int exitCode = 0;
         foreach (var domain in domains) {
-            var hc = new DomainHealthCheck {
+            var logger = new InternalLogger(false);
+            using var hc = new DomainHealthCheck(internalLogger: logger) {
                 UseSubdomainPolicy = subdomainPolicy,
-                Progress = false, // Disable internal progress
+                Progress = false, // Disable internal console progress
                 Verbose = false   // Disable verbose logging
             };
             
@@ -464,6 +465,7 @@ internal static class WizardMode {
                 hc.CertificateAnalysis.SkipRevocation = true;
             }
 
+            bool scanComplete = true;
             // Use Progress instead of Status for better feedback
             await AnsiConsole.Progress()
                 .AutoClear(false)
@@ -478,27 +480,39 @@ internal static class WizardMode {
                 .StartAsync(async ctx => {
                     var mainTask = ctx.AddTask($"[green]Analyzing {domain}[/]", maxValue: checks.Length + (checkHttp ? 1 : 0) + (checkTakeover ? 1 : 0));
                     
-                    // Run each check individually with progress updates
-                    foreach (var check in checks) {
-                        mainTask.Description = $"[green]{domain}[/]: [yellow]{check}[/]";
-                        await hc.Verify(domain, new[] { check }, null, null, danePorts, portProfiles, cancellationToken);
-                        mainTask.Increment(1);
+                    void OnProgress(object? sender, LogEventArgs e) {
+                        if (e.ProgressActivity == "HealthCheck" && e.ProgressCurrentSteps.HasValue) {
+                            mainTask.Value = e.ProgressCurrentSteps.Value;
+                            mainTask.Description = $"[green]{domain}[/]: [yellow]{e.ProgressCurrentOperation}[/]";
+                        }
                     }
-                    
+                    logger.OnProgressMessage += OnProgress;
+                    try {
+                        hc.ExecutionOptions.IncludePlainHttp = checkHttp;
+                        hc.ExecutionOptions.IncludeTakeoverCname = checkTakeover;
+                        await hc.Verify(domain, checks, null, null, danePorts, portProfiles, cancellationToken);
+                    } catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException) {
+                        scanComplete = false;
+                        AnsiConsole.MarkupLine($"[yellow]Scan incomplete: {ex.Message.EscapeMarkup()}[/]");
+                    } finally { logger.OnProgressMessage -= OnProgress; }
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (checkHttp) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]HTTP Check[/]";
-                        await hc.VerifyPlainHttp(domain, cancellationToken);
                         mainTask.Increment(1);
                     }
                     
                     if (checkTakeover) {
                         mainTask.Description = $"[green]{domain}[/]: [yellow]Subdomain Takeover[/]";
-                        await hc.VerifyTakeoverCname(domain, cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
                         mainTask.Increment(1);
                     }
                     
-                    mainTask.Description = $"[green]{domain}[/]: [bold green]Complete![/]";
+                    mainTask.Description = scanComplete ? $"[green]{domain}[/]: [bold green]Complete![/]"
+                        : $"[yellow]{domain}[/]: [bold yellow]Incomplete; collected results retained[/]";
                 });
+
+            if (!scanComplete || hc.VerificationCompleted != true) { exitCode = 1; }
 
             if (outputFormat == OutputFormat.Json) {
                 Console.WriteLine(hc.ToJson());
@@ -535,6 +549,7 @@ internal static class WizardMode {
                 }
             }
         }
+        return exitCode;
     }
 
     private static void DisplayResultsAsTable(string title, object data) {
@@ -564,6 +579,8 @@ internal static class WizardMode {
         bool autodiscoverEndpoints) {
         
         OutputFormatters.FormatAsRichTable(title.Replace("Results for ", ""), hc, checks);
+        if (checkHttp) { DisplayAuxiliaryResult($"PLAIN HTTP for {hc.PlainHttpAnalysis.Subject}", hc.VerificationPlainHttpCompleted, hc.PlainHttpAnalysis); }
+        if (checkTakeover) { DisplayAuxiliaryResult("TAKEOVER", hc.VerificationTakeoverCompleted, hc.TakeoverCnameAnalysis); }
         
         if (AnsiConsole.Confirm("Show detailed summary cards?")) {
             OutputFormatters.FormatAsSummaryCards(title.Replace("Results for ", ""), hc);
@@ -579,6 +596,12 @@ internal static class WizardMode {
         bool autodiscoverEndpoints) {
         
         foreach (var check in checks) {
+            if (!OutputFormatters.HasCompletedCheck(hc, check)) {
+                if (hc.VerificationRequestedChecks.Contains(check)) {
+                    AnsiConsole.MarkupLine($"[yellow]{check}: Incomplete; collected evidence may be partial.[/]");
+                }
+                continue;
+            }
             var data = GetCheckData(hc, check);
             if (data != null) {
                 var desc = DomainHealthCheck.GetCheckDescription(check);
@@ -591,13 +614,18 @@ internal static class WizardMode {
             }
         }
         
-        if (checkHttp && hc.HttpAnalysis != null) {
-            CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, false);
+        if (checkHttp) {
+            DisplayAuxiliaryResult($"PLAIN HTTP for {domain}", hc.VerificationPlainHttpCompleted, hc.PlainHttpAnalysis);
         }
         
-        if (checkTakeover && hc.TakeoverCnameAnalysis != null) {
-            CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, false);
+        if (checkTakeover) {
+            DisplayAuxiliaryResult($"TAKEOVER for {domain}", hc.VerificationTakeoverCompleted, hc.TakeoverCnameAnalysis);
         }
+    }
+
+    private static void DisplayAuxiliaryResult(string title, bool? completed, object? data) {
+        if (completed == true && data != null) { CliHelpers.ShowPropertiesTable(title, data, false); }
+        else if (completed == false) { AnsiConsole.MarkupLine($"[yellow]{title.EscapeMarkup()}: Incomplete; collected evidence may be partial.[/]"); }
     }
 
     private static object? GetCheckData(DomainHealthCheck hc, HealthCheckType check) {
@@ -632,7 +660,7 @@ internal static class WizardMode {
             HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
             HealthCheckType.AGENTREADINESS => hc.AgentReadinessAnalysis,
             HealthCheckType.SITEMAP => hc.SitemapAnalysis,
-            _ => null
+            _ => hc.GetAnalysisMap().TryGetValue(check, out var analysis) ? analysis : null
         };
     }
 

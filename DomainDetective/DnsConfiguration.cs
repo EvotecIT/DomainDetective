@@ -15,6 +15,12 @@ namespace DomainDetective {
         private ResolverEntry? _resolver;
         private string? _resolverKey;
         private bool _disposed;
+        /// <summary>Borrowed batch admission gate. The batch owns its lifetime and restores it after active queries drain.</summary>
+        internal SemaphoreSlim? QueryAdmissionGate { get; set; }
+        // Bulk provider queries share a smaller allowance within the overall DNS cap,
+        // leaving recursive capacity for discovery and other domain checks.
+        internal SemaphoreSlim? BulkQueryAdmissionGate { get; set; }
+        internal SemaphoreSlim? ResolverBulkQueryAdmissionGate { get; set; }
 
         /// <summary>Gets or sets the User-Agent header for HTTP-based DNS transports.</summary>
         public string UserAgent { get; set; } = DefaultUserAgent;
@@ -36,12 +42,18 @@ namespace DomainDetective {
         /// leave this disabled; an owning host may enable reuse and dispose the configuration with its lifetime.
         /// </summary>
         public bool ReuseResolverClients { get; set; }
+        /// <summary>Cancellation budget for one locally validated DNSSEC RRset query, including retries and validation. Admitted work is observed before returning.</summary>
+        public TimeSpan DnsSecQueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>Cancellation budget for a full DNSSEC analysis, including subject validation and optional metadata. Admitted callbacks are observed before returning.</summary>
+        public TimeSpan DnsSecAnalysisTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         /// <summary>Optional answer-only override used by tests and specialized consumers.</summary>
         /// <remarks>Cancellation stops the library from waiting. The callback owner remains responsible for completing its work because this delegate does not receive a cancellation token.</remarks>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
 
         /// <summary>Optional full-response override used by tests and specialized consumers.</summary>
+        /// <remarks>The callback must honor the supplied cancellation token to meet query deadlines. Its admitted work remains owned until it completes.</remarks>
         public Func<string, DnsRecordType, CancellationToken, Task<DnsResponse>>? QueryDnsResponseOverride { get; set; }
 
         /// <summary>Gets or sets the primary predefined DNS provider.</summary>
@@ -64,6 +76,25 @@ namespace DomainDetective {
 
         /// <summary>Initializes configuration with the system DNS provider.</summary>
         public DnsConfiguration() : this(DnsEndpoint.System, DnsSelectionStrategy.First) { }
+
+        /// <summary>Copies DNS policy for an independent owner without sharing resolver clients or run admission gates.</summary>
+        internal DnsConfiguration CloneForIndependentOwner() {
+            var clone = new DnsConfiguration(DnsEndpoint, DnsSelectionStrategy) {
+                UserAgent = UserAgent,
+                ResolverMaxConcurrency = ResolverMaxConcurrency,
+                EnableResponseCache = EnableResponseCache,
+                MaxCacheTtl = MaxCacheTtl,
+                ReuseResolverClients = ReuseResolverClients,
+                DnsSecQueryTimeout = DnsSecQueryTimeout,
+                DnsSecAnalysisTimeout = DnsSecAnalysisTimeout,
+                QueryDnsOverride = QueryDnsOverride,
+                QueryDnsResponseOverride = QueryDnsResponseOverride,
+                MultiResolverStrategy = MultiResolverStrategy,
+                MultiResolverMaxParallelism = MultiResolverMaxParallelism
+            };
+            clone.DnsEndpoints.AddRange(DnsEndpoints);
+            return clone;
+        }
 
         /// <summary>Initializes configuration with a predefined DNS provider and selection behavior.</summary>
         public DnsConfiguration(DnsEndpoint dnsEndpoint, DnsSelectionStrategy dnsSelectionStrategy) {
@@ -95,11 +126,16 @@ namespace DomainDetective {
         internal async Task<DnsAnswer[]> QueryPolicyDNS(string name, DnsRecordType recordType,
             string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default) {
             var response = await QueryDNSResponse(name, recordType, filter, includeAliasesInFilter, cancellationToken).ConfigureAwait(false);
+            EnsureConclusiveResponse(name, recordType, response);
+            return response.Answers ?? Array.Empty<DnsAnswer>();
+        }
+
+        /// <summary>Distinguishes conclusive DNS answers and negative responses from operational failures.</summary>
+        internal static void EnsureConclusiveResponse(string name, DnsRecordType recordType, DnsResponse response) {
             if (!string.IsNullOrEmpty(response.Error)
                 || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                 throw new DnsQueryFailureException(name, recordType, response);
             }
-            return response.Answers ?? Array.Empty<DnsAnswer>();
         }
 
         /// <summary>Queries multiple names and flattens their answer sets in input order.</summary>
@@ -132,6 +168,13 @@ namespace DomainDetective {
             string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default) {
             ValidateNames(names, recordType);
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (QueryAdmissionGate != null) {
+                return await Helpers.AuthoritativeDnsProbes.RunAsync(names, async name => {
+                    var response = await QueryResponseAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                    return ApplyLocalFilter(response, filter, includeAliasesInFilter);
+                }, ResolverMaxConcurrency ?? 8, cancellationToken).ConfigureAwait(false);
+            }
 
             if (QueryDnsResponseOverride != null || QueryDnsOverride != null) {
                 var overridden = new List<DnsResponse?>(names.Length);
@@ -177,7 +220,33 @@ namespace DomainDetective {
             return results;
         }
 
-        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
+        /// <summary>Notifies the owning operation after shared admission so related queries can share one execution deadline.</summary>
+        internal Task<DnsResponse> QueryDNSResponseAfterAdmission(string name, DnsRecordType recordType,
+            CancellationToken cancellationToken, Action queryAdmitted) {
+            ValidateName(name, recordType);
+            return QueryResponseAsync(name, recordType, cancellationToken, queryAdmitted, bulkQuery: true);
+        }
+
+        private async Task<DnsResponse> QueryResponseAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken,
+            Action? queryAdmitted = null, bool bulkQuery = false) {
+            // Borrow one admission context even if its owning verification finishes while queued.
+            var admissionGate = QueryAdmissionGate;
+            var bulkGate = bulkQuery ? BulkQueryAdmissionGate : null;
+            var resolverBulkGate = bulkQuery ? ResolverBulkQueryAdmissionGate : null;
+            if (resolverBulkGate != null) { await resolverBulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            try {
+                if (bulkGate != null) { await bulkGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+                try {
+                    if (admissionGate != null) { await admissionGate.WaitAsync(cancellationToken).ConfigureAwait(false); }
+                    try {
+                        queryAdmitted?.Invoke();
+                        return await QueryResponseCoreAsync(name, recordType, cancellationToken).ConfigureAwait(false);
+                    } finally { admissionGate?.Release(); }
+                } finally { bulkGate?.Release(); }
+            } finally { resolverBulkGate?.Release(); }
+        }
+
+        private async Task<DnsResponse> QueryResponseCoreAsync(string name, DnsRecordType recordType, CancellationToken cancellationToken) {
             cancellationToken.ThrowIfCancellationRequested();
             if (QueryDnsResponseOverride != null) {
                 DnsResponse response = await QueryDnsResponseOverride(name, recordType, cancellationToken).ConfigureAwait(false);
@@ -258,6 +327,31 @@ namespace DomainDetective {
         /// <summary>Resolves the endpoint concurrency cap represented by this configuration.</summary>
         internal int GetEffectiveMultiResolverMaxParallelism(int endpointCount) {
             return Math.Max(1, MultiResolverMaxParallelism ?? endpointCount);
+        }
+
+        /// <summary>Bounds provider requests while leaving an endpoint execution slot for foreground work.</summary>
+        /// <remarks>Zero means that one provider request can occupy the resolver; scheduled bulk work must follow other checks.</remarks>
+        internal int GetBulkQueryParallelism(int dnsParallelism) {
+            int resolverParallelism = Math.Max(1, MultiResolverMaxParallelism ?? dnsParallelism);
+            return Math.Min(Math.Max(1, dnsParallelism - 1), (resolverParallelism - 1) / GetEndpointFanout(resolverParallelism));
+        }
+
+        /// <summary>Gets the number of logical queries that the reused resolver can execute concurrently.</summary>
+        internal int GetReusableQueryParallelism() {
+            if (!ReuseResolverClients || QueryDnsOverride != null || QueryDnsResponseOverride != null) { return int.MaxValue; }
+            var providers = DnsEndpoints.Count > 0 ? DnsEndpoints.ToArray() : new[] { DnsEndpoint };
+            int resolverParallelism = GetEffectiveMultiResolverMaxParallelism(DnsResolverEndpointFactory.From(providers).Length);
+            return Math.Max(1, resolverParallelism / GetEndpointFanout(resolverParallelism));
+        }
+
+        private int GetEndpointFanout(int resolverParallelism) {
+            var strategy = GetEffectiveMultiResolverStrategy();
+            if (strategy == MultiResolverStrategy.FirstSuccess || strategy == MultiResolverStrategy.FastestWins) {
+                var providers = DnsEndpoints.Count > 0 ? DnsEndpoints.ToArray() : new[] { DnsEndpoint };
+                int endpointCount = DnsResolverEndpointFactory.From(providers).Length;
+                return Math.Max(1, Math.Min(resolverParallelism, endpointCount));
+            }
+            return 1;
         }
 
         private void ReleaseResolver(ResolverEntry entry) {

@@ -48,20 +48,11 @@ public static class HealthCheckReportItems {
             }
         }
 
-        // A verified run converts every check it ran through the library's shared check-to-view conversion, so new
-        // checks appear without a list to maintain. Without a run on record, fall back to the known analyses below.
-        if (healthCheck.LastVerifiedChecks.Count > 0)
-        {
+        if (healthCheck.VerificationCompleted.HasValue) {
+            // The core projection owns selected checks, execution failures and current-run evidence.
             var checks = healthCheck.LastVerifiedChecks.Where(check => includeDnsTrace || check != HealthCheckType.DNSTRACE);
             items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, checks, conversionErrors));
-        }
-        else
-        {
-            AddKnownAnalyses();
-        }
-
-        void AddKnownAnalyses()
-        {
+        } else {
             TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
             TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
             TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
@@ -168,9 +159,23 @@ public static class HealthCheckReportItems {
                 foreach (var assessment in assessments) { represented.Add(assessment); }
             }
         }
-        var additional = healthCheck.GetAllAssessments().Where(a => !represented.Contains(a)).ToArray();
+        var additional = GetReportAssessments(healthCheck).Where(a => !represented.Contains(a)).ToArray();
         if (additional.Length > 0) { completed.Add(new AssessmentEvidenceInfo(domain, additional)); }
         return completed;
     }
 
+    // Manually assembled objects have no execution boundary. For verified objects,
+    // retain current completed owners and explicit failures, not an earlier failed owner's findings.
+    private static IEnumerable<Assessment> GetReportAssessments(DomainHealthCheck healthCheck) {
+        var all = healthCheck.GetAllAssessments();
+        if (!healthCheck.VerificationCompleted.HasValue) { return all; }
+        var eligible = new HashSet<Assessment>(healthCheck.Assessments);
+        var map = healthCheck.GetAnalysisMap();
+        foreach (var check in healthCheck.VerificationCompletedChecks) {
+            if (map.TryGetValue(check, out var value) && value is IHasAssessments owner && owner.Assessments != null) {
+                foreach (var assessment in owner.Assessments) { eligible.Add(assessment); }
+            }
+        }
+        return all.Where(eligible.Contains);
+    }
 }

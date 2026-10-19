@@ -33,8 +33,8 @@ public class DanglingCnameAnalysis : IHasAssessments {
     public bool KnownService { get; private set; }
     /// <summary>If DNS lookups fail, explains why.</summary>
     public string? FailureReason { get; private set; }
-    /// <summary>Gets a value indicating whether the CNAME is dangling.</summary>
-    public bool IsDangling => CnameRecordExists && !TargetResolves;
+    /// <summary>Gets whether completed DNS lookups establish that the CNAME target does not resolve.</summary>
+    public bool IsDangling => CnameRecordExists && FailureReason == null && !TargetResolves;
     /// <summary>Gets a value indicating whether the target is an unclaimed service.</summary>
     public bool UnclaimedService => IsDangling && KnownService;
 
@@ -45,11 +45,11 @@ public class DanglingCnameAnalysis : IHasAssessments {
         "cloudfront.net"
     };
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken) {
         if (QueryDnsOverride != null) {
-            return await QueryDnsOverride(name, type);
+            return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken);
         }
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -66,8 +66,9 @@ public class DanglingCnameAnalysis : IHasAssessments {
         ct.ThrowIfCancellationRequested();
         DnsAnswer[] cname;
         try {
-            cname = await QueryDns(domainName, DnsRecordType.CNAME);
-        } catch (Exception ex) {
+            cname = await QueryDns(domainName, DnsRecordType.CNAME, ct);
+        } catch (OperationCanceledException) { throw; }
+        catch (Exception ex) {
             FailureReason = $"DNS lookup failed: {ex.Message}";
             logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", domainName, ex.Message);
             return;
@@ -85,9 +86,10 @@ public class DanglingCnameAnalysis : IHasAssessments {
         DnsAnswer[] a;
         DnsAnswer[] aaaa;
         try {
-            a = await QueryDns(Target!, DnsRecordType.A);
-            aaaa = await QueryDns(Target!, DnsRecordType.AAAA);
-        } catch (Exception ex) {
+            a = await QueryDns(Target!, DnsRecordType.A, ct);
+            aaaa = await QueryDns(Target!, DnsRecordType.AAAA, ct);
+        } catch (OperationCanceledException) { throw; }
+        catch (Exception ex) {
             FailureReason = $"DNS lookup failed: {ex.Message}";
             logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);
             return;

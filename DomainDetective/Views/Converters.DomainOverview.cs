@@ -107,7 +107,7 @@ public static partial class Converters {
             BuildDomainCaaStatus(caa),
             BuildDomainDaneStatus(dane),
             BuildDomainDnssecStatus(dnssec),
-            BuildDomainNsStatus(ns),
+            BuildNsStatus(ns),
             BuildDomainSoaStatus(soa)
         };
 
@@ -340,14 +340,6 @@ public static partial class Converters {
         Detail = $"Zone {info.ValidatedZone}; {info.DsRecords.Count} DS, {info.DnsKeys.Count} DNSKEY"
     };
 
-    private static AggregateCheckStatusInfo BuildDomainNsStatus(NsInfo info) => new AggregateCheckStatusInfo {
-        Key = "ns",
-        Label = "NS",
-        State = !info.NsRecordExists ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 || !info.AtLeastTwoRecords ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.NsRecordExists ? $"{info.NsRecords.Count} nameserver(s)" : "Missing",
-        Detail = info.NsRecordExists ? $"ASN diversity: {info.AsnDistinctCount}" : "No authoritative nameservers published."
-    };
-
     private static AggregateCheckStatusInfo BuildDomainSoaStatus(SoaInfo info) => new AggregateCheckStatusInfo {
         Key = "soa",
         Label = "SOA",
@@ -392,7 +384,7 @@ public static partial class Converters {
         Key = "dnsbl",
         Label = "DNSBL",
         State = info.HostsListed > 0 ? AggregateCheckState.Fail : info.ErrorCount > 0 ? AggregateCheckState.Fail : info.WarningCount > 0 ? AggregateCheckState.Warning : AggregateCheckState.Pass,
-        Value = info.HostsListed > 0 ? $"{info.HostsListed} listed" : "Clear",
+        Value = info.HostsListed > 0 ? $"{info.HostsListed} listed" : info.Status == "Incomplete" ? "Incomplete" : "Clear",
         Detail = $"{info.Targets.Count} target(s), {info.Listings.Count} listing(s)"
     };
 

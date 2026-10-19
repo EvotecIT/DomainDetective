@@ -23,11 +23,13 @@ public static class HealthCheckCompositionReport {
                 ErrorMessage = errors.Count > 0 ? "Report view conversion failed: " + string.Join("; ", errors) : "No completed, supported analysis results are available to report."
             };
         }
+        bool open = options.CustomProperties?.TryGetValue("OpenInBrowser", out var openValue) == true
+            && bool.TryParse(openValue?.ToString(), out var requestedOpen) && requestedOpen;
         var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
             Items = items, Formats = new[] { options.Format }, ExportPath = path,
             Scope = options.IncludeTechnicalDetails ? ReportScope.Detailed : ReportScope.Minimal,
             ShowInfoFindings = options.ShowInfoFindings, Title = options.Title,
-            Subject = subject, AutoCollectTtl = false
+            Subject = subject, AutoCollectTtl = false, OpenInBrowser = open
         }).ConfigureAwait(false);
         var report = result.Reports.Single();
         if (errors.Count > 0) {

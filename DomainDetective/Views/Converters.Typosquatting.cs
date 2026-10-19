@@ -19,6 +19,8 @@ public static partial class Converters
                 EditDistance = candidate.EditDistance,
                 Resolves = candidate.Resolves,
                 AppearsRegistered = candidate.AppearsRegistered,
+                DnsChecksIncomplete = candidate.DnsChecksIncomplete,
+                DnsQueryErrors = candidate.DnsQueryErrors,
                 RiskScore = candidate.RiskScore,
                 RiskLevel = candidate.RiskLevel.ToString(),
                 RiskSummary = candidate.RiskSummary,
@@ -204,6 +206,8 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.TYPOSQUATTING),
             Subject = analysis.Subject,
             CandidateCount = candidates.Length,
+            AnalysisComplete = analysis.AnalysisComplete,
+            IncompleteCandidateCount = candidates.Count(candidate => candidate.DnsChecksIncomplete),
             ActiveCount = analysis.ActiveDomains.Count,
             RegisteredCount = analysis.RegisteredDomains.Count,
             ContainsHomoglyphs = analysis.ContainsHomoglyphs,
@@ -322,6 +326,10 @@ public static partial class Converters
 /// <summary>Provides typosquatting info functionality.</summary>
 public sealed class TyposquattingInfo
 {
+    /// <summary>Whether all configured analysis phases and candidate DNS checks completed.</summary>
+    public bool AnalysisComplete { get; set; }
+    /// <summary>Number of candidates with failed or unfinished DNS checks.</summary>
+    public int IncompleteCandidateCount { get; set; }
     /// <summary>Gets or sets the check value.</summary>
     public HealthCheckType Check { get; set; }
     /// <summary>Gets or sets the area value.</summary>
@@ -550,6 +558,10 @@ public sealed class TyposquattingCampaignInfo
 /// <summary>Provides typosquatting candidate info functionality.</summary>
 public sealed class TyposquattingCandidateInfo
 {
+    /// <summary>Whether candidate DNS coverage is incomplete.</summary>
+    public bool DnsChecksIncomplete { get; set; }
+    /// <summary>Failure reasons returned by candidate DNS checks.</summary>
+    public IReadOnlyList<string> DnsQueryErrors { get; set; } = System.Array.Empty<string>();
     /// <summary>Gets or sets the domain value.</summary>
     public string Domain { get; set; } = string.Empty;
     /// <summary>Gets or sets the kind value.</summary>

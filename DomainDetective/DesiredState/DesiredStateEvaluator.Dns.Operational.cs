@@ -97,7 +97,20 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        if (desired.RequireMatchesParent == true && !ns.DelegationMatches) {
+        bool matchKnown = ns.NsLookupComplete && ns.ParentNsRecords.Count > 0;
+        bool gluePresenceKnown = ns.GluePresenceKnown;
+        bool glueConsistencyKnown = ns.GlueConsistencyKnown;
+        if ((desired.RequireMatchesParent == true && !matchKnown)
+            || (desired.RequireGlueComplete == true && !gluePresenceKnown)
+            || (desired.RequireGlueConsistent == true && !glueConsistencyKnown)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = DesiredStateCodes.DelegationEvidenceIncomplete,
+                Message = "Parent delegation or glue evidence is incomplete; the requested delegation requirements could not all be verified."
+            });
+        }
+
+        if (desired.RequireMatchesParent == true && matchKnown && !ns.DelegationMatches) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,
                 Category = "DesiredState",
@@ -107,7 +120,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireGlueComplete == true && !ns.GlueRecordsComplete) {
+        if (desired.RequireGlueComplete == true && gluePresenceKnown && !ns.GlueRecordsComplete) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -117,7 +130,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireGlueConsistent == true && !ns.GlueRecordsConsistent) {
+        if (desired.RequireGlueConsistent == true && glueConsistencyKnown && !ns.GlueRecordsConsistent) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",

@@ -9,7 +9,7 @@ namespace DomainDetective;
 /// <summary>
 /// Provides a single static <see cref="HttpClient"/> instance for the process.
 /// </summary>
-public sealed class SharedHttpClient : IHttpClientFactory
+public sealed partial class SharedHttpClient : IHttpClientFactory
 {
     /// <summary>
     /// Gets the shared <see cref="HttpClient"/> instance.

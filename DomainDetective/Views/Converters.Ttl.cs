@@ -18,6 +18,7 @@ public static partial class Converters
             Subject = analysis.Subject,
             DnssecSigned = analysis.DnsSecSigned,
             TtlsFromAuthoritativeServers = analysis.TtlsFromAuthoritativeServers,
+            UniformityIncomplete = analysis.UniformityIncomplete,
             ATtls = analysis.ATtls,
             AaaaTtls = analysis.AaaaTtls,
             MxTtls = analysis.MxTtls,
@@ -29,7 +30,7 @@ public static partial class Converters
             TlsRptTxtTtls = analysis.TlsRptTxtTtls,
             DkimTxtTtls = analysis.DkimTxtTtls,
             Assessments = analysis.Assessments,
-            Status = status,
+            Status = analysis.UniformityIncomplete && errCount == 0 ? "Incomplete" : status,
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"SOA {analysis.SoaTtl}s; A min/max {(analysis.ATtls?.Count>0?System.Math.Min(int.MaxValue, analysis.ATtls.Min()).ToString():"-")}/{(analysis.ATtls?.Count>0?analysis.ATtls.Max().ToString():"-")}",
@@ -52,8 +53,10 @@ public class TtlInfo
     public string? Subject { get; set; }
     /// <summary>Gets or sets the dnssec signed value.</summary>
     public bool DnssecSigned { get; set; }
-    /// <summary>Whether the TTLs are the configured values from the zone's authoritative name servers.</summary>
+    /// <summary>Whether all evaluated TTL sets have authoritative or fixed replay evidence.</summary>
     public bool TtlsFromAuthoritativeServers { get; set; }
+    /// <summary>Whether the authoritative TTL comparison lacks complete evidence.</summary>
+    public bool UniformityIncomplete { get; set; }
     /// <summary>Gets or sets the a ttls value.</summary>
     public IReadOnlyList<int> ATtls { get; set; } = null!;
     /// <summary>Gets or sets the aaaa ttls value.</summary>

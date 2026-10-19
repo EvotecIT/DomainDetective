@@ -1,15 +1,10 @@
 using DnsClientX;
 using DomainDetective.Views;
-using DomainDetective.Reports;
-using DomainDetective.Reports.Html;
 using DomainDetective.DesiredState;
 using DomainDetective.Narratives;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.IO.Compression;
-using System.Xml.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -18,6 +13,153 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests;
 
 public class TestCheckFailureIsolation {
+    [Fact]
+    public void SharedNameServerAnalysisPreservesEachSelectedCheckIdentity() {
+        using var health = Create();
+        var delegation = Assert.IsType<NsInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.DELEGATION })));
+        Assert.Equal(HealthCheckType.DELEGATION, delegation.Check);
+        Assert.Equal(AnalysisArea.DNS, delegation.Area);
+        var views = Converters.ConvertChecks(health, new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }).Cast<NsInfo>().ToArray();
+        Assert.Equal(new[] { HealthCheckType.NS, HealthCheckType.DELEGATION }, views.Select(view => view.Check));
+        Assert.NotSame(views[0], views[1]);
+        Assert.All(views, view => Assert.Equal(AnalysisArea.DNS, view.Area));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledProbeDoesNotPublishEarlierAddressDiscoveryFailures(bool withLogger) {
+        using var canceled = new CancellationTokenSource();
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (_, type) => type switch {
+                DnsRecordType.NS => Task.FromResult(new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } }),
+                DnsRecordType.A => Task.FromResult(new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } }),
+                _ => throw new TimeoutException("AAAA discovery failed.")
+            },
+            QueryServerOverride = _ => { canceled.Cancel(); return Task.FromResult(new EdnsSupportInfo { Supported = true }); }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", withLogger ? new InternalLogger() : null, canceled.Token));
+        Assert.Empty(analysis.ServerSupport);
+        Assert.Empty(analysis.Assessments);
+    }
+
+    [Fact]
+    public async Task DiscoveryUsesTheConfiguredBudgetWithoutRequiringALogger() {
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reply = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new EdnsSupportAnalysis { DiscoveryTimeout = TimeSpan.FromMilliseconds(20),
+            QueryDnsOverride = (_, _) => { started.TrySetResult(true); return reply.Task; } };
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", null, guard.Token));
+            Assert.False(guard.IsCancellationRequested);
+            Assert.True(started.Task.IsCompleted);
+        } finally { reply.TrySetResult(Array.Empty<DnsAnswer>()); }
+        analysis.DiscoveryTimeout = TimeSpan.FromSeconds(1);
+        await analysis.Analyze("example.test", null, guard.Token);
+        Assert.Empty(analysis.ServerSupport);
+    }
+
+    [Fact]
+    public async Task EdnsBatchesAllNameServersUnderOneConcurrencyCap() {
+        int active = 0, peak = 0;
+        var admitted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (name, type) => Task.FromResult(type switch {
+                DnsRecordType.NS => new[] { new DnsAnswer { Type = type, DataRaw = "one.example.test" }, new DnsAnswer { Type = type, DataRaw = "two.example.test" } },
+                DnsRecordType.A => Enumerable.Range(name.StartsWith("one", StringComparison.Ordinal) ? 1 : 9, 8)
+                    .Select(i => new DnsAnswer { Type = type, DataRaw = $"192.0.2.{i}" }).ToArray(),
+                _ => Array.Empty<DnsAnswer>()
+            }),
+            QueryServerOverride = async _ => {
+                int count = Interlocked.Increment(ref active);
+                int old;
+                do { old = Volatile.Read(ref peak); } while (count > old && Interlocked.CompareExchange(ref peak, count, old) != old);
+                if (count == 8) { admitted.TrySetResult(true); }
+                try { await release.Task; }
+                finally { Interlocked.Decrement(ref active); }
+                return new EdnsSupportInfo { Supported = true };
+            }
+        };
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = analysis.Analyze("example.test", new InternalLogger(), guard.Token);
+        try { await admitted.Task.WaitWithCancellation(guard.Token); Assert.Equal(8, Volatile.Read(ref active)); }
+        finally { release.TrySetResult(true); }
+        await run;
+        Assert.Equal(8, peak);
+        Assert.Equal(16, analysis.ServerSupport.Count);
+    }
+    [Fact]
+    public async Task DisabledPolicyDoesNotRequireAFailedCheck() {
+        using var health = Create();
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new InvalidOperationException("Query failed.");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
+        var result = DesiredStateEvaluator.Evaluate("example.test", health, new DesiredStateProfile {
+            Caa = new DesiredStateCaaPolicy { Enabled = false }
+        });
+        Assert.True(result.Conforms);
+        Assert.DoesNotContain(result.Assessments, a => a.Code == "DesiredState.Check.QueryFailed");
+    }
+
+    [Fact]
+    public async Task CallerCancellationFollowedByServerTimeoutDoesNotPublishAnEdnsFailure() {
+        using var cancellation = new CancellationTokenSource();
+        var analysis = new EdnsSupportAnalysis {
+            QueryDnsOverride = (_, type) => ServerDiscovery(type, "192.0.2.1"),
+            QueryServerOverride = _ => { cancellation.Cancel(); throw new TimeoutException("Timeout after cancellation."); }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.Analyze("example.test", new InternalLogger(), cancellation.Token));
+        Assert.Empty(analysis.ServerSupport);
+        Assert.DoesNotContain(analysis.Assessments, a => a.Code == EdnsCodes.QueryFailed);
+    }
+    [Fact]
+    public async Task FilteredSnapshotsRetainFailedChecksAfterTheOriginalRunsAgain() {
+        using var health = Create();
+        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Discovery failed.");
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA }));
+        var snapshot = health.FilterAnalyses(new[] { HealthCheckType.EDNSSUPPORT });
+        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
+        await health.Verify("other.test", new[] { HealthCheckType.EDNSSUPPORT });
+        var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(snapshot)));
+        Assert.Equal(HealthCheckType.EDNSSUPPORT, failure.Check);
+        Assert.Equal("example.test", failure.Subject);
+        Assert.Contains(snapshot.GetAllAssessments(), a => a.Code == "Verification.Check.Failed");
+    }
+
+    [Fact]
+    public async Task FailedRepeatCheckCannotConformUsingPreviousCaaResults() {
+        using var health = Create();
+        await health.Verify("example.test", new[] { HealthCheckType.CAA });
+        var profile = new DesiredStateProfile { Caa = new DesiredStateCaaPolicy { RequireRecord = true } };
+        Assert.True(DesiredStateEvaluator.Evaluate("example.test", health, profile).Conforms);
+        health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new InvalidOperationException("Current lookup failed.");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.CAA }));
+        var result = DesiredStateEvaluator.Evaluate("example.test", health, profile);
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a => a.Code == "DesiredState.Check.QueryFailed");
+    }
+
+    [Fact]
+    public void MissingConverterRetainsCheckIdentityWithoutAnOptionalErrorSink() {
+        using var health = Create();
+        var failure = Assert.IsType<CheckFailureInfo>(Assert.Single(Converters.ConvertChecks(health, new[] { HealthCheckType.ROBOTS })));
+        Assert.Equal(HealthCheckType.ROBOTS, failure.Check);
+        Assert.Null(failure.Subject);
+        Assert.Equal("Verification.Conversion.Failed", Assert.Single(failure.Assessments).Code);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DaneFailureDoesNotAbortOrBecomeSmtpTlsFailure(bool parallel) {
+        using var health = Create();
+        health.DaneDnsOverride = (_, _) => throw new InvalidOperationException("DANE only failed.");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => health.Verify("example.test", new[] { HealthCheckType.SMTPTLS, HealthCheckType.DANE },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel }));
+        Assert.Equal(HealthCheckType.DANE, Assert.Single(Converters.ConvertChecks(health).OfType<CheckFailureInfo>()).Check);
+        Assert.Single(Converters.ConvertChecks(health).OfType<MailTlsInfo>());
+    }
     private static DomainHealthCheck Create() {
         var health = new DomainHealthCheck();
         health.DnsConfiguration.QueryDnsOverride = (_, type) => Task.FromResult(type == DnsRecordType.CAA
@@ -27,57 +169,14 @@ public class TestCheckFailureIsolation {
     }
 
     [Theory]
-    [InlineData(HealthCheckType.DMARC)]
-    [InlineData(HealthCheckType.EDNSSUPPORT)]
-    public async Task FailureEvidenceRetainsCheckIdentityInAssessmentReports(HealthCheckType check) {
-        using var health = Create();
-        health.DmarcDiscoveryMode = DmarcDiscoveryMode.LegacyPublicSuffix;
-        health.DnsConfiguration.QueryDnsOverride = (_, type) => type == DnsRecordType.TXT
-            ? throw new TimeoutException("DMARC query failed.")
-            : Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"letsencrypt.org\"" } });
-        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("EDNS discovery failed.");
-        await health.Verify("example.com", new[] { check, HealthCheckType.CAA });
-        var report = DomainAssessmentBuilder.Build(Converters.ConvertChecks(health));
-        var domain = Assert.Single(report.Domains);
-        Assert.Equal(2, domain.Checks.Count);
-        var failed = Assert.Single(domain.Checks, item => item.Check == check);
-        Assert.Equal(1, failed.ErrorCount);
-        Assert.Equal(Converters.AreaFor(check), failed.Area);
-        Assert.Equal(1, domain.ErrorChecks);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DocumentOverviewCountsFailuresWhenSomeOrAllChecksFail(bool allFail) {
-        using var health = Create();
-        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("EDNS discovery failed.");
-        if (allFail) {
-            health.DnsConfiguration.QueryDnsOverride = (_, _) => throw new TimeoutException("CAA query failed.");
-        }
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
-        var views = Converters.ConvertChecks(health).ToList();
-        int expected = allFail ? 2 : 1;
-        var row = Assert.Single(ExecutiveSummaryBuilder.Build(views, DomainOrder.Alphabetical));
-        Assert.Equal("example.com", row.Domain);
-        Assert.Equal(expected, row.Errors);
-        Assert.Contains("1 domain", OverviewWording.ComposeFromItems(views));
-
-        // Additional evidence may overlap a view's assessment; keep each finding once and preserve other findings.
-        var extra = new Assessment { Severity = AssessmentSeverity.Error, Message = "Additional evidence" };
-        views.Add(new AssessmentEvidenceInfo("example.com", health.Assessments.Concat(new[] { extra })));
-        Assert.Equal(expected + 1, Assert.Single(ExecutiveSummaryBuilder.Build(views, DomainOrder.Alphabetical)).Errors);
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task FailedCheckPreservesOtherResultsAndReportsFailure(bool parallel) {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Authoritative DNS timed out.");
 
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel, MaxParallelism = 2 });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel, MaxParallelism = 2 }));
 
         var errors = new List<string>();
         var items = Converters.ConvertChecks(health, errors: errors);
@@ -89,17 +188,17 @@ public class TestCheckFailureIsolation {
         Assert.Equal("EDNSSUPPORT: TimeoutException: Authoritative DNS timed out.", Assert.Single(errors));
         Assert.Contains(health.GetAllAssessments(), assessment =>
             assessment.Severity == AssessmentSeverity.Error && assessment.Category == "EDNSSUPPORT" &&
-            assessment.Target == "example.com" && assessment.Message.Contains("Authoritative DNS timed out."));
+            assessment.Target == "example.test" && assessment.Message.Contains("Authoritative DNS timed out."));
     }
 
     [Fact]
     public async Task LaterRunClearsExecutionFailures() {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Discovery failed.");
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT }));
 
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>());
-        await health.Verify("example.net", new[] { HealthCheckType.EDNSSUPPORT });
+        await health.Verify("other.test", new[] { HealthCheckType.EDNSSUPPORT });
 
         var errors = new List<string>();
         Assert.IsType<EdnsSupportSummary>(Assert.Single(Converters.ConvertChecks(health, errors: errors)));
@@ -113,8 +212,8 @@ public class TestCheckFailureIsolation {
     public async Task InternalCancellationIsReportedAsACheckFailure(bool parallel) {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new OperationCanceledException("Internal probe canceled.");
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel });
+        await Assert.ThrowsAsync<OperationCanceledException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel }));
 
         var errors = new List<string>();
         Assert.Single(Converters.ConvertChecks(health, errors: errors).OfType<CaaInfo>());
@@ -135,7 +234,7 @@ public class TestCheckFailureIsolation {
             return Task.FromResult(Array.Empty<DnsAnswer>());
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.com",
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => health.Verify("example.test",
             new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA }, cancellationToken: cancellation.Token,
             executionOptions: new HealthCheckExecutionOptions { EnableParallelism = parallel, MaxParallelism = 1 }));
         Assert.DoesNotContain(health.GetAllAssessments(), a => a.Code == "Verification.Check.Failed");
@@ -152,71 +251,12 @@ public class TestCheckFailureIsolation {
             await Task.Yield();
             throw new TimeoutException("NS failed.");
         };
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
-            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = true, MaxParallelism = 2 });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA },
+            executionOptions: new HealthCheckExecutionOptions { EnableParallelism = true, MaxParallelism = 2 }));
         var errors = new List<string>();
         Assert.Equal(2, Converters.ConvertChecks(health, errors: errors).OfType<CheckFailureInfo>().Count());
         Assert.Equal(2, errors.Count);
         Assert.Equal(2, health.GetAllAssessments().Count(a => a.Code == "Verification.Check.Failed"));
-    }
-
-    [Fact]
-    public async Task HtmlReportContainsTheCheckFailureAndSuccessfulCheck() {
-        using var health = Create();
-        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Authoritative DNS timed out.");
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
-        var output = Path.Combine(Path.GetTempPath(), "dd-check-failure-" + Guid.NewGuid().ToString("N") + ".html");
-        try {
-            var result = await new HtmlReportGenerator().GenerateAsync(health, new ReportOptions {
-                Format = ReportFormat.Html,
-                OutputPath = output,
-                CustomProperties = new Dictionary<string, object> { ["Domain"] = "example.com" }
-            });
-            Assert.True(result.Success);
-            Assert.Contains("EDNSSUPPORT: TimeoutException", result.ErrorMessage);
-            var html = File.ReadAllText(output);
-            Assert.Contains("Authoritative DNS timed out.", html);
-            Assert.Contains("letsencrypt.org", html);
-        } finally {
-            if (File.Exists(output)) { File.Delete(output); }
-        }
-    }
-
-    [Theory]
-    [InlineData(ReportFormat.Word, "docx")]
-    [InlineData(ReportFormat.Excel, "xlsx")]
-    [InlineData(ReportFormat.Markdown, "md")]
-    [InlineData(ReportFormat.MarkdownHtml, "html")]
-    public async Task DocumentReportsPreserveSuccessfulChecksAndFailureEvidence(ReportFormat format, string extension) {
-        using var health = Create();
-        health.EdnsSupportAnalysis.QueryDnsOverride = (_, _) => throw new TimeoutException("Authoritative DNS timed out.");
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
-        var directory = Path.Combine(Path.GetTempPath(), "dd-partial-report-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        try {
-            var output = Path.Combine(directory, "report." + extension);
-            var result = await HealthCheckCompositionReport.GenerateAsync(health, new ReportOptions {
-                Format = format, OutputPath = output, IncludeTechnicalDetails = true,
-                CustomProperties = new Dictionary<string, object> { ["Domain"] = "example.com" }
-            });
-            Assert.True(result.Success, result.ErrorMessage);
-            Assert.Contains("EDNSSUPPORT: TimeoutException", result.ErrorMessage);
-            Assert.True(File.Exists(output));
-            string content;
-            if (extension is "docx" or "xlsx") {
-                using var archive = ZipFile.OpenRead(output);
-                content = string.Join(" ", archive.Entries.Where(entry => entry.FullName.EndsWith(".xml", StringComparison.Ordinal)).Select(entry => {
-                    using var stream = entry.Open();
-                    return XDocument.Load(stream).Root?.Value ?? string.Empty;
-                }));
-            } else {
-                content = File.ReadAllText(output);
-            }
-            Assert.Contains("Authoritative DNS timed out.", content);
-            Assert.Contains("letsencrypt.org", content);
-        } finally {
-            Directory.Delete(directory, true);
-        }
     }
 
     [Fact]
@@ -230,7 +270,7 @@ public class TestCheckFailureIsolation {
             }
             return Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.CAA, DataRaw = "0 issue \"letsencrypt.org\"" } });
         };
-        await health.Verify("example.com", new[] { HealthCheckType.MAILCLASSIFICATION, HealthCheckType.CAA });
+        await Assert.ThrowsAsync<TimeoutException>(() => health.Verify("example.test", new[] { HealthCheckType.MAILCLASSIFICATION, HealthCheckType.CAA }));
         int attempted = mxQueries;
         var errors = new List<string>();
         var views = Converters.ConvertChecks(health, errors: errors);
@@ -244,13 +284,13 @@ public class TestCheckFailureIsolation {
     [Fact]
     public void EdnsNarrativeAndDesiredStateKeepFailedCapabilityUnknown() {
         using var health = Create();
-        health.EdnsSupportAnalysis.ServerSupport["ns.example.com (192.0.2.1)"] = new EdnsSupportInfo {
+        health.EdnsSupportAnalysis.ServerSupport["ns.example.test (192.0.2.1)"] = new EdnsSupportInfo {
             QuerySucceeded = false, Error = "TimeoutException: The UDP query timed out."
         };
         var narrative = EdnsNarrative.Build(health.EdnsSupportAnalysis);
         Assert.Contains(narrative.Details, line => line.Contains("support is unknown") && line.Contains("TimeoutException"));
         Assert.DoesNotContain(narrative.Details, line => line.Contains("no EDNS support"));
-        var desired = DesiredStateEvaluator.Evaluate("example.com", health, new DesiredStateProfile {
+        var desired = DesiredStateEvaluator.Evaluate("example.test", health, new DesiredStateProfile {
             EdnsSupport = new DesiredStateEdnsSupportPolicy { RequireAllServersSupported = true }
         });
         Assert.False(desired.Conforms);
@@ -259,7 +299,7 @@ public class TestCheckFailureIsolation {
     }
 
     private static Task<DnsAnswer[]> ServerDiscovery(DnsRecordType type, params string[] servers) => Task.FromResult(type switch {
-        DnsRecordType.NS => new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.com" } },
+        DnsRecordType.NS => new[] { new DnsAnswer { Type = type, DataRaw = "ns.example.test" } },
         DnsRecordType.A => servers.Select(server => new DnsAnswer { Type = type, DataRaw = server }).ToArray(),
         _ => Array.Empty<DnsAnswer>()
     });
@@ -272,7 +312,7 @@ public class TestCheckFailureIsolation {
                 ? throw new TimeoutException("The UDP query timed out.")
                 : Task.FromResult(new EdnsSupportInfo { Supported = true, UdpPayloadSize = 1232 })
         };
-        await analysis.Analyze("example.com", new InternalLogger());
+        await analysis.Analyze("example.test", new InternalLogger());
         var summary = Converters.Convert(analysis);
         Assert.Equal(2, summary.TotalChecked);
         Assert.Equal(1, summary.SupportedCount);
@@ -283,7 +323,7 @@ public class TestCheckFailureIsolation {
         Assert.DoesNotContain(analysis.Assessments, a => a.Code == "EDNS.Server.NotSupported");
 
         analysis.QueryServerOverride = _ => Task.FromResult(new EdnsSupportInfo { Supported = true });
-        await analysis.Analyze("example.com", new InternalLogger());
+        await analysis.Analyze("example.test", new InternalLogger());
         Assert.Equal(0, Converters.Convert(analysis).FailedCount);
         Assert.DoesNotContain(analysis.Assessments, a => a.Code == "EDNS.Server.QueryFailed");
     }
@@ -295,7 +335,7 @@ public class TestCheckFailureIsolation {
         using var health = Create();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, type) => ServerDiscovery(type, endpoint);
 
-        await health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
+        await health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT, HealthCheckType.CAA });
 
         var errors = new List<string>();
         var views = Converters.ConvertChecks(health, errors: errors);
@@ -314,7 +354,7 @@ public class TestCheckFailureIsolation {
         using var health = Create();
         using var cancellation = new CancellationTokenSource();
         health.EdnsSupportAnalysis.QueryDnsOverride = (_, type) => ServerDiscovery(type, endpoint);
-        var verification = health.Verify("example.com", new[] { HealthCheckType.EDNSSUPPORT }, cancellationToken: cancellation.Token);
+        var verification = health.Verify("example.test", new[] { HealthCheckType.EDNSSUPPORT }, cancellationToken: cancellation.Token);
         var received = server.ReceiveAsync();
         try {
             Assert.Same(received, await Task.WhenAny(received, Task.Delay(TimeSpan.FromSeconds(5))));

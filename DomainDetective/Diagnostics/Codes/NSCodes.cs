@@ -1,6 +1,7 @@
 namespace DomainDetective;
 
 internal static class NSCodes {
+    public const string QueryFailed = "NS.Query.Failed";
     public const string Missing = "NS.Missing";
     public const string Duplicate = "NS.Duplicate";
     public const string TooFewRecords = "NS.TooFew";

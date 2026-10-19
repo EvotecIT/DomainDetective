@@ -41,7 +41,10 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to query.</param>
         /// <param name="ports">Ports to check for DANE.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {
+        public Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) =>
+            VerifyDanePortsAsync(domainName, ports, cancellationToken, false);
+
+        private async Task VerifyDanePortsAsync(string domainName, int[] ports, CancellationToken cancellationToken, bool includeMxSmtp) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -70,6 +73,15 @@ namespace DomainDetective {
                         DaneAnalysis.QueriedPorts.Add(port);
                     var dane = await QueryDaneServiceAsync(domainName, port, secureAliases, cancellationToken);
                     allDaneRecords.AddRange(dane);
+                }
+                if (includeMxSmtp) {
+                    var mx = await QueryDaneMxDns(domainName, cancellationToken).ConfigureAwait(false);
+                    foreach (var host in CertificateAnalysis.ExtractMxHosts(mx).Distinct(StringComparer.OrdinalIgnoreCase)) {
+                        if (string.IsNullOrWhiteSpace(host) || host.TrimEnd('.').Length == 0) { continue; }
+                        if (!DaneAnalysis.QueriedPorts.Contains(25)) { DaneAnalysis.QueriedPorts.Add(25); }
+                        if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.SMTP)) { DaneAnalysis.QueriedServiceTypes.Add(ServiceType.SMTP); }
+                        allDaneRecords.AddRange(await QueryDaneServiceAsync(host, 25, secureAliases, cancellationToken).ConfigureAwait(false));
+                    }
                 }
                 if (allDaneRecords.Count == 0 && !DaneAnalysis.DnsQueryFailed) {
                     _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");

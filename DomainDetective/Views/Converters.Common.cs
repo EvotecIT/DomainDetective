@@ -12,6 +12,7 @@ public static partial class Converters
         {
             // DNS group
             case HealthCheckType.NS:
+            case HealthCheckType.DELEGATION:
             case HealthCheckType.SOA:
             case HealthCheckType.EDNSSUPPORT:
             case HealthCheckType.REVERSEDNS:
@@ -29,7 +30,6 @@ public static partial class Converters
             case HealthCheckType.DNSPROPAGATION:
             case HealthCheckType.DNSAMPLIFICATION:
             case HealthCheckType.DNSOVERTLS:
-            case HealthCheckType.DELEGATION:
             case HealthCheckType.DANGLINGCNAME:
             case HealthCheckType.OPENRESOLVER:
             case HealthCheckType.FLATTENINGSERVICE:

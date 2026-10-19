@@ -53,6 +53,10 @@ public partial class DomainHealthCheck {
         var options = executionOptions ?? new HealthCheckExecutionOptions();
         int maxParallel = options.EnableParallelism ? options.GetEffectiveDomainParallelism() : 1;
         bool ownsHealthChecks = healthCheckFactory == null;
+        // Factory-owned configurations may have independent borrowers after this batch.
+        // This async-only gate has no native wait handle and is reclaimed with its last borrower.
+        var dnsAdmission = new SemaphoreSlim(options.GetEffectiveDnsParallelism());
+        var bulkDnsAdmission = new SemaphoreSlim(Math.Max(1, options.GetEffectiveDnsParallelism() - 1));
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var gate = new object();
         int nextIndex = 0;
@@ -65,8 +69,18 @@ public partial class DomainHealthCheck {
                 stop.Token.ThrowIfCancellationRequested();
                 health = healthCheckFactory != null ? healthCheckFactory(domain) : new DomainHealthCheck();
                 if (health == null) { throw new InvalidOperationException("Health check factory returned null."); }
-                await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
-                    danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
+                var configuration = health.DnsConfiguration;
+                var previousAdmission = configuration.QueryAdmissionGate;
+                var previousBulkAdmission = configuration.BulkQueryAdmissionGate;
+                configuration.QueryAdmissionGate = dnsAdmission;
+                configuration.BulkQueryAdmissionGate = bulkDnsAdmission;
+                try {
+                    await health.Verify(domain, healthCheckTypes, dkimSelectors, daneServiceType,
+                        danePorts, portScanProfiles, stop.Token, options).ConfigureAwait(false);
+                } finally {
+                    configuration.QueryAdmissionGate = previousAdmission;
+                    configuration.BulkQueryAdmissionGate = previousBulkAdmission;
+                }
                 return new DomainHealthCheckRun(domain, health, null, ownsHealthChecks);
             } catch (OperationCanceledException) when (stop.IsCancellationRequested) {
                 if (ownsHealthChecks) { health?.Dispose(); }

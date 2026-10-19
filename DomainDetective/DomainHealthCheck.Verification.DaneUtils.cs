@@ -16,9 +16,11 @@ namespace DomainDetective {
 
         private async Task VerifyDaneInternal(string domainName, ServiceType[]? serviceTypes, int[]? ports, CancellationToken cancellationToken) {
             if (ports != null && ports.Length > 0) {
-                await VerifyDANE(domainName, ports, cancellationToken);
+                await VerifyDanePortsAsync(domainName, ports, cancellationToken, _runNeedsSmtpDane);
             } else {
-                await VerifyDANE(domainName, serviceTypes ?? System.Array.Empty<ServiceType>(), cancellationToken);
+                var requested = serviceTypes != null && serviceTypes.Length > 0 ? serviceTypes : new[] { ServiceType.SMTP, ServiceType.HTTPS };
+                if (_runNeedsSmtpDane) { requested = requested.Concat(new[] { ServiceType.SMTP }).Distinct().ToArray(); }
+                await VerifyDANE(domainName, requested, cancellationToken);
             }
         }
 

@@ -65,7 +65,7 @@ namespace DomainDetective.Tests {
                 ReplyMeaning = "Blacklisted",
             };
 
-            method.Invoke(analysis, new object[] { address, new[] { record } });
+            method.Invoke(analysis, new object[] { address, new[] { record }, new InternalLogger() });
 
             var result = analysis.Results[address];
             Assert.True(result.IsBlacklisted);
@@ -92,7 +92,7 @@ namespace DomainDetective.Tests {
                 ReplyMeaning = string.Empty,
             };
 
-            method.Invoke(analysis, new object[] { address, new[] { record } });
+            method.Invoke(analysis, new object[] { address, new[] { record }, new InternalLogger() });
 
             var result = analysis.Results[address];
             Assert.False(result.IsBlacklisted);

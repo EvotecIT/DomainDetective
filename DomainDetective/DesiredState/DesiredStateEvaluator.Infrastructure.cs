@@ -14,6 +14,15 @@ public static partial class DesiredStateEvaluator {
         var hasAny = analysis.HasAnyAddress;
         var addressCount = (analysis.ARecords?.Count ?? 0) + (analysis.AaaaRecords?.Count ?? 0);
 
+        if (!analysis.AddressLookupComplete) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning, Category = "DesiredState", Target = domain,
+                Code = "DesiredState.ApexAddress.Incomplete",
+                Message = "Apex address discovery is incomplete; requirements involving unresolved address families could not be fully evaluated."
+            });
+            if (!hasAny) { return; }
+        }
+
         if (desired.DisallowAnyAddress == true && hasAny) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Error,
@@ -100,7 +109,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.MinDistinctSubnetCountV4.HasValue && analysis.DistinctSubnetCountV4 < desired.MinDistinctSubnetCountV4.Value) {
+        if (analysis.ALookupComplete && desired.MinDistinctSubnetCountV4.HasValue && analysis.DistinctSubnetCountV4 < desired.MinDistinctSubnetCountV4.Value) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -110,7 +119,7 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.MinDistinctSubnetCountV6.HasValue && analysis.DistinctSubnetCountV6 < desired.MinDistinctSubnetCountV6.Value) {
+        if (analysis.AaaaLookupComplete && desired.MinDistinctSubnetCountV6.HasValue && analysis.DistinctSubnetCountV6 < desired.MinDistinctSubnetCountV6.Value) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",

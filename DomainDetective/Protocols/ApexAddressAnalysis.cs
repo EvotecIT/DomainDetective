@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace DomainDetective {
     /// <summary>
@@ -30,6 +31,17 @@ public sealed class ApexAddressAnalysis {
         public bool HasAaaaRecord => AaaaRecords != null && AaaaRecords.Count > 0;
         /// <summary>True when either A or AAAA records exist.</summary>
         public bool HasAnyAddress => (ARecords != null && ARecords.Count > 0) || (AaaaRecords != null && AaaaRecords.Count > 0) || HasARecord || HasAaaaRecord;
+
+        /// <summary>Whether both address-family lookups completed conclusively.</summary>
+        public bool AddressLookupComplete => ALookupComplete && AaaaLookupComplete;
+        /// <summary>Whether the IPv4 lookup returned a conclusive answer or negative response.</summary>
+        public bool ALookupComplete { get; private set; }
+        /// <summary>Whether the IPv6 lookup returned a conclusive answer or negative response.</summary>
+        public bool AaaaLookupComplete { get; private set; }
+        /// <summary>True for a confirmed address, false for confirmed absence, or null when absence is unestablished.</summary>
+        public bool? AddressPresence => HasAnyAddress ? true : AddressLookupComplete ? false : null;
+        /// <summary>Operational failures that prevented complete address discovery.</summary>
+        public IReadOnlyList<string> AddressLookupFailures { get; private set; } = Array.Empty<string>();
 
         /// <summary>Relevant standards for apex address (SMTP fallback) behavior.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
@@ -91,6 +103,8 @@ public sealed class ApexAddressAnalysis {
 
         /// <summary>Executes the reset operation.</summary>
         public void Reset() {
+            ALookupComplete = AaaaLookupComplete = false;
+            AddressLookupFailures = Array.Empty<string>();
             ARecords = new List<string>();
             AaaaRecords = new List<string>();
             // flags are computed from lists
@@ -116,22 +130,40 @@ public sealed class ApexAddressAnalysis {
             AllRpkiValid = false;
         }
 
+        private static (List<string> Addresses, bool Complete, string? Failure) ReadAddressAnswers(
+            IEnumerable<DnsAnswer>? answers, DnsRecordType type) {
+            var addresses = new List<string>();
+            bool alias = false, invalid = false;
+            if (answers != null) {
+                foreach (var answer in answers) {
+                    if (answer.Type == DnsRecordType.CNAME) { alias = true; continue; }
+                    // DNSSEC annotations do not constitute address evidence.
+                    if ((int)answer.Type is 46 or 47 or 50) { continue; }
+                    var value = string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw : answer.Data;
+                    if (answer.Type != type || !System.Net.IPAddress.TryParse(value, out var address)
+                        || address.AddressFamily != (type == DnsRecordType.A
+                            ? System.Net.Sockets.AddressFamily.InterNetwork : System.Net.Sockets.AddressFamily.InterNetworkV6)) {
+                        invalid = true;
+                        continue;
+                    }
+                    addresses.Add(value);
+                }
+            }
+            bool complete = !invalid && (!alias || addresses.Count > 0);
+            return (addresses, complete, complete ? null : $"{type}: unresolved alias or invalid address answer.");
+        }
+
         private static string NormalizeName(string name)
         {
             return (name ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
         }
 
-        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken ct) {
             var q = NormalizeName(name);
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(q, type);
+                return await QueryDnsOverride(q, type).WaitWithCancellation(ct);
             }
-            // If the DNS configuration has an override, prefer it directly to avoid any indirection issues
-            var dnsConfiguration = DnsConfiguration;
-            if (dnsConfiguration.QueryDnsOverride != null) {
-                return await dnsConfiguration.QueryDnsOverride(q, type);
-            }
-            return await dnsConfiguration.QueryDNS(q, type);
+            return await DnsConfiguration.QueryPolicyDNS(q, type, cancellationToken: ct).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -139,22 +171,13 @@ public sealed class ApexAddressAnalysis {
         /// </summary>
         public Task AnalyzeApexAnswers(IEnumerable<DnsAnswer> aAnswers, IEnumerable<DnsAnswer> aaaaAnswers, InternalLogger? logger = null) {
             Reset();
-            if (aAnswers != null) {
-                foreach (var a in aAnswers) {
-                    var val = a.Data ?? a.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) {
-                        ARecords.Add(val);
-                    }
-                }
-            }
-            if (aaaaAnswers != null) {
-                foreach (var a in aaaaAnswers) {
-                    var val = a.Data ?? a.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) {
-                        AaaaRecords.Add(val);
-                    }
-                }
-            }
+            var a = ReadAddressAnswers(aAnswers, DnsRecordType.A);
+            var aaaa = ReadAddressAnswers(aaaaAnswers, DnsRecordType.AAAA);
+            ARecords = a.Addresses;
+            AaaaRecords = aaaa.Addresses;
+            ALookupComplete = a.Complete;
+            AaaaLookupComplete = aaaa.Complete;
+            AddressLookupFailures = new[] { a.Failure, aaaa.Failure }.Where(value => value != null).Select(value => value!).ToArray();
 
             // flags are computed from lists; no assignments
 
@@ -186,25 +209,52 @@ public sealed class ApexAddressAnalysis {
         /// <summary>
         /// Queries and analyzes apex A/AAAA for the given domain using configured DNS.
         /// </summary>
-        public async Task AnalyzeAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeAsync(string domainName, InternalLogger? logger = null) => AnalyzeAsync(domainName, logger, default);
+
+        /// <summary>Analyzes apex addresses and all requested enrichment with caller cancellation.</summary>
+        public async Task AnalyzeAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             Reset();
             Subject = domainName;
-            var a = await QueryDns(domainName, DnsRecordType.A) ?? Array.Empty<DnsAnswer>();
-            var aaaa = await QueryDns(domainName, DnsRecordType.AAAA) ?? Array.Empty<DnsAnswer>();
-            await AnalyzeApexAnswers(a, aaaa, logger);
-            await AnalyzeReverseDnsAsync(domainName, logger);
-            await AnalyzeAsnAndRpkiAsync(domainName, logger);
+            async Task<(DnsAnswer[] Answers, string? Failure)> Lookup(DnsRecordType type) {
+                try {
+                    return (await QueryDns(domainName, type, cancellationToken).ConfigureAwait(false) ?? Array.Empty<DnsAnswer>(), null);
+                } catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&
+                    (ex is DnsQueryFailureException || ex is System.Net.Http.HttpRequestException ||
+                     ex is System.IO.IOException || ex is System.Net.Sockets.SocketException ||
+                     ex is TimeoutException || ex is OperationCanceledException)) {
+                    return (Array.Empty<DnsAnswer>(), $"{type}: {ex.Message}");
+                }
+            }
+            var aTask = Lookup(DnsRecordType.A);
+            var aaaaTask = Lookup(DnsRecordType.AAAA);
+            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var a = await aTask;
+            var aaaa = await aaaaTask;
+            await AnalyzeApexAnswers(a.Answers, aaaa.Answers, logger);
+            AddressLookupFailures = AddressLookupFailures.Concat(new[] { a.Failure, aaaa.Failure }
+                .Where(value => value != null).Select(value => value!)).ToArray();
+            ALookupComplete &= a.Failure == null;
+            AaaaLookupComplete &= aaaa.Failure == null;
+            if (!AddressLookupComplete) {
+                logger?.WriteInformationCode("APEXADDRESS.Lookup.Incomplete", "Apex address evidence is incomplete; absence was not established for every address family.");
+            }
+            if (!HasAnyAddress) { return; }
+            await Task.WhenAll(AnalyzeReverseDnsAsync(domainName, logger, cancellationToken),
+                AnalyzeAsnAndRpkiAsync(domainName, logger, cancellationToken)).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Performs PTR and FCrDNS checks for apex addresses.
         /// </summary>
-        public async Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger = null) => AnalyzeReverseDnsAsync(domainName, logger, default);
+
+        private async Task AnalyzeReverseDnsAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             var r = new ReverseDnsAnalysis { DnsConfiguration = this.DnsConfiguration };
             if (this.QueryDnsOverride != null) {
                 r.QueryDnsOverride = this.QueryDnsOverride;
             }
-            await r.AnalyzeHosts(new[] { domainName }, logger);
+            await r.AnalyzeHosts(new[] { domainName }, logger, cancellationToken);
             PtrByIp = new();
             AnyPtrPresent = false;
             AllPtrPresent = true;
@@ -265,11 +315,13 @@ public sealed class ApexAddressAnalysis {
         /// <summary>
         /// Populates ASN and RPKI validity for apex addresses using RPKIAnalysis.
         /// </summary>
-        public async Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger = null) {
+        public Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger = null) => AnalyzeAsnAndRpkiAsync(domainName, logger, default);
+
+        private async Task AnalyzeAsnAndRpkiAsync(string domainName, InternalLogger? logger, CancellationToken cancellationToken) {
             var rpki = new RPKIAnalysis { DnsConfiguration = this.DnsConfiguration };
             if (this.QueryDnsOverride != null) rpki.QueryDnsOverride = this.QueryDnsOverride;
             if (this.QueryRpkiOverride != null) rpki.QueryRpkiOverride = this.QueryRpkiOverride;
-            await rpki.Analyze(domainName, logger);
+            await rpki.Analyze(domainName, logger, cancellationToken);
 
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             RpkiValidCount = 0;

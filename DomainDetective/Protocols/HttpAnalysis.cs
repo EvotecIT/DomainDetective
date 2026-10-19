@@ -53,9 +53,9 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
         public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
-        public Dictionary<string, SecurityHeader> SecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, SecurityHeader> SecurityHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a collection of security headers that were not present.</summary>
-        public HashSet<string> MissingSecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> MissingSecurityHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
@@ -87,11 +87,11 @@ namespace DomainDetective {
         /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
         public int InsecureFormsCount { get; private set; }
         /// <summary>Captures representative insecure form action URLs found on page.</summary>
-        public List<string> InsecureFormActions { get; } = new();
+        public List<string> InsecureFormActions { get; private set; } = new();
         /// <summary>Gets a value indicating whether a Permissions-Policy header was present.</summary>
         public bool PermissionsPolicyPresent { get; private set; }
         /// <summary>Gets parsed directives from the Permissions-Policy header.</summary>
-        public Dictionary<string, string> PermissionsPolicy { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> PermissionsPolicy { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets the value of the Referrer-Policy header if present.</summary>
         public string? ReferrerPolicy { get; private set; }
         /// <summary>Gets the value of the X-Frame-Options header if present.</summary>
@@ -109,7 +109,7 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
         public bool OriginAgentClusterEnabled { get; private set; }
 	        /// <summary>Gets the URLs visited when following redirects.</summary>
-	        public List<string> VisitedUrls { get; } = new();
+	        public List<string> VisitedUrls { get; private set; } = new();
 	        /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
 	        public int MaxRedirects { get; set; } = 10;
             /// <summary>Optional factory used to create a constrained outbound HTTP handler.</summary>
@@ -121,20 +121,20 @@ namespace DomainDetective {
 	        /// <summary>Proxy URL used for the request when configured.</summary>
 	        public string? ProxyUsed { get; private set; }
 	        /// <summary>Request header names that were sent (best-effort; excludes defaults).</summary>
-	        public List<string> RequestHeaderNames { get; } = new();
+	        public List<string> RequestHeaderNames { get; private set; } = new();
 	        /// <summary>Information disclosure headers observed (best-effort).</summary>
-	        public Dictionary<string, string> InformationDisclosureHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public Dictionary<string, string> InformationDisclosureHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Caching headers observed (best-effort).</summary>
-	        public Dictionary<string, string> CachingHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public Dictionary<string, string> CachingHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Deprecated security headers observed.</summary>
-	        public HashSet<string> DeprecatedHeadersPresent { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public HashSet<string> DeprecatedHeadersPresent { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Deprecated security headers that were missing.</summary>
-	        public HashSet<string> MissingDeprecatedHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public HashSet<string> MissingDeprecatedHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>True when CSP contains a frame-ancestors directive.</summary>
 	        public bool CspFrameAncestorsPresent { get; private set; }
 
 	        /// <summary>Gets or sets the HTTP request timeout.</summary>
-	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
+	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
 #if NET8_0_OR_GREATER
         /// <summary>Gets or sets the HTTP version used for requests.</summary>
@@ -183,66 +183,6 @@ namespace DomainDetective {
 	            "ETag"
 	        };
 
-	        private static HashSet<string> _hstsPreloadExact = new(StringComparer.OrdinalIgnoreCase);
-	        private static HashSet<string> _hstsPreloadSubdomains = new(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>Loads a Chromium-derived HSTS preload snapshot, optionally gzip-compressed.</summary>
-        /// <param name="filePath">File path containing the preload list.</param>
-        public static void LoadHstsPreloadList(string filePath) {
-            if (!File.Exists(filePath)) {
-                return;
-            }
-            try {
-                using var file = File.OpenRead(filePath);
-                using var stream = filePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-                    ? (Stream)new GZipStream(file, CompressionMode.Decompress)
-                    : file;
-                using var document = JsonDocument.Parse(stream);
-                var exact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var subdomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var root = document.RootElement;
-                if (root.ValueKind == JsonValueKind.Array) {
-                    foreach (var item in root.EnumerateArray()) {
-                        if (item.ValueKind == JsonValueKind.String && NormalizeHstsHost(item.GetString()) is string host) exact.Add(host);
-                    }
-                } else if (root.TryGetProperty("entries", out var entries)) {
-                    foreach (var item in entries.EnumerateArray()) {
-                        if (!item.TryGetProperty("name", out var nameProperty) || NormalizeHstsHost(nameProperty.GetString()) is not string host) continue;
-                        exact.Add(host);
-                        if (item.TryGetProperty("includeSubDomains", out var includeProperty) && includeProperty.ValueKind == JsonValueKind.True) {
-                            subdomains.Add(host);
-                        }
-                    }
-                }
-                _hstsPreloadExact = exact;
-                _hstsPreloadSubdomains = subdomains;
-            } catch {
-                // ignore malformed preload files
-            }
-        }
-
-        internal static bool IsHstsPreloadedHost(string host) {
-            var normalized = NormalizeHstsHost(host);
-            if (normalized == null) return false;
-            if (_hstsPreloadExact.Contains(normalized)) return true;
-            var offset = normalized.IndexOf('.');
-            while (offset >= 0 && offset + 1 < normalized.Length) {
-                var parent = normalized.Substring(offset + 1);
-                if (_hstsPreloadSubdomains.Contains(parent)) return true;
-                offset = normalized.IndexOf('.', offset + 1);
-            }
-            return false;
-        }
-
-        private static string? NormalizeHstsHost(string? host) {
-            if (string.IsNullOrWhiteSpace(host)) return null;
-            try {
-                return new IdnMapping().GetAscii(host!.Trim().TrimEnd('.')).ToLowerInvariant();
-            } catch (ArgumentException) {
-                return null;
-            }
-        }
-
         /// <summary>
         /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
         /// called with header collection enabled. The list includes modern headers such
@@ -253,7 +193,7 @@ namespace DomainDetective {
         public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
         /// <summary>Structured assessments captured during HTTP analysis.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
         /// <summary>Actionable recommendations derived from assessments.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
@@ -273,9 +213,14 @@ namespace DomainDetective {
                 if (MaxBodyBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBodyBytes));
                 using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
-            var configurableHandler = HttpHandlerFactory == null ? new HttpClientHandler { AllowAutoRedirect = false } : null;
-                using var handler = HttpHandlerFactory?.Invoke() ?? configurableHandler!;
-                var cookies = HttpRequestBoundary.PrepareHandler(handler);
+                bool reuseTransport = HttpHandlerFactory == null && !requestOptions.DisableTlsValidation &&
+                    string.IsNullOrWhiteSpace(requestOptions.ProxyUrl) && string.IsNullOrWhiteSpace(requestOptions.Cookie) &&
+                    requestOptions.Headers.Count == 0;
+                var configurableHandler = HttpHandlerFactory == null && !reuseTransport
+                    ? new HttpClientHandler { AllowAutoRedirect = false } : null;
+                using var ownedHandler = reuseTransport ? null : HttpHandlerFactory?.Invoke() ?? configurableHandler!;
+                var handler = ownedHandler ?? SharedHttpClient.AnonymousProbeHandler;
+                var cookies = reuseTransport ? new CookieContainer() : HttpRequestBoundary.PrepareHandler(handler);
 	            ProxyUsed = null;
 	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
 	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
@@ -300,7 +245,7 @@ namespace DomainDetective {
 	                configurableHandler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
 	#endif
 	            }
-	            using var client = new HttpClient(handler) { Timeout = Timeout };
+	            using var client = new HttpClient(handler, disposeHandler: false) { Timeout = Timeout };
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 deadline.CancelAfter(Timeout);
                 var requestToken = deadline.Token;

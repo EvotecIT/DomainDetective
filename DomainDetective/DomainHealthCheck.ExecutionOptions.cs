@@ -23,7 +23,7 @@ public sealed class HealthCheckExecutionOptions {
     public int? MaxDomainParallelism { get; set; }
 
     /// <summary>
-    /// Optional override for DNS resolver concurrency hints.
+    /// Optional override for DNS resolver concurrency hints and the shared recursive-query admission cap across a batch.
     /// </summary>
     public int? DnsParallelism { get; set; }
 
@@ -52,6 +52,15 @@ public sealed class HealthCheckExecutionOptions {
     /// This is useful for drift detection scenarios where you want to validate DNS posture without relying on external HTTP availability.
     /// </remarks>
     public bool SkipBimiIndicatorDownload { get; set; }
+
+    /// <summary>HTTPS port used by HTTP, CERT and WEBSITE in a combined verification run.</summary>
+    public int WebsitePort { get; set; } = 443;
+
+    /// <summary>Collects separate plain HTTP evidence alongside the selected checks without replacing HTTPS results.</summary>
+    public bool IncludePlainHttp { get; set; }
+
+    /// <summary>Checks takeover-prone CNAME targets as an owned phase of the combined verification run.</summary>
+    public bool IncludeTakeoverCname { get; set; }
 
     internal int GetEffectiveMaxParallelism() {
         if (MaxParallelism.HasValue && MaxParallelism.Value > 0) {
