@@ -10,9 +10,20 @@ public class TestScanPartialEvidence {
     [InlineData(false, false)]
     [InlineData(true, true)]
     public async Task SitemapKeepsCompletedSiblingsWhenAnotherDownloadIsCanceled(bool completedFirst, bool callerCancellation) {
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // XML/schema initialization is setup, not the sibling cancellation under test.
+        var warmup = new SitemapAnalysis {
+            HttpHandlerFactory = () => new DelegateHandler((_, _) => Task.FromResult(Xml(
+                "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"></urlset>")))
+        };
+        await warmup.AnalyzeAsync("https://partial.example/warmup.xml", options: new SitemapAnalysisOptions {
+            AllowHttpFallback = false, ProbeUrls = false
+        }, cancellationToken: guard.Token);
+        Assert.True(warmup.AnalysisComplete);
+
         using var caller = CancellationTokenSource.CreateLinkedTokenSource(guard.Token);
         var stalled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         bool drained = false;
         var analysis = new SitemapAnalysis {
             HttpHandlerFactory = () => new DelegateHandler(async (request, token) => {
@@ -26,7 +37,7 @@ public class TestScanPartialEvidence {
                 }
                 if (name == "/complete.xml") {
                     return Xml("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
-                        "<url><loc>https://partial.example/retained</loc></url></urlset>");
+                        "<url><loc>https://partial.example/retained</loc></url></urlset>", () => completed.TrySetResult(true));
                 }
                 stalled.TrySetResult(true);
                 try { await Task.Delay(Timeout.Infinite, token); }
@@ -35,17 +46,24 @@ public class TestScanPartialEvidence {
             })
         };
         Task operation = analysis.AnalyzeAsync("https://partial.example/sitemap.xml", options: new SitemapAnalysisOptions {
-            AnalysisTimeout = TimeSpan.FromSeconds(callerCancellation ? 15 : 2),
+            AnalysisTimeout = TimeSpan.FromSeconds(callerCancellation ? 20 : 10),
             MaxSitemapDocuments = 3, AllowHttpFallback = false, ProbeUrls = false
         }, cancellationToken: caller.Token);
-        await stalled.Task.WaitWithCancellation(guard.Token);
-        if (callerCancellation) { caller.Cancel(); }
-        if (callerCancellation) { await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation); }
-        else { await operation; }
-        Assert.False(analysis.AnalysisComplete);
-        Assert.True(drained);
-        Assert.Equal(new[] { "https://partial.example/sitemap.xml", "https://partial.example/complete.xml" }, analysis.Documents.Select(document => document.Url));
-        Assert.Equal("https://partial.example/retained", Assert.Single(analysis.Entries).Location);
+        try {
+            Task siblingsEntered = Task.WhenAll(stalled.Task, completed.Task);
+            Assert.Same(siblingsEntered, await Task.WhenAny(siblingsEntered, operation).WaitWithCancellation(guard.Token));
+            await siblingsEntered;
+            if (callerCancellation) { caller.Cancel(); }
+            if (callerCancellation) { await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation); }
+            else { await operation; }
+            Assert.False(analysis.AnalysisComplete);
+            Assert.True(drained);
+            Assert.Equal(new[] { "https://partial.example/sitemap.xml", "https://partial.example/complete.xml" }, analysis.Documents.Select(document => document.Url));
+            Assert.Equal("https://partial.example/retained", Assert.Single(analysis.Entries).Location);
+        } finally {
+            caller.Cancel();
+            try { await operation; } catch (OperationCanceledException) when (caller.IsCancellationRequested) { }
+        }
     }
 
     [Theory]
@@ -75,7 +93,16 @@ public class TestScanPartialEvidence {
         }
     }
 
-    private static HttpResponseMessage Xml(string body) => new(HttpStatusCode.OK) { Content = new StringContent(body) };
+    private static HttpResponseMessage Xml(string body, Action? completed = null) => new(HttpStatusCode.OK) {
+        Content = completed == null ? new StringContent(body) : new CompletedContent(body, completed)
+    };
+
+    private sealed class CompletedContent(string body, Action completed) : StringContent(body) {
+        protected override void Dispose(bool disposing) {
+            base.Dispose(disposing);
+            if (disposing) { completed(); }
+        }
+    }
 
     private sealed class DelegateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
