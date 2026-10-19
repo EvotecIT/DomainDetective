@@ -84,7 +84,7 @@ public partial class DnsTtlAnalysis {
                     return false;
                 }
             }, concurrency: 8, cancellationToken: deadline.Token).ConfigureAwait(false);
-        } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        } catch (OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
             logger?.WriteVerbose("Authoritative TTL value collection reached its budget; unverified cache countdowns are not judged too short.");
         } finally {
