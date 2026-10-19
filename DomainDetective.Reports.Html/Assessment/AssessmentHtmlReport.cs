@@ -226,13 +226,14 @@ public static partial class AssessmentHtmlReport {
                     int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average());
                     int errors = areaChecks.Count(static c => c.Outcome == CheckOutcome.Error);
                     int warnings = areaChecks.Count(static c => c.Outcome == CheckOutcome.Warning);
+                    int incomplete = areaChecks.Count(static c => !c.EvidenceComplete);
                     int passed = areaChecks.Count(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
-                    Severity tone = errors > 0 ? Severity.High : warnings > 0 ? Severity.Elevated : score.HasValue ? Severity.Good : Severity.Informational;
+                    Severity tone = errors > 0 ? Severity.High : warnings > 0 || incomplete > 0 ? Severity.Elevated : score.HasValue ? Severity.Good : Severity.Informational;
                     list.Scope(AreaLabel(area), tone, item => {
-                        item.Status(errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : "Passing");
+                        item.Status(errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete > 0 ? "Incomplete" : score.HasValue ? "Passing" : "Informational");
                         item.Metric("Score", score?.ToString(CultureInfo.InvariantCulture) ?? "-", GradeSeverity(score));
                         item.Metric("Checks", areaChecks.Count.ToString(CultureInfo.InvariantCulture));
-                        item.Progress(passed, errors + warnings);
+                        item.Progress(passed, errors + warnings + areaChecks.Count(static c => c.Outcome == CheckOutcome.Incomplete));
                         item.Note(AreaLine(report, areaChecks));
                         if (report.Domains.Count == 1) item.Link("Open checks", ids.Domain(report.Domains[0]));
                     });

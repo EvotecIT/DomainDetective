@@ -45,6 +45,19 @@ public class TestAssessmentEvidenceCompletion {
         Assert.DoesNotContain("DNSSEC is valid", Render(view));
     }
 
+    [Theory]
+    [InlineData(HealthCheckType.MX)]
+    [InlineData(HealthCheckType.DNSBL)]
+    public void AnIncompleteOnlyAreaDoesNotDisplayAPassingLabel(HealthCheckType kind) {
+        object view = kind == HealthCheckType.MX
+            ? new MxInfo { Check = kind, Subject = "example.test", Status = "Incomplete" }
+            : new DnsblInfo { Check = kind, Subject = "example.test", Status = "Incomplete" };
+        var html = Render(view);
+        Assert.DoesNotContain(">Passing<", html);
+        Assert.DoesNotContain("Every check passed.", html);
+        Assert.Contains("Incomplete", html);
+    }
+
     [Fact]
     public async Task DmarcProfileUsesTheEffectiveTestModePolicy() {
         using var health = new DomainHealthCheck();

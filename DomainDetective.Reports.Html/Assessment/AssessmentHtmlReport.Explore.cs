@@ -90,6 +90,7 @@ public static partial class AssessmentHtmlReport {
 
     // The number that says most about a check: a missing record first, otherwise the control's headline metric.
     private static CheckMetric? Headline(CheckAssessment check) {
+        if (!check.EvidenceComplete) return null;
         if (check.Metrics.Count == 0) return null;
         if (check.Metrics[0].Label == "Record") return check.Metrics[0];
         string? preferred = Controls.FirstOrDefault(c => c.Key == check.Key).Headline;

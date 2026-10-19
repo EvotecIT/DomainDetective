@@ -67,7 +67,7 @@ public static partial class AssessmentHtmlReport {
                     panel.AssessmentFlow(flow => {
                         flow.Label("Inbound mail transport");
                         if (mx != null) {
-                            flow.Step("MX · mail servers", Metric(mx, "Provider") ?? Suffix(Metric(mx, "Mail servers"), "servers") ?? OutcomeLabel(mx.Outcome), OutcomeSeverity(mx.Outcome), s => {
+                            flow.Step("MX · mail servers", !mx.EvidenceComplete ? "Incomplete" : Metric(mx, "Provider") ?? Suffix(Metric(mx, "Mail servers"), "servers") ?? OutcomeLabel(mx.Outcome), OutcomeSeverity(mx.Outcome), s => {
                                 s.Caption(JoinText(Suffix(Metric(mx, "Mail servers"), "servers"), Prefix("IPv6", Metric(mx, "IPv6")), Prefix("backup", Metric(mx, "Backup server")))).Link(Link(mx));
                                 foreach (List<string> row in TableRows(mx, "Mail servers").Take(3)) s.Line(JoinText(Cell(row, 0), Cell(row, 1)) ?? string.Empty);
                             });
