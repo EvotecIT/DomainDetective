@@ -101,6 +101,24 @@ public class TestCtSourceScheduling {
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
+    [Fact]
+    public async Task ExhaustedBodyRetriesRetainHttpFailureClassification() {
+        int attempts = 0;
+        var aggregator = new CtLogAggregator {
+            MinimumRequestSpacing = TimeSpan.Zero, RetryDelay = TimeSpan.Zero, MaxAttemptsPerRequest = 2,
+            HttpHandlerFactory = () => new Handler((_, _) => {
+                Interlocked.Increment(ref attempts);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DisconnectedStream()) });
+            })
+        };
+        aggregator.ApiTemplates.Clear();
+        aggregator.ApiTemplates.Add("https://" + Guid.NewGuid().ToString("N") + ".example.test/{0}");
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<HttpRequestException>(() => aggregator.QueryWithResultAsync("synthetic", guard.Token));
+        Assert.Equal(2, attempts);
+        Assert.False(aggregator.LastQueryComplete);
+    }
+
     private sealed class HeldContent(Task release) : HttpContent {
         internal int Reads;
         internal bool Disposed;
