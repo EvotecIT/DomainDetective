@@ -21,7 +21,8 @@ public sealed partial class CtLogAggregator
     private enum CtResponseParserKind
     {
         Standard = 0,
-        ShodanMatches = 1
+        ShodanMatches = 1,
+        CrtShCertificate = 2
     }
 
     private sealed class CacheItem
@@ -36,7 +37,8 @@ public sealed partial class CtLogAggregator
         string Url,
         string CacheKey,
         CtResponseParserKind ResponseParser = CtResponseParserKind.Standard,
-        Dictionary<string, string>? Headers = null);
+        Dictionary<string, string>? Headers = null,
+        string? ExpectedFingerprint = null);
 
     private static readonly ConcurrentDictionary<string, CacheItem> SharedResponseCache = new(StringComparer.Ordinal);
     private static readonly object SharedRequestGateLock = new();
@@ -48,8 +50,9 @@ public sealed partial class CtLogAggregator
     private static int _sharedMaxCacheEntries = 20000;
     private static TimeSpan _sharedMinimumRequestSpacing = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>CT log API templates containing a {0} placeholder for the fingerprint.</summary>
-    public List<string> ApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
+    private const string CrtShCertificateTemplate = "https://crt.sh/?sha256={0}";
+    /// <summary>CT source templates containing a {0} placeholder for the fingerprint. The default crt.sh certificate page supplies log entries; custom sources return JSON.</summary>
+    public List<string> ApiTemplates { get; } = new() { CrtShCertificateTemplate };
     /// <summary>Enable Censys certificate discovery using the configured API credentials.</summary>
     public bool EnableCensysSource { get; set; }
     /// <summary>Censys API identifier (used with <see cref="CensysApiSecret"/>). Shared response cache isolation is keyed by this identifier.</summary>
@@ -157,7 +160,9 @@ public sealed partial class CtLogAggregator
                 continue;
             }
 
-            requests.Add(new CtDiscoveryRequest(sourceName, url, cacheKey));
+            requests.Add(template == CrtShCertificateTemplate
+                ? new CtDiscoveryRequest(sourceName, url, cacheKey, CtResponseParserKind.CrtShCertificate, ExpectedFingerprint: fingerprint)
+                : new CtDiscoveryRequest(sourceName, url, cacheKey));
 
             if (seenSources.Add(sourceName))
             {
@@ -261,8 +266,10 @@ public sealed partial class CtLogAggregator
                 using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
-                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    return ParseFetchResult(json, request.ResponseParser);
+                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return request.ResponseParser == CtResponseParserKind.CrtShCertificate
+                        ? ParseCrtShCertificatePage(content, request.ExpectedFingerprint!)
+                        : ParseFetchResult(content, request.ResponseParser);
                 }
 
                 if (!ShouldRetryStatusCode(response.StatusCode) || attempt == attempts)

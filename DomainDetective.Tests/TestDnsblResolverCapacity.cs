@@ -6,6 +6,52 @@ namespace DomainDetective.Tests;
 [Collection("Performance proxy environment")]
 public class TestDnsblResolverCapacity {
     [Theory]
+    [InlineData(8, false)]
+    [InlineData(8, true)]
+    [InlineData(32, false)]
+    public async Task ProvidersUseAvailableCapacityWhileLeavingForegroundRoom(int dnsParallelism, bool batch) {
+        using var health = CreateHealth(MultiResolverStrategy.SequentialFallback);
+        health.MultiResolverMaxParallelism = dnsParallelism;
+        health.ResolverMaxConcurrency = dnsParallelism;
+        health.DNSBLAnalysis.ClearDNSBL();
+        for (int index = 0; index < dnsParallelism + 2; index++) {
+            health.DNSBLAnalysis.AddDNSBL($"{index}.provider.example.test");
+        }
+        health.DNSBLAnalysis.AnalysisTimeout = Timeout.InfiniteTimeSpan;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var capacityUsed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int active = 0;
+        int entered = 0;
+        using var resolver = OverrideResolver(async (_, owner, type, token) => {
+            if (!owner.EndsWith(".provider.example.test", StringComparison.Ordinal)) { return Discovery(owner, type); }
+            Interlocked.Increment(ref active);
+            try {
+                if (Interlocked.Increment(ref entered) == dnsParallelism - 1) { capacityUsed.TrySetResult(true); }
+                await release.Task.WaitWithCancellation(token);
+                return new DnsResponse { Status = DnsResponseCode.NXDomain };
+            } finally { Interlocked.Decrement(ref active); }
+        });
+        var options = new HealthCheckExecutionOptions { DnsParallelism = dnsParallelism };
+        Task verification = batch
+            ? DomainHealthCheck.ProcessBatchAsync(new[] { "capacity.example.test" }, (_, _) => Task.CompletedTask,
+                new[] { HealthCheckType.DNSBL }, executionOptions: options, healthCheckFactory: _ => health, cancellationToken: guard.Token)
+            : health.Verify("capacity.example.test", new[] { HealthCheckType.DNSBL }, executionOptions: options, cancellationToken: guard.Token);
+        try {
+            await capacityUsed.Task.WaitWithCancellation(guard.Token);
+            Assert.Equal(dnsParallelism - 1, Volatile.Read(ref active));
+            // Provider requests stay blocked while a foreground query uses the reserved slot.
+            await health.DnsConfiguration.QueryDNS("foreground.example.test", DnsRecordType.CAA, cancellationToken: guard.Token);
+        } finally {
+            release.TrySetResult(true);
+            await verification;
+        }
+        Assert.Equal(0, Volatile.Read(ref active));
+        Assert.Equal(dnsParallelism + 2, health.DNSBLAnalysis.AllResults.Count(record => record.QueryKind == DnsblQueryKind.IpAddressV4));
+        Assert.All(health.DNSBLAnalysis.AllResults, record => Assert.True(record.QuerySucceeded));
+    }
+
+    [Theory]
     [InlineData(1, MultiResolverStrategy.SequentialFallback)]
     [InlineData(2, MultiResolverStrategy.FirstSuccess)]
     [InlineData(2, MultiResolverStrategy.FastestWins)]

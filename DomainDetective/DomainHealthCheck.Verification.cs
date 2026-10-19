@@ -144,7 +144,7 @@ public partial class DomainHealthCheck {
                 var resolverBulkAdmission = previousResolverBulkAdmission
                     ?? new SemaphoreSlim(Math.Max(1, configuration.GetBulkQueryParallelism(dnsParallelism)));
                 configuration.QueryAdmissionGate = previousAdmission ?? ownedAdmission;
-                configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism / 2));
+                configuration.BulkQueryAdmissionGate = previousBulkAdmission ?? new SemaphoreSlim(Math.Max(1, dnsParallelism - 1));
                 configuration.ResolverBulkQueryAdmissionGate = resolverBulkAdmission;
                 try {
                     await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,

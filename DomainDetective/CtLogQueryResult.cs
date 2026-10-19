@@ -18,7 +18,7 @@ public sealed class CtLogQueryResult {
 
     /// <summary>Entries retained from completed source responses, including partial-query results.</summary>
     public IReadOnlyList<JsonElement> Entries { get; }
-    /// <summary>Whether every configured source returned valid JSON before the query ended.</summary>
+    /// <summary>Whether every configured source returned valid evidence before the query ended.</summary>
     public bool Complete { get; }
     /// <summary>Discovery sources configured for this query.</summary>
     public IReadOnlyList<string> Sources { get; }
