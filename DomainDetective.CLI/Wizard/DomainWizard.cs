@@ -67,7 +67,7 @@ public sealed partial class DomainWizard
                 planStarted = true;
                 if (!e.ProgressCurrentSteps.HasValue
                     || !Enum.TryParse<HealthCheckType>(e.ProgressCurrentOperation, true, out var type)) { return; }
-                if ((hc.ExecutionOptions.EnableParallelism && plan.Length > 1) || e.ProgressCurrentSteps > completedChecks.Count) {
+                if (hc.VerificationCompletedChecks.Contains(type)) {
                     completedChecks.TryAdd(type, 0);
                 }
             }
