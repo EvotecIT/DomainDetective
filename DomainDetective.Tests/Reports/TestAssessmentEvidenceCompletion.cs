@@ -70,7 +70,19 @@ public class TestAssessmentEvidenceCompletion {
         var html = Render(view);
         Assert.DoesNotContain(">Passing<", html);
         Assert.DoesNotContain("Every check passed.", html);
+        Assert.DoesNotContain("None servers", html);
         Assert.Contains("Incomplete", html);
+    }
+
+    [Fact]
+    public void AFailedDaneLookupDoesNotClaimThatNoPinnedKeysExist() {
+        var failure = new CheckFailureInfo(HealthCheckType.DANE, new Assessment {
+            Severity = AssessmentSeverity.Error, Category = "DANE", Target = "example.test",
+            Code = "Verification.Check.Failed", Message = "DANE lookup unavailable."
+        });
+        var html = Render(failure);
+        Assert.DoesNotContain(">none<", html);
+        Assert.Contains("DANE lookup unavailable.", html);
     }
 
     [Fact]

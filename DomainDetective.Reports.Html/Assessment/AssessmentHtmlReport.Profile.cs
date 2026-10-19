@@ -68,7 +68,7 @@ public static partial class AssessmentHtmlReport {
                         flow.Label("Inbound mail transport");
                         if (mx != null) {
                             flow.Step("MX · mail servers", !mx.EvidenceComplete ? "Incomplete" : Metric(mx, "Provider") ?? Suffix(Metric(mx, "Mail servers"), "servers") ?? OutcomeLabel(mx.Outcome), OutcomeSeverity(mx.Outcome), s => {
-                                s.Caption(JoinText(Suffix(Metric(mx, "Mail servers"), "servers"), Prefix("IPv6", Metric(mx, "IPv6")), Prefix("backup", Metric(mx, "Backup server")))).Link(Link(mx));
+                                s.Caption(mx.EvidenceComplete ? JoinText(Suffix(Metric(mx, "Mail servers"), "servers"), Prefix("IPv6", Metric(mx, "IPv6")), Prefix("backup", Metric(mx, "Backup server"))) : "Mail-server evidence is incomplete.").Link(Link(mx));
                                 foreach (List<string> row in TableRows(mx, "Mail servers").Take(3)) s.Line(JoinText(Cell(row, 0), Cell(row, 1)) ?? string.Empty);
                             });
                         }
@@ -85,7 +85,7 @@ public static partial class AssessmentHtmlReport {
                         }
                         if (dane != null) {
                             string records = Fact(dane, "Number of records") ?? "0";
-                            flow.Step("DANE · pinned keys", records == "0" ? "none" : records + " records", OutcomeSeverity(dane.Outcome), s => s
+                            flow.Step("DANE · pinned keys", !dane.EvidenceComplete ? "Incomplete" : records == "0" ? "none" : records + " records", OutcomeSeverity(dane.Outcome), s => s
                                 .Caption(TopFinding(dane))
                                 .Link(Link(dane)));
                         }
@@ -112,7 +112,7 @@ public static partial class AssessmentHtmlReport {
                             .Step("Root", ".", secure ? Severity.Good : null, s => s.Link(Link(dnssec)))
                             .Step("Top-level domain", tld, secure ? Severity.Good : null, s => s.Link(Link(dnssec)))
                             .Step("DNSSEC · " + status.ToLowerInvariant(), domain.Domain, tone, s => s
-                                .Caption(JoinText(Prefix("DS matches", Fact(dnssec, "DS match")), Prefix("chain valid", Fact(dnssec, "Chain valid"))))
+                                .Caption(dnssec.EvidenceComplete ? JoinText(Prefix("DS matches", Fact(dnssec, "DS match")), Prefix("chain valid", Fact(dnssec, "Chain valid"))) : "Validation evidence is incomplete.")
                                 .Emphasis()
                                 .Link(Link(dnssec))));
                     }
