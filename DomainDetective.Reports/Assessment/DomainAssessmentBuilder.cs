@@ -71,7 +71,8 @@ public static class DomainAssessmentBuilder {
         }
 
         int[] scores = report.Domains.Where(static d => d.Score.HasValue).Select(static d => d.Score!.Value).ToArray();
-        report.Score = scores.Length == 0 ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        bool incomplete = report.Domains.SelectMany(static d => d.Checks).Any(static c => c.Scored && !c.EvidenceComplete);
+        report.Score = scores.Length == 0 || incomplete ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
         report.Grade = DomainAssessmentCatalog.GradeFor(report.Score);
         return report;
     }

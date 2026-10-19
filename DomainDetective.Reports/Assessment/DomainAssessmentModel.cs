@@ -16,7 +16,7 @@ public sealed class DomainAssessmentReport {
     /// <summary>Time the report model was built.</summary>
     public DateTimeOffset GeneratedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Overall score (0–100): the mean of the domain scores, or null when nothing was scored.</summary>
+    /// <summary>Overall score (0–100), or null when no score is available or scored evidence is incomplete.</summary>
     public int? Score { get; set; }
 
     /// <summary>Letter grade derived from <see cref="Score"/>.</summary>
@@ -34,7 +34,7 @@ public sealed class DomainAssessment {
     /// <summary>Domain name (lower case, no trailing dot).</summary>
     public string Domain { get; set; } = string.Empty;
 
-    /// <summary>Weighted score of the scored checks (0–100), or null when no scored check ran.</summary>
+    /// <summary>Weighted score (0–100), or null when no scored check ran or scored evidence is incomplete.</summary>
     public int? Score { get; set; }
 
     /// <summary>Letter grade derived from <see cref="Score"/>.</summary>
@@ -61,7 +61,7 @@ public sealed class AreaScore {
     /// <summary>Analysis area.</summary>
     public AnalysisArea Area { get; set; }
 
-    /// <summary>Area score (0–100), or null when no scored check in the area ran.</summary>
+    /// <summary>Area score (0–100), or null when unscored or scored evidence in the area is incomplete.</summary>
     public int? Score { get; set; }
 
     /// <summary>Checks in the area.</summary>

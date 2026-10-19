@@ -150,10 +150,12 @@ public static partial class AssessmentHtmlReport {
 
         section.AssessmentPosture(posture => {
             posture.Headline(ReportVerdict(report, errors, warnings), ReportVerdictDetail(report, checks));
-            posture.Score(report.Score ?? 0, "of 100", report.Score.HasValue ? null : "Nothing scored");
-            if (report.Score.HasValue) posture.Grade(report.Grade);
-            posture.ScoreNote(ScoreNote(report.Score, errors, warnings) + (incomplete > 0 ? $" {incomplete} checks have incomplete evidence and are excluded from the score." : string.Empty));
+            if (report.Score.HasValue) posture.Score(report.Score.Value, "of 100").Grade(report.Grade);
+            bool incompleteScored = checks.Any(static c => c.Scored && !c.EvidenceComplete);
+            posture.ScoreNote(incompleteScored ? "The overall grade is unavailable while scored checks have incomplete evidence."
+                : ScoreNote(report.Score, errors, warnings));
             foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
+                if (checks.Any(c => c.Area == area && c.Scored && !c.EvidenceComplete)) continue;
                 int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
                 if (scores.Length > 0) posture.Meter(AreaLabel(area), (int)Math.Round(scores.Average()));
             }
@@ -223,7 +225,7 @@ public static partial class AssessmentHtmlReport {
                 list.Settings(s => s.Layout(AssessmentScopeLayout.Cards));
                 foreach (var (area, areaChecks) in areas) {
                     int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-                    int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average());
+                    int? score = scores.Length == 0 || areaChecks.Any(static c => c.Scored && !c.EvidenceComplete) ? null : (int)Math.Round(scores.Average());
                     int errors = areaChecks.Count(static c => c.Outcome == CheckOutcome.Error);
                     int warnings = areaChecks.Count(static c => c.Outcome == CheckOutcome.Warning);
                     int incomplete = areaChecks.Count(static c => !c.EvidenceComplete);

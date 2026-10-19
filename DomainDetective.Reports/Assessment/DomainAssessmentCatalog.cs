@@ -252,13 +252,14 @@ public static class DomainAssessmentCatalog {
 
     /// <summary>
     /// Weighted score of a set of checks (0–100), the same rule used for domain and area scores: scored checks only,
-    /// each counted by its weight. Null when none of the checks is scored.
+    /// each counted by its weight. Null when none is scored or a scored check has incomplete evidence.
     /// </summary>
     public static int? CombinedScore(IEnumerable<CheckAssessment> checks) {
         int weight = 0;
         double total = 0;
         foreach (CheckAssessment check in checks) {
-            if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue) continue;
+            if (!check.Scored) continue;
+            if (!check.EvidenceComplete || !check.Score.HasValue) return null;
             weight += check.Weight;
             total += (double)check.Score.Value * check.Weight;
         }

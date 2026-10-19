@@ -45,6 +45,21 @@ public class TestAssessmentEvidenceCompletion {
         Assert.DoesNotContain("DNSSEC is valid", Render(view));
     }
 
+    [Fact]
+    public void PartialScoredEvidenceCannotProduceAPerfectDomainOrOverallGrade() {
+        var report = DomainAssessmentBuilder.Build(new object[] {
+            new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", SpfRecordExists = true },
+            new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" }
+        });
+        var domain = Assert.Single(report.Domains);
+        Assert.Equal(100, Assert.Single(domain.Checks, check => check.Check == HealthCheckType.SPF).Score);
+        Assert.Null(domain.Score);
+        Assert.Null(report.Score);
+        Assert.Equal("-", domain.Grade);
+        Assert.Equal("-", report.Grade);
+        Assert.Null(Assert.Single(domain.Areas).Score);
+    }
+
     [Theory]
     [InlineData(HealthCheckType.MX)]
     [InlineData(HealthCheckType.DNSBL)]
