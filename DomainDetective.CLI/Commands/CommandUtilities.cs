@@ -15,7 +15,7 @@ namespace DomainDetective.CLI;
 /// <summary>
 /// Helper methods used by CLI commands.
 /// </summary>
-internal static class CommandUtilities {
+internal static partial class CommandUtilities {
     internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
     internal static readonly string[] DomainCheckNames = Enum
         .GetValues<HealthCheckType>()
@@ -189,14 +189,16 @@ internal static class CommandUtilities {
         var autodiscoverEndpoints = AnsiConsole.Confirm("Show Autodiscover HTTP endpoints?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
-        return 0;
+        return await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
     }
 
-	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
-	        foreach (var domain in domains) {
-	            var logger = new InternalLogger { IsProgress = showProgress };
-	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
+	internal static async Task<int> RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
+            bool renderProgress = showProgress && !outputJson;
+            var activePlan = (checks == null || checks.Length == 0 ? DomainHealthCheck.DefaultChecks : checks)
+                .Concat(checkWeb ? new[] { HealthCheckType.WEBSITE } : Array.Empty<HealthCheckType>()).Distinct().ToArray();
+            DomainHealthCheck CreateHealthCheck(string domain) {
+	            var logger = new InternalLogger { IsProgress = renderProgress };
+	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = renderProgress };
                 if (dnsEndpoints != null && dnsEndpoints.Length > 0)
                 {
                     hc.DnsEndpoints.Clear();
@@ -218,94 +220,14 @@ internal static class CommandUtilities {
                 }
 	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 	
-	            if (showProgress) {
-                ProgressContext? ctxRef = null;
-                try {
-                    await AnsiConsole.Progress().StartAsync(async ctx => {
-                        ctxRef = ctx;
-                        ProgressTask? portTask = null;
-                        ProgressTask? hcTask = null;
-                    void Handler(object? _, LogEventArgs e) {
-                        if (e.ProgressActivity == "PortScan" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
-                            portTask ??= ctx.AddTask($"Port scan for {domain}", maxValue: e.ProgressTotalSteps.Value);
-                            portTask.Value = e.ProgressCurrentSteps.Value;
-                            if (!string.IsNullOrEmpty(e.ProgressCurrentOperation)) {
-                                portTask.Description = $"Port {e.ProgressCurrentOperation}";
-                            }
-                        } else if (e.ProgressActivity == "HealthCheck" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
-                            hcTask ??= ctx.AddTask($"Health checks for {domain}", maxValue: e.ProgressTotalSteps.Value);
-                            hcTask.Value = e.ProgressCurrentSteps.Value;
-                        }
-                    }
-
-                    logger.OnProgressMessage += Handler;
-                    try {
-                        await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
-                        if (checkHttp) {
-                            await hc.VerifyPlainHttp(domain, cancellationToken);
-                        }
-                        if (checkWeb) {
-                            await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
-                            await hc.VerifyWebsiteHttps(domain, cancellationToken);
-                        }
-                        if (checkTakeover) {
-                            await hc.VerifyTakeoverCname(domain, cancellationToken);
-                        }
-                    } finally {
-                        logger.OnProgressMessage -= Handler;
-                    }
-                    });
-                } finally {
-                    ctxRef?.Dispose();
-                }
-            } else {
-                await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
-                if (checkHttp) {
-                    await hc.VerifyPlainHttp(domain, cancellationToken);
-                }
-                if (checkWeb) {
-                    await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
-                    await hc.VerifyWebsiteHttps(domain, cancellationToken);
-                }
-                if (checkTakeover) {
-                    await hc.VerifyTakeoverCname(domain, cancellationToken);
-                }
+                return hc;
             }
-
-            if (outputJson) {
-                Console.WriteLine(hc.ToJson());
-                continue;
+            var runs = await RunDomainBatchAsync(domains, activePlan, danePorts, portScanProfiles,
+                CreateHealthCheck, renderProgress, checkHttp, checkTakeover, cancellationToken);
+            try {
+                return WriteBatchResults(runs, activePlan, checkHttp, checkWeb, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, unicodeOutput);
+            } finally {
+                foreach (var run in runs) { run.HealthCheck?.Dispose(); }
             }
-
-            if (summaryOnly) {
-                var summary = hc.BuildSummary();
-                CliHelpers.ShowPropertiesTable($"Summary for {domain}", summary, unicodeOutput);
-                continue;
-            }
-
-            var activeChecks = checks ?? DomainHealthCheck.DefaultChecks;
-            var analysisMap = hc.GetAnalysisMap();
-            foreach (var check in activeChecks) {
-                analysisMap.TryGetValue(check, out var data);
-                if (data != null) {
-                    var desc = DomainHealthCheck.GetCheckDescription(check);
-                    var header = desc != null ? $"{check} for {domain} - {desc.Summary}" : $"{check} for {domain}";
-                    CliHelpers.ShowPropertiesTable(header, data, unicodeOutput);
-                    if (check == HealthCheckType.AUTODISCOVER && autodiscoverEndpoints) {
-                        CliHelpers.ShowPropertiesTable($"AUTODISCOVER ENDPOINTS for {domain}", hc.AutodiscoverHttpAnalysis.Endpoints, unicodeOutput);
-                    }
-                }
-            }
-            if (checkHttp) {
-                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, unicodeOutput);
-            }
-            if (checkWeb) {
-                CliHelpers.ShowPropertiesTable($"WEB CERT for {domain}", hc.CertificateAnalysis, unicodeOutput);
-                CliHelpers.ShowPropertiesTable($"HTTPS SECURITY for {domain}", hc.HttpAnalysis, unicodeOutput);
-            }
-            if (checkTakeover) {
-                CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, unicodeOutput);
-            }
-        }
     }
 }

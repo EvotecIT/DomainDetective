@@ -6,7 +6,10 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.Tests;
 
+[Collection("CtSharedState")]
 public class TestCertificatePerformanceBudgets {
+    public TestCertificatePerformanceBudgets() => CtLogAggregator.ResetSharedStateForTests();
+
     [Fact]
     public async Task CtDeadlineRetainsEntriesAndSourcesFromEarlierSuccessfulRequests() {
         using var rsa = RSA.Create();

@@ -271,8 +271,7 @@ namespace DomainDetective {
         }
 
         private async Task AnalyzeUrlCore(string url, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            var builder = new UriBuilder(url) { Port = port };
-            url = builder.ToString();
+            url = EndpointHostNormalizer.FormatUri(EndpointHostNormalizer.WithPort(new Uri(url), port), includeDefaultPort: true);
             Url = url;
             Subject = url;
             bool capturedHandshakeCertificate = false;
@@ -340,18 +339,20 @@ namespace DomainDetective {
                 var originUri = new Uri(url);
                 using var originTimeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 originTimeoutSource.CancelAfter(Timeout);
-                using var originTcp = await ConnectDirectAsync(originUri.Host, port, originTimeoutSource.Token).ConfigureAwait(false);
+                using var originTcp = await ConnectDirectAsync(originUri.IdnHost, port, originTimeoutSource.Token).ConfigureAwait(false);
                 using var originSsl = new SslStream(
                     originTcp.GetStream(),
                     false,
                     static (_, _, _, _) => true);
                 await originSsl.AuthenticateAsClientAsync(
-                        originUri.Host,
+                        originUri.IdnHost,
                         null,
                         SslProtocols.None,
                         !SkipRevocation)
                     .WaitWithCancellation(originTimeoutSource.Token)
                     .ConfigureAwait(false);
+                // The paired Framework handshake is direct. HTTP can select a
+                // proxy independently; collect details through its established route.
             } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
                 throw;
             } catch (Exception ex) {
@@ -376,6 +377,15 @@ namespace DomainDetective {
                     RemoteCertificateValidationCallback = (_, certificate, chain, policyErrors) =>
                         CaptureServerCertificate(certificate, chain, policyErrors)
                 }
+            };
+            socketsHandler.PlaintextStreamFilter = (context, token) => {
+                var requestUri = context.InitialRequestMessage.RequestUri;
+                var origin = new Uri(url);
+                if (requestUri != null && requestUri.IdnHost.Equals(origin.IdnHost, StringComparison.OrdinalIgnoreCase)
+                    && requestUri.Port == origin.Port && context.PlaintextStream is SslStream negotiated) {
+                    CaptureHttpTlsNegotiation(negotiated, origin, origin.Port);
+                }
+                return new ValueTask<System.IO.Stream>(context.PlaintextStream);
             };
             socketsHandler.ConnectCallback = async (context, token) => {
                 bool captureOriginAddress = context.InitialRequestMessage.RequestUri is Uri requestUri &&
@@ -422,7 +432,7 @@ namespace DomainDetective {
                                 timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
                                 using var tcp = await ConnectDirectAsync(
-                                        uri.Host,
+                                        uri.IdnHost,
                                         port,
                                         timeoutCts.Token,
                                         captureRemoteAddress: false)
@@ -433,7 +443,8 @@ namespace DomainDetective {
                                     IsValid = errors == SslPolicyErrors.None;
                                     return errors == SslPolicyErrors.None;
                                 });
-                                await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+                                await ssl.AuthenticateAsClientAsync(uri.IdnHost, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+                                CaptureTlsNegotiation(ssl);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = OwnCertificate(CertificateLoaderCompat.Clone(cert));
                                     using var xchain = new X509Chain();
@@ -480,7 +491,7 @@ namespace DomainDetective {
             var uri = new Uri(url);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
-            using var tcp = await ConnectDirectAsync(uri.Host, port, timeoutCts.Token).ConfigureAwait(false);
+            using var tcp = await ConnectDirectAsync(uri.IdnHost, port, timeoutCts.Token).ConfigureAwait(false);
             using var ssl = new SslStream(
                 tcp.GetStream(),
                 false,
@@ -492,9 +503,10 @@ namespace DomainDetective {
                     HostnameValidationPerformed = true;
                     return true;
                 });
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation)
+            await ssl.AuthenticateAsClientAsync(uri.IdnHost, null, SslProtocols.None, !SkipRevocation)
                 .WaitWithCancellation(timeoutCts.Token)
                 .ConfigureAwait(false);
+            CaptureTlsNegotiation(ssl);
 
             IsReachable = true;
             if (ssl.RemoteCertificate == null)
@@ -666,10 +678,10 @@ namespace DomainDetective {
 
         private void CaptureRedirectTarget(Uri? uri, Uri? sourceUri) {
             if (uri == null || sourceUri == null ||
-                string.Equals(uri.Host, sourceUri.Host, StringComparison.OrdinalIgnoreCase)) {
+                string.Equals(uri.IdnHost, sourceUri.IdnHost, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
-            RedirectTargets.Add(uri.Host);
+            RedirectTargets.Add(EndpointHostNormalizer.FormatUriHost(uri));
         }
 
         internal static Exception NormalizeProbeException(

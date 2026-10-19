@@ -17,26 +17,43 @@ internal static class AuthoritativeDnsProbes {
             probe, concurrency, cancellationToken).ConfigureAwait(false);
     }
 
-    internal static async Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
+    internal static Task<DnsResponse?> QueryAsync(string address, string owner, DnsRecordType type,
+        int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false, bool acceptReferral = false) {
+        var key = ("authoritative", address, owner.TrimEnd('.').ToLowerInvariant(), type,
+            timeoutMs, cancellationToken, acceptRefused, acceptReferral);
+        Task<DnsResponse?> Query() => QueryCoreAsync(address, owner, type, timeoutMs, cancellationToken, acceptRefused, acceptReferral);
+        return ScanObservations.Current?.ShareAsync(key, Query) ?? Query();
+    }
+
+    private static async Task<DnsResponse?> QueryCoreAsync(string address, string owner, DnsRecordType type,
         int timeoutMs = 2000, CancellationToken cancellationToken = default, bool acceptRefused = false, bool acceptReferral = false) {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeoutMs);
+        var admission = ScanObservations.Current?.DirectDnsAdmission;
+        bool admitted = false;
         try {
+            if (admission != null) { await admission.WaitAsync(cancellationToken).ConfigureAwait(false); admitted = true; }
             cancellationToken.ThrowIfCancellationRequested();
             // Callers supply addresses from authoritative A/AAAA records. Invalid data must
             // remain unavailable rather than starting a new recursive server-name lookup.
             if (!IPAddress.TryParse(address, out _)) { return null; }
+            // The caller's whole-analysis deadline bounds queueing. This local
+            // budget retains the original time allowed for the actual wire probe.
+            deadline.CancelAfter(timeoutMs);
             var query = new DnsMessage(owner, type, new DnsMessageOptions(RecursionDesired: false));
             var result = await DnsWireQueryClient.QueryUdpAsync(address, 53, query, timeoutMs,
                 useTcpFallback: true, cancellationToken: deadline.Token).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var response = result.Response;
             return (acceptReferral ? IsUsableResponse(response)
                 : acceptRefused ? IsUsableResponse(response, acceptRefused: true) : IsAuthoritativeResponse(response)) ? response : null;
-        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
         catch (Exception ex) when (IsTransportFailure(ex) || ex is ArgumentException || ex is FormatException) {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
-        }
+        } finally { if (admitted) { admission!.Release(); } }
     }
 
     /// <summary>Expected network failures; callers retain precedence for their own cancellation token.</summary>

@@ -12,7 +12,7 @@ namespace DomainDetective {
             var mxRecords = await GetMxRecordsAsync(domainName, cancellationToken);
             var rdnsHosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
             ReverseDnsAnalysis.Subject = domainName;
-            await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
+            await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger, cancellationToken);
         }
 
         private async Task VerifyFcrDnsAsync(string domainName, CancellationToken cancellationToken) {

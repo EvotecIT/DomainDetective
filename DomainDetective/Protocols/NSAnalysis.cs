@@ -175,7 +175,11 @@ namespace DomainDetective {
             => AnalyzeNsRecords(dnsResults, logger, CancellationToken.None);
 
         /// <summary>Analyzes NS records with bounded address discovery and caller cancellation.</summary>
-        public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken ct) {
+        public Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken ct) =>
+            AnalyzeNsRecordsCoreAsync(dnsResults, logger, ct, null);
+
+        internal async Task AnalyzeNsRecordsCoreAsync(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger,
+            CancellationToken ct, Action? childReady) {
             ct.ThrowIfCancellationRequested();
             ResetNsEvidence();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: Subject, source: "Child");
@@ -243,6 +247,8 @@ namespace DomainDetective {
                     if (records.A.Error == null && records.Aaaa.Error == null) { missingAddressHosts.Add(ns); }
                 }
             }
+
+            childReady?.Invoke();
 
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -315,21 +321,7 @@ namespace DomainDetective {
         private static async Task<int?> LookupAsnAsync(string ip, CancellationToken ct)
         {
             try {
-                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
-                using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-#if NET8_0_OR_GREATER
-                var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
-#else
-                var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-                using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-#endif
-                if (!doc.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty("asns", out var asns)) return null;
-                if (asns.ValueKind != JsonValueKind.Array || asns.GetArrayLength() == 0) return null;
-                var first = asns[0];
-                if (first.TryGetProperty("asn", out var asnProp)) return asnProp.GetInt32();
-                return null;
+                return (await Helpers.IpNetworkMetadata.PrefixAsync(SharedHttpClient.Instance, ip, ct).ConfigureAwait(false)).Asn;
             } catch { return null; }
         }
 
@@ -345,8 +337,10 @@ namespace DomainDetective {
         public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger, CancellationToken ct) {
             ct.ThrowIfCancellationRequested();
             _delegationDnsQueryErrors.Clear();
-            Assessments.RemoveAll(item => item.Source == "Parent" || item.Code == NSCodes.DelegationMismatch
-                || item.Code == NSCodes.GlueIncomplete || item.Code == NSCodes.GlueInconsistent);
+            lock (Assessments) {
+                Assessments.RemoveAll(item => item.Source == "Parent" || item.Code == NSCodes.DelegationMismatch
+                    || item.Code == NSCodes.GlueIncomplete || item.Code == NSCodes.GlueInconsistent);
+            }
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName, source: "Parent");
             ParentNsRecords = new List<string>();
             ParentAuthorityServer = null;

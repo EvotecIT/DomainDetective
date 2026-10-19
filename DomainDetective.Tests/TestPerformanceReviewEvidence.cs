@@ -108,7 +108,7 @@ public class TestPerformanceReviewEvidence {
             foreach (string name in names) { Environment.SetEnvironmentVariable(name, null); }
             Environment.SetEnvironmentVariable("HTTPS_PROXY", $"http://127.0.0.1:{port}");
             var connect = typeof(CertificateAnalysis).GetMethod("ConnectWithProxy", BindingFlags.NonPublic | BindingFlags.Instance)!;
-            work = (Task<TcpClient>)connect.Invoke(analysis, new object[] { "example.com", 443, cancellation.Token })!;
+            work = (Task<TcpClient>)connect.Invoke(analysis, new object[] { new Uri("https://example.com"), 443, cancellation.Token })!;
             peer = await listener.AcceptTcpClientAsync();
             if (partialHeaders) {
                 var bytes = System.Text.Encoding.ASCII.GetBytes("HTTP/1.1 200 Connection established\r\nProxy-Agent: waiting");

@@ -27,8 +27,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             var host = ValidateHostName(domainName);
-            var hasPort = host.Contains(":");
-            var url = hasPort ? $"https://{host}" : $"https://{host}";
+            var url = $"https://{host}";
             HttpAnalysis.Subject = url;
             // Collect headers + body for mixed content detection, HSTS and modern headers
             await HttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: _logger, collectHeaders: true, captureBody: true, cancellationToken: cancellationToken);
@@ -46,8 +45,7 @@ namespace DomainDetective {
             }
 
             var host = ValidateHostName(domainName);
-            var hasPort = host.Contains(":");
-            var url = hasPort ? $"https://{host}" : $"https://{host}";
+            var url = $"https://{host}";
             HttpAnalysis.Subject = url;
             await HttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: _logger, collectHeaders: true, captureBody: captureBody, cancellationToken: cancellationToken, requestOptions: requestOptions);
         }
@@ -64,7 +62,7 @@ namespace DomainDetective {
                 throw new ArgumentException($"Invalid host name '{domainName}'.", nameof(domainName));
             }
 
-            var host = ValidateHostName(uri.Host);
+            var host = ValidateHostName(EndpointHostNormalizer.FormatUriHost(uri));
             var hostWithPort = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
             UpdateIsPublicSuffix(host);
             HttpAnalysis.Subject = $"http://{hostWithPort}";
@@ -86,7 +84,7 @@ namespace DomainDetective {
                 throw new ArgumentException($"Invalid host name '{domainName}'.", nameof(domainName));
             }
 
-            var host = ValidateHostName(uri.Host);
+            var host = ValidateHostName(EndpointHostNormalizer.FormatUriHost(uri));
             var hostWithPort = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
             UpdateIsPublicSuffix(host);
             HttpAnalysis.Subject = $"http://{hostWithPort}";

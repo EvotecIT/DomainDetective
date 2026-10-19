@@ -131,40 +131,6 @@ public sealed partial class SitemapAnalysis : IHasAssessments {
         logger?.WriteVerbose("Sitemap analysis completed for {0}: {1} document(s), {2} URL entries, {3} probe(s)", Subject, Documents.Count, Entries.Count, UrlProbes.Count);
     }
 
-    private async Task ProcessSitemapQueueAsync(HttpClient client, IEnumerable<Uri> seeds, HashSet<string> seenDocs, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
-        var pending = new Queue<Uri>(seeds);
-
-        while (pending.Count > 0 && Documents.Count < Math.Max(1, options.MaxSitemapDocuments)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var sitemapUri = pending.Dequeue();
-            if (!seenDocs.Add(sitemapUri.AbsoluteUri)) {
-                continue;
-            }
-
-            var parsed = await FetchAndParseSitemapAsync(client, sitemapUri, seenFinalDocs, options, cancellationToken).ConfigureAwait(false);
-            if (parsed.Document != null) {
-                Documents.Add(parsed.Document);
-            }
-
-            foreach (var nested in parsed.NestedSitemaps) {
-                if (Documents.Count + pending.Count >= Math.Max(1, options.MaxSitemapDocuments)) {
-                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "Sitemap document limit reached before all sitemapindex entries were fetched.", sitemapUri.AbsoluteUri);
-                    break;
-                }
-                if (!IsTrustedRemoteUri(nested, options)) {
-                    AddAssessment(AssessmentSeverity.Warning, SitemapCodes.CrossHostSitemap, "Skipped sitemap index entry outside the analyzed origin host: " + nested.Host + ".", nested.AbsoluteUri);
-                    continue;
-                }
-                pending.Enqueue(nested);
-            }
-
-            if (Entries.Count >= Math.Max(1, options.MaxEntries)) {
-                AddAssessment(AssessmentSeverity.Warning, SitemapCodes.LimitReached, "Sitemap URL entry limit reached before all urlset entries were parsed.", sitemapUri.AbsoluteUri);
-                break;
-            }
-        }
-    }
-
     private void Reset(string subject) {
         Subject = subject.Trim();
         OriginUri = null;
@@ -260,7 +226,7 @@ public sealed partial class SitemapAnalysis : IHasAssessments {
         }
     }
 
-    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken) {
+    private async Task<SitemapParseResult> FetchAndParseSitemapAsync(HttpClient client, Uri sitemapUri, HashSet<string> seenFinalDocs, SitemapAnalysisOptions options, CancellationToken cancellationToken, SitemapHttpResult? downloaded = null) {
         var result = new SitemapParseResult();
         var docInfo = new SitemapDocument {
             Url = sitemapUri.AbsoluteUri
@@ -268,7 +234,7 @@ public sealed partial class SitemapAnalysis : IHasAssessments {
 
         AddCrossHostSitemapAssessment(sitemapUri);
 
-        var response = await SendFollowingRedirectsAsync(
+        var response = downloaded ?? await SendFollowingRedirectsAsync(
             client,
             sitemapUri,
             options,

@@ -65,14 +65,14 @@ public class TakeoverCnameAnalysis : IHasAssessments
         }
     }
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken)
     {
         if (QueryDnsOverride != null)
         {
-            return await QueryDnsOverride(name, type);
+            return await QueryDnsOverride(name, type).WaitWithCancellation(cancellationToken);
         }
 
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryPolicyDNS(name, type, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public class TakeoverCnameAnalysis : IHasAssessments
         IsTakeoverRisk = false;
         ct.ThrowIfCancellationRequested();
 
-        var cname = await QueryDns(domainName, DnsRecordType.CNAME);
+        var cname = await QueryDns(domainName, DnsRecordType.CNAME, ct);
         if (cname == null || cname.Length == 0)
         {
             logger?.WriteVerbose("No CNAME record found.");

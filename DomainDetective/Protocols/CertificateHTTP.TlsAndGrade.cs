@@ -131,11 +131,8 @@ namespace DomainDetective {
         }
 
 #pragma warning disable CA2000 // Dispose objects before losing scope - returned TcpClient is disposed by caller
-        private async Task<TcpClient> ConnectWithProxy(string host, int port, CancellationToken token) {
-            var proxy = Environment.GetEnvironmentVariable("HTTPS_PROXY") ??
-                        Environment.GetEnvironmentVariable("https_proxy") ??
-                        Environment.GetEnvironmentVariable("HTTP_PROXY") ??
-                        Environment.GetEnvironmentVariable("http_proxy");
+        private async Task<TcpClient> ConnectWithProxy(Uri uri, int port, CancellationToken token) {
+            var proxy = ConfiguredTlsProxy;
             if (!string.IsNullOrEmpty(proxy)) {
                 var p = new Uri(proxy);
                 token.ThrowIfCancellationRequested();
@@ -144,9 +141,10 @@ namespace DomainDetective {
                     // Closing the owned socket interrupts Framework's non-cancelable
                     // connect/read overloads. Await them through completion before returning.
                     using var registration = token.Register(() => tcp.Dispose());
-                    await tcp.ConnectAsync(p.Host, p.Port).ConfigureAwait(false);
+                    await tcp.ConnectAsync(p.IdnHost, p.Port).ConfigureAwait(false);
                     var stream = tcp.GetStream();
-                    var connectCmd = $"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n";
+                    var authority = $"{EndpointHostNormalizer.FormatUriHost(uri)}:{port}";
+                    var connectCmd = $"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n\r\n";
                     var buffer = System.Text.Encoding.ASCII.GetBytes(connectCmd);
                     await stream.WriteAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
                     await stream.FlushAsync(token).ConfigureAwait(false);
@@ -165,7 +163,7 @@ namespace DomainDetective {
                 }
             }
             return await ConnectDirectAsync(
-                    host,
+                    uri.IdnHost,
                     port,
                     token,
                     captureRemoteAddress: false)
@@ -176,16 +174,27 @@ namespace DomainDetective {
         private async Task PopulateTlsInfo(Uri uri, int port, CancellationToken token) {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeoutCts.CancelAfter(Timeout);
-            using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
+            using var tcp = await ConnectWithProxy(uri, port, timeoutCts.Token);
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
             try
             {
-                await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
+                await ssl.AuthenticateAsClientAsync(uri.IdnHost, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
             }
             catch (Exception ex)
             {
                 throw NormalizeProbeException(ex, token, timeoutCts);
             }
+            CaptureTlsNegotiation(ssl);
+            if (CaptureTlsDetails) {
+                _tlsDetailsReusable = true;
+                _tlsProtocolProbeRoute = ProtocolProbeRoute(uri, port);
+            }
+        }
+
+        private void CaptureTlsNegotiation(SslStream ssl) {
+            if (!CaptureTlsDetails) { return; }
+            _tlsDetailsReusable = false;
+            _tlsProtocolProbeRoute = null;
             TlsProtocol = ssl.SslProtocol;
             Tls13Used = (int)ssl.SslProtocol == 12288;
             var tlsInfo = TlsNegotiationInfoFactory.Create(ssl);
@@ -256,7 +265,7 @@ namespace DomainDetective {
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "openssl",
-                    Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status",
+                    Arguments = $"s_client -connect {EndpointHostNormalizer.FormatUriHost(uri)}:{port} -servername {uri.IdnHost} -status",
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -270,11 +279,11 @@ namespace DomainDetective {
                 if (OcspStaplingPresent == null) return;
                 if (OcspStaplingPresent == true)
                 {
-                    logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", uri.Host, port);
+                    logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", EndpointHostNormalizer.FormatUriHost(uri), port);
                 }
                 else
                 {
-                    logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", uri.Host, port);
+                    logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", EndpointHostNormalizer.FormatUriHost(uri), port);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -288,22 +297,22 @@ namespace DomainDetective {
             async Task<(SslProtocols Protocol, bool Supported, bool Complete)> TryHandshake(SslProtocols proto)
             {
                 token.ThrowIfCancellationRequested();
-                if (TlsProtocol == proto) { return (proto, true, true); }
+                if (TlsProtocol == proto && _tlsProtocolProbeRoute == ProtocolProbeRoute(uri, port)) { return (proto, true, true); }
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeoutCts.CancelAfter(Timeout == System.Threading.Timeout.InfiniteTimeSpan || ProtocolProbeTimeout < Timeout
                     ? ProtocolProbeTimeout : Timeout);
                 Helpers.TlsAlertEvidenceStream? evidence = null;
                 try {
-                    using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
+                    using var tcp = await ConnectWithProxy(uri, port, timeoutCts.Token);
                     using var observed = new Helpers.TlsAlertEvidenceStream(tcp.GetStream(), leaveOpen: true);
                     evidence = observed;
                     using var ssl = new System.Net.Security.SslStream(observed, false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
-                    var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
+                    var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.IdnHost, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
                     await ssl.AuthenticateAsClientAsync(options, timeoutCts.Token);
 #else
                     using var registration = timeoutCts.Token.Register(() => ssl.Dispose());
-                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation);
+                    await ssl.AuthenticateAsClientAsync(uri.IdnHost, null, proto, !SkipRevocation);
 #endif
                     timeoutCts.Token.ThrowIfCancellationRequested();
                     return (proto, ssl.SslProtocol == proto, ssl.SslProtocol == proto);
@@ -333,7 +342,7 @@ namespace DomainDetective {
                 logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                     SupportsTls10 ? "1.0" : string.Empty,
                     SupportsTls11 ? (SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
-                    uri.Host, port);
+                    EndpointHostNormalizer.FormatUriHost(uri), port);
             }
         }
 

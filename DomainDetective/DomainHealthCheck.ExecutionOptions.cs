@@ -53,6 +53,15 @@ public sealed class HealthCheckExecutionOptions {
     /// </remarks>
     public bool SkipBimiIndicatorDownload { get; set; }
 
+    /// <summary>HTTPS port used by HTTP, CERT and WEBSITE in a combined verification run.</summary>
+    public int WebsitePort { get; set; } = 443;
+
+    /// <summary>Collects separate plain HTTP evidence alongside the selected checks without replacing HTTPS results.</summary>
+    public bool IncludePlainHttp { get; set; }
+
+    /// <summary>Checks takeover-prone CNAME targets as an owned phase of the combined verification run.</summary>
+    public bool IncludeTakeoverCname { get; set; }
+
     internal int GetEffectiveMaxParallelism() {
         if (MaxParallelism.HasValue && MaxParallelism.Value > 0) {
             return MaxParallelism.Value;

@@ -87,7 +87,8 @@ public partial class NSAnalysis {
             var observed = await winner.Task.ConfigureAwait(false);
             ParentAuthorityServer = observed.Server;
             return observed.Response;
-        } catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
+        } catch (OperationCanceledException) {
+            ct.ThrowIfCancellationRequested();
             throw new TimeoutException("Parent delegation discovery or probes exceeded their time budget.");
         }
     }

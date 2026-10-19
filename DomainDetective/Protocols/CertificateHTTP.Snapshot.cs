@@ -30,7 +30,7 @@ public partial class CertificateAnalysis {
         clone.WildcardSubdomains = WildcardSubdomains.ToDictionary(pair => pair.Key, pair => new List<string>(pair.Value), WildcardSubdomains.Comparer);
         clone.ExtendedKeyUsageOids = new(ExtendedKeyUsageOids);
         clone.ExtendedKeyUsageFriendlyNames = new(ExtendedKeyUsageFriendlyNames);
-        clone.Assessments = new(Assessments);
+        clone.Assessments = Assessments.Select(item => item.CloneForSnapshot()).ToList();
         clone._ctLogEntries = _ctLogEntries.Select(entry => entry.Clone()).ToList();
         clone._ctDiscoverySources = _ctDiscoverySources.ToArray();
         clone._ctTemplateFormatErrors = _ctTemplateFormatErrors.ToArray();

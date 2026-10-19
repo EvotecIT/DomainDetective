@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -19,6 +20,7 @@ public partial class DNSBLAnalysis {
         internal Stopwatch Budget { get; } = Stopwatch.StartNew();
         internal SemaphoreSlim ProviderGate { get; }
         internal int MaxParallelism { get; }
+        internal ConcurrentDictionary<string, string> BlockedProviders { get; } = new(StringComparer.OrdinalIgnoreCase);
         internal QueryRun(CancellationToken callerToken, int maxParallelism) {
             CallerToken = callerToken;
             MaxParallelism = maxParallelism;
@@ -105,11 +107,12 @@ public partial class DNSBLAnalysis {
     private static string ResponseFailure(DnsResponse? response) => !string.IsNullOrEmpty(response?.Error)
         ? response!.Error : $"DNS response: {response?.Status.ToString() ?? "missing"}.";
 
-    private async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)[]> QueryProviderAsync(QueryRun run, string query, bool ipv6) {
+    private async Task<(DnsRecordType Type, DnsAnswer[] Answers, string? Error)[]> QueryProviderAsync(QueryRun run, string query, bool ipv6, string zone) {
         run.CallerToken.ThrowIfCancellationRequested();
-        var types = ipv6 ? new[] { DnsRecordType.A, DnsRecordType.AAAA } : new[] { DnsRecordType.A };
+        var types = ipv6 && !UsesSpamhausAResponses(zone) ? new[] { DnsRecordType.A, DnsRecordType.AAAA } : new[] { DnsRecordType.A };
         (DnsRecordType Type, DnsAnswer[] Answers, string? Error)[] Failed(string error) =>
             types.Select(type => (type, Array.Empty<DnsAnswer>(), (string?)error)).ToArray();
+        if (run.BlockedProviders.TryGetValue(zone, out var blocked)) { return Failed(blocked); }
         var remaining = RemainingBudget(run);
         if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(run.CallerToken);
@@ -121,6 +124,7 @@ public partial class DNSBLAnalysis {
             runAdmitted = true;
             await _providerAdmission.WaitAsync(deadline.Token).ConfigureAwait(false);
             analysisAdmitted = true;
+            if (run.BlockedProviders.TryGetValue(zone, out blocked)) { return Failed(blocked); }
             remaining = RemainingBudget(run);
             if (remaining.HasValue && remaining.Value <= TimeSpan.Zero) { return Failed("Analysis budget exhausted."); }
             TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
@@ -143,7 +147,14 @@ public partial class DNSBLAnalysis {
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                         return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));
                     }
-                    return (type, (response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray(), null);
+                    var answers = (response.Answers ?? Array.Empty<DnsAnswer>()).Where(answer => answer.Type == type).ToArray();
+                    // This is a conclusive access-policy reply, not a timeout or a
+                    // target listing. Keep every subsequent target explicitly unknown.
+                    if (CanShareProviderAccessFailure() && UsesSpamhausAResponses(zone) && answers.Any(answer =>
+                        (string.IsNullOrWhiteSpace(answer.Data) ? answer.DataRaw : answer.Data) == "127.255.255.254")) {
+                        run.BlockedProviders.TryAdd(zone, "Provider access blocked by the selected public resolver (127.255.255.254).");
+                    }
+                    return (type, answers, null);
                 } catch (Exception ex) when (ex is not OutOfMemoryException) {
                     run.CallerToken.ThrowIfCancellationRequested();
                     return (type, Array.Empty<DnsAnswer>(), ex is OperationCanceledException ? "Provider query timed out or analysis budget exhausted." : ex.Message);
@@ -161,6 +172,24 @@ public partial class DNSBLAnalysis {
         }
     }
 
+    private bool CanShareProviderAccessFailure() {
+        var providers = DnsConfiguration.DnsEndpoints.Count > 0
+            ? DnsConfiguration.DnsEndpoints.ToArray() : new[] { DnsConfiguration.DnsEndpoint };
+        // One blocked recursive path says nothing about a different resolver.
+        // Cloudflare's address/transport variants belong to the same public
+        // resolver service covered by Spamhaus's public-resolver access policy.
+        return providers.Distinct().Count() == 1 &&
+            (providers[0] == DnsEndpoint.Cloudflare || providers[0] == DnsEndpoint.CloudflareWireFormat)
+            || DnsResolverEndpointFactory.From(providers).Length == 1;
+    }
+
+    // Spamhaus documents A-record result codes for both input address families:
+    // https://docs.spamhaus.com/datasets/docs/source/10-data-type-documentation/datasets/040-zones.html
+    // Unknown/custom zones retain the historical A+AAAA IPv6 response plan.
+    private static bool UsesSpamhausAResponses(string zone) => zone.TrimEnd('.').ToLowerInvariant() is
+        "zen.spamhaus.org" or "sbl.spamhaus.org" or "xbl.spamhaus.org" or "pbl.spamhaus.org" or
+        "dbl.spamhaus.org" or "hbl.spamhaus.org" || zone.EndsWith(".dq.spamhaus.net", StringComparison.OrdinalIgnoreCase);
+
     private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname, QueryRun run, DnsblIpSource? ipSource = null, string? sourceHost = null) {
         if (dnsblList == null) { yield break; }
         var zones = dnsblList.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -168,7 +197,7 @@ public partial class DNSBLAnalysis {
         bool ipv6 = isIp && address!.AddressFamily == AddressFamily.InterNetworkV6;
         var kind = isIp ? (ipv6 ? DnsblQueryKind.IpAddressV6 : DnsblQueryKind.IpAddressV4) : DnsblQueryKind.Domain;
         var name = isIp ? FormatDnsblName(address!) : ipAddressOrHostname;
-        var responses = await Helpers.BoundedAsync.RunAsync(zones, zone => QueryProviderAsync(run, $"{name}.{zone}", ipv6), run.MaxParallelism, run.CallerToken).ConfigureAwait(false);
+        var responses = await Helpers.BoundedAsync.RunAsync(zones, zone => QueryProviderAsync(run, $"{name}.{zone}", ipv6, zone), run.MaxParallelism, run.CallerToken).ConfigureAwait(false);
         for (int i = 0; i < zones.Length; i++) {
             run.CallerToken.ThrowIfCancellationRequested();
             DNSBLRecord Record(string value, string? error, bool hasAnswer) {

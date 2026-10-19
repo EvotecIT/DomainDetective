@@ -21,7 +21,7 @@ namespace DomainDetective {
             await VerifyNameServersAsync(domainName, cancellationToken);
         }
 
-        private async Task VerifyNameServersAsync(string domainName, CancellationToken cancellationToken) {
+        private async Task VerifyNameServersAsync(string domainName, CancellationToken cancellationToken, Action? childReady = null) {
             cancellationToken.ThrowIfCancellationRequested();
             NSAnalysis.Subject = domainName;
             NSAnalysis.ResetNsEvidence();
@@ -36,7 +36,7 @@ namespace DomainDetective {
                 NSAnalysis.RecordDnsQueryFailure(domainName, DnsRecordType.NS, ex, _logger);
                 return;
             }
-            await NSAnalysis.AnalyzeNsRecords(ns, _logger, cancellationToken);
+            await NSAnalysis.AnalyzeNsRecordsCoreAsync(ns, _logger, cancellationToken, childReady);
         }
 
         /// <summary>

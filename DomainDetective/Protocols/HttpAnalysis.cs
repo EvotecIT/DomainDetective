@@ -53,9 +53,9 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
         public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
-        public Dictionary<string, SecurityHeader> SecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, SecurityHeader> SecurityHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a collection of security headers that were not present.</summary>
-        public HashSet<string> MissingSecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> MissingSecurityHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
@@ -87,11 +87,11 @@ namespace DomainDetective {
         /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
         public int InsecureFormsCount { get; private set; }
         /// <summary>Captures representative insecure form action URLs found on page.</summary>
-        public List<string> InsecureFormActions { get; } = new();
+        public List<string> InsecureFormActions { get; private set; } = new();
         /// <summary>Gets a value indicating whether a Permissions-Policy header was present.</summary>
         public bool PermissionsPolicyPresent { get; private set; }
         /// <summary>Gets parsed directives from the Permissions-Policy header.</summary>
-        public Dictionary<string, string> PermissionsPolicy { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> PermissionsPolicy { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets the value of the Referrer-Policy header if present.</summary>
         public string? ReferrerPolicy { get; private set; }
         /// <summary>Gets the value of the X-Frame-Options header if present.</summary>
@@ -109,7 +109,7 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
         public bool OriginAgentClusterEnabled { get; private set; }
 	        /// <summary>Gets the URLs visited when following redirects.</summary>
-	        public List<string> VisitedUrls { get; } = new();
+	        public List<string> VisitedUrls { get; private set; } = new();
 	        /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
 	        public int MaxRedirects { get; set; } = 10;
             /// <summary>Optional factory used to create a constrained outbound HTTP handler.</summary>
@@ -121,15 +121,15 @@ namespace DomainDetective {
 	        /// <summary>Proxy URL used for the request when configured.</summary>
 	        public string? ProxyUsed { get; private set; }
 	        /// <summary>Request header names that were sent (best-effort; excludes defaults).</summary>
-	        public List<string> RequestHeaderNames { get; } = new();
+	        public List<string> RequestHeaderNames { get; private set; } = new();
 	        /// <summary>Information disclosure headers observed (best-effort).</summary>
-	        public Dictionary<string, string> InformationDisclosureHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public Dictionary<string, string> InformationDisclosureHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Caching headers observed (best-effort).</summary>
-	        public Dictionary<string, string> CachingHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public Dictionary<string, string> CachingHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Deprecated security headers observed.</summary>
-	        public HashSet<string> DeprecatedHeadersPresent { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public HashSet<string> DeprecatedHeadersPresent { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>Deprecated security headers that were missing.</summary>
-	        public HashSet<string> MissingDeprecatedHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        public HashSet<string> MissingDeprecatedHeaders { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 	        /// <summary>True when CSP contains a frame-ancestors directive.</summary>
 	        public bool CspFrameAncestorsPresent { get; private set; }
 
@@ -193,7 +193,7 @@ namespace DomainDetective {
         public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
         /// <summary>Structured assessments captured during HTTP analysis.</summary>
-        public List<Assessment> Assessments { get; } = new();
+        public List<Assessment> Assessments { get; private set; } = new();
         /// <summary>Actionable recommendations derived from assessments.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 

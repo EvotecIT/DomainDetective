@@ -64,31 +64,10 @@ public class RPKIAnalysis : IHasAssessments {
                 return Fail(prefix, logger, "Invalid IP address for RPKI lookup: {0}.", ip);
             }
             HttpClient client = HttpClient;
-            using var prefixResp = await client.GetAsync($"https://stat.ripe.net/data/prefix-overview/data.json?resource={Uri.EscapeDataString(ip)}", ct);
-            prefixResp.EnsureSuccessStatusCode();
-            using var prefixStream = await prefixResp.Content.ReadAsStreamAsync();
-            using var prefixDoc = await JsonDocument.ParseAsync(prefixStream, cancellationToken: ct);
-            var data = prefixDoc.RootElement.GetProperty("data");
-            prefix = data.GetProperty("resource").GetString();
-            var asnsElement = data.GetProperty("asns");
-            int asn = 0;
-            if (asnsElement.ValueKind == JsonValueKind.Array && asnsElement.GetArrayLength() > 0) {
-                var asnElement = asnsElement[0];
-                if (asnElement.TryGetProperty("asn", out var asnProperty)) {
-                    asn = asnProperty.GetInt32();
-                } else {
-                    return Fail(prefix, logger, "ASN property missing for {0}.", ip);
-                }
-            } else {
-                return Fail(prefix, logger, "No ASN data for {0}.", ip);
-            }
-
-            string rpkiUrl = $"https://stat.ripe.net/data/rpki-validation/data.json?prefix={Uri.EscapeDataString(prefix ?? string.Empty)}&resource=AS{asn}";
-            using var rpkiResp = await client.GetAsync(rpkiUrl, ct);
-            rpkiResp.EnsureSuccessStatusCode();
-            using var rpkiStream = await rpkiResp.Content.ReadAsStreamAsync();
-            using var rpkiDoc = await JsonDocument.ParseAsync(rpkiStream, cancellationToken: ct);
-            string? status = rpkiDoc.RootElement.GetProperty("data").GetProperty("status").GetString();
+            var overview = await Helpers.IpNetworkMetadata.PrefixAsync(client, ip, ct).ConfigureAwait(false);
+            prefix = overview.Prefix;
+            int asn = overview.Asn;
+            string? status = await Helpers.IpNetworkMetadata.RpkiStatusAsync(client, prefix, asn, ct).ConfigureAwait(false);
             RpkiValidationState state = status?.ToLowerInvariant() switch {
                 "valid" => RpkiValidationState.Valid,
                 "invalid_asn" => RpkiValidationState.InvalidOriginAsn,
@@ -119,6 +98,7 @@ public class RPKIAnalysis : IHasAssessments {
     /// Validates IP addresses of <paramref name="domainName"/> against RPKI repositories.
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger? logger = null, CancellationToken ct = default) {
+        using var observations = Helpers.ScanObservations.Current == null ? new Helpers.ScanObservations() : null;
         Subject = domainName;
         Results = new List<RPKIResult>();
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RPKI", target: domainName) : null;

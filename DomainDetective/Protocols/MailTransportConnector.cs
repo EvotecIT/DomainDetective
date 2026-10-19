@@ -12,7 +12,7 @@ namespace DomainDetective;
 /// <summary>
 /// Establishes mail transport connections while preserving logical-host and address-family constraints.
 /// </summary>
-internal static class MailTransportConnector {
+internal static partial class MailTransportConnector {
     internal static TimeSpan GetConnectTimeout(TimeSpan connectTimeout, TimeSpan operationTimeout) {
         if (connectTimeout == Timeout.InfiniteTimeSpan) { return operationTimeout; }
         if (operationTimeout == Timeout.InfiniteTimeSpan) { return connectTimeout; }
@@ -32,25 +32,11 @@ internal static class MailTransportConnector {
 
         if (outboundAddressResolver == null &&
             endpoint.ConnectAddress == null &&
-            endpoint.AddressFamily == MailTransportAddressFamily.Any) {
-            var isAddressLiteral = IPAddress.TryParse(endpoint.HostName, out var literalAddress);
-            if (isAddressLiteral) {
-                literalAddress = NormalizeAddress(literalAddress!);
-            }
-            var client = isAddressLiteral
-                ? new TcpClient(literalAddress!.AddressFamily)
-                : new TcpClient();
-            if (isAddressLiteral) {
-                await AwaitConnectAsync(
-                    client,
-                    client.ConnectAsync(literalAddress!, endpoint.Port),
-                    cancellationToken).ConfigureAwait(false);
-            } else {
-                await AwaitConnectAsync(
-                    client,
-                    client.ConnectAsync(endpoint.HostName, endpoint.Port),
-                    cancellationToken).ConfigureAwait(false);
-            }
+            endpoint.AddressFamily == MailTransportAddressFamily.Any &&
+            IPAddress.TryParse(endpoint.HostName, out var literalAddress)) {
+            literalAddress = NormalizeAddress(literalAddress);
+            var client = new TcpClient(literalAddress.AddressFamily);
+            await AwaitConnectAsync(client, client.ConnectAsync(literalAddress, endpoint.Port), cancellationToken).ConfigureAwait(false);
             return client;
         }
 
@@ -78,11 +64,18 @@ internal static class MailTransportConnector {
         } else if (connectAddress != null) {
             candidates = new[] { connectAddress };
         } else {
+            // Hostname ConnectAsync also owns an OS DNS operation that socket
+            // disposal cannot stop. Resolve first, then drain only IP connects.
+#if NET8_0_OR_GREATER
+            candidates = (await Dns.GetHostAddressesAsync(endpoint.HostName, cancellationToken)
+                .ConfigureAwait(false)).Select(NormalizeAddress).ToArray();
+#else
             candidates = (await Dns.GetHostAddressesAsync(endpoint.HostName)
                 .WaitWithCancellation(cancellationToken)
                 .ConfigureAwait(false))
                 .Select(NormalizeAddress)
                 .ToArray();
+#endif
         }
 
         var filtered = candidates
@@ -93,25 +86,7 @@ internal static class MailTransportConnector {
             throw new SocketException((int)SocketError.HostNotFound);
         }
 
-        Exception? lastError = null;
-        foreach (var address in filtered) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var client = new TcpClient(address.AddressFamily);
-            try {
-                await AwaitConnectAsync(
-                    client,
-                    client.ConnectAsync(address, endpoint.Port),
-                    cancellationToken).ConfigureAwait(false);
-                return client;
-            } catch (Exception ex) when (ex is not OperationCanceledException) {
-                lastError = ex;
-            }
-        }
-
-        if (lastError != null) {
-            throw lastError;
-        }
-        throw new SocketException((int)SocketError.HostUnreachable);
+        return await ConnectApprovedAsync(filtered, endpoint.Port, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task AwaitConnectAsync(
@@ -122,6 +97,9 @@ internal static class MailTransportConnector {
             await connectTask.WaitWithCancellation(cancellationToken).ConfigureAwait(false);
         } catch {
             client.Dispose();
+            // Callers supply IP-only connects: disposing terminates their owned native work. Observe
+            // its completion rather than leaving a failed/canceled task behind.
+            try { await connectTask.ConfigureAwait(false); } catch { }
             throw;
         }
     }
