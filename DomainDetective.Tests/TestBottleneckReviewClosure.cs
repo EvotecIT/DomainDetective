@@ -73,24 +73,34 @@ public class TestTtlBottleneckReviewClosure {
     }
 
     [Theory]
-    [InlineData(20, true)]
-    [InlineData(900, false)]
-    [InlineData(1500, true)]
-    public async Task HealthyServerCompletesEveryRrsetWithinOriginalBudget(int replyDelay, bool alternative) {
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HealthyServerUsesAvailableCapacityAndRetainsEveryRrset(bool alternative) {
         var firstWave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var alternativeEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        int healthyStarted = 0;
+        var allRecordsEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int healthyStarted = 0, active = 0, peak = 0;
         var analysis = new DnsTtlAnalysis(async (server, owner, type, _, token, _) => {
-            if (server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
-                alternativeEntered.TrySetResult(true);
-                await Task.Delay(Timeout.Infinite, token);
-            } else {
-                if (Interlocked.Increment(ref healthyStarted) == 1) { firstWave.TrySetResult(true); }
-                if (alternative) { await alternativeEntered.Task.WaitWithCancellation(token); }
-                await Task.Delay(replyDelay, token);
-            }
-            return new DnsResponse { IsAuthoritativeAnswer = true, Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "synthetic", TTL = 600 } } };
-        }) { UniformityQueryTimeoutMs = 4000 };
+            int current = Interlocked.Increment(ref active);
+            int prior;
+            do { prior = Volatile.Read(ref peak); if (current <= prior) { break; } }
+            while (Interlocked.CompareExchange(ref peak, current, prior) != prior);
+            try {
+                if (server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
+                    alternativeEntered.TrySetResult(true);
+                    await Task.Delay(Timeout.Infinite, token);
+                } else {
+                    int started = Interlocked.Increment(ref healthyStarted);
+                    firstWave.TrySetResult(true);
+                    if (started == 9) { allRecordsEntered.TrySetResult(true); }
+                    if (started == 1) {
+                        if (alternative) { await alternativeEntered.Task.WaitWithCancellation(token); }
+                    } else { await release.Task.WaitWithCancellation(token); }
+                }
+                return new DnsResponse { IsAuthoritativeAnswer = true, Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "synthetic", TTL = 600 } } };
+            } finally { Interlocked.Decrement(ref active); }
+        });
         analysis.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, token) => {
             if (owner == "ns.example.test") {
                 if (type == DnsRecordType.AAAA && !alternative) { return new DnsResponse(); }
@@ -102,9 +112,16 @@ public class TestTtlBottleneckReviewClosure {
                     : owner.StartsWith("_smtp.") ? "v=TLSRPTv1" : "v=spf1 -all" : "synthetic";
             return new DnsResponse { Answers = type == DnsRecordType.DS ? Array.Empty<DnsAnswer>() : new[] { Answer(type, data) } };
         };
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await analysis.Analyze("example.test", new InternalLogger(), guard.Token);
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var run = analysis.Analyze("example.test", new InternalLogger(), guard.Token);
+        try {
+            var first = await Task.WhenAny(allRecordsEntered.Task, run).WaitWithCancellation(guard.Token);
+            Assert.Same(allRecordsEntered.Task, first);
+            Assert.Equal(8, Volatile.Read(ref active));
+        } finally { release.TrySetResult(true); await run; }
         Assert.Equal(9, healthyStarted);
+        Assert.Equal(8, peak);
+        Assert.Equal(0, active);
         Assert.Equal(600, Assert.Single(analysis.TlsRptTxtTtls));
         Assert.True(analysis.TtlsFromAuthoritativeServers);
     }
