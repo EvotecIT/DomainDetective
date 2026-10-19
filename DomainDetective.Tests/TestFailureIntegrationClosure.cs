@@ -29,7 +29,7 @@ public class TestFailureIntegrationClosure {
     [Fact]
     public async Task CompletedPlainHttpFindingsAreRetainedOnlyForTheCurrentRun() {
         using var health = new DomainHealthCheck();
-        health.PlainHttpAnalysis.HttpHandlerFactory = () => new Handler();
+        health.PlainHttpAnalysis.HttpHandlerFactory = () => new Handler(fail: true);
         health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse { Status = DnsResponseCode.NoError });
         await health.Verify("fixture.example.test", new[] { HealthCheckType.CAA },
             executionOptions: new HealthCheckExecutionOptions { IncludePlainHttp = true });
@@ -118,8 +118,10 @@ public class TestFailureIntegrationClosure {
             cancellationToken: caller.Token, executionOptions: new HealthCheckExecutionOptions { IncludeTakeoverCname = true })));
     }
 
-    private sealed class Handler : HttpMessageHandler {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html></html>") });
+    private sealed class Handler(bool fail = false) : HttpMessageHandler {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) {
+            if (fail) { throw new HttpRequestException("Synthetic plain HTTP request failure."); }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html></html>") });
+        }
     }
 }
