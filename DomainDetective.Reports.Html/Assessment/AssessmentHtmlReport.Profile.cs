@@ -227,8 +227,11 @@ public static partial class AssessmentHtmlReport {
     /// <see cref="DomainAssessmentCatalog.SecurityPriority"/>), then errors before warnings, then by what costs the score
     /// most (points lost times the check's weight).
     /// </summary>
+    private static bool NeedsAttention(CheckAssessment check) => !check.EvidenceComplete
+        || check.Outcome is CheckOutcome.Error or CheckOutcome.Warning or CheckOutcome.Incomplete;
+
     private static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
-        .Where(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
+        .Where(NeedsAttention)
         .OrderBy(static c => DomainAssessmentCatalog.SecurityPriority(c.Check))
         .ThenByDescending(static c => c.Outcome)
         .ThenByDescending(static c => (100 - c.Score) * Math.Max(1, c.Weight));

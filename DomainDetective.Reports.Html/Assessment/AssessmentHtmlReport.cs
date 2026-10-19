@@ -100,7 +100,7 @@ public static partial class AssessmentHtmlReport {
                 section.Key("summary").NavigationIcon(TablerIconType.LayoutDashboard).Active();
                 RenderSummary(section, report, ids, options);
             });
-            int attention = report.Domains.Sum(static d => d.ErrorChecks + d.WarningChecks);
+            int attention = report.Domains.Sum(static d => d.Checks.Count(NeedsAttention));
             bool anyError = report.Domains.Any(static d => d.ErrorChecks > 0);
             shell.AddSection("Explore", section => {
                 section.Key("explore").NavigationIcon(TablerIconType.ListSearch)
@@ -159,7 +159,7 @@ public static partial class AssessmentHtmlReport {
                 int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
                 if (scores.Length > 0) posture.Meter(AreaLabel(area), (int)Math.Round(scores.Average()));
             }
-            posture.Findings(errors + warnings, $"checks need attention across {Plural(report.Domains.Count, "domain")}");
+            posture.Findings(checks.Count(NeedsAttention), $"checks need attention across {Plural(report.Domains.Count, "domain")}");
             posture.Severity(Severity.High, errors, "Errors");
             posture.Severity(Severity.Elevated, warnings, "Warnings");
             posture.Severity(Severity.Good, passed, "Passed");
@@ -173,7 +173,7 @@ public static partial class AssessmentHtmlReport {
         // costs the score most.
         var attention = report.Domains
             .SelectMany(static d => d.Checks.Select(c => (Domain: d, Check: c)))
-            .Where(static x => x.Check.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
+            .Where(static x => NeedsAttention(x.Check))
             .OrderBy(static x => DomainAssessmentCatalog.SecurityPriority(x.Check.Check))
             .ThenByDescending(static x => x.Check.Outcome)
             .ThenByDescending(static x => (100 - x.Check.Score) * Math.Max(1, x.Check.Weight))
@@ -190,7 +190,8 @@ public static partial class AssessmentHtmlReport {
                 foreach (var (domain, check) in attention) {
                     CheckFinding? top = check.Findings.FirstOrDefault(f => f.Severity != AssessmentSeverity.Info);
                     list.Finding(check.Title, OutcomeSeverity(check.Outcome), finding => {
-                        finding.Message(top?.Message ?? check.Summary ?? check.Description ?? string.Empty)
+                        finding.Message(top?.Message ?? check.Summary ?? (!check.EvidenceComplete
+                            ? "The check has incomplete evidence. Retry it to complete the assessment." : check.Description ?? string.Empty))
                             .SeverityLabel(OutcomeLabel(check.Outcome))
                             .Scope(domain.Domain, null, ids.Domain(domain))
                             .Source(AreaLabel(check.Area))
@@ -254,7 +255,7 @@ public static partial class AssessmentHtmlReport {
 
     /// <summary>The verdict across the top of the summary: what the run found, in one or two sentences.</summary>
     private static string ReportVerdict(DomainAssessmentReport report, int errors, int warnings) {
-        int open = errors + warnings;
+        int open = report.Domains.Sum(static d => d.Checks.Count(NeedsAttention));
         string need = open == 1 ? "needs" : "need";
         string attention = open == 0
             ? report.Domains.Any(d => d.Checks.Any(c => !c.EvidenceComplete)) ? "Some checks have incomplete evidence." : "Every scored check passed."

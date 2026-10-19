@@ -37,9 +37,12 @@ public partial class DmarcAnalysis {
             if (destination.Equals(policyDomain, StringComparison.OrdinalIgnoreCase)) continue;
             try {
                 if (hasResolver) {
+                    if (OrganizationalDomain == null && getOrgDomain != null && authorDomain != null) {
+                        OrganizationalDomain = getOrgDomain(authorDomain);
+                    }
                     string policyOrg = await Resolve(policyDomain).ConfigureAwait(false);
                     string destinationOrg = await Resolve(destination).ConfigureAwait(false);
-                    if (authorDomain == policyDomain && getOrgDomainAsync != null) OrganizationalDomain = policyOrg;
+                    if (string.Equals(authorDomain, policyDomain, StringComparison.OrdinalIgnoreCase)) OrganizationalDomain = policyOrg;
                     if (!string.IsNullOrWhiteSpace(policyOrg) && policyOrg.Equals(destinationOrg, StringComparison.OrdinalIgnoreCase)) continue;
                 }
                 string name = $"{policyDomain}._report._dmarc.{destination}";

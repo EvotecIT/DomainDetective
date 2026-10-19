@@ -97,7 +97,8 @@ internal sealed class DmarcAreaModule : IAssessmentAreaModule {
         string subText = Lower(dmarc.SubPolicy);
         string subPolicy = PolicyWord(dmarc.SubPolicy);
         bool inherited = subPolicy.Length == 0 || subText.IndexOf("inherit", StringComparison.Ordinal) >= 0;
-        string effectiveSub = subPolicy.Length == 0 ? policy : subPolicy;
+        string effectiveSub = PolicyWord(dmarc.EffectiveSubdomainPolicy);
+        Fact(check, "Published subdomain policy", dmarc.SubPolicy);
         check.Metrics.Add(Metric("Subdomains", effectiveSub.Length == 0 ? "Invalid" : effectiveSub + (inherited ? " (inherited)" : string.Empty), PolicyState(effectiveSub)));
         int pct = dmarc.Pct ?? 100;
         check.Metrics.Add(Metric("Applied to", pct.ToString(CultureInfo.InvariantCulture) + "%", pct >= 100 ? MetricState.Good : MetricState.Warning, "of failing mail"));

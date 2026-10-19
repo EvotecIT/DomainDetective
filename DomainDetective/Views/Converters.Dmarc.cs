@@ -31,6 +31,7 @@ public static partial class Converters
             DnsQueryFailed = analysis.DnsQueryFailed,
             ReportingQueryFailed = analysis.ReportingQueryFailed,
             SubPolicy = analysis.SubPolicy,
+            EffectiveSubdomainPolicy = analysis.EffectiveSubdomainPolicyShort,
             NonexistentPolicy = analysis.NonexistentPolicy,
             PublicSuffixPolicy = analysis.PublicSuffixPolicy,
             ReportFeedback = analysis.ReportFeedback,
@@ -126,6 +127,8 @@ public class DmarcRecordInfo
     public bool ReportingQueryFailed { get; set; }
     /// <summary>Subdomain policy (sp=).</summary>
     public string SubPolicy { get; set; } = string.Empty;
+    /// <summary>Subdomain policy after inheritance, fallback and test mode.</summary>
+    public string EffectiveSubdomainPolicy { get; set; } = string.Empty;
     /// <summary>Nonexistent domain policy (np=, DMARCbis).</summary>
     public string NonexistentPolicy { get; set; } = string.Empty;
     /// <summary>Public suffix policy (psd=, DMARCbis).</summary>

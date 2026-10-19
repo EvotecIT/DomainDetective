@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Html;
 
 public static partial class AssessmentHtmlReport {
     private static void RenderDomain(AssessmentReportSection section, DomainAssessment domain, CheckIds ids, AssessmentHtmlOptions options, DateTimeOffset generatedAt) {
-        int attention = domain.ErrorChecks + domain.WarningChecks;
+        int attention = domain.Checks.Count(NeedsAttention);
         section.Key(ids.Domain(domain))
             .NavigationIcon(TablerIconType.World)
             .NavigationDetail(domain.Score.HasValue ? $"{domain.Grade} · {domain.Score}" : null)
@@ -114,6 +114,8 @@ public static partial class AssessmentHtmlReport {
         var parts = new List<string> { $"{Plural(domain.Checks.Count, "check")} ran" };
         if (domain.ErrorChecks > 0) parts.Add($"{Plural(domain.ErrorChecks, "check")} with errors");
         if (domain.WarningChecks > 0) parts.Add($"{Plural(domain.WarningChecks, "check")} with warnings");
+        int incomplete = domain.Checks.Count(static c => !c.EvidenceComplete);
+        if (incomplete > 0) parts.Add($"{Plural(incomplete, "check")} with incomplete evidence");
         if (domain.PassedChecks > 0) parts.Add($"{domain.PassedChecks.ToString(CultureInfo.InvariantCulture)} passed");
         return string.Join(", ", parts) + ".";
     }

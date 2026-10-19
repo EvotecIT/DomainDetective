@@ -85,16 +85,50 @@ public class TestAssessmentEvidenceCompletion {
         Assert.Contains("DANE lookup unavailable.", html);
     }
 
-    [Fact]
-    public async Task DmarcProfileUsesTheEffectiveTestModePolicy() {
+    [Theory]
+    [InlineData("", "quarantine (inherited)")]
+    [InlineData("; sp=reject", "quarantine")]
+    public async Task DmarcProfileUsesTheEffectiveTestModePolicy(string subPolicy, string expectedSubdomainPolicy) {
         using var health = new DomainHealthCheck();
         health.DmarcAnalysis.Subject = "example.test";
-        await health.CheckDMARC("v=DMARC1; p=reject; t=y");
+        await health.CheckDMARC("v=DMARC1; p=reject; t=y" + subPolicy);
         var view = Converters.Convert(health.DmarcAnalysis);
         Assert.Equal("quarantine", view.EffectivePolicy);
         var check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
         Assert.Equal("quarantine", Assert.Single(check.Metrics, metric => metric.Label == "Policy").Value);
+        Assert.Equal(expectedSubdomainPolicy, Assert.Single(check.Metrics, metric => metric.Label == "Subdomains").Value);
         Assert.DoesNotContain("spoofed mail is rejected", Render(view));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IncompleteChecksRemainInTheAttentionListAndDefaultExplorer(bool includeWarning) {
+        var views = new List<object> { new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" } };
+        if (includeWarning) views.Add(new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", Assessments = new[] {
+            new Assessment { Severity = AssessmentSeverity.Warning, Message = "Published SPF needs correction.", Code = "SPF.Fixture.Warning" }
+        } });
+        var html = Render(views.ToArray());
+        Assert.DoesNotContain("Nothing needs attention", html);
+        Assert.Contains($"title=\"checks need attention\">{(includeWarning ? 2 : 1)}</span>", html);
+        Assert.Contains("\"values\":[\"Error\",\"Warning\",\"Incomplete\"]", html);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LegacyDmarcReportingPreservesTheCanonicalOrganizationalBoundary(bool ownPolicy) {
+        using var health = new DomainHealthCheck { DmarcDiscoveryMode = DmarcDiscoveryMode.LegacyPublicSuffix };
+        health.DnsConfiguration.QueryDnsOverride = (name, type) => Task.FromResult(name == (ownPolicy ? "_dmarc.mail.example.com" : "_dmarc.example.com")
+            ? new[] { new DnsAnswer { Name = name, Type = type, DataRaw = "v=DMARC1; p=reject; rua=mailto:reports@reports.example.com" } }
+            : Array.Empty<DnsAnswer>());
+        await health.VerifyDMARC("mail.example.com");
+        var view = Converters.Convert(health.DmarcAnalysis);
+        Assert.Equal("example.com", view.OrganizationalDomain);
+        Assert.Empty(view.ExternalReportAuthorization);
+        var check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+        var destinations = Assert.Single(check.Evidence, block => block.Title == "Report destinations");
+        Assert.Equal("Not needed", Assert.Single(destinations.Rows)[2]);
     }
 
     [Fact]

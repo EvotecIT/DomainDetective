@@ -83,7 +83,7 @@ namespace DomainDetective.Tests.Reports {
                 new DmarcRecordInfo {
                     Check = HealthCheckType.DMARC, Area = AnalysisArea.Mail, Subject = "example.org",
                     DmarcRecordExists = true, DmarcRecord = "v=DMARC1; p=none; rua=mailto:d@example.org,mailto:r@vendor.example",
-                    Policy = "none", EffectivePolicy = "none", Pct = 50,
+                    Policy = "none", EffectivePolicy = "none", EffectiveSubdomainPolicy = "none", Pct = 50,
                     MailtoRua = new[] { "mailto:d@example.org", "mailto:r@vendor.example" },
                     UnauthorizedExternalReportDomains = new[] { "vendor.example" }
                 }

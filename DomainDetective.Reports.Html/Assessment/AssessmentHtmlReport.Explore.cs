@@ -65,13 +65,13 @@ public static partial class AssessmentHtmlReport {
             .Category("code", "Code", static r => r.Finding.Code, c => c.Monospace())
             .Category("area", "Area", static r => AreaLabel(r.Owner.Check.Area)));
 
-        int attention = checks.Count(static r => r.Check.Outcome is CheckOutcome.Error or CheckOutcome.Warning);
+        int attention = checks.Count(static r => NeedsAttention(r.Check));
         section.AssessmentViews(views => {
             views.View("explore-checks", "Checks", view => view.DataExplorer(checkData, explorer => {
                 explorer.Key(ChecksExplorer).Title("Checks")
                     .Description("One row per check and domain with its key number. Open a row for the full result; previous and next follow the rows below.");
                 if (attention > 0) explorer.AddView("Needs attention", v => v
-                    .Where("outcome", ReportFilterOperator.In, "Error", "Warning").OrderBy("score").OrderBy("domain").Default());
+                    .Where("outcome", ReportFilterOperator.In, "Error", "Warning", "Incomplete").OrderBy("score").OrderBy("domain").Default());
                 explorer.AddView("All checks", v => v.OrderBy("domain"))
                     .AddView("By check", v => v.OrderBy("check").OrderBy("domain"))
                     .QuickFilters("outcome", "area", "check", "domain")
