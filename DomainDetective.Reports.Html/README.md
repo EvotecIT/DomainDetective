@@ -34,7 +34,11 @@ whether informational findings are shown.
 
 - Check score: 100 when a check passes, 15 points off per warning (not below 50), 40 with one error and 10 less for
   each further error.
+- Incomplete evidence has no check score. The report keeps known findings and asks the reader to complete or retry
+  the check; an unfinished lookup is not a passing result.
 - Domain score: weighted average of scored checks. DMARC counts three times; SPF, DKIM, MX and DNSSEC twice.
+- Area, domain and overall scores and grades are unavailable while any of their scored checks has incomplete
+  evidence. Complete individual checks retain their own scores.
 - Inventory and discovery checks (subdomains, DNS inventory, CT timeline, Microsoft 365, ...) are shown but not scored.
 - Grade: A from 90, B from 80, C from 70, D from 60, otherwise F.
 
