@@ -10,7 +10,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyApexAddresses(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyApexAddresses(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.APEXADDRESS, () => VerifyApexAddressesDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyApexAddressesDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

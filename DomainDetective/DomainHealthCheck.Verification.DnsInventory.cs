@@ -10,7 +10,10 @@ public partial class DomainHealthCheck
     /// Captures a lightweight DNS inventory for a domain by querying common record types
     /// and recording answers (and optionally authority/additional sections).
     /// </summary>
-    public async Task VerifyDnsInventoryAsync(string domainName, CancellationToken cancellationToken = default)
+    public Task VerifyDnsInventoryAsync(string domainName, CancellationToken cancellationToken = default) =>
+        CompleteDirectCheckAsync(HealthCheckType.DNSINVENTORY, () => VerifyDnsInventoryAsyncDirectCore(domainName, cancellationToken));
+
+    private async Task VerifyDnsInventoryAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(domainName))
         {

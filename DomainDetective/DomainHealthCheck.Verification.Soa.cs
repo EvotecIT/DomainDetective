@@ -11,7 +11,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifySOA(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifySOA(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SOA, () => VerifySOADirectCore(domainName, cancellationToken));
+
+        private async Task VerifySOADirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -31,7 +34,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="soaRecord">SOA record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckSOA(string soaRecord, CancellationToken cancellationToken = default) {
+        public Task CheckSOA(string soaRecord, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SOA, () => CheckSOADirectCore(soaRecord, cancellationToken));
+
+        private async Task CheckSOADirectCore(string soaRecord, CancellationToken cancellationToken = default) {
             await SOAAnalysis.AnalyzeSoaRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = soaRecord,

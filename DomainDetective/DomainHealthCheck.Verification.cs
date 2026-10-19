@@ -284,7 +284,6 @@ public partial class DomainHealthCheck {
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 actions[HealthCheckType.DANE] = async () => {
-                    MarkCheckAdmitted(HealthCheckType.DANE);
                     try { await EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                     catch (Exception exception) when (exception is not OutOfMemoryException) {
@@ -329,12 +328,11 @@ public partial class DomainHealthCheck {
 
             async Task RunCheckAsync(HealthCheckType healthCheckType) {
                 cancellationToken.ThrowIfCancellationRequested();
-                MarkCheckAdmitted(healthCheckType);
                 try {
                     await actions[healthCheckType]();
                     cancellationToken.ThrowIfCancellationRequested();
                 } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
-                    RecordCheckCancellation(healthCheckType, domainName);
+                    if (IsCheckAdmitted(healthCheckType)) { RecordCheckCancellation(healthCheckType, domainName); }
                     throw;
                 } catch (Exception exception) when (exception is not OutOfMemoryException) {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -406,7 +404,10 @@ public partial class DomainHealthCheck {
         /// <param name="domainName">Domain, host, or HTTP/HTTPS URL to analyze.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <param name="options">Optional agent-readiness analysis options.</param>
-        public async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
+        public Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) =>
+            CompleteDirectCheckAsync(HealthCheckType.AGENTREADINESS, () => VerifyAgentReadinessAsyncDirectCore(domainName, cancellationToken, options));
+
+        private async Task VerifyAgentReadinessAsyncDirectCore(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
             var previous = AgentReadinessAnalysis;
             AgentReadinessAnalysis = new AgentReadinessAnalysis {
                 HttpHandlerFactory = previous.HttpHandlerFactory

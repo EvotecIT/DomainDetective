@@ -21,6 +21,10 @@ public partial class DomainHealthCheck : IHasAssessments {
         }
     }
 
+    private bool IsCheckAdmitted(HealthCheckType check) {
+        lock (_executionLock) { return _admittedVerificationChecks.Contains(check); }
+    }
+
     private void ThrowRecordedCheckFailure() {
         ExceptionDispatchInfo? failure;
         lock (_executionLock) { failure = _checkFailureExceptions.Values.FirstOrDefault(); }

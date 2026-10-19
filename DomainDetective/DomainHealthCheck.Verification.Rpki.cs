@@ -10,7 +10,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyRPKI(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyRPKI(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.RPKI, () => VerifyRPKIDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyRPKIDirectCore(string domainName, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));

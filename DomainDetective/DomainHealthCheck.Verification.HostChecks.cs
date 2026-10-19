@@ -12,7 +12,10 @@ namespace DomainDetective {
         /// <param name="host">Target host name.</param>
         /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+        public Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.OPENRELAY, () => CheckOpenRelayHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckOpenRelayHostDirectCore(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await OpenRelayAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
@@ -23,7 +26,10 @@ namespace DomainDetective {
         /// <param name="host">Target server host name or IP.</param>
         /// <param name="port">DNS port number. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckOpenResolverHost(string host, int port = 53, CancellationToken cancellationToken = default) {
+        public Task CheckOpenResolverHost(string host, int port = 53, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.OPENRESOLVER, () => CheckOpenResolverHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckOpenResolverHostDirectCore(string host, int port = 53, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await OpenResolverAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
@@ -31,7 +37,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks a host for STARTTLS support.
         /// </summary>
-        public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+        public Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => CheckStartTlsHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckStartTlsHostDirectCore(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             ApplyOutboundAddressResolver(StartTlsAnalysis);
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
@@ -40,7 +49,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks an explicitly targeted host for STARTTLS support while preserving the logical hostname.
         /// </summary>
-        public async Task CheckStartTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+        public Task CheckStartTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.STARTTLS, () => CheckStartTlsHostDirectCore(endpoint, cancellationToken));
+
+        private async Task CheckStartTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
@@ -52,7 +64,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks a host for SMTP TLS capabilities.
         /// </summary>
-        public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+        public Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => CheckSmtpTlsHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckSmtpTlsHostDirectCore(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             ApplyOutboundAddressResolver(SmtpTlsAnalysis);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
@@ -61,7 +76,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks an explicitly targeted host for SMTP TLS capabilities while preserving the logical hostname.
         /// </summary>
-        public async Task CheckSmtpTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+        public Task CheckSmtpTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SMTPTLS, () => CheckSmtpTlsHostDirectCore(endpoint, cancellationToken));
+
+        private async Task CheckSmtpTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
@@ -73,7 +91,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks a host for IMAP TLS capabilities.
         /// </summary>
-        public async Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) {
+        public Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => CheckImapTlsHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckImapTlsHostDirectCore(string host, int port = 143, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             ApplyOutboundAddressResolver(ImapTlsAnalysis);
             await ImapTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
@@ -82,7 +103,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks an explicitly targeted host for IMAP TLS capabilities while preserving the logical hostname.
         /// </summary>
-        public async Task CheckImapTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+        public Task CheckImapTlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.IMAPTLS, () => CheckImapTlsHostDirectCore(endpoint, cancellationToken));
+
+        private async Task CheckImapTlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
@@ -94,7 +118,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks a host for POP3 TLS capabilities.
         /// </summary>
-        public async Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) {
+        public Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => CheckPop3TlsHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckPop3TlsHostDirectCore(string host, int port = 110, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             ApplyOutboundAddressResolver(Pop3TlsAnalysis);
             await Pop3TlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
@@ -103,7 +130,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks an explicitly targeted host for POP3 TLS capabilities while preserving the logical hostname.
         /// </summary>
-        public async Task CheckPop3TlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
+        public Task CheckPop3TlsHost(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.POP3TLS, () => CheckPop3TlsHostDirectCore(endpoint, cancellationToken));
+
+        private async Task CheckPop3TlsHostDirectCore(MailTransportEndpoint endpoint, CancellationToken cancellationToken = default) {
             if (endpoint == null) {
                 throw new System.ArgumentNullException(nameof(endpoint));
             }
@@ -115,7 +145,10 @@ namespace DomainDetective {
         /// <summary>
         /// Retrieves the SMTP banner from a host.
         /// </summary>
-        public async Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+        public Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SMTPBANNER, () => CheckSmtpBannerHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckSmtpBannerHostDirectCore(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             SmtpBannerAnalysis.Subject = $"{host}:{port}";
             await SmtpBannerAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
@@ -124,7 +157,10 @@ namespace DomainDetective {
         /// <summary>
         /// Measures mail server connection and banner latency.
         /// </summary>
-        public async Task CheckMailLatency(string host, int port = 25, CancellationToken cancellationToken = default) {
+        public Task CheckMailLatency(string host, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.MAILLATENCY, () => CheckMailLatencyDirectCore(host, port, cancellationToken));
+
+        private async Task CheckMailLatencyDirectCore(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await MailLatencyAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
@@ -132,7 +168,10 @@ namespace DomainDetective {
         /// <summary>
         /// Tests connectivity to common service ports on a host.
         /// </summary>
-        public async Task CheckPortAvailability(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) {
+        public Task CheckPortAvailability(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.PORTAVAILABILITY, () => CheckPortAvailabilityDirectCore(host, ports, cancellationToken));
+
+        private async Task CheckPortAvailabilityDirectCore(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) {
             var list = ports?.ToArray() ?? new[] { 25, 80, 443, 465, 587 };
             foreach (var p in list) {
                 ValidatePort(p);
@@ -143,7 +182,10 @@ namespace DomainDetective {
         /// <summary>
         /// Checks a host for SNMP responses.
         /// </summary>
-        public async Task CheckSnmpHost(string host, int port = 161, CancellationToken cancellationToken = default) {
+        public Task CheckSnmpHost(string host, int port = 161, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.SNMP, () => CheckSnmpHostDirectCore(host, port, cancellationToken));
+
+        private async Task CheckSnmpHostDirectCore(string host, int port = 161, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await SnmpAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
@@ -151,7 +193,10 @@ namespace DomainDetective {
         /// <summary>
         /// Scans a host for open TCP and UDP ports.
         /// </summary>
-        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, PortScanProfile[]? profiles = null, CancellationToken cancellationToken = default, bool showProgress = true) {
+        public Task ScanPorts(string host, IEnumerable<int>? ports = null, PortScanProfile[]? profiles = null, CancellationToken cancellationToken = default, bool showProgress = true) =>
+            CompleteDirectCheckAsync(HealthCheckType.PORTSCAN, () => ScanPortsDirectCore(host, ports, profiles, cancellationToken, showProgress));
+
+        private async Task ScanPortsDirectCore(string host, IEnumerable<int>? ports = null, PortScanProfile[]? profiles = null, CancellationToken cancellationToken = default, bool showProgress = true) {
             IEnumerable<int> selected;
             if (ports != null && ports.Any()) {
                 selected = ports;
@@ -168,11 +213,17 @@ namespace DomainDetective {
         }
 
         /// <summary>Queries neighbors sharing the same IP as <paramref name="domainName"/>.</summary>
-        public async Task CheckIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
+        public Task CheckIPNeighbors(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.IPNEIGHBOR, () => CheckIPNeighborsDirectCore(domainName, cancellationToken));
+
+        private async Task CheckIPNeighborsDirectCore(string domainName, CancellationToken cancellationToken = default) {
             await IPNeighborAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
         /// <summary>Queries neighbors for IPs used by MX hosts of <paramref name="domainName"/>.</summary>
-        public async Task CheckMailIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
+        public Task CheckMailIPNeighbors(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.IPNEIGHBOR, () => CheckMailIPNeighborsDirectCore(domainName, cancellationToken));
+
+        private async Task CheckMailIPNeighborsDirectCore(string domainName, CancellationToken cancellationToken = default) {
             await IPNeighborAnalysis.AnalyzeMx(domainName, _logger, cancellationToken);
         }
 

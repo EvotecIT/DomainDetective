@@ -11,7 +11,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.MTASTS, () => VerifyMTASTSDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyMTASTSDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

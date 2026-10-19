@@ -7,7 +7,10 @@ namespace DomainDetective {
         /// <summary>
         /// Verifies the certificate for a website. If no scheme is provided in <paramref name="url"/>, "https://" is assumed.
         /// </summary>
-        public async Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+        public Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.CERT, () => VerifyWebsiteCertificateDirectCore(url, port, cancellationToken));
+
+        private async Task VerifyWebsiteCertificateDirectCore(string url, int port = 443, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
@@ -22,7 +25,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain or host (port optional).</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        public async Task VerifyWebsiteHttps(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyWebsiteHttps(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.HTTP, () => VerifyWebsiteHttpsDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyWebsiteHttpsDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -36,7 +42,10 @@ namespace DomainDetective {
         /// <summary>
         /// Performs an HTTPS security check collecting key headers and scanning for mixed content, with request customization options.
         /// </summary>
-        public async Task VerifyWebsiteHttps(string domainName, HttpRequestOptions requestOptions, bool captureBody = true, CancellationToken cancellationToken = default) {
+        public Task VerifyWebsiteHttps(string domainName, HttpRequestOptions requestOptions, bool captureBody = true, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.HTTP, () => VerifyWebsiteHttpsDirectCore(domainName, requestOptions, captureBody, cancellationToken));
+
+        private async Task VerifyWebsiteHttpsDirectCore(string domainName, HttpRequestOptions requestOptions, bool captureBody = true, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

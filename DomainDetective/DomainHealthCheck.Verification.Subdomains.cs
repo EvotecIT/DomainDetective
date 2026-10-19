@@ -10,7 +10,10 @@ public partial class DomainHealthCheck
     /// Discovers subdomains using certificate transparency (CT) and (optionally) verifies
     /// whether the discovered names still resolve in DNS.
     /// </summary>
-    public async Task VerifySubdomainsAsync(string domainName, CancellationToken cancellationToken = default)
+    public Task VerifySubdomainsAsync(string domainName, CancellationToken cancellationToken = default) =>
+        CompleteDirectCheckAsync(HealthCheckType.SUBDOMAINS, () => VerifySubdomainsAsyncDirectCore(domainName, cancellationToken));
+
+    private async Task VerifySubdomainsAsyncDirectCore(string domainName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(domainName))
         {

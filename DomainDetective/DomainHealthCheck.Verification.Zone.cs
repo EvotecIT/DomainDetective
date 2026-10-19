@@ -9,7 +9,10 @@ namespace DomainDetective {
         /// <summary>
         /// Attempts zone transfers against authoritative name servers.
         /// </summary>
-        public async Task VerifyZoneTransfer(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyZoneTransfer(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.ZONETRANSFER, () => VerifyZoneTransferDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyZoneTransferDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -23,7 +26,10 @@ namespace DomainDetective {
         /// <summary>
         /// Validates delegation information against the parent zone.
         /// </summary>
-        public async Task VerifyDelegation(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyDelegation(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DELEGATION, () => VerifyDelegationDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyDelegationDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

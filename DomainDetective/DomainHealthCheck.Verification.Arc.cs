@@ -37,7 +37,10 @@ namespace DomainDetective {
         }
 
         /// <summary>Executes the verify arc async operation.</summary>
-        public async Task<ARCAnalysis> VerifyARCAsync(string rawHeaders, CancellationToken ct = default) {
+        public Task<ARCAnalysis> VerifyARCAsync(string rawHeaders, CancellationToken ct = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.ARC, () => VerifyARCAsyncDirectCore(rawHeaders, ct));
+
+        private async Task<ARCAnalysis> VerifyARCAsyncDirectCore(string rawHeaders, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             return await Task.Run(() => {
                 ArcAnalysis = new ARCAnalysis();

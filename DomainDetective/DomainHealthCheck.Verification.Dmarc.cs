@@ -12,7 +12,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDMARC(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyDMARC(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DMARC, () => VerifyDMARCDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyDMARCDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -87,7 +90,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="dmarcRecord">DMARC record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckDMARC(string dmarcRecord, CancellationToken cancellationToken = default) {
+        public Task CheckDMARC(string dmarcRecord, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DMARC, () => CheckDMARCDirectCore(dmarcRecord, cancellationToken));
+
+        private async Task CheckDMARCDirectCore(string dmarcRecord, CancellationToken cancellationToken = default) {
             await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dmarcRecord,

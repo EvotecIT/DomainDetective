@@ -13,7 +13,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDNSSEC(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyDNSSEC(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DNSSEC, () => VerifyDNSSECDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyDNSSECDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -36,7 +39,10 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="port">SMTP port to test.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyOpenRelay(string domainName, int port = 25, CancellationToken cancellationToken = default) {
+        public Task VerifyOpenRelay(string domainName, int port = 25, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.OPENRELAY, () => VerifyOpenRelayDirectCore(domainName, port, cancellationToken));
+
+        private async Task VerifyOpenRelayDirectCore(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -57,7 +63,10 @@ namespace DomainDetective {
         /// <summary>
         /// Tests name servers for open recursion.
         /// </summary>
-        public async Task VerifyOpenResolver(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyOpenResolver(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.OPENRESOLVER, () => VerifyOpenResolverDirectCore(domainName, cancellationToken));
+
+        private async Task VerifyOpenResolverDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

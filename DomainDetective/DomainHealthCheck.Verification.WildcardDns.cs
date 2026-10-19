@@ -9,13 +9,19 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="sampleCount">Number of names to test.</param>
-        public Task VerifyWildcardDns(string domainName, int sampleCount = 3) => VerifyWildcardDns(domainName, sampleCount, CancellationToken.None);
+        public Task VerifyWildcardDns(string domainName, int sampleCount = 3) =>
+            CompleteDirectCheckAsync(HealthCheckType.WILDCARDDNS, () => VerifyWildcardDnsDirectCore(domainName, sampleCount));
+
+        private Task VerifyWildcardDnsDirectCore(string domainName, int sampleCount = 3) => VerifyWildcardDns(domainName, sampleCount, CancellationToken.None);
 
         /// <summary>Queries wildcard DNS with caller cancellation.</summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="sampleCount">Number of names at each tested depth.</param>
         /// <param name="cancellationToken">Token canceling discovery and samples.</param>
-        public async Task VerifyWildcardDns(string domainName, int sampleCount, CancellationToken cancellationToken) {
+        public Task VerifyWildcardDns(string domainName, int sampleCount, CancellationToken cancellationToken) =>
+            CompleteDirectCheckAsync(HealthCheckType.WILDCARDDNS, () => VerifyWildcardDnsDirectCore(domainName, sampleCount, cancellationToken));
+
+        private async Task VerifyWildcardDnsDirectCore(string domainName, int sampleCount, CancellationToken cancellationToken) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
