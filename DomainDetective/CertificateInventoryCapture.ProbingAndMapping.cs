@@ -125,7 +125,7 @@ public sealed partial class CertificateInventoryCapture {
             analysis.CtLogApiTemplates.Clear();
         }
         if (allowDefaultPassiveCtTemplate) {
-            AddCtTemplateIfMissing(analysis.CtLogApiTemplates, "https://crt.sh/?sha256={0}&output=json");
+            AddCtTemplateIfMissing(analysis.CtLogApiTemplates, CtLogAggregator.CrtShCertificateTemplate);
         }
         foreach (var template in options.CtApiTemplates) {
             AddCtTemplateIfMissing(analysis.CtLogApiTemplates, template);

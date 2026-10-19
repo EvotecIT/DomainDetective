@@ -333,7 +333,7 @@ namespace DomainDetective {
         /// <remarks>Zero means that one provider request can occupy the resolver; scheduled bulk work must follow other checks.</remarks>
         internal int GetBulkQueryParallelism(int dnsParallelism) {
             int resolverParallelism = Math.Max(1, MultiResolverMaxParallelism ?? dnsParallelism);
-            return Math.Min(Math.Max(1, dnsParallelism / 2), (resolverParallelism - 1) / GetEndpointFanout(resolverParallelism));
+            return Math.Min(Math.Max(1, dnsParallelism - 1), (resolverParallelism - 1) / GetEndpointFanout(resolverParallelism));
         }
 
         /// <summary>Gets the number of logical queries that the reused resolver can execute concurrently.</summary>
