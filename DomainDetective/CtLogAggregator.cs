@@ -50,7 +50,7 @@ public sealed partial class CtLogAggregator
     private static int _sharedMaxCacheEntries = 20000;
     private static TimeSpan _sharedMinimumRequestSpacing = TimeSpan.FromMilliseconds(250);
 
-    private const string CrtShCertificateTemplate = "https://crt.sh/?sha256={0}";
+    internal const string CrtShCertificateTemplate = "https://crt.sh/?sha256={0}";
     /// <summary>CT source templates containing a {0} placeholder for the fingerprint. The default crt.sh certificate page supplies log entries; custom sources return JSON.</summary>
     public List<string> ApiTemplates { get; } = new() { CrtShCertificateTemplate };
     /// <summary>Enable Censys certificate discovery using the configured API credentials.</summary>

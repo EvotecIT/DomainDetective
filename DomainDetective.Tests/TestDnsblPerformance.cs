@@ -44,7 +44,7 @@ public class TestDnsblPerformance {
             using var foregroundGuard = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
             using var foreground = CancellationTokenSource.CreateLinkedTokenSource(guard.Token, foregroundGuard.Token);
             await first.DnsConfiguration.QueryDNS("foreground.example.com", DnsRecordType.CAA, cancellationToken: foreground.Token);
-            Assert.InRange(peak, 1, 2);
+            Assert.InRange(peak, 1, options.DnsParallelism!.Value - 1);
         } finally { release.TrySetResult(true); await verification; }
         Assert.Equal(0, active);
     }

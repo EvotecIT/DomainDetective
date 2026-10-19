@@ -1,9 +1,48 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.Tests;
 
 public partial class TestCtLogAggregator {
     private const string CertificateFingerprint = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    [Theory]
+    [InlineData(CertificateCtEnrichmentProfile.Default, false)]
+    [InlineData(CertificateCtEnrichmentProfile.Public, false)]
+    [InlineData(CertificateCtEnrichmentProfile.Extended, false)]
+    [InlineData(CertificateCtEnrichmentProfile.Default, true)]
+    [InlineData(CertificateCtEnrichmentProfile.Public, true)]
+    [InlineData(CertificateCtEnrichmentProfile.Extended, true)]
+    public async Task InventoryProfilesPerformOneSupportedFingerprintLookup(CertificateCtEnrichmentProfile profile, bool metadataFallback) {
+        using var rsa = RSA.Create();
+        var request = new CertificateRequest("CN=fixture.example.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var sha = SHA256.Create();
+        var fingerprint = BitConverter.ToString(sha.ComputeHash(certificate.RawData)).Replace("-", "").ToLowerInvariant();
+        var handler = new SequenceHandler(new[] { CreateJsonResponse(HttpStatusCode.OK,
+            CertificatePage(LogRow).Replace(CertificateFingerprint, fingerprint)) });
+        var analysis = new CertificateAnalysis();
+        CertificateInventoryCapture.ConfigureHttpsAnalysis(analysis, new CertificateInventoryCaptureOptions {
+            CtProfile = profile, CaptureExtendedHttpsMetadata = true,
+            EnablePassiveCtFallback = !metadataFallback, EnablePassiveCtMetadataFallback = metadataFallback,
+            IncludeDefaultCtTemplate = true
+        });
+        Assert.Equal(CtLogAggregator.CrtShCertificateTemplate, Assert.Single(analysis.CtLogApiTemplates));
+        // Exercise configured public CT acquisition without unrelated TLS/commercial enrichment.
+        analysis.SkipRevocation = true;
+        analysis.CaptureExtendedMetadata = false;
+        analysis.CaptureTlsDetails = false;
+        analysis.EnableCensysCtSource = false;
+        analysis.EnableShodanCtSource = false;
+        analysis.CtLogs.HttpHandlerFactory = () => handler;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await analysis.AnalyzeCertificateWithEnrichment(certificate, guard.Token);
+        Assert.True(analysis.CtLookupComplete);
+        Assert.True(analysis.PresentInCtLogs);
+        Assert.Single(analysis.CtLogEntries);
+        Assert.Equal(1, handler.RequestCount);
+    }
 
     [Fact]
     public async Task DefaultFingerprintSourceReadsCertificateLogTable() {
