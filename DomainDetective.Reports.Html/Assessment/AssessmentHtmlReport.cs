@@ -392,4 +392,3 @@ public static partial class AssessmentHtmlReport {
         return $"{Plural(errors, "check")} with errors and {Plural(warnings, "check")} with warnings.";
     }
 }
-
