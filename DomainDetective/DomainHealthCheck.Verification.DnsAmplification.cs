@@ -9,7 +9,10 @@ namespace DomainDetective
         /// <summary>
         /// Evaluates DNS amplification posture for authoritative name servers (recursion + EDNS + response size probes).
         /// </summary>
-        public async Task VerifyDnsAmplification(string domainName, CancellationToken cancellationToken = default)
+        public Task VerifyDnsAmplification(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DNSAMPLIFICATION, () => VerifyDnsAmplificationDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyDnsAmplificationDirectCore(string domainName, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(domainName))

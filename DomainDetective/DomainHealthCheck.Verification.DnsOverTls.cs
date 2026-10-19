@@ -7,7 +7,10 @@ namespace DomainDetective {
         /// <summary>
         /// Detects DNS over TLS (DoT) support for authoritative name servers (TCP/853 + TLS handshake).
         /// </summary>
-        public async Task VerifyDnsOverTls(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyDnsOverTls(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.DNSOVERTLS, () => VerifyDnsOverTlsDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyDnsOverTlsDirectCore(string domainName, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));

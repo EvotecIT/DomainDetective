@@ -10,7 +10,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to analyze.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyTyposquatting(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyTyposquatting(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.TYPOSQUATTING, () => VerifyTyposquattingDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyTyposquattingDirectCore(string domainName, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

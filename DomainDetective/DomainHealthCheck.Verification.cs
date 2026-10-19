@@ -124,6 +124,7 @@ public partial class DomainHealthCheck {
             HealthCheckExecutionOptions? executionOptions = null,
             bool useDefaultChecksWhenEmpty = true) {
             await _verificationAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+            _ownsVerification.Value = true;
             try {
                 VerificationCompleted = false;
                 VerificationError = null;
@@ -149,6 +150,7 @@ public partial class DomainHealthCheck {
                 try {
                     await VerifyCore(domainName, healthCheckTypes, dkimSelectors, daneServiceType, danePorts,
                         portScanProfiles, cancellationToken, executionOptions, useDefaultChecksWhenEmpty).ConfigureAwait(false);
+                    ThrowRecordedCheckFailure();
                 } finally {
                     _runOperations = null;
                     _runCheckAdmission = null;
@@ -169,7 +171,7 @@ public partial class DomainHealthCheck {
                 }
                 VerificationError = exception.Message;
                 throw;
-            } finally { _verificationAdmission.Release(); }
+            } finally { _ownsVerification.Value = false; _verificationAdmission.Release(); }
         }
 
         private async Task VerifyCore(string domainName, HealthCheckType[]? healthCheckTypes,
@@ -179,7 +181,6 @@ public partial class DomainHealthCheck {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-            ResetExecutionState();
             IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
@@ -273,9 +274,24 @@ public partial class DomainHealthCheck {
 		            };
 
             ConfigureSharedChecks(actions, domainName, cancellationToken, exec);
+            // Shared NS and website operations are valid selections too. Reject invalid
+            // selections only after all supported actions exist, without replacing evidence.
+            foreach (var check in healthCheckTypes) {
+                if (!actions.ContainsKey(check)) { throw new NotSupportedException($"Health check type not implemented: {(int)check}"); }
+            }
+            ResetExecutionState();
+            LastVerifiedChecks = Array.Empty<HealthCheckType>();
+            VerificationDomain = domainName;
             Task? prestartedDaneTask = null;
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
-                actions[HealthCheckType.DANE] = () => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken);
+                actions[HealthCheckType.DANE] = async () => {
+                    try { await EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (Exception exception) when (exception is not OutOfMemoryException) {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        RecordCheckFailure(HealthCheckType.DANE, domainName, exception);
+                    }
+                };
             }
 
             // Composite-only dependencies use their narrow original policies. When
@@ -313,18 +329,23 @@ public partial class DomainHealthCheck {
 
             async Task RunCheckAsync(HealthCheckType healthCheckType) {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (actions.TryGetValue(healthCheckType, out var action)) {
-                    await action();
-                } else {
-                    _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                    throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
+                try {
+                    await actions[healthCheckType]();
+                    cancellationToken.ThrowIfCancellationRequested();
+                } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    if (IsCheckAdmitted(healthCheckType)) { RecordCheckCancellation(healthCheckType, domainName); }
+                    throw;
+                } catch (Exception exception) when (exception is not OutOfMemoryException) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RecordCheckFailure(healthCheckType, domainName, exception);
                 }
             }
 
             async Task RunCheckWithProgressAsync(HealthCheckType healthCheckType) {
                 await RunCheckAsync(healthCheckType).ConfigureAwait(false);
                 var done = Interlocked.Increment(ref processedChecks);
-                _logger.WriteInformation("{0} check completed", healthCheckType);
+                _logger.WriteInformation(HasCheckExecutionFailure(healthCheckType)
+                    ? "{0} check did not complete" : "{0} check completed", healthCheckType);
                 ReportProgress(healthCheckType.ToString(), done);
             }
 
@@ -336,7 +357,8 @@ public partial class DomainHealthCheck {
                         ReportProgress(healthCheckType.ToString(), processedChecks);
                         await RunCheckAsync(healthCheckType);
                         processedChecks++;
-                        _logger.WriteInformation("{0} check completed", healthCheckType);
+                        _logger.WriteInformation(HasCheckExecutionFailure(healthCheckType)
+                            ? "{0} check did not complete" : "{0} check completed", healthCheckType);
                         ReportProgress(healthCheckType.ToString(), processedChecks);
                     }
                 } else {
@@ -361,7 +383,16 @@ public partial class DomainHealthCheck {
                 throw;
             } finally {
                 try { await Task.WhenAll(auxiliaryTasks).ConfigureAwait(false); }
-                catch when (executionFailure != null) { /* Drain all owners without replacing the primary failure. */ }
+                catch (Exception exception) when (exception is not OutOfMemoryException
+                    && (executionFailure != null || HasRecordedCheckFailure())) {
+                    // Selected ordinary failures are deferred until independent work finishes.
+                    // Draining an auxiliary must not replace that original failure.
+                }
+                if (cancellationToken.IsCancellationRequested) {
+                    foreach (var check in LastVerifiedChecks.Where(check => !_completedVerificationChecks.ContainsKey(check))) {
+                        RecordCheckCancellation(check, domainName);
+                    }
+                }
             }
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
@@ -374,7 +405,10 @@ public partial class DomainHealthCheck {
         /// <param name="domainName">Domain, host, or HTTP/HTTPS URL to analyze.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <param name="options">Optional agent-readiness analysis options.</param>
-        public async Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
+        public Task VerifyAgentReadinessAsync(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) =>
+            CompleteDirectCheckAsync(HealthCheckType.AGENTREADINESS, () => VerifyAgentReadinessAsyncDirectCore(domainName, cancellationToken, options), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyAgentReadinessAsyncDirectCore(string domainName, CancellationToken cancellationToken = default, AgentReadinessOptions? options = null) {
             var previous = AgentReadinessAnalysis;
             AgentReadinessAnalysis = new AgentReadinessAnalysis {
                 HttpHandlerFactory = previous.HttpHandlerFactory
@@ -731,6 +765,7 @@ public partial class DomainHealthCheck {
             filtered.DnsPropagationSet = active.Contains(HealthCheckType.DNSPROPAGATION) ? CloneAnalysis(DnsPropagationSet) : null!;
 
             // Cloned analyses must follow the snapshot's independent resolver lifetime.
+            CopyExecutionFailuresTo(filtered, active);
             filtered.ApplyDnsConfiguration(filtered.DnsConfiguration);
             return filtered;
         }

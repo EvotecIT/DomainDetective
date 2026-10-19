@@ -125,6 +125,10 @@ public class TestHealthBatchLifetime {
             release.TrySetResult(true);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => batch);
             Assert.Equal(1, finished);
+            var incomplete = Assert.IsType<DomainDetective.Views.CheckFailureInfo>(
+                Assert.Single(DomainDetective.Views.Converters.ConvertChecks(health)));
+            Assert.Equal(HealthCheckType.DANE, incomplete.Check);
+            Assert.Equal("Incomplete", incomplete.Status);
             using var lease = Acquire(health);
         } finally {
             release.TrySetResult(true); caller.Cancel();

@@ -17,8 +17,7 @@ public static partial class HtmlCompositionReport
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {
-                    var warnCount = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount) + (b.Arc?.WarningCount ?? 0) + (b.Bimi?.WarningCount ?? 0);
-                    var errCount = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount) + (b.Arc?.ErrorCount ?? 0) + (b.Bimi?.ErrorCount ?? 0);
+                    var (warnCount, errCount) = CountFindings(b);
                     var sevColor = TablerColor.Blue;
                     var statusText = "OK";
                     if (errCount > 0) { sevColor = TablerColor.Danger; statusText = $"{errCount} Error" + (errCount > 1 ? "s" : ""); }

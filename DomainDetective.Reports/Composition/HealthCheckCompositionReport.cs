@@ -17,19 +17,25 @@ public static class HealthCheckCompositionReport {
         var errors = new List<string>();
         var items = HealthCheckReportItems.BuildItems(health, subject, null, true, errors)
             .Where(item => CompositionUtilities.ExtractSubjects(new[] { item }).Count > 0).ToArray();
-        if (errors.Count > 0 || items.Length == 0) {
+        if (items.Length == 0) {
             return new ReportResult {
                 Success = false, FilePath = path, Format = options.Format,
                 ErrorMessage = errors.Count > 0 ? "Report view conversion failed: " + string.Join("; ", errors) : "No completed, supported analysis results are available to report."
             };
         }
+        bool open = options.CustomProperties?.TryGetValue("OpenInBrowser", out var openValue) == true
+            && bool.TryParse(openValue?.ToString(), out var requestedOpen) && requestedOpen;
         var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
             Items = items, Formats = new[] { options.Format }, ExportPath = path,
             Scope = options.IncludeTechnicalDetails ? ReportScope.Detailed : ReportScope.Minimal,
             ShowInfoFindings = options.ShowInfoFindings, Title = options.Title,
-            Subject = subject, AutoCollectTtl = false
+            Subject = subject, AutoCollectTtl = false, OpenInBrowser = open
         }).ConfigureAwait(false);
         var report = result.Reports.Single();
+        if (errors.Count > 0) {
+            var diagnostic = "Some checks failed or could not be converted: " + string.Join("; ", errors);
+            report.ErrorMessage = string.IsNullOrWhiteSpace(report.ErrorMessage) ? diagnostic : report.ErrorMessage + "; " + diagnostic;
+        }
         report.Metadata = new ReportMetadata { Domain = subject, TemplateName = "Composition" };
         if (options.Format == ReportFormat.MarkdownHtml) { report.Metadata.CustomProperties["MarkdownPath"] = System.IO.Path.ChangeExtension(report.FilePath, ".md"); }
         return report;

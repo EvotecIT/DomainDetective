@@ -48,66 +48,72 @@ public static class HealthCheckReportItems {
             }
         }
 
-        TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
-        TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
-        TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
-        TryAdd("DMARC", () => DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
-        TryAdd("TYPOSQUATTING", () => DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
-        TryAdd("CAA", () => DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis));
-        TryAdd("DNSBL", () => DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
-        TryAdd("RPKI", () => DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));
-        TryAdd("NS", () => DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis));
-        TryAdd("SOA", () => DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis));
-        TryAdd("TTL", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis));
-        TryAdd("ZONETRANSFER", () => DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis));
-        TryAdd("WILDCARDDNS", () => DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis));
-        TryAdd("MTASTS", () => DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
-        TryAdd("TLSRPT", () => DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
-        TryAdd("DANE", () => DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis));
-        TryAdd("DNSSEC", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis));
-        TryAdd("CTTIMELINE", () => DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
-        TryAdd("SUBDOMAINS", () => DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
-        TryAdd("DNSINVENTORY", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
-        TryAdd("DNSAMPLIFICATION", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis));
-        TryAdd("DNSOVERTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis));
-        if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
-        {
-            TryAdd("HTTP", () => DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
-        }
-        if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
-        {
-            TryAdd("IPENRICHMENT", () => DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
-        }
-        try
-        {
-            var set = healthCheck.DnsPropagationSet;
-            if (set != null && set.Items.Count > 0)
+        if (healthCheck.VerificationCompleted.HasValue) {
+            // The core projection owns selected checks, execution failures and current-run evidence.
+            var checks = healthCheck.LastVerifiedChecks.Where(check => includeDnsTrace || check != HealthCheckType.DNSTRACE);
+            items.AddRange(DomainDetective.Views.Converters.ConvertChecks(healthCheck, checks, conversionErrors));
+        } else {
+            TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
+            TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
+            TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
+            TryAdd("DMARC", () => DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
+            TryAdd("TYPOSQUATTING", () => DomainDetective.Views.Converters.Convert(healthCheck.TyposquattingAnalysis));
+            TryAdd("CAA", () => DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis));
+            TryAdd("DNSBL", () => DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
+            TryAdd("RPKI", () => DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));
+            TryAdd("NS", () => DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis));
+            TryAdd("SOA", () => DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis));
+            TryAdd("TTL", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis));
+            TryAdd("ZONETRANSFER", () => DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis));
+            TryAdd("WILDCARDDNS", () => DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis));
+            TryAdd("MTASTS", () => DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
+            TryAdd("TLSRPT", () => DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
+            TryAdd("DANE", () => DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis));
+            TryAdd("DNSSEC", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis));
+            TryAdd("CTTIMELINE", () => DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
+            TryAdd("SUBDOMAINS", () => DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
+            TryAdd("DNSINVENTORY", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
+            TryAdd("DNSAMPLIFICATION", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis));
+            TryAdd("DNSOVERTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis));
+            if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
             {
-                foreach (var a in set.Items)
+                TryAdd("HTTP", () => DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
+            }
+            if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
+            {
+                TryAdd("IPENRICHMENT", () => DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
+            }
+            try
+            {
+                var set = healthCheck.DnsPropagationSet;
+                if (set != null && set.Items.Count > 0)
                 {
-                    TryAdd("DNSPROPAGATION", () => DomainDetective.Views.Converters.Convert(a));
+                    foreach (var a in set.Items)
+                    {
+                        TryAdd("DNSPROPAGATION", () => DomainDetective.Views.Converters.Convert(a));
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            conversionErrors.Add($"DNSPROPAGATION: {ex.GetType().Name}: {ex.Message}");
-        }
-        if (includeDnsTrace)
-        {
-            TryAdd("DNSTRACE", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
-        }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"DNSPROPAGATION: {ex.GetType().Name}: {ex.Message}");
+            }
+            if (includeDnsTrace)
+            {
+                TryAdd("DNSTRACE", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
+            }
 
-        if (healthCheck.ArcAnalysis.ArcHeadersFound || healthCheck.ArcAnalysis.Assessments.Count > 0) {
-            TryAdd("ARC", () => DomainDetective.Views.Converters.Convert(healthCheck.ArcAnalysis));
+            if (healthCheck.ArcAnalysis.ArcHeadersFound || healthCheck.ArcAnalysis.Assessments.Count > 0) {
+                TryAdd("ARC", () => DomainDetective.Views.Converters.Convert(healthCheck.ArcAnalysis));
+            }
+            TryAdd("BIMI", () => DomainDetective.Views.Converters.Convert(healthCheck.BimiAnalysis));
+            TryAdd("SMTPTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.SmtpTlsAnalysis));
+            TryAdd("IMAPTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.ImapTlsAnalysis));
+            TryAdd("POP3TLS", () => DomainDetective.Views.Converters.Convert(healthCheck.Pop3TlsAnalysis));
+            TryAdd("MICROSOFT365", () => DomainDetective.Views.Converters.Convert(healthCheck.Microsoft365TenantAnalysis));
+            TryAdd("AGENTREADINESS", () => DomainDetective.Views.Converters.Convert(healthCheck.AgentReadinessAnalysis));
+            TryAdd("SITEMAP", () => DomainDetective.Views.Converters.Convert(healthCheck.SitemapAnalysis));
         }
-        TryAdd("BIMI", () => DomainDetective.Views.Converters.Convert(healthCheck.BimiAnalysis));
-        TryAdd("SMTPTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.SmtpTlsAnalysis));
-        TryAdd("IMAPTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.ImapTlsAnalysis));
-        TryAdd("POP3TLS", () => DomainDetective.Views.Converters.Convert(healthCheck.Pop3TlsAnalysis));
-        TryAdd("MICROSOFT365", () => DomainDetective.Views.Converters.Convert(healthCheck.Microsoft365TenantAnalysis));
-        TryAdd("AGENTREADINESS", () => DomainDetective.Views.Converters.Convert(healthCheck.AgentReadinessAnalysis));
-        TryAdd("SITEMAP", () => DomainDetective.Views.Converters.Convert(healthCheck.SitemapAnalysis));
 
         // Optional time-series sections from a store (only when data exists)
         if (!string.IsNullOrWhiteSpace(storePath))
@@ -153,9 +159,29 @@ public static class HealthCheckReportItems {
                 foreach (var assessment in assessments) { represented.Add(assessment); }
             }
         }
-        var additional = healthCheck.GetAllAssessments().Where(a => !represented.Contains(a)).ToArray();
+        var additional = GetReportAssessments(healthCheck).Where(a => !represented.Contains(a)).ToArray();
         if (additional.Length > 0) { completed.Add(new AssessmentEvidenceInfo(domain, additional)); }
         return completed;
     }
 
+    // Manually assembled objects have no execution boundary. For verified objects,
+    // retain current completed owners and explicit failures, not an earlier failed owner's findings.
+    private static IEnumerable<Assessment> GetReportAssessments(DomainHealthCheck healthCheck) {
+        var all = healthCheck.GetAllAssessments();
+        if (!healthCheck.VerificationCompleted.HasValue) { return all; }
+        var eligible = new HashSet<Assessment>(healthCheck.Assessments);
+        var map = healthCheck.GetAnalysisMap();
+        foreach (var check in healthCheck.VerificationCompletedChecks) {
+            if (map.TryGetValue(check, out var value) && value is IHasAssessments owner && owner.Assessments != null) {
+                foreach (var assessment in owner.Assessments) { eligible.Add(assessment); }
+            }
+        }
+        if (healthCheck.VerificationTakeoverCompleted == true) {
+            foreach (var assessment in healthCheck.TakeoverCnameAnalysis.Assessments) { eligible.Add(assessment); }
+        }
+        var plainHttp = healthCheck.VerificationPlainHttpCompleted == true
+            ? healthCheck.PlainHttpAnalysis.Assessments : Enumerable.Empty<Assessment>();
+        foreach (var assessment in plainHttp) { eligible.Add(assessment); }
+        return all.Concat(plainHttp).Where(eligible.Contains).Distinct();
+    }
 }

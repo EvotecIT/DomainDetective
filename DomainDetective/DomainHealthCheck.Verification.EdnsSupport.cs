@@ -10,14 +10,17 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyEdnsSupport(string domainName, CancellationToken cancellationToken = default) {
+        public Task VerifyEdnsSupport(string domainName, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.EDNSSUPPORT, () => VerifyEdnsSupportDirectCore(domainName, cancellationToken), cancellationToken, ownerDomain: domainName);
+
+        private async Task VerifyEdnsSupportDirectCore(string domainName, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            await EdnsSupportAnalysis.Analyze(domainName, _logger);
+            await EdnsSupportAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
     }
 }

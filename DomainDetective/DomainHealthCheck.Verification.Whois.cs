@@ -7,7 +7,10 @@ namespace DomainDetective {
         /// <summary>
         /// Queries WHOIS information and IANA RDAP for a domain.
         /// </summary>
-        public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
+        public Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.WHOIS, () => CheckWHOISDirectCore(domain, cancellationToken), cancellationToken, ownerDomain: domain);
+
+        private async Task CheckWHOISDirectCore(string domain, CancellationToken cancellationToken = default) {
             var timeout = WhoisAnalysis.Timeout;
             WhoisAnalysis = new WhoisAnalysis {
                 Timeout = timeout,
@@ -22,7 +25,10 @@ namespace DomainDetective {
         /// <summary>
         /// Queries RDAP information for a domain.
         /// </summary>
-        public async Task QueryRDAP(string domain, CancellationToken cancellationToken = default) {
+        public Task QueryRDAP(string domain, CancellationToken cancellationToken = default) =>
+            CompleteDirectCheckAsync(HealthCheckType.RDAP, () => QueryRDAPDirectCore(domain, cancellationToken), cancellationToken, ownerDomain: domain);
+
+        private async Task QueryRDAPDirectCore(string domain, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(domain)) {
                 throw new ArgumentNullException(nameof(domain));

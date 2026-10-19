@@ -32,11 +32,13 @@ public partial class DomainHealthCheck {
                 }
                 if (type is HealthCheckType.MAILCLASSIFICATION or HealthCheckType.MICROSOFT365
                     or HealthCheckType.WEBSITE or HealthCheckType.DELEGATION) {
+                    if (_selectedRunChecks?.Contains(type) == true) { MarkCheckAdmitted(type); }
                     await action().ConfigureAwait(false);
                 } else {
-                    await RunAdmittedCheckAsync(action, cancellationToken, type.ToString()).ConfigureAwait(false);
+                    await RunAdmittedCheckAsync(action, cancellationToken, type.ToString(), type).ConfigureAwait(false);
                 }
-                _completedVerificationChecks.TryAdd(type, 0);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!HasCheckExecutionFailure(type)) { _completedVerificationChecks.TryAdd(type, 0); }
             }, LazyThreadSafetyMode.ExecutionAndPublication);
         }
         _runDomain = domainName;
@@ -48,12 +50,14 @@ public partial class DomainHealthCheck {
         }
     }
 
-    private async Task RunAdmittedCheckAsync(Func<Task> action, CancellationToken cancellationToken, string? checkName = null) {
+    private async Task RunAdmittedCheckAsync(Func<Task> action, CancellationToken cancellationToken, string? checkName = null, HealthCheckType? check = null) {
         var admission = _runCheckAdmission;
         if (admission == null) { await action().ConfigureAwait(false); return; }
         await admission.WaitAsync(cancellationToken).ConfigureAwait(false);
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         try {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (check.HasValue && _selectedRunChecks?.Contains(check.Value) == true) { MarkCheckAdmitted(check.Value); }
             if (checkName != null) { _logger.WriteVerbose("Starting {0} check.", checkName); }
             await action().ConfigureAwait(false);
             if (checkName != null) { _logger.WriteVerbose("{0} check completed in {1} ms.", checkName, elapsed.ElapsedMilliseconds); }
@@ -87,7 +91,7 @@ public partial class DomainHealthCheck {
             ? RunPrerequisiteAsync(type, domainName, () => Task.CompletedTask) : Task.CompletedTask;
 
     internal Task CollectMailClassificationSignalsAsync(string domain, CancellationToken cancellationToken) {
-        if (_runOperations == null) { ResetExecutionState(); }
+        if (_runOperations == null) { ResetSharedExecutionState(); }
         return RunSignalCollectionAsync(domain, cancellationToken,
             () => AwaitSelectedPrerequisiteAsync(HealthCheckType.DMARC, domain),
             () => RunPrerequisiteAsync(HealthCheckType.MX, domain, () => VerifyMX(domain, cancellationToken)),
