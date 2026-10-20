@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="DBAClientX.PostgreSql" Version="1.0.13" />
+        <PackageReference Include="DBAClientX.PostgreSql" Version="1.0.14" />
     </ItemGroup>
 
     <ItemGroup>
