@@ -104,9 +104,12 @@ public partial class DnsTtlAnalysis {
                     probe.Yielded = true;
                     probe.Lifetime.Cancel();
                 }
+                // Discovery can finish with a new address still queued since the
+                // last drain. Keep slots available until that address is admitted.
                 while (active.Count < 8) {
                     var server = servers.Where(server => server.Pending.Count > 0 &&
-                            (server.Responsive || server.Active < 4 || servers.Count == 1 && discovery.IsCompleted))
+                            (server.Responsive || server.Active < 4 ||
+                                servers.Count == 1 && discovery.IsCompleted && addresses.IsEmpty))
                         .OrderByDescending(server => server.Responsive).ThenBy(server => server.Active).FirstOrDefault();
                     if (server == null) { break; }
                     int index = server.Pending.Dequeue();

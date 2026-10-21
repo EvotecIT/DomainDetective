@@ -73,57 +73,63 @@ public class TestTtlBottleneckReviewClosure {
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HealthyServerUsesAvailableCapacityAndRetainsEveryRrset(bool alternative) {
-        var firstWave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var alternativeEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var allRecordsEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        int healthyStarted = 0, active = 0, peak = 0;
-        var analysis = new DnsTtlAnalysis(async (server, owner, type, _, token, _) => {
-            int current = Interlocked.Increment(ref active);
-            int prior;
-            do { prior = Volatile.Read(ref peak); if (current <= prior) { break; } }
-            while (Interlocked.CompareExchange(ref peak, current, prior) != prior);
-            try {
-                if (server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
-                    alternativeEntered.TrySetResult(true);
-                    await Task.Delay(Timeout.Infinite, token);
-                } else {
-                    int started = Interlocked.Increment(ref healthyStarted);
-                    firstWave.TrySetResult(true);
-                    if (started == 9) { allRecordsEntered.TrySetResult(true); }
-                    if (started == 1) {
-                        if (alternative) { await alternativeEntered.Task.WaitWithCancellation(token); }
-                    } else { await release.Task.WaitWithCancellation(token); }
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task HealthyServerUsesAvailableCapacityAndRetainsEveryRrset(bool alternative, bool inlineDiscovery) {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            // Address discovery may complete inside the first probe's continuation,
+            // after the scheduler has already drained its discovered-address queue.
+            var firstWave = new TaskCompletionSource<bool>(inlineDiscovery
+                ? TaskCreationOptions.None : TaskCreationOptions.RunContinuationsAsynchronously);
+            var alternativeEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var allRecordsEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            int healthyStarted = 0, active = 0, peak = 0;
+            var analysis = new DnsTtlAnalysis(async (server, owner, type, _, token, _) => {
+                int current = Interlocked.Increment(ref active);
+                int prior;
+                do { prior = Volatile.Read(ref peak); if (current <= prior) { break; } }
+                while (Interlocked.CompareExchange(ref peak, current, prior) != prior);
+                try {
+                    if (server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
+                        alternativeEntered.TrySetResult(true);
+                        await Task.Delay(Timeout.Infinite, token);
+                    } else {
+                        int started = Interlocked.Increment(ref healthyStarted);
+                        firstWave.TrySetResult(true);
+                        if (started == 9) { allRecordsEntered.TrySetResult(true); }
+                        if (started == 1) {
+                            if (alternative) { await alternativeEntered.Task.WaitWithCancellation(token); }
+                        } else { await release.Task.WaitWithCancellation(token); }
+                    }
+                    return new DnsResponse { IsAuthoritativeAnswer = true, Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "synthetic", TTL = 600 } } };
+                } finally { Interlocked.Decrement(ref active); }
+            });
+            analysis.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, token) => {
+                if (owner == "ns.example.test") {
+                    if (type == DnsRecordType.AAAA && !alternative) { return new DnsResponse(); }
+                    if (type == DnsRecordType.AAAA) { await firstWave.Task.WaitWithCancellation(token); }
+                    return new DnsResponse { Answers = new[] { Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1") } };
                 }
-                return new DnsResponse { IsAuthoritativeAnswer = true, Answers = new[] { new DnsAnswer { Name = owner, Type = type, DataRaw = "synthetic", TTL = 600 } } };
-            } finally { Interlocked.Decrement(ref active); }
-        });
-        analysis.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, token) => {
-            if (owner == "ns.example.test") {
-                if (type == DnsRecordType.AAAA && !alternative) { return new DnsResponse(); }
-                if (type == DnsRecordType.AAAA) { await firstWave.Task.WaitWithCancellation(token); }
-                return new DnsResponse { Answers = new[] { Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1") } };
-            }
-            string data = type == DnsRecordType.NS ? "ns.example.test" : type == DnsRecordType.TXT
-                ? owner.StartsWith("_dmarc.") ? "v=DMARC1" : owner.StartsWith("_mta-sts.") ? "v=STSv1"
-                    : owner.StartsWith("_smtp.") ? "v=TLSRPTv1" : "v=spf1 -all" : "synthetic";
-            return new DnsResponse { Answers = type == DnsRecordType.DS ? Array.Empty<DnsAnswer>() : new[] { Answer(type, data) } };
-        };
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var run = analysis.Analyze("example.test", new InternalLogger(), guard.Token);
-        try {
-            var first = await Task.WhenAny(allRecordsEntered.Task, run).WaitWithCancellation(guard.Token);
-            Assert.Same(allRecordsEntered.Task, first);
-            Assert.Equal(8, Volatile.Read(ref active));
-        } finally { release.TrySetResult(true); await run; }
-        Assert.Equal(9, healthyStarted);
-        Assert.Equal(8, peak);
-        Assert.Equal(0, active);
-        Assert.Equal(600, Assert.Single(analysis.TlsRptTxtTtls));
-        Assert.True(analysis.TtlsFromAuthoritativeServers);
+                string data = type == DnsRecordType.NS ? "ns.example.test" : type == DnsRecordType.TXT
+                    ? owner.StartsWith("_dmarc.") ? "v=DMARC1" : owner.StartsWith("_mta-sts.") ? "v=STSv1"
+                        : owner.StartsWith("_smtp.") ? "v=TLSRPTv1" : "v=spf1 -all" : "synthetic";
+                return new DnsResponse { Answers = type == DnsRecordType.DS ? Array.Empty<DnsAnswer>() : new[] { Answer(type, data) } };
+            };
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var run = analysis.Analyze("example.test", new InternalLogger(), guard.Token);
+            try {
+                var first = await Task.WhenAny(allRecordsEntered.Task, run).WaitWithCancellation(guard.Token);
+                Assert.Same(allRecordsEntered.Task, first);
+                Assert.Equal(8, Volatile.Read(ref active));
+            } finally { release.TrySetResult(true); await run; }
+            Assert.Equal(9, healthyStarted);
+            Assert.Equal(8, peak);
+            Assert.Equal(0, active);
+            Assert.Equal(600, Assert.Single(analysis.TlsRptTxtTtls));
+            Assert.True(analysis.TtlsFromAuthoritativeServers);
+        }
     }
 
     [Fact]
