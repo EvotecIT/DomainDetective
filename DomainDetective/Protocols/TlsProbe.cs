@@ -24,6 +24,10 @@ public static class TlsProbe
     /// <summary>Provides result functionality.</summary>
     public sealed class Result : IDisposable
     {
+        /// <summary>Configured protocol profile that produced this observation.</summary>
+        public string ProfileId { get; set; } = string.Empty;
+        /// <summary>Logical service negotiated on this endpoint.</summary>
+        public string EndpointService { get; set; } = "tls";
         /// <summary>Negotiated TLS protocol, or <see cref="SslProtocols.None"/> when authentication did not complete.</summary>
         public SslProtocols Protocol { get; set; }
         /// <summary>Gets or sets the cipher suite value.</summary>
@@ -85,6 +89,8 @@ public static class TlsProbe
 
         /// <summary>Remote endpoint port captured after a successful TCP connection.</summary>
         public int? RemotePort { get; }
+        /// <summary>Protocol engine's normalized failure when the original exception is no longer available.</summary>
+        public CertificateFailureKind? FailureKind { get; init; }
 
         /// <summary>Initializes a new instance of the <see cref="TlsProbeException"/> class.</summary>
         public TlsProbeException(string message, Exception innerException, IPAddress? remoteAddress, int? remotePort)

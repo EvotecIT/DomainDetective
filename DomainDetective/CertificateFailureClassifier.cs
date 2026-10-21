@@ -24,6 +24,7 @@ internal static class CertificateFailureClassifier {
         CertificateFailureKind fallback = CertificateFailureKind.Unknown;
         Exception? current = exception;
         while (current != null) {
+            if (current is TlsProbe.TlsProbeException { FailureKind: { } captured } && captured != CertificateFailureKind.None) return captured;
             if (current is SocketException socketException) {
                 var socketFailureKind = Map(socketException.SocketErrorCode);
                 if (socketFailureKind != CertificateFailureKind.Unknown) {
