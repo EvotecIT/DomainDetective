@@ -148,6 +148,9 @@ public class TestMailTlsBudgets {
             var probe = typeof(MailTlsAnalysis).GetMethod("ProbeProtocolSupport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
             await (Task)probe.Invoke(analysis, new object[] { protocol,
                 new MailTransportEndpoint("mail.example.test", port) { ConnectAddress = IPAddress.Loopback }, result, guard.Token })!;
+            // The client can observe the final reply before the fixture server
+            // resumes after its flush and records that completed exchange.
+            await server.WaitWithCancellation(guard.Token);
             Assert.Equal(3, Volatile.Read(ref prepared));
             if (rejectUpgrade) { Assert.False(result.ProtocolSupportComplete); }
             Assert.True(result.SupportsTls12);
