@@ -151,9 +151,9 @@ public partial class DNSBLAnalysis {
             TimeSpan? timeout = ProviderTimeout == Timeout.InfiniteTimeSpan ? remaining :
                 remaining.HasValue && remaining.Value < ProviderTimeout ? remaining : ProviderTimeout;
             using var executionDeadline = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
-            int executionStarted = 0;
+            long executionStarted = 0;
             void StartExecution() {
-                if (Interlocked.CompareExchange(ref executionStarted, 1, 0) == 0 && timeout.HasValue) {
+                if (Interlocked.CompareExchange(ref executionStarted, Stopwatch.GetTimestamp(), 0) == 0 && timeout.HasValue) {
                     executionDeadline.CancelAfter(timeout.Value);
                 }
             }
@@ -164,6 +164,12 @@ public partial class DNSBLAnalysis {
                         ? (await QueryDnsFullOverride(new[] { query }, type).WaitWithCancellation(executionDeadline.Token).ConfigureAwait(false)).FirstOrDefault()
                         : await DnsConfiguration.QueryDNSResponseAfterAdmission(query, type, executionDeadline.Token, StartExecution).ConfigureAwait(false);
                     executionDeadline.Token.ThrowIfCancellationRequested();
+                    // A busy timer queue must not make a late answer conclusive.
+                    long started = Interlocked.Read(ref executionStarted);
+                    if (timeout.HasValue && started != 0 &&
+                        (Stopwatch.GetTimestamp() - started) / (double)Stopwatch.Frequency >= timeout.Value.TotalSeconds) {
+                        throw new TimeoutException("Provider query timed out.");
+                    }
                     if (response == null || !string.IsNullOrEmpty(response.Error) ||
                         response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain) {
                         return (type, Array.Empty<DnsAnswer>(), ResponseFailure(response));
