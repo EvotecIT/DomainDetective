@@ -200,14 +200,17 @@ public class TestAuthoritativeProbeBudgets {
         using var health = new DomainHealthCheck();
         var analysis = health.MXAnalysis;
         analysis.Subject = "example.test";
-        analysis.QueryDnsOverride = async (name, type) => {
-            if (type == DnsRecordType.CNAME) {
-                await Task.Delay(3000);
-                return new[] { new DnsAnswer { Type = type, DataRaw = "alias.example.test" } };
-            }
-            return type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>();
-        };
-        await analysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger());
+        var aliasLookup = new TaskCompletionSource<DnsAnswer[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        analysis.QueryDnsOverride = (_, type) => type == DnsRecordType.CNAME
+            ? aliasLookup.Task
+            : Task.FromResult(type == DnsRecordType.A ? new[] { new DnsAnswer { Type = type, DataRaw = "192.0.2.1" } } : Array.Empty<DnsAnswer>());
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try {
+            // Keep the lookup pending until analysis finishes instead of racing two timer callbacks.
+            await analysis.AnalyzeMxRecords(new[] { new DnsAnswer { Type = DnsRecordType.MX, DataRaw = "0 mail.example.test" } }, new InternalLogger(), guard.Token);
+        } finally {
+            aliasLookup.TrySetResult(new[] { new DnsAnswer { Type = DnsRecordType.CNAME, DataRaw = "alias.example.test" } });
+        }
         Assert.True(analysis.CnameQueryFailed);
         Assert.False(analysis.PointsToCname);
         Assert.False(analysis.PointsToNonExistentDomain);
