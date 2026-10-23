@@ -37,17 +37,17 @@
     var healthyControlCards = OverviewControlPresentation.BuildHealthyCards(allChecks);
     var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
     var positiveCards = OverviewRecommendationPresentation.BuildPositiveCards(Info?.Positives);
-    var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DD did not surface a failing or warning mail or DNS control in this run.", new[] { "Mail and DNS baseline clean" });
-    var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current DD run did not return a clean pass state for a core control yet, so this dashboard is waiting on stronger healthy evidence.", new[] { "Review the control detail cards" });
-    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No urgent remediation", "The current DD assessment set did not emit an urgent remediation item for this tenant.", new[] { "Continue with the recommended deep checks" });
-    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "The run completed successfully, but DD did not emit a separate positive guidance item for this tenant in the current assessment set.", new[] { "Rely on the passing control and posture cards" });
-    var noDetectedServiceCard = OverviewEmptyStatePresentation.BuildCard("Detected workloads", "No confident workload match", "No Microsoft 365 service family reached a confident detected state from the current public DD evidence.", new[] { "Review identity, domain, and evidence sections for weaker signals" });
-    var allObservedServiceCard = OverviewEmptyStatePresentation.BuildCard("Not observed", "All modeled families observed", "All modeled Microsoft 365 service families produced public DD evidence in this run.", new[] { "Coverage is broad across the modeled workload set" });
-    var noTenantDomainsCard = OverviewEmptyStatePresentation.BuildCard("Tenant domains", "No tenant-linked domains", "DD did not identify tenant-related domains from the current public Microsoft identity and namespace evidence.", new[] { "Review identity and evidence sections" });
-    var noKnownSubdomainsCard = OverviewEmptyStatePresentation.BuildCard("Known subdomains", "No Microsoft-related subdomains", "DD did not identify a Microsoft-related subdomain pattern for this tenant in the current run.", new[] { "Public hostname footprint may be intentionally narrow" });
-    var noAppsCard = OverviewEmptyStatePresentation.BuildCard("Detected DNS applications", "No application footprint", "DD did not match a DNS application or provider fingerprint for this tenant in the current run.", new[] { "Review domains and evidence for weaker Microsoft signals" });
-    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit category-level evidence cards for this tenant yet, so the overview is currently relying on the control, domain, and identity sections.", new[] { "Run a deeper online scan for stronger evidence coverage" });
-    var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No DD assessments", "This tenant run completed without DD assessments, warnings, or positive guidance items to display.", new[] { "Use the control and posture sections as the current source of truth" });
+    var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DomainDetective did not surface a failing or warning mail or DNS control in this run.", new[] { "Mail and DNS baseline clean" });
+    var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current run did not return a clean pass state for a core control yet, so this dashboard is waiting on stronger healthy evidence.", new[] { "Review the control detail cards" });
+    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No urgent remediation", "The current assessment set did not emit an urgent remediation item for this tenant.", new[] { "Continue with the recommended deep checks" });
+    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "The run completed successfully, but DomainDetective did not emit a separate positive guidance item for this tenant in the current assessment set.", new[] { "Rely on the passing control and posture cards" });
+    var noDetectedServiceCard = OverviewEmptyStatePresentation.BuildCard("Detected workloads", "No confident workload match", "No Microsoft 365 service family reached a confident detected state from the current public evidence.", new[] { "Review identity, domain, and evidence sections for weaker signals" });
+    var allObservedServiceCard = OverviewEmptyStatePresentation.BuildCard("Not observed", "All modeled families observed", "All modeled Microsoft 365 service families produced public evidence in this run.", new[] { "Coverage is broad across the modeled workload set" });
+    var noTenantDomainsCard = OverviewEmptyStatePresentation.BuildCard("Tenant domains", "No tenant-linked domains", "DomainDetective did not identify tenant-related domains from the current public Microsoft identity and namespace evidence.", new[] { "Review identity and evidence sections" });
+    var noKnownSubdomainsCard = OverviewEmptyStatePresentation.BuildCard("Known subdomains", "No Microsoft-related subdomains", "DomainDetective did not identify a Microsoft-related subdomain pattern for this tenant in the current run.", new[] { "Public hostname footprint may be intentionally narrow" });
+    var noAppsCard = OverviewEmptyStatePresentation.BuildCard("Detected DNS applications", "No application footprint", "DomainDetective did not match a DNS application or provider fingerprint for this tenant in the current run.", new[] { "Review domains and evidence for weaker Microsoft signals" });
+    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No evidence cards", "DomainDetective did not emit category-level evidence cards for this tenant yet, so the overview is currently relying on the control, domain, and identity sections.", new[] { "Run a deeper online scan for stronger evidence coverage" });
+    var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No assessments", "This tenant run completed without assessments, warnings, or positive guidance items to display.", new[] { "Use the control and posture sections as the current source of truth" });
 }
 
 @if (Info is not null && tenant is not null) {
@@ -61,7 +61,7 @@
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
         <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>
-        <p>The first DD pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
+        <p>The first DomainDetective pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
     </div>
 }
 
@@ -82,7 +82,7 @@
 <div id="m365-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the first pass.", "Snapshot remains available in the web edition.")</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "Included in the first pass.", "Snapshot remains available in the browser edition.")</span>
 </div>
 <ResultCard Title="Microsoft 365 tenant posture" Status="@GetOverallStatus(Info!)">
     <div class="tool-section-grid">
@@ -413,9 +413,9 @@
 <div id="m365-evidence" class="overview-section-anchor">
     <div class="overview-section-state">
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span>
-        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "The evidence ledger explains why DD inferred the tenant posture.", GetUnavailableSectionMessage("Evidence"))</span>
+        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "The evidence ledger explains why DomainDetective inferred the tenant posture.", GetUnavailableSectionMessage("Evidence"))</span>
     </div>
-    <ResultCard Title="Why DD inferred Microsoft 365" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Why DomainDetective inferred Microsoft 365" Status="ResultCard.ResultStatus.Info">
         @if (evidenceGroups.Count > 0 && evidenceSummaryCards.Count > 0) {
             <div class="tool-section-grid mb-3">
                 @foreach (var card in evidenceSummaryCards) {
@@ -466,7 +466,7 @@
 <div id="m365-assessments" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All DD recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
 </div>
 <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
     @if (Info.Assessments.Count > 0) {
@@ -557,8 +557,8 @@
     private static string BuildSummary(Microsoft365OverviewInfo info) {
         if (info.IsBrowserLimited) {
             return info.Tenant.IsMicrosoft365Tenant
-                ? "Web edition found Microsoft 365 DNS or mail evidence. Identity probing and tenant-correlation sections still need deeper online validation."
-                : "Web edition did not find enough browser-safe Microsoft 365 evidence to confirm the tenant. Identity probing and tenant-correlation sections still need deeper online validation.";
+                ? "Browser edition found Microsoft 365 DNS or mail evidence. Identity probing and tenant-correlation sections still need deeper online validation."
+                : "Browser edition did not find enough browser Microsoft 365 evidence to confirm the tenant. Identity probing and tenant-correlation sections still need deeper online validation.";
         }
 
         if (!info.Tenant.IsMicrosoft365Tenant) {
@@ -623,7 +623,7 @@
             lines.Add("Priority controls:");
             lines.AddRange(failingChecks.Select(static item => "- " + item));
         } else {
-            lines.Add("Priority controls: none flagged in the current DD control strip.");
+            lines.Add("Priority controls: none flagged in the current control strip.");
         }
 
         var recommendations = info.Recommendations.Take(5).Select(static item => $"{item.Title}: {item.Why}").ToList();
@@ -734,7 +734,7 @@
         }
 
         if (info.UnavailableSections.Count > 0) {
-            return "Web edition";
+            return "Browser edition";
         }
 
         if (info.PendingSections.Count > 0) {

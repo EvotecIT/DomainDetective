@@ -705,53 +705,6 @@
   color: var(--dd-ink-strong);
 }
 
-.dd-tabs__list {
-  display: inline-flex;
-  gap: .25rem;
-  margin-bottom: .9rem;
-  padding: .3rem;
-  border: 1px solid var(--dd-line);
-  border-radius: 12px;
-  background: var(--dd-card);
-}
-
-.dd-tabs__list [role="tab"] {
-  padding: .5rem .95rem;
-  border: 0;
-  border-radius: 9px;
-  background: none;
-  color: var(--dd-ink-2);
-  font: 600 .875rem/1 var(--dd-font);
-  cursor: pointer;
-}
-
-.dd-tabs__list [role="tab"][aria-selected="true"] {
-  background: var(--dd-card-2);
-  color: var(--dd-ink-strong);
-  box-shadow: 0 0 0 1px var(--dd-line-strong) inset;
-}
-
-.dd-tabs__panel pre {
-  min-height: 300px;
-  padding: 1.2rem 1.3rem;
-  font-size: .84rem;
-}
-
-.dd-tabs__foot {
-  margin: .9rem 0 0;
-  color: var(--dd-ink-3);
-  font-size: .85rem;
-}
-
-html:not(.dd-js) .dd-tabs__panel[hidden] {
-  display: block;
-  margin-top: 1rem;
-}
-
-html:not(.dd-js) .dd-tabs__list {
-  display: none;
-}
-
 @media (max-width: 960px) {
   .dd-surfaces__grid {
     grid-template-columns: 1fr;

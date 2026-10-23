@@ -145,6 +145,43 @@
   --pf-font-display: var(--dd-display);
   --pf-font-mono: var(--dd-mono);
   --header-height: var(--dd-header-h);
+
+  /* Legacy aliases read by the browser tools' component styles (tools.css). */
+  --dd-bg: var(--dd-page);
+  --dd-bg-alt: var(--dd-page-2);
+  --dd-panel: var(--dd-card);
+  --dd-card-hover: var(--dd-card-2);
+  --dd-card-bg: var(--dd-card);
+  --dd-bg-input: var(--dd-sunken);
+  --dd-text: var(--dd-ink);
+  --dd-muted: var(--dd-ink-2);
+  --dd-dim: var(--dd-ink-3);
+  --dd-accent-light: var(--dd-accent-strong);
+  --dd-accent-dark: var(--pf-accent-dark);
+  --dd-accent2: var(--dd-info);
+  --dd-accent2-light: var(--dd-info);
+  --dd-accent3: var(--dd-pass);
+  --dd-accent3-light: var(--dd-pass);
+  --dd-border: var(--dd-line);
+  --dd-border-light: var(--dd-line-strong);
+  --dd-success: var(--dd-pass);
+  --dd-warning: var(--dd-warn);
+  --dd-danger: var(--dd-fail);
+  --dd-code-border: var(--dd-code-line);
+  --dd-radius: var(--dd-r);
+  --dd-radius-sm: var(--dd-r-sm);
+  --dd-radius-lg: var(--dd-r-lg);
+  --dd-font-body: var(--dd-font);
+  --dd-font-display: var(--dd-display);
+  --dd-font-mono: var(--dd-mono);
+  --dd-btn-primary-text: var(--dd-accent-ink);
+  --dd-btn-ghost-border: var(--dd-line-strong);
+  --dd-shadow-button: none;
+  --dd-shadow-card: var(--dd-shadow);
+  --dd-shadow-hover: var(--dd-shadow);
+  --dd-glow-secondary: rgba(140, 245, 181, .1);
+  --dd-max-width: var(--dd-max);
+  --dd-header-height: var(--dd-header-h);
 }
 
 :root[data-theme="light"] {
@@ -1100,6 +1137,54 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
   border: 0;
   border-radius: 0;
   background: none;
+}
+
+/* Accessible tabs (site.js wires keyboard support). */
+.dd-tabs__list {
+  display: inline-flex;
+  gap: .25rem;
+  margin-bottom: .9rem;
+  padding: .3rem;
+  border: 1px solid var(--dd-line);
+  border-radius: 12px;
+  background: var(--dd-card);
+}
+
+.dd-tabs__list [role="tab"] {
+  padding: .5rem .95rem;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--dd-ink-2);
+  font: 600 .875rem/1 var(--dd-font);
+  cursor: pointer;
+}
+
+.dd-tabs__list [role="tab"][aria-selected="true"] {
+  background: var(--dd-card-2);
+  color: var(--dd-ink-strong);
+  box-shadow: 0 0 0 1px var(--dd-line-strong) inset;
+}
+
+.dd-tabs__panel pre {
+  min-height: 300px;
+  padding: 1.2rem 1.3rem;
+  font-size: .84rem;
+}
+
+.dd-tabs__foot {
+  margin: .9rem 0 0;
+  color: var(--dd-ink-3);
+  font-size: .85rem;
+}
+
+html:not(.dd-js) .dd-tabs__panel[hidden] {
+  display: block;
+  margin-top: 1rem;
+}
+
+html:not(.dd-js) .dd-tabs__list {
+  display: none;
 }
 
 /* Verdict badges shared by the home case file and the tools. */

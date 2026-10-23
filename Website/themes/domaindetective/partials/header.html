@@ -2,7 +2,7 @@
      destinations; items without children are plain links. Without JavaScript the panels open on hover and focus,
      and every destination stays an ordinary link. ## ~}}
 {{~ navmenu = pf.menu "main" ~}}
-<a class="dd-skip" href="#main">Skip to content</a>
+<a class="dd-skip" href="{{ if base_href }}{{ current_path }}{{ end }}#main">Skip to content</a>
 <header class="dd-header" data-dd-header>
   <div class="dd-header-inner">
     <a href="/" class="dd-brand" aria-label="DomainDetective home">{{ mark_id = "ddm-head"; include "logo" }}<span>Domain<b>Detective</b></span></a>

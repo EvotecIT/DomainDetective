@@ -12,7 +12,7 @@
         {
           "slug": "m365-overview",
           "name": "M365 Tenant Overview",
-          "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard",
+          "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
           "category": "overview",
           "categoryName": "Overview",
           "support": "partial",
@@ -20,7 +20,11 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com'",
           "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "domain-overview",
@@ -33,7 +37,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com'",
           "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "cloudflare.com"
+          ]
         }
       ]
     },
@@ -55,7 +64,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective AnalyzeMessageHeader --file message.eml",
           "powershell": "Get-DDEmailMessageHeaderInfo -Path './message.eml'",
-          "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");"
+          "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");",
+          "examples": []
         },
         {
           "slug": "spf",
@@ -68,7 +78,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks SPF",
           "powershell": "Test-DDEmailSpfRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
         },
         {
           "slug": "dkim",
@@ -81,7 +96,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DKIM",
           "powershell": "Test-DDEmailDkimRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
         },
         {
           "slug": "dmarc",
@@ -94,7 +114,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DMARC",
           "powershell": "Test-DDEmailDmarcRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
         },
         {
           "slug": "mx",
@@ -107,7 +132,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks MX",
           "powershell": "Test-DDDnsMxRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
         },
         {
           "slug": "mta-sts",
@@ -120,7 +150,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks MTASTS",
           "powershell": "Test-DDEmailMtaSts -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
         },
         {
           "slug": "tls-rpt",
@@ -133,7 +168,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks TLSRPT",
           "powershell": "Test-DDEmailTlsRptRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
         },
         {
           "slug": "bimi",
@@ -146,7 +186,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks BIMI",
           "powershell": "Test-DDEmailBimiRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
         }
       ]
     },
@@ -168,7 +213,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DNSINVENTORY",
           "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "dnssec",
@@ -181,7 +231,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DNSSEC",
           "powershell": "Test-DDDnsSecStatus -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "soa",
@@ -194,7 +249,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks SOA",
           "powershell": "Test-DDDnsSoaRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "ns",
@@ -207,7 +267,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks NS",
           "powershell": "Test-DDDnsNsRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "dns-propagation",
@@ -220,7 +285,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective DnsPropagation --domain 'example.com' --record-type A",
           "powershell": "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "raw-dns-query",
@@ -233,7 +303,8 @@
           "placeholder": "example.com",
           "cli": "",
           "powershell": "",
-          "csharp": ""
+          "csharp": "",
+          "examples": []
         }
       ]
     },
@@ -255,7 +326,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks CERT",
           "powershell": "Test-DDDomainCertificate -Url 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
+          "examples": []
         },
         {
           "slug": "caa",
@@ -268,7 +340,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks CAA",
           "powershell": "Test-DDDnsCaaRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "dane",
@@ -281,7 +358,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DANE",
           "powershell": "Test-DDTlsDaneRecord -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         }
       ]
     },
@@ -303,7 +385,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks WEBSITE",
           "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
+          "examples": []
         },
         {
           "slug": "security-txt",
@@ -316,7 +399,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
           "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
+          "examples": []
         }
       ]
     },
@@ -338,7 +422,11 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DNSBL",
           "powershell": "Test-DDDnsBlacklist -NameOrIpAddress 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "dangling-cname",
@@ -351,7 +439,11 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks DANGLINGCNAME",
           "powershell": "Test-DDDnsDanglingCname -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
         }
       ]
     },
@@ -373,7 +465,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective TestRDAP 'example.com'",
           "powershell": "Get-DDRdap -DomainName 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
+          "examples": []
         }
       ]
     },
@@ -395,7 +488,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks SITEMAP",
           "powershell": "Test-DDSitemap -Subject 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         },
         {
           "slug": "agent-readiness",
@@ -408,7 +506,12 @@
           "placeholder": "example.com",
           "cli": "domaindetective check 'example.com' --checks AGENTREADINESS",
           "powershell": "Test-DDAgentReadiness -Subject 'example.com'",
-          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");"
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
         }
       ]
     },
@@ -430,7 +533,8 @@
           "placeholder": "example.com",
           "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
           "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
-          "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);"
+          "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
+          "examples": []
         }
       ]
     }
@@ -439,7 +543,7 @@
     {
       "slug": "m365-overview",
       "name": "M365 Tenant Overview",
-      "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard",
+      "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
       "category": "overview",
       "categoryName": "Overview",
       "support": "partial",
@@ -447,7 +551,11 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com'",
       "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "domain-overview",
@@ -460,7 +568,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com'",
       "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "cloudflare.com"
+      ]
     },
     {
       "slug": "message-analyzer",
@@ -473,7 +586,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective AnalyzeMessageHeader --file message.eml",
       "powershell": "Get-DDEmailMessageHeaderInfo -Path './message.eml'",
-      "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");"
+      "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");",
+      "examples": []
     },
     {
       "slug": "spf",
@@ -486,7 +600,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks SPF",
       "powershell": "Test-DDEmailSpfRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
     },
     {
       "slug": "dkim",
@@ -499,7 +618,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DKIM",
       "powershell": "Test-DDEmailDkimRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
     },
     {
       "slug": "dmarc",
@@ -512,7 +636,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DMARC",
       "powershell": "Test-DDEmailDmarcRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
     },
     {
       "slug": "mx",
@@ -525,7 +654,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks MX",
       "powershell": "Test-DDDnsMxRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
     },
     {
       "slug": "mta-sts",
@@ -538,7 +672,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks MTASTS",
       "powershell": "Test-DDEmailMtaSts -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
     },
     {
       "slug": "tls-rpt",
@@ -551,7 +690,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks TLSRPT",
       "powershell": "Test-DDEmailTlsRptRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
     },
     {
       "slug": "bimi",
@@ -564,7 +708,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks BIMI",
       "powershell": "Test-DDEmailBimiRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
     },
     {
       "slug": "dns-lookup",
@@ -577,7 +726,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DNSINVENTORY",
       "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "dnssec",
@@ -590,7 +744,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DNSSEC",
       "powershell": "Test-DDDnsSecStatus -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "soa",
@@ -603,7 +762,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks SOA",
       "powershell": "Test-DDDnsSoaRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "ns",
@@ -616,7 +780,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks NS",
       "powershell": "Test-DDDnsNsRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "dns-propagation",
@@ -629,7 +798,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective DnsPropagation --domain 'example.com' --record-type A",
       "powershell": "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "raw-dns-query",
@@ -642,7 +816,8 @@
       "placeholder": "example.com",
       "cli": "",
       "powershell": "",
-      "csharp": ""
+      "csharp": "",
+      "examples": []
     },
     {
       "slug": "cert-check",
@@ -655,7 +830,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks CERT",
       "powershell": "Test-DDDomainCertificate -Url 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
+      "examples": []
     },
     {
       "slug": "caa",
@@ -668,7 +844,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks CAA",
       "powershell": "Test-DDDnsCaaRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "dane",
@@ -681,7 +862,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DANE",
       "powershell": "Test-DDTlsDaneRecord -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "http-headers",
@@ -694,7 +880,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks WEBSITE",
       "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
+      "examples": []
     },
     {
       "slug": "security-txt",
@@ -707,7 +894,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
       "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
+      "examples": []
     },
     {
       "slug": "dnsbl",
@@ -720,7 +908,11 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DNSBL",
       "powershell": "Test-DDDnsBlacklist -NameOrIpAddress 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "dangling-cname",
@@ -733,7 +925,11 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks DANGLINGCNAME",
       "powershell": "Test-DDDnsDanglingCname -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "rdap",
@@ -746,7 +942,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective TestRDAP 'example.com'",
       "powershell": "Get-DDRdap -DomainName 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
+      "examples": []
     },
     {
       "slug": "sitemap",
@@ -759,7 +956,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks SITEMAP",
       "powershell": "Test-DDSitemap -Subject 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "agent-readiness",
@@ -772,7 +974,12 @@
       "placeholder": "example.com",
       "cli": "domaindetective check 'example.com' --checks AGENTREADINESS",
       "powershell": "Test-DDAgentReadiness -Subject 'example.com'",
-      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");"
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
     },
     {
       "slug": "ct-subdomains",
@@ -785,7 +992,8 @@
       "placeholder": "example.com",
       "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
       "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
-      "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);"
+      "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
+      "examples": []
     }
   ]
 }

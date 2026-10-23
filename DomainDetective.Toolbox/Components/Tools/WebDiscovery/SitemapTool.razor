@@ -236,14 +236,14 @@
         }
 
         if (view.ErrorCount > 0) {
-            return $"DD found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} sitemap error(s), including XML, schema, redirect-loop, or HTTP failure findings.";
+            return $"DomainDetective found {view.ErrorCount.ToString(CultureInfo.InvariantCulture)} sitemap error(s), including XML, schema, redirect-loop, or HTTP failure findings.";
         }
 
         if (view.WarningCount > 0) {
-            return $"DD found {view.WarningCount.ToString(CultureInfo.InvariantCulture)} sitemap warning(s), including duplicate URLs, redirects, crawler access blocks, noindex, or canonical drift.";
+            return $"DomainDetective found {view.WarningCount.ToString(CultureInfo.InvariantCulture)} sitemap warning(s), including duplicate URLs, redirects, crawler access blocks, noindex, or canonical drift.";
         }
 
-        return "DD did not find blocking sitemap XML or sampled URL probe issues.";
+        return "DomainDetective did not find blocking sitemap XML or sampled URL probe issues.";
     }
 
     private static string FormatBool(bool value) {

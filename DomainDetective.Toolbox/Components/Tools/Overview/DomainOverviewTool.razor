@@ -34,14 +34,14 @@
         .ToList();
     var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
     var positiveCards = OverviewRecommendationPresentation.BuildPositiveCards(Info?.Positives);
-    var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DD did not identify a failing or warning control in the current overview set.", new[] { "Current baseline is stable" });
-    var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current DD run did not return a clean pass state for a core control yet, so the dashboard is waiting on stronger healthy evidence.", new[] { "Review the mail, web, and evidence sections" });
-    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No high-priority remediation", "The current DD overview did not flag a high-priority remediation item.", new[] { "Use posture notes and control cards for the next review step" });
-    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "This scan completed, but DD did not emit a separate positive guidance item in the current assessment set.", new[] { "Healthy controls still document the strongest areas" });
-    var noExposureCard = OverviewEmptyStatePresentation.BuildCard("Subdomain samples", "No detailed exposure entries", "DD did not produce detailed exposure entries for the current run, so only the observed subdomain sample list is available.", new[] { "Subdomain discovery may be intentionally sparse" });
-    var noApplicationsCard = OverviewEmptyStatePresentation.BuildCard("Detected applications", "No application footprint", "DD did not match a provider or application fingerprint for this domain in the current run.", new[] { "Review provider, mail, and exposure sections for the strongest available evidence" });
-    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No DD evidence cards", "DD did not emit section-level evidence cards for this run yet, so the overview is currently leaning on the control and posture sections.", new[] { "A deeper online scan can expand evidence coverage" });
-    var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No DD assessments", "This domain run completed without DD assessments, warnings, or positive guidance items to display.", new[] { "Use the posture notes and control sections as the current source of truth" });
+    var noAttentionControlCard = OverviewEmptyStatePresentation.BuildCard("Controls needing follow-up", "No flagged controls", "DomainDetective did not identify a failing or warning control in the current overview set.", new[] { "Current baseline is stable" });
+    var noHealthyControlCard = OverviewEmptyStatePresentation.BuildCard("Healthy controls", "No clean pass state", "The current run did not return a clean pass state for a core control yet, so the dashboard is waiting on stronger healthy evidence.", new[] { "Review the mail, web, and evidence sections" });
+    var noAttentionPlanCard = OverviewEmptyStatePresentation.BuildCard("Do next", "No high-priority remediation", "The current overview did not flag a high-priority remediation item.", new[] { "Use posture notes and control cards for the next review step" });
+    var noPositivePlanCard = OverviewEmptyStatePresentation.BuildCard("Keep in place", "No separate positive item", "This scan completed, but DomainDetective did not emit a separate positive guidance item in the current assessment set.", new[] { "Healthy controls still document the strongest areas" });
+    var noExposureCard = OverviewEmptyStatePresentation.BuildCard("Subdomain samples", "No detailed exposure entries", "DomainDetective did not produce detailed exposure entries for the current run, so only the observed subdomain sample list is available.", new[] { "Subdomain discovery may be intentionally sparse" });
+    var noApplicationsCard = OverviewEmptyStatePresentation.BuildCard("Detected applications", "No application footprint", "DomainDetective did not match a provider or application fingerprint for this domain in the current run.", new[] { "Review provider, mail, and exposure sections for the strongest available evidence" });
+    var noEvidenceCard = OverviewEmptyStatePresentation.BuildCard("Evidence ledger", "No evidence cards", "DomainDetective did not emit section-level evidence cards for this run yet, so the overview is currently leaning on the control and posture sections.", new[] { "A deeper online scan can expand evidence coverage" });
+    var noAssessmentsCard = OverviewEmptyStatePresentation.BuildCard("Assessments", "No assessments", "This domain run completed without assessments, warnings, or positive guidance items to display.", new[] { "Use the posture notes and control sections as the current source of truth" });
 }
 
 @if (Info is not null) {
@@ -55,7 +55,7 @@
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
         <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>
-        <p>The first DD pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
+        <p>The first DomainDetective pass is already on the page. Detailed sections are still loading for: @string.Join(", ", Info.PendingSections).</p>
     </div>
 }
 
@@ -76,7 +76,7 @@
 <div id="domain-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "The baseline DD posture summary is already available.", "Snapshot remains available in the web edition.")</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"), "The baseline posture summary is already available.", "Snapshot remains available in the browser edition.")</span>
 </div>
 <ResultCard Title="Domain posture overview" Status="@GetOverallStatus(Info!)">
     <div class="tool-section-grid">
@@ -364,9 +364,9 @@
 <div id="domain-evidence" class="overview-section-anchor">
     <div class="overview-section-state">
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span>
-        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "These cards explain which DD evidence sources drove the current domain posture.", "Evidence stays available in the current edition for the sections that can be analyzed.")</span>
+        <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "These cards explain which evidence sources drove the current domain posture.", "Evidence stays available in the current edition for the sections that can be analyzed.")</span>
     </div>
-    <ResultCard Title="Why DD reached this posture" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Why DomainDetective reached this posture" Status="ResultCard.ResultStatus.Info">
         @if (evidenceCards.Count > 0 && evidenceSummaryCards.Count > 0) {
             <div class="tool-section-grid mb-3">
                 @foreach (var card in evidenceSummaryCards) {
@@ -404,7 +404,7 @@
 <div id="domain-assessments" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span>
-    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All DD recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
+    <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
 </div>
 <ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
     @if (Info.Assessments.Count > 0) {
@@ -507,7 +507,7 @@
 
     private static string BuildSummary(DomainOverviewInfo info) {
         if (info.IsBrowserLimited) {
-            return "Web edition DD overview built from web-ready DNS, mail, and application evidence. Web, certificate, registration, and exposure sections are marked clearly when they need deeper online validation.";
+            return "Browser edition overview built from web-ready DNS, mail, and application evidence. Web, certificate, registration, and exposure sections are marked clearly when they need deeper online validation.";
         }
 
         var failing = info.MailDnsChecks.Count(static check => check.State == AggregateCheckState.Fail) +
@@ -516,7 +516,7 @@
             return $"{failing} major posture areas need attention across mail, DNS, web, or registration.";
         }
 
-        return "The domain presents a clean baseline across the core DD posture checks included in this overview.";
+        return "The domain presents a clean baseline across the core posture checks included in this overview.";
     }
 
     private string BuildShareableSnapshot() {
@@ -572,7 +572,7 @@
             lines.Add("Priority controls:");
             lines.AddRange(failingChecks.Select(static item => "- " + item));
         } else {
-            lines.Add("Priority controls: none flagged in the current DD overview.");
+            lines.Add("Priority controls: none flagged in the current overview.");
         }
 
         var recommendations = info.Recommendations.Take(6).Select(static item => $"{item.Title}: {item.Why}").ToList();
@@ -682,7 +682,7 @@
         }
 
         if (info.UnavailableSections.Count > 0) {
-            return "Web edition";
+            return "Browser edition";
         }
 
         if (info.PendingSections.Count > 0) {

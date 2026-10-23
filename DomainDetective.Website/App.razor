@@ -3,15 +3,13 @@
 <Router AppAssembly="@typeof(App).Assembly"
         AdditionalAssemblies="new[] { typeof(DomainDetective.Toolbox.Services.ToolRegistry).Assembly }">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.ToolShellLayout)" />
     </Found>
     <NotFound>
-        <PageTitle>Not Found</PageTitle>
-        <LayoutView Layout="@typeof(Layout.MainLayout)">
-            <div class="not-found">
-                <h1>Page not found</h1>
-                <p>The page you're looking for doesn't exist.</p>
+        <LayoutView Layout="@typeof(Layout.ToolShellLayout)">
+            <div class="tool-not-found">
+                <h2>Tool not found</h2>
+                <p>This address does not match a DomainDetective tool. <a href="/tools/">Browse all tools</a></p>
             </div>
         </LayoutView>
     </NotFound>

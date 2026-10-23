@@ -41,7 +41,7 @@ internal static class OverviewAssessmentPresentation {
         return new DomainOverviewDetailCardView {
             Title = "Severity mix",
             ValueLabel = assessments.Count + " finding(s)",
-            Summary = "DD assessments are grouped here by severity so the overview shows how much of the current result is error-driven, warning-driven, or informational.",
+            Summary = "assessments are grouped here by severity so the overview shows how much of the current result is error-driven, warning-driven, or informational.",
             Tags = new[] {
                 "Errors: " + errors,
                 "Warnings: " + warnings,
@@ -66,7 +66,7 @@ internal static class OverviewAssessmentPresentation {
         return new DomainOverviewDetailCardView {
             Title = "Primary categories",
             ValueLabel = grouped.Length + " category(ies)",
-            Summary = "These categories produced the most DD findings in the current overview and usually point to the main posture themes worth reviewing first.",
+            Summary = "These categories produced the most findings in the current overview and usually point to the main posture themes worth reviewing first.",
             Tags = grouped
                 .Take(3)
                 .Select(static group => group.Key)
@@ -99,7 +99,7 @@ internal static class OverviewAssessmentPresentation {
         return new DomainOverviewDetailCardView {
             Title = "Assessment coverage",
             ValueLabel = targets.Length > 0 ? targets.Length + " target(s)" : "Overview-wide",
-            Summary = "This shows how broadly the DD findings are distributed across concrete sources and targets instead of appearing only as generic summary messages.",
+            Summary = "This shows how broadly the findings are distributed across concrete sources and targets instead of appearing only as generic summary messages.",
             Tags = new[] {
                 "Sources: " + sources.Length,
                 "Targets: " + targets.Length

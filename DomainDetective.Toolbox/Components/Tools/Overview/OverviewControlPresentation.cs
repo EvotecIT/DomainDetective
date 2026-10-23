@@ -66,10 +66,10 @@ internal static class OverviewControlPresentation
         var areaLabel = GetAreaLabel(check.Key);
         return check.State switch
         {
-            AggregateCheckState.Fail => $"DD marked this {areaLabel.ToLowerInvariant()} control for remediation in the current overview run.",
-            AggregateCheckState.Warning => $"DD found this {areaLabel.ToLowerInvariant()} control, but it still needs follow-up in the current overview run.",
-            AggregateCheckState.Pass => $"DD marked this {areaLabel.ToLowerInvariant()} control as healthy in the current overview run.",
-            _ => $"DD recorded this {areaLabel.ToLowerInvariant()} control as informational context for the current overview run."
+            AggregateCheckState.Fail => $"DomainDetective marked this {areaLabel.ToLowerInvariant()} control for remediation in the current overview run.",
+            AggregateCheckState.Warning => $"DomainDetective found this {areaLabel.ToLowerInvariant()} control, but it still needs follow-up in the current overview run.",
+            AggregateCheckState.Pass => $"DomainDetective marked this {areaLabel.ToLowerInvariant()} control as healthy in the current overview run.",
+            _ => $"DomainDetective recorded this {areaLabel.ToLowerInvariant()} control as informational context for the current overview run."
         };
     }
 

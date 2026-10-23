@@ -90,8 +90,8 @@ internal static class OverviewRecommendationPresentation
             ValueLabel = FormatValueLabel(advice, isPositive),
             Summary = string.IsNullOrWhiteSpace(advice.Why)
                 ? isPositive
-                    ? "DD confirmed this as a positive posture signal."
-                    : "DD identified this as a posture item worth tracking."
+                    ? "DomainDetective confirmed this as a positive posture signal."
+                    : "DomainDetective identified this as a posture item worth tracking."
                 : advice.Why,
             Tags = tags.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray(),
             Samples = samples.Where(static value => !string.IsNullOrWhiteSpace(value)).ToArray()

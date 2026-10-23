@@ -125,8 +125,8 @@ public sealed class ToolPageComponentTests : BunitContext {
             .Add(component => component.Definition, tool));
 
         Assert.Contains("Guided locally", cut.Markup);
-        Assert.Contains("This check needs network access that the GitHub Pages browser edition cannot provide.", cut.Markup);
-        Assert.Contains("Full DD analysis through CLI, PowerShell, or C#", cut.Markup);
+        Assert.Contains("This check needs network access that the browser edition cannot provide.", cut.Markup);
+        Assert.Contains("Full analysis through CLI, PowerShell, or C#", cut.Markup);
     }
 
     private sealed class RecordingDnsHandler : HttpMessageHandler {

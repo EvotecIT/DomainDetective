@@ -26,7 +26,7 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Policy status</span>
                 <strong class="tool-summary-value">@(isBrowserLimited ? "Unavailable online" : FormatText(view.Mode, "Missing"))</strong>
-                <p class="tool-summary-note">@(isBrowserLimited ? "Full policy fetch is not part of the web-edition pass" : $"Max age: {FormatMaxAge(view.MaxAge)}")</p>
+                <p class="tool-summary-note">@(isBrowserLimited ? "Full policy fetch is not part of the browser pass" : $"Max age: {FormatMaxAge(view.MaxAge)}")</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">MX coverage</span>
@@ -44,10 +44,10 @@
             <tr><td>TXT record TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
             <tr><td>CNAME resolution</td><td>@FormatBool(view.IsCnameResolved)</td></tr>
             <tr><td>CNAME TTL</td><td>@FormatTtl(view.CnameTtl)</td></tr>
-            <tr><td>Policy fetched</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.PolicyPresent))</td></tr>
-            <tr><td>Policy valid</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.PolicyValid))</td></tr>
-            <tr><td>Enforce mode</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.EnforcesMtaSts))</td></tr>
-            <tr><td>Duplicate fields</td><td>@(isBrowserLimited ? "Unavailable in this web edition" : FormatBool(view.HasDuplicateFields))</td></tr>
+            <tr><td>Policy fetched</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.PolicyPresent))</td></tr>
+            <tr><td>Policy valid</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.PolicyValid))</td></tr>
+            <tr><td>Enforce mode</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.EnforcesMtaSts))</td></tr>
+            <tr><td>Duplicate fields</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.HasDuplicateFields))</td></tr>
             <tr><td>Policy id</td><td>@FormatText(view.PolicyId, "Not published")</td></tr>
         </ResultTable>
     </ResultCard>

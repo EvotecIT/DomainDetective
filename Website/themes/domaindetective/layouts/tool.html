@@ -1,0 +1,126 @@
+{{~ ## One browser tool. The page is complete static HTML (title, description, a working form, examples and the
+     PowerShell, C# and CLI commands) built from data/tools-catalog.json. The DomainDetective engine (WebAssembly)
+     then mounts into #dd-tool-root and takes over the form. A submit made before it is ready gets an instant DNS
+     quick scan from tools.js and is handed to the engine through ?q= once it boots. ## ~}}
+{{~ tool = null; for t in data.tools_catalog.tools; if t.slug == page.meta.tool; tool = t; end; end ~}}
+{{~ base_href = "/tools/"; title_suffix = " | DomainDetective" ~}}
+<!doctype html>
+<html lang="en">
+<head>
+{{ include "head" }}
+  <link rel="preload" href="/tools/_framework/blazor.webassembly.js" as="script" />
+  <link rel="stylesheet" href="/tools/DomainDetective.Website.styles.css" />
+</head>
+<body class="dd-body dd-body--tool"{{ if tool.slug == "raw-dns-query" }} data-webmcp-page-tool data-webmcp-tool-name="query_dns_records" data-webmcp-tool-description="Resolve one bounded public DNS record query and leave the result visible in the DomainDetective playground." data-webmcp-read-only="true"{{ end }}>
+{{ include "header" }}
+<main id="main" class="dd-main dd-tool" data-tool="{{ tool.slug }}">
+  <header class="dd-toolhead">
+    <div class="dd-wrap">
+      <nav class="dd-crumbs" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="/tools/">Tools</a></li>
+          <li><a href="/tools/#{{ tool.category }}">{{ tool.categoryName | html.escape }}</a></li>
+          <li aria-current="page">{{ tool.name | html.escape }}</li>
+        </ol>
+      </nav>
+      <div class="dd-toolhead__title">
+        <h1>{{ tool.name | html.escape }}</h1>
+        <span class="dd-supportbadge dd-supportbadge--{{ tool.support }}"><span class="dd-support dd-support--{{ tool.support }}" aria-hidden="true"></span>{{ tool.supportLabel | html.escape }}</span>
+      </div>
+      <p class="dd-toolhead__desc">{{ tool.description | html.escape }}</p>
+    </div>
+  </header>
+
+  <div class="dd-wrap dd-toolbody">
+    <div id="dd-tool-root" class="dd-tool-root" data-dd-tool-root data-tool="{{ tool.slug }}" data-category="{{ tool.category }}">
+      <div class="tool-page tool-page--static">
+        {{~ if tool.slug != "message-analyzer" && tool.slug != "raw-dns-query" ~}}
+        <form class="tool-input-form" action="/tools/{{ tool.slug }}/" method="get" data-dd-tool-form>
+          <div class="tool-input-fields">
+            <label class="dd-visually-hidden" for="dd-tool-input">Domain</label>
+            <input id="dd-tool-input" type="text" name="q" placeholder="{{ tool.placeholder | html.escape }}" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url" />
+          </div>
+          <div class="tool-input-actions">
+            <button type="submit" class="tool-run-btn">Analyze</button>
+          </div>
+        </form>
+        {{~ if tool.examples && tool.examples.size > 0 ~}}
+        <div class="tool-example-row" aria-label="Example domains">
+          <span class="tool-example-label">Try</span>
+          {{~ for example in tool.examples ~}}
+          <a class="tool-example-chip" href="/tools/{{ tool.slug }}/?q={{ example }}" data-dd-example="{{ example }}">{{ example }}</a>
+          {{~ end ~}}
+        </div>
+        {{~ end ~}}
+        {{~ end ~}}
+        <div class="dd-boot" data-dd-boot role="status">
+          <span class="dd-boot__bar" aria-hidden="true"><span></span></span>
+          <span class="dd-boot__text" data-dd-boot-text>Loading the DomainDetective engine&hellip;</span>
+        </div>
+        <div class="dd-quick" data-dd-quick hidden></div>
+        <noscript><p class="dd-noscript">The browser tools need JavaScript. Every check is also available from PowerShell and the CLI below.</p></noscript>
+      </div>
+    </div>
+
+    <section class="dd-automate" aria-labelledby="dd-automate-title">
+      <div class="dd-automate__intro">
+        <h2 id="dd-automate-title">Automate this check</h2>
+        <p>The same DomainDetective engine, from your scripts and services.</p>
+      </div>
+      <div class="dd-tabs" data-dd-tabs>
+        <div class="dd-tabs__list" role="tablist" aria-label="Run {{ tool.name | html.escape }} from code">
+          {{~ if tool.powershell != "" ~}}<button type="button" role="tab" id="dd-auto-ps" aria-controls="dd-auto-ps-panel" aria-selected="true">PowerShell</button>{{~ end ~}}
+          {{~ if tool.csharp != "" ~}}<button type="button" role="tab" id="dd-auto-cs" aria-controls="dd-auto-cs-panel" aria-selected="false" tabindex="-1">C#</button>{{~ end ~}}
+          {{~ if tool.cli != "" ~}}<button type="button" role="tab" id="dd-auto-cli" aria-controls="dd-auto-cli-panel" aria-selected="false" tabindex="-1">CLI</button>{{~ end ~}}
+        </div>
+        {{~ if tool.powershell != "" ~}}
+        <div class="dd-window" role="tabpanel" id="dd-auto-ps-panel" aria-labelledby="dd-auto-ps">
+          <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--ps"></span><span class="dd-window__title">PowerShell</span><button type="button" class="dd-copy" data-copy="Install-Module DomainDetective -Scope CurrentUser&#10;{{ tool.powershell | html.escape }}">Copy</button></div>
+          <pre><code class="language-powershell">Install-Module DomainDetective -Scope CurrentUser
+{{ tool.powershell | html.escape }}</code></pre>
+        </div>
+        {{~ end ~}}
+        {{~ if tool.csharp != "" ~}}
+        <div class="dd-window" role="tabpanel" id="dd-auto-cs-panel" aria-labelledby="dd-auto-cs" hidden>
+          <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--cs"></span><span class="dd-window__title">C#</span><button type="button" class="dd-copy" data-copy="{{ tool.csharp | html.escape }}">Copy</button></div>
+          <pre><code class="language-csharp">// dotnet add package DomainDetective
+using DomainDetective;
+
+{{ tool.csharp | html.escape }}</code></pre>
+        </div>
+        {{~ end ~}}
+        {{~ if tool.cli != "" ~}}
+        <div class="dd-window" role="tabpanel" id="dd-auto-cli-panel" aria-labelledby="dd-auto-cli" hidden>
+          <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--sh"></span><span class="dd-window__title">CLI</span><button type="button" class="dd-copy" data-copy="{{ tool.cli | html.escape }}">Copy</button></div>
+          <pre><code class="language-bash">dotnet tool install -g DomainDetective.CLI
+{{ tool.cli | html.escape }}</code></pre>
+        </div>
+        {{~ end ~}}
+      </div>
+    </section>
+
+    {{~ related = null; for cat in data.tools_catalog.categories; if cat.slug == tool.category; related = cat; end; end ~}}
+    {{~ if related && related.count > 1 ~}}
+    <nav class="dd-related" aria-labelledby="dd-related-title">
+      <h2 id="dd-related-title">More {{ related.name }} tools</h2>
+      <ul>
+        {{~ for other in related.tools ~}}
+        {{~ if other.slug != tool.slug ~}}
+        <li><a href="/tools/{{ other.slug }}/"><strong>{{ other.name | html.escape }}</strong><span>{{ other.description | html.escape }}</span></a></li>
+        {{~ end ~}}
+        {{~ end ~}}
+      </ul>
+    </nav>
+    {{~ end ~}}
+  </div>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+<script src="/tools/js/app.js"></script>
+{{~ if tool.slug == "raw-dns-query" ~}}
+<script src="/tools/js/raw-dns-query.js" data-powerforge-webmcp data-webmcp-tool-name="query_dns_records"></script>
+{{~ end ~}}
+<script src="/tools/_framework/blazor.webassembly.js" autostart="false" data-dd-blazor></script>
+{{ extra_scripts_html }}
+</body>
+</html>

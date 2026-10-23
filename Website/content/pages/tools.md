@@ -1,9 +1,7 @@
 ---
-title: Domain Analysis Tools
-description: Run web-ready domain analysis directly on the web, with deeper online workflows clearly marked across the full tool catalog.
+title: Browser tools
+description: Free domain security tools for SPF, DKIM, DMARC, DNSSEC, certificates, security headers and blocklists. Open source, no sign-up, nothing stored.
 slug: tools
 collection: pages
 layout: tools
 ---
-
-{{< app src="/tools/" title="DomainDetective Online Tools" label="Launch Tools" >}}

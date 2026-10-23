@@ -7,9 +7,10 @@ using System.Text.Json.Serialization;
 namespace DomainDetective.Website.Tests;
 
 /// <summary>
-/// The static website renders the tools hub and every tool route from Website/data/tools-catalog.json.
-/// These tests keep that file identical to <see cref="ToolRegistry"/> so the static pages and the
-/// WebAssembly tools can never disagree. Set DD_UPDATE_TOOL_CATALOG=1 and run the tests to regenerate it.
+/// The static website renders the tools hub and every tool page from Website/data/tools-catalog.json and one
+/// generated Markdown stub per tool in Website/content/pages/tools. These tests keep both identical to
+/// <see cref="ToolRegistry"/> so the static pages and the WebAssembly tools can never disagree.
+/// Set DD_UPDATE_TOOL_CATALOG=1 and run the tests to regenerate them.
 /// </summary>
 public sealed class ToolCatalogTests {
     private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -49,6 +50,38 @@ public sealed class ToolCatalogTests {
     }
 
     [Fact]
+    public void ToolPagesMatchToolRegistry() {
+        var root = Path.Combine(FindWebsiteRoot(), "content", "pages", "tools");
+        var update = Environment.GetEnvironmentVariable("DD_UPDATE_TOOL_CATALOG") == "1";
+        var registry = new ToolRegistry();
+        var expectedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tool in registry.GetAll()) {
+            var path = Path.Combine(root, tool.Slug + ".md");
+            expectedFiles.Add(path);
+            var expected = BuildToolPage(tool);
+            if (update) {
+                Directory.CreateDirectory(root);
+                File.WriteAllText(path, expected);
+            }
+
+            Assert.True(File.Exists(path), $"Missing tool page {path}. Run the website tests with DD_UPDATE_TOOL_CATALOG=1.");
+            Assert.True(
+                string.Equals(expected, File.ReadAllText(path).Replace("\r\n", "\n"), StringComparison.Ordinal),
+                $"{path} is out of date with ToolRegistry. Run the website tests with DD_UPDATE_TOOL_CATALOG=1 and commit the result.");
+        }
+
+        foreach (var stale in Directory.GetFiles(root, "*.md").Where(path => !expectedFiles.Contains(path))) {
+            if (update) {
+                File.Delete(stale);
+                continue;
+            }
+
+            Assert.Fail($"{stale} has no matching tool in ToolRegistry. Delete it or run the website tests with DD_UPDATE_TOOL_CATALOG=1.");
+        }
+    }
+
+    [Fact]
     public void EveryRegisteredToolHasAStaticRoute() {
         var registry = new ToolRegistry();
         using var document = JsonDocument.Parse(BuildCatalogJson());
@@ -85,6 +118,34 @@ public sealed class ToolCatalogTests {
         return JsonSerializer.Serialize(catalog, JsonOptions).Replace("\r\n", "\n") + "\n";
     }
 
+    internal static string BuildToolPage(ToolDefinition tool) {
+        static string Yaml(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+        return string.Join("\n", new[] {
+            "---",
+            "title: " + Yaml(tool.Name),
+            "description: " + Yaml(tool.Description.TrimEnd('.') + ". " + DescribeSupport(tool)),
+            "slug: " + tool.Slug,
+            "collection: pages",
+            "layout: tool",
+            "tool: " + tool.Slug,
+            "---",
+            "",
+            "<!-- Generated from ToolRegistry by ToolCatalogTests. Edit the registry, then run the website tests with DD_UPDATE_TOOL_CATALOG=1. -->",
+            ""
+        });
+    }
+
+    private static string DescribeSupport(ToolDefinition tool) {
+        if (tool.BrowserCompatible) {
+            return "Free and open source, it runs in your browser with DomainDetective.";
+        }
+
+        return tool.LiteCompatible
+            ? "Free and open source: a quick pass in your browser, the full check from PowerShell or the CLI."
+            : "Free and open source: run it with the DomainDetective PowerShell module or CLI.";
+    }
+
     private static CatalogTool ToEntry(ToolDefinition tool) {
         var support = tool.BrowserCompatible ? "browser" : tool.LiteCompatible ? "partial" : "local";
         var supportLabel = support switch {
@@ -104,7 +165,8 @@ public sealed class ToolCatalogTests {
             tool.InputPlaceholder ?? "example.com",
             tool.CliExample ?? string.Empty,
             tool.PowerShellExample ?? string.Empty,
-            tool.CSharpExample ?? string.Empty);
+            tool.CSharpExample ?? string.Empty,
+            ToolRegistry.GetExampleDomains(tool.Slug));
     }
 
     private static string FindWebsiteRoot() {
@@ -136,5 +198,6 @@ public sealed class ToolCatalogTests {
         string Placeholder,
         string Cli,
         [property: JsonPropertyName("powershell")] string PowerShell,
-        [property: JsonPropertyName("csharp")] string CSharp);
+        [property: JsonPropertyName("csharp")] string CSharp,
+        IReadOnlyList<string> Examples);
 }

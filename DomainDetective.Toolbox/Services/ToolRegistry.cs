@@ -7,7 +7,7 @@ public sealed class ToolRegistry {
         new ToolDefinition {
             Name = "M365 Tenant Overview",
             Slug = "m365-overview",
-            Description = "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard",
+            Description = "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
             Category = ToolCategory.Overview,
             Icon = "building",
             InputPlaceholder = "example.com",
@@ -374,6 +374,20 @@ public sealed class ToolRegistry {
         ToolCategory.Subdomain => "Subdomain Discovery",
         ToolCategory.Network => "Network",
         _ => category.ToString()
+    };
+
+    /// <summary>
+    /// Example domains offered as one-click "Try" chips for a tool, shared by the static pages and the WebAssembly tools.
+    /// </summary>
+    public static IReadOnlyList<string> GetExampleDomains(string slug) => slug switch {
+        "m365-overview" => new[] { "evotec.pl", "microsoft.com" },
+        "domain-overview" => new[] { "evotec.pl", "microsoft.com", "cloudflare.com" },
+        "mta-sts" or "tls-rpt" or "bimi" => new[] { "evotec.pl", "microsoft.com", "google.com" },
+        "spf" or "dkim" or "dmarc" or "mx" => new[] { "evotec.pl", "microsoft.com", "gmail.com" },
+        "dns-lookup" or "dnssec" or "soa" or "ns" or "dns-propagation" or "caa" or "dane" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+        "sitemap" or "agent-readiness" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+        "dnsbl" or "dangling-cname" => new[] { "evotec.pl", "microsoft.com" },
+        _ => Array.Empty<string>()
     };
 
     /// <summary>
