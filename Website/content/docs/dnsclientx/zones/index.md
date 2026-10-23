@@ -64,4 +64,4 @@ A batch is one RFC 2136 message: the server checks every prerequisite before app
 ## Next steps
 
 - [Service discovery](/docs/dnsclientx/discovery/)
-- [.NET API reference](/api/dnsclientx/)
+- [DnsClientX .NET API reference](/api/dnsclientx/)

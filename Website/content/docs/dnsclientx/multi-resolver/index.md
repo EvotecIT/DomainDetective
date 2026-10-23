@@ -82,4 +82,4 @@ Resolvers can return different answers at the same moment because of CDN geoloca
 ## Next steps
 
 - [Transports and endpoints](/docs/dnsclientx/transports/)
-- [PowerShell guide](/docs/dnsclientx/powershell/)
+- [DnsClientX PowerShell guide](/docs/dnsclientx/powershell/)

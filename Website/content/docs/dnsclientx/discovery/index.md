@@ -61,4 +61,4 @@ Discovery never changes the original client and never falls back to cleartext. D
 ## Next steps
 
 - [Transports and endpoints](/docs/dnsclientx/transports/)
-- [DnsClientX overview](/dnsclientx/)
+- [About DnsClientX](/dnsclientx/)

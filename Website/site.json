@@ -319,12 +319,12 @@
             "Description": "Our DNS client for .NET and PowerShell: every transport, typed records, DNSSEC and zones.",
             "Meta": { "foot_text": "Open source on NuGet and the PowerShell Gallery.", "foot_link": "Meet DnsClientX" },
             "Items": [
-              { "Title": "Overview", "Url": "/dnsclientx/", "Description": "What it does and how to install it." },
+              { "Title": "DnsClientX overview", "Url": "/dnsclientx/", "Description": "What it does and how to install it." },
               { "Title": "DNS playground", "Url": "/tools/raw-dns-query/", "Description": "Query any resolver from your browser." },
-              { "Title": ".NET guide", "Url": "/docs/dnsclientx/csharp/", "Description": "ClientX, typed records and configuration." },
-              { "Title": "PowerShell guide", "Url": "/docs/dnsclientx/powershell/", "Description": "Resolve-Dns and the diagnostic cmdlets." },
+              { "Title": "DnsClientX for .NET", "Url": "/docs/dnsclientx/csharp/", "Description": "ClientX, typed records and configuration." },
+              { "Title": "DnsClientX for PowerShell", "Url": "/docs/dnsclientx/powershell/", "Description": "Resolve-Dns and the diagnostic cmdlets." },
               { "Title": "Transports", "Url": "/docs/dnsclientx/transports/", "Description": "UDP to DoQ, stamps and endpoints." },
-              { "Title": "API reference", "Url": "/api/dnsclientx/", "Description": "Every public DnsClientX type." }
+              { "Title": "DnsClientX API", "Url": "/api/dnsclientx/", "Description": "Every public DnsClientX type." }
             ]
           },
           { "Title": "Blog", "Url": "/blog/" },
@@ -346,12 +346,12 @@
       {
         "Name": "footer-dnsclientx",
         "Items": [
-          { "Title": "Overview", "Url": "/dnsclientx/" },
+          { "Title": "DnsClientX overview", "Url": "/dnsclientx/" },
           { "Title": "DNS playground", "Url": "/tools/raw-dns-query/" },
-          { "Title": "Documentation", "Url": "/docs/dnsclientx/" },
-          { "Title": ".NET API reference", "Url": "/api/dnsclientx/" },
-          { "Title": "PowerShell reference", "Url": "/api/dnsclientx-powershell/" },
-          { "Title": "Source on GitHub", "Url": "https://github.com/EvotecIT/DnsClientX", "External": true }
+          { "Title": "DnsClientX guides", "Url": "/docs/dnsclientx/" },
+          { "Title": "DnsClientX API", "Url": "/api/dnsclientx/" },
+          { "Title": "DnsClientX cmdlets", "Url": "/api/dnsclientx-powershell/" },
+          { "Title": "DnsClientX on GitHub", "Url": "https://github.com/EvotecIT/DnsClientX", "External": true }
         ]
       },
       {
