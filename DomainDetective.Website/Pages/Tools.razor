@@ -35,8 +35,18 @@
     [SupplyParameterFromQuery(Name = "q")] public string? ToolDomainQuery { get; set; }
 
     private bool _isReady;
+    private string? _mountedSlug;
 
     protected override async Task OnParametersSetAsync() {
+        // Every tool is its own static page, so moving to another tool (a link inside a result, for example)
+        // loads that page instead of swapping the tool inside the current page's title and samples.
+        if (_mountedSlug is null) {
+            _mountedSlug = ToolSlug ?? string.Empty;
+        } else if (!string.Equals(_mountedSlug, ToolSlug ?? string.Empty, StringComparison.OrdinalIgnoreCase)) {
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+            return;
+        }
+
         if (string.Equals(ToolSlug, "dns-query-playground", StringComparison.OrdinalIgnoreCase)) {
             var currentUri = new Uri(Navigation.Uri);
             var suffix = $"{currentUri.Query}{currentUri.Fragment}";

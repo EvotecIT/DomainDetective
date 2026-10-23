@@ -40,22 +40,22 @@
             <p>@BuildSummary(view)</p>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>Starts with v=spf1</td><td>@FormatBool(view.StartsCorrectly)</td></tr>
-            <tr><td>Multiple SPF records</td><td>@FormatBool(view.MultipleSpfRecords)</td></tr>
-            <tr><td>Resolved through CNAME</td><td>@FormatBool(view.IsCnameResolved, view.IsCnameResolved ? FormatTtl(view.CnameTtl) : "No")</td></tr>
-            <tr><td>Terminal all mechanism</td><td>@FormatValue(view.AllMechanism, "Not found")</td></tr>
-            <tr><td>Contains tokens after all</td><td>@FormatBool(view.ContainsCharactersAfterAll)</td></tr>
-            <tr><td>PTR mechanism used</td><td>@FormatBool(view.HasPtrType)</td></tr>
-            <tr><td>Null exists lookups</td><td>@FormatBool(view.HasNullLookups)</td></tr>
-            <tr><td>Redirect modifier</td><td>@FormatBool(view.HasRedirect, FormatValue(view.RedirectValue, "Present"))</td></tr>
-            <tr><td>exp modifier</td><td>@FormatBool(view.HasExp, FormatValue(view.ExpValue, "Present"))</td></tr>
-            <tr><td>Invalid IP syntax</td><td>@FormatBool(view.InvalidIpSyntax)</td></tr>
-            <tr><td>Permanent error</td><td>@FormatBool(view.PermError)</td></tr>
-            <tr><td>Effective outbound sending</td><td>@FormatBool(view.EffectiveSpfSends)</td></tr>
-            <tr><td>Record length</td><td>@($"{view.RecordLength} chars")</td></tr>
-            <tr><td>TXT TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(new[] {
+            ResultCheck.Expect("Starts with v=spf1", view.StartsCorrectly, FormatBool(view.StartsCorrectly)),
+            ResultCheck.Expect("Single SPF record", !view.MultipleSpfRecords, view.MultipleSpfRecords ? "Multiple records" : "Yes"),
+            ResultCheck.Expect("No tokens after all", !view.ContainsCharactersAfterAll, view.ContainsCharactersAfterAll ? "Tokens found after all" : "Yes"),
+            ResultCheck.Expect("No ptr mechanism", !view.HasPtrType, view.HasPtrType ? "ptr is used" : "Yes", warnOnly: true),
+            ResultCheck.Expect("No null exists lookups", !view.HasNullLookups, view.HasNullLookups ? "Null lookups found" : "Yes", warnOnly: true),
+            ResultCheck.Expect("Valid IP syntax", !view.InvalidIpSyntax, view.InvalidIpSyntax ? "Invalid addresses" : "Yes"),
+            ResultCheck.Expect("No permanent error", !view.PermError, view.PermError ? "PermError" : "Yes"),
+            ResultCheck.Fact("Terminal all", FormatValue(view.AllMechanism, "Not found")),
+            ResultCheck.Fact("Authorizes sending", FormatBool(view.EffectiveSpfSends)),
+            ResultCheck.Fact("Redirect", FormatBool(view.HasRedirect, FormatValue(view.RedirectValue, "Present"))),
+            ResultCheck.Fact("exp modifier", FormatBool(view.HasExp, FormatValue(view.ExpValue, "Present"))),
+            ResultCheck.Fact("Through CNAME", FormatBool(view.IsCnameResolved, view.IsCnameResolved ? FormatTtl(view.CnameTtl) : "No")),
+            ResultCheck.Fact("Record length", $"{view.RecordLength} chars"),
+            ResultCheck.Fact("TXT TTL", FormatTtl(view.DnsRecordTtl))
+        })" />
     </ResultCard>
 
     @if (view.SpfRecordExists && !string.IsNullOrWhiteSpace(view.SpfRecord)) {

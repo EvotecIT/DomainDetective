@@ -33,6 +33,9 @@
     var assessmentPreviewLines = OverviewAssessmentPresentation.BuildPreviewLines(Info?.Assessments, 5);
     var mailCards = Microsoft365OverviewPresentation.BuildMailCards(Info);
     var mailControlCards = OverviewControlPresentation.BuildAllCards(Info?.MailDnsChecks);
+    // The mail and DNS controls are the tenant's assessed checks; skip them if the browser could not run that section.
+    var verdictSkipped = (Info?.UnavailableSections ?? Array.Empty<string>()).Where(static name => name == "Mail controls").ToList();
+    var verdict = OverviewVerdictPresentation.Build(Info?.Subject, verdictSkipped.Count > 0 ? Array.Empty<AggregateCheckStatusInfo>() : allChecks, Info?.Recommendations, notChecked: verdictSkipped);
     var attentionControlCards = OverviewControlPresentation.BuildAttentionCards(allChecks);
     var healthyControlCards = OverviewControlPresentation.BuildHealthyCards(allChecks);
     var attentionCards = OverviewRecommendationPresentation.BuildProblemCards(Info?.Recommendations);
@@ -73,6 +76,8 @@
     </div>
 }
 
+<OverviewVerdict View="@verdict" Domain="@Info.Subject" IsPartial="@Info.IsPartial" />
+
 <div id="m365-snapshot" class="overview-section-anchor">
 <div class="overview-section-state">
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Snapshot"), IsSectionUnavailable(Info, "Snapshot"))</span>
@@ -111,7 +116,7 @@
     <button type="button" class="overview-quick-link" @onclick='() => ScrollToSectionAsync("m365-assessments")'>Assessments <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span></button>
 </nav>
 
-<ResultCard Title="Control priorities" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Control priorities" Collapsible="true" Hint="Every control, grouped by state" Status="ResultCard.ResultStatus.Info">
     <div class="tool-section-grid">
         <div class="tool-summary-card">
             <span class="tool-summary-label">Controls needing follow-up</span>
@@ -140,7 +145,7 @@
     </div>
 </ResultCard>
 
-<ResultCard Title="Action plan" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Action plan" Collapsible="true" Hint="The full remediation and keep-in-place list" Status="ResultCard.ResultStatus.Info">
     <div class="tool-section-grid">
         <div class="tool-summary-card">
             <span class="tool-summary-label">Do next</span>
@@ -169,7 +174,7 @@
     </div>
 </ResultCard>
 
-<ResultCard Title="Share and reopen" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Share and reopen" Collapsible="true" Hint="Link, export and re-run options" Status="ResultCard.ResultStatus.Info">
     <div class="tool-share-summary tool-share-summary-compact">
         <div class="tool-share-header">
             <div class="tool-share-header-copy">
@@ -305,7 +310,7 @@
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"))</span>
         <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Apps"), IsSectionUnavailable(Info, "Apps"), "Detected DNS application evidence is already available.", GetUnavailableSectionMessage("Apps"))</span>
     </div>
-    <ResultCard Title="Detected DNS applications" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Detected DNS applications" Collapsible="true" Hint="Providers and services found in DNS" Status="ResultCard.ResultStatus.Info">
         @if (appGroups.Count > 0) {
             <div class="tool-section-grid">
                 @foreach (var group in appGroups) {
@@ -342,11 +347,11 @@
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Domains"), IsSectionUnavailable(Info, "Domains"), "Tenant domains and known Microsoft 365 subdomains are already available.", GetUnavailableSectionMessage("Domains"))</span>
 </div>
 @if (IsSectionUnavailable(Info, "Domains")) {
-    <ResultCard Title="Tenant domains and known subdomains" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Tenant domains and known subdomains" Collapsible="true" Hint="Domains linked to the tenant" Status="ResultCard.ResultStatus.Info">
         <p class="tool-summary-note">@GetUnavailableSectionMessage("Domains")</p>
     </ResultCard>
 } else {
-<ResultCard Title="Tenant domains and known subdomains" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Tenant domains and known subdomains" Collapsible="true" Hint="Domains linked to the tenant" Status="ResultCard.ResultStatus.Info">
     @if (domainCoverageCards.Count > 0) {
         <div class="tool-section-grid mb-3">
             @foreach (var card in domainCoverageCards) {
@@ -409,7 +414,7 @@
         <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"))</span>
         <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Evidence"), IsSectionUnavailable(Info, "Evidence"), "The evidence ledger explains why DomainDetective inferred the tenant posture.", GetUnavailableSectionMessage("Evidence"))</span>
     </div>
-    <ResultCard Title="Why DomainDetective inferred Microsoft 365" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Why DomainDetective inferred Microsoft 365" Collapsible="true" Hint="The evidence behind the tenant inference" Status="ResultCard.ResultStatus.Info">
         @if (evidenceGroups.Count > 0 && evidenceSummaryCards.Count > 0) {
             <div class="tool-section-grid mb-3">
                 @foreach (var card in evidenceSummaryCards) {
@@ -448,7 +453,7 @@
 </div>
 
 @if (highlightCards.Count > 0) {
-    <ResultCard Title="Posture notes" Status="ResultCard.ResultStatus.Info">
+    <ResultCard Title="Posture notes" Collapsible="true" Hint="Additional observations" Status="ResultCard.ResultStatus.Info">
         <div class="tool-section-grid">
             @foreach (var card in highlightCards) {
                 <OverviewDetailCard Card="card" />
@@ -462,7 +467,7 @@
     <span class="@GetSectionBadgeClass(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))">@GetSectionBadgeLabel(IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"))</span>
     <span class="overview-section-state-text">@GetSectionStatusText(Info, IsSectionPending(Info, "Assessments"), IsSectionUnavailable(Info, "Assessments"), "All recommendations and positive findings are included.", GetUnavailableSectionMessage("Assessments"))</span>
 </div>
-<ResultCard Title="Assessments" Status="ResultCard.ResultStatus.Info">
+<ResultCard Title="Assessments" Collapsible="true" Hint="Every finding the engine emitted" Status="ResultCard.ResultStatus.Info">
     @if (Info.Assessments.Count > 0) {
         @if (assessmentSummaryCards.Count > 0) {
             <div class="tool-section-grid mb-3">

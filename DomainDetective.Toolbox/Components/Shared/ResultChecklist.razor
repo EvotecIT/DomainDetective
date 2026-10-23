@@ -1,0 +1,61 @@
+@using DomainDetective.Toolbox.Models
+
+@* Problems first, then facts about the record, with every passing check folded into one line.
+   Replaces long property tables where most rows read "No" and the one that matters is easy to miss. *@
+
+@{
+    var problems = Items.Where(static item => item.State is ResultCheckState.Fail or ResultCheckState.Warn)
+        .OrderBy(static item => item.State == ResultCheckState.Fail ? 0 : 1)
+        .ToList();
+    var facts = Items.Where(static item => item.State == ResultCheckState.Fact).ToList();
+    var passed = Items.Where(static item => item.State == ResultCheckState.Pass).ToList();
+}
+
+<div class="result-checklist">
+    @if (problems.Count > 0) {
+        <ul class="result-checklist-problems" aria-label="Checks that need attention">
+            @foreach (var item in problems) {
+                <li class="result-check result-check-@(item.State == ResultCheckState.Fail ? "fail" : "warn")">
+                    <span class="result-check-icon" aria-hidden="true">@(item.State == ResultCheckState.Fail ? "✕" : "!")</span>
+                    <span class="result-check-label">@item.Label</span>
+                    <span class="result-check-value">@item.Value</span>
+                    <span class="dd-verdict dd-verdict--@(item.State == ResultCheckState.Fail ? "fail" : "warn")">@(item.State == ResultCheckState.Fail ? "Fail" : "Review")</span>
+                </li>
+            }
+        </ul>
+    } else if (passed.Count > 0) {
+        <p class="result-checklist-clean"><span aria-hidden="true">✓</span> No problems in @(passed.Count == 1 ? "1 check" : $"{passed.Count} checks").</p>
+    }
+
+    @if (facts.Count > 0) {
+        <dl class="result-checklist-facts">
+            @foreach (var item in facts) {
+                <div>
+                    <dt>@item.Label</dt>
+                    <dd>@item.Value</dd>
+                </div>
+            }
+        </dl>
+    }
+
+    @if (passed.Count > 0) {
+        <details class="result-checklist-passed" open="@ShowPassed">
+            <summary><span class="result-check-icon" aria-hidden="true">✓</span> @(passed.Count == 1 ? "1 check passed" : $"{passed.Count} checks passed")</summary>
+            <ul>
+                @foreach (var item in passed) {
+                    <li class="result-check result-check-pass">
+                        <span class="result-check-label">@item.Label</span>
+                        <span class="result-check-value">@item.Value</span>
+                    </li>
+                }
+            </ul>
+        </details>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ResultCheck> Items { get; set; } = Array.Empty<ResultCheck>();
+
+    /// <summary>Start with the passing checks expanded.</summary>
+    [Parameter] public bool ShowPassed { get; set; }
+}

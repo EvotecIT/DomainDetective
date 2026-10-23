@@ -31,18 +31,18 @@
             <p>@(view.Highlights.Count > 0 ? string.Join(" ", view.Highlights.Take(3)) : view.Summary)</p>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>Valid MX configuration</td><td>@FormatBool(view.Raw.ValidMxConfiguration)</td></tr>
-            <tr><td>Null MX</td><td>@FormatBool(view.HasNullMx, view.HasNullMx ? "Present" : "No")</td></tr>
-            <tr><td>MX targets to IP</td><td>@FormatBool(view.PointsToIpAddress)</td></tr>
-            <tr><td>MX targets to CNAME</td><td>@FormatBool(view.PointsToCname)</td></tr>
-            <tr><td>Targets to localhost</td><td>@FormatBool(view.PointsToLocalhost)</td></tr>
-            <tr><td>Targets to NXDOMAIN</td><td>@FormatBool(view.PointsToNonExistentDomain)</td></tr>
-            <tr><td>Targets without A/AAAA</td><td>@FormatBool(view.PointsToDomainWithoutAOrAaaaRecord)</td></tr>
-            <tr><td>Cross-NS MX consistency</td><td>@FormatBool(view.MxRrsetConsistentAcrossNs)</td></tr>
-            <tr><td>Address consistency</td><td>@FormatBool(view.TargetAddressConsistentAcrossNs)</td></tr>
-            <tr><td>Priorities ordered</td><td>@FormatBool(view.PrioritiesInOrder)</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(new[] {
+            ResultCheck.Expect("Valid MX configuration", view.Raw.ValidMxConfiguration, FormatBool(view.Raw.ValidMxConfiguration)),
+            ResultCheck.Expect("No MX pointing to an IP", !view.PointsToIpAddress, view.PointsToIpAddress ? "Targets an IP address" : "Yes"),
+            ResultCheck.Expect("No MX pointing to a CNAME", !view.PointsToCname, view.PointsToCname ? "Targets a CNAME" : "Yes", warnOnly: true),
+            ResultCheck.Expect("No MX pointing to localhost", !view.PointsToLocalhost, view.PointsToLocalhost ? "Targets localhost" : "Yes"),
+            ResultCheck.Expect("All MX targets exist", !view.PointsToNonExistentDomain, view.PointsToNonExistentDomain ? "NXDOMAIN target" : "Yes"),
+            ResultCheck.Expect("All MX targets have A/AAAA", !view.PointsToDomainWithoutAOrAaaaRecord, view.PointsToDomainWithoutAOrAaaaRecord ? "Target without address" : "Yes"),
+            ResultCheck.Expect("MX consistent across nameservers", view.MxRrsetConsistentAcrossNs, FormatBool(view.MxRrsetConsistentAcrossNs), warnOnly: true),
+            ResultCheck.Expect("Addresses consistent across nameservers", view.TargetAddressConsistentAcrossNs, FormatBool(view.TargetAddressConsistentAcrossNs), warnOnly: true),
+            ResultCheck.Expect("Priorities ordered", view.PrioritiesInOrder, FormatBool(view.PrioritiesInOrder), warnOnly: true),
+            ResultCheck.Fact("Null MX", FormatBool(view.HasNullMx, view.HasNullMx ? "Present" : "No"))
+        })" />
     </ResultCard>
 
     @if (view.Highlights.Count > 0 || view.Details.Count > 0) {

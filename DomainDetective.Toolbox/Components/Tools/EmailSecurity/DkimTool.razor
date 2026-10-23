@@ -87,18 +87,18 @@
                     </div>
                 </div>
 
-                <ResultTable Columns="@(new[] { "Property", "Value" })">
-                    <tr><td>Record published</td><td>@FormatBool(result.DkimRecordExists)</td></tr>
-                    <tr><td>Starts with v=DKIM1</td><td>@FormatBool(result.StartsCorrectly)</td></tr>
-                    <tr><td>Key type</td><td>@FormatText(result.KeyType, "Unspecified")</td></tr>
-                    <tr><td>Hash algorithm</td><td>@FormatText(result.HashAlgorithm, "Default")</td></tr>
-                    <tr><td>Service type</td><td>@FormatText(result.ServiceType, "Any")</td></tr>
-                    <tr><td>Key fingerprint</td><td>@FormatText(result.KeyFingerprint, "Not derived")</td></tr>
-                    <tr><td>Provider</td><td>@FormatText(result.Provider, "Unknown")</td></tr>
-                    <tr><td>CNAME target</td><td>@FormatText(result.CnameTarget, "Not used")</td></tr>
-                    <tr><td>Record TTL</td><td>@FormatTtl(result.DnsRecordTtl)</td></tr>
-                    <tr><td>CNAME TTL</td><td>@FormatTtl(result.CnameTtl)</td></tr>
-                </ResultTable>
+                <ResultChecklist Items="@(new[] {
+                    ResultCheck.Expect("Record published", result.DkimRecordExists, FormatBool(result.DkimRecordExists)),
+                    ResultCheck.Expect("Starts with v=DKIM1", result.StartsCorrectly, FormatBool(result.StartsCorrectly)),
+                    ResultCheck.Fact("Key type", FormatText(result.KeyType, "Unspecified")),
+                    ResultCheck.Fact("Hash algorithm", FormatText(result.HashAlgorithm, "Default")),
+                    ResultCheck.Fact("Service type", FormatText(result.ServiceType, "Any")),
+                    ResultCheck.Fact("Key fingerprint", FormatText(result.KeyFingerprint, "Not derived")),
+                    ResultCheck.Fact("Provider", FormatText(result.Provider, "Unknown")),
+                    ResultCheck.Fact("CNAME target", FormatText(result.CnameTarget, "Not used")),
+                    ResultCheck.Fact("Record TTL", FormatTtl(result.DnsRecordTtl)),
+                    ResultCheck.Fact("CNAME TTL", FormatTtl(result.CnameTtl))
+                })" />
 
                 @if (result.DeprecatedTags.Count > 0 || result.UnknownCanonicalizationModes.Count > 0 || !string.IsNullOrWhiteSpace(result.UnknownFlagCharacters)) {
                     <div class="tool-section-grid">

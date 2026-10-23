@@ -40,16 +40,24 @@
             <p>@view.Summary</p>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>TXT record TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
-            <tr><td>CNAME resolution</td><td>@FormatBool(view.IsCnameResolved)</td></tr>
-            <tr><td>CNAME TTL</td><td>@FormatTtl(view.CnameTtl)</td></tr>
-            <tr><td>Policy fetched</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.PolicyPresent))</td></tr>
-            <tr><td>Policy valid</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.PolicyValid))</td></tr>
-            <tr><td>Enforce mode</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.EnforcesMtaSts))</td></tr>
-            <tr><td>Duplicate fields</td><td>@(isBrowserLimited ? "Unavailable in this browser edition" : FormatBool(view.HasDuplicateFields))</td></tr>
-            <tr><td>Policy id</td><td>@FormatText(view.PolicyId, "Not published")</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(isBrowserLimited
+            ? new[] {
+                ResultCheck.Fact("Policy file", "Fetched by the full check from PowerShell or the CLI"),
+                ResultCheck.Fact("TXT record TTL", FormatTtl(view.DnsRecordTtl)),
+                ResultCheck.Fact("Through CNAME", FormatBool(view.IsCnameResolved)),
+                ResultCheck.Fact("CNAME TTL", FormatTtl(view.CnameTtl)),
+                ResultCheck.Fact("Policy id", FormatText(view.PolicyId, "Not published"))
+            }
+            : new[] {
+                ResultCheck.Expect("Policy fetched", view.PolicyPresent, FormatBool(view.PolicyPresent)),
+                ResultCheck.Expect("Policy valid", view.PolicyValid, FormatBool(view.PolicyValid)),
+                ResultCheck.Expect("Enforce mode", view.EnforcesMtaSts, FormatBool(view.EnforcesMtaSts), warnOnly: true),
+                ResultCheck.Expect("No duplicate fields", !view.HasDuplicateFields, view.HasDuplicateFields ? "Duplicates found" : "Yes", warnOnly: true),
+                ResultCheck.Fact("TXT record TTL", FormatTtl(view.DnsRecordTtl)),
+                ResultCheck.Fact("Through CNAME", FormatBool(view.IsCnameResolved)),
+                ResultCheck.Fact("CNAME TTL", FormatTtl(view.CnameTtl)),
+                ResultCheck.Fact("Policy id", FormatText(view.PolicyId, "Not published"))
+            })" />
     </ResultCard>
 
     @if (!string.IsNullOrWhiteSpace(view.PolicyText)) {
