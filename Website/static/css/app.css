@@ -674,8 +674,31 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
 }
 
 /* Fallback dropdowns rendered by the generated API reference (flat NAV_LINKS markup). */
-.dd-nav-dropdown {
+.dd-nav-dropdown,
+.nav-dropdown {
   position: relative;
+}
+
+.dd-nav-links > .nav-dropdown > .nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem .7rem;
+  border-radius: var(--dd-r-sm);
+  color: var(--dd-ink-2);
+  font-size: .925rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.dd-nav-links > .nav-dropdown > .nav-dropdown-trigger:hover,
+.dd-nav-links > .nav-dropdown.is-open > .nav-dropdown-trigger {
+  background: var(--dd-card-2);
+  color: var(--dd-ink-strong);
+}
+
+.nav-dropdown-arrow {
+  opacity: .6;
 }
 
 .dd-nav-dropdown-trigger {
@@ -684,7 +707,8 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
   gap: .35rem;
 }
 
-.dd-nav-dropdown-menu {
+.dd-nav-dropdown-menu,
+.nav-dropdown-menu {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
@@ -703,13 +727,17 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
 
 .dd-nav-dropdown:hover .dd-nav-dropdown-menu,
 .dd-nav-dropdown:focus-within .dd-nav-dropdown-menu,
-.dd-nav-dropdown.is-open .dd-nav-dropdown-menu {
+.dd-nav-dropdown.is-open .dd-nav-dropdown-menu,
+.nav-dropdown:hover .nav-dropdown-menu,
+.nav-dropdown:focus-within .nav-dropdown-menu,
+.nav-dropdown.is-open .nav-dropdown-menu {
   opacity: 1;
   visibility: visible;
   transition-delay: 0s;
 }
 
-.dd-nav-dropdown-menu a {
+.dd-nav-dropdown-menu a,
+.nav-dropdown-menu a {
   padding: .5rem .65rem;
   border-radius: var(--dd-r-sm);
   color: var(--dd-ink-2);
@@ -717,7 +745,8 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
   text-decoration: none;
 }
 
-.dd-nav-dropdown-menu a:hover {
+.dd-nav-dropdown-menu a:hover,
+.nav-dropdown-menu a:hover {
   background: var(--dd-card-2);
   color: var(--dd-ink-strong);
 }
@@ -873,7 +902,8 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
     grid-template-columns: 1fr;
   }
 
-  .dd-nav-dropdown-menu {
+  .dd-nav-dropdown-menu,
+  .nav-dropdown-menu {
     position: static;
     display: none;
     box-shadow: none;
@@ -881,7 +911,8 @@ html:not(.dd-js) .dd-navgroup:hover > .dd-navpanel {
     visibility: visible;
   }
 
-  .dd-nav-dropdown.is-open .dd-nav-dropdown-menu {
+  .dd-nav-dropdown.is-open .dd-nav-dropdown-menu,
+  .nav-dropdown.is-open .nav-dropdown-menu {
     display: grid;
   }
 
