@@ -15,7 +15,7 @@ public sealed class ToolRegistry {
             HostedCompatible = true,
             LiteCompatible = true,
             CliExample = "domaindetective check 'example.com'",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com'",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
         new ToolDefinition {
@@ -29,7 +29,7 @@ public sealed class ToolRegistry {
             HostedCompatible = true,
             LiteCompatible = true,
             CliExample = "domaindetective check 'example.com'",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com'",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
 
@@ -137,7 +137,7 @@ public sealed class ToolRegistry {
             Icon = "search",
             InputPlaceholder = "example.com",
             CliExample = "domaindetective check 'example.com' --checks DNSINVENTORY",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");"
         },
         new ToolDefinition {
@@ -374,6 +374,40 @@ public sealed class ToolRegistry {
         ToolCategory.Subdomain => "Subdomain Discovery",
         ToolCategory.Network => "Network",
         _ => category.ToString()
+    };
+
+    /// <summary>
+    /// URL fragment used for a category on the static tools hub (for example <c>/tools/#email-security</c>).
+    /// </summary>
+    public static string GetCategorySlug(ToolCategory category) => category switch {
+        ToolCategory.Overview => "overview",
+        ToolCategory.EmailSecurity => "email-security",
+        ToolCategory.Dns => "dns",
+        ToolCategory.TlsCert => "tls-cert",
+        ToolCategory.WebSecurity => "web-security",
+        ToolCategory.WebDiscovery => "web-discovery",
+        ToolCategory.Registration => "registration",
+        ToolCategory.ThreatIntel => "threat-intel",
+        ToolCategory.Subdomain => "subdomain",
+        ToolCategory.Network => "network",
+        _ => category.ToString().ToLowerInvariant()
+    };
+
+    /// <summary>
+    /// One-line summary of what a category of checks answers, shown on the tools hub and home page.
+    /// </summary>
+    public static string GetCategorySummary(ToolCategory category) => category switch {
+        ToolCategory.Overview => "Every signal for a domain or Microsoft 365 tenant in one report.",
+        ToolCategory.EmailSecurity => "Who may send as the domain, and what receivers do with spoofed mail.",
+        ToolCategory.Dns => "Records, delegation, propagation and the DNSSEC chain of trust.",
+        ToolCategory.TlsCert => "Certificates, which authorities may issue them, and DANE pins.",
+        ToolCategory.WebSecurity => "The security headers and contact details a website publishes.",
+        ToolCategory.WebDiscovery => "Sitemaps and how ready the site is for AI agents.",
+        ToolCategory.Registration => "Registrar, owner and expiry through RDAP and WHOIS.",
+        ToolCategory.ThreatIntel => "Blocklist listings and dangling records open to takeover.",
+        ToolCategory.Subdomain => "Subdomains revealed by Certificate Transparency logs.",
+        ToolCategory.Network => "Reachability and exposure of the hosts behind the domain.",
+        _ => string.Empty
     };
 
     public static string GetCategoryIcon(ToolCategory category) => category switch {
