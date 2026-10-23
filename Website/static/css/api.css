@@ -1610,3 +1610,14 @@ body.pf-api-docs .type-detail-rail .type-toc ul::-webkit-scrollbar-thumb:hover {
   padding: 0;
   list-style: none;
 }
+
+/* Long type names wrap inside their chip instead of widening the page on phones. */
+.type-chip {
+  max-width: 100%;
+}
+
+.type-chip .chip-name {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
