@@ -1,34 +1,10 @@
 ---
-title: Downloads & Installation
-description: Install DomainDetective via NuGet, PowerShell Gallery, or .NET CLI.
+title: Install DomainDetective
+description: Pick the surface that fits your work. Every one runs the same DomainDetective engine.
 slug: downloads
 collection: pages
-layout: page
+layout: downloads
 ---
-
-## Installation
-
-### C# / NuGet
-
-```bash
-dotnet add package DomainDetective
-```
-
-### PowerShell
-
-```powershell
-Install-Module DomainDetective -Scope CurrentUser
-```
-
-### CLI Tool
-
-```bash
-dotnet tool install -g DomainDetective.CLI
-```
-
-### Browser
-
-No installation needed! Visit the [online tools](/tools/) to analyze domains directly in your browser.
 
 ## Requirements
 
@@ -37,7 +13,17 @@ No installation needed! Visit the [online tools](/tools/) to analyze domains dir
 - **CLI Tool**: .NET 8.0+ runtime
 - **Browser Tools**: Any modern browser with JavaScript enabled
 
-## Related DNS Client Package
+## Build from source
+
+DomainDetective is MIT licensed. Clone the repository to build the library, PowerShell module and CLI yourself, or to contribute a fix.
+
+```bash
+git clone https://github.com/EvotecIT/DomainDetective.git
+cd DomainDetective
+dotnet build DomainDetective.sln -c Release
+```
+
+## Related DNS client package
 
 If you only need direct DNS querying instead of full DomainDetective analysis, use DnsClientX:
 

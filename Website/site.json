@@ -77,9 +77,11 @@
   "Head": {
     "Links": [
       { "Rel": "icon", "Href": "/favicon.svg", "Type": "image/svg+xml" },
-      { "Rel": "preconnect", "Href": "https://fonts.googleapis.com" },
-      { "Rel": "preconnect", "Href": "https://fonts.gstatic.com", "Crossorigin": "anonymous" },
-      { "Rel": "stylesheet", "Href": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=optional" }
+      { "Rel": "preload", "Href": "/fonts/bricolage-grotesque-latin.woff2", "As": "font", "Type": "font/woff2", "Crossorigin": "anonymous" },
+      { "Rel": "preload", "Href": "/fonts/inter-latin.woff2", "As": "font", "Type": "font/woff2", "Crossorigin": "anonymous" }
+    ],
+    "Meta": [
+      { "Name": "theme-color", "Content": "#07090d" }
     ]
   },
   "Social": {
@@ -206,16 +208,18 @@
   "AssetRegistry": {
     "CssStrategy": "blocking",
     "Bundles": [
-      { "Name": "global", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "docs", "Css": ["/css/app.css", "/css/docs.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "api", "Css": ["/css/app.css", "/css/api.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
-      { "Name": "product", "Css": ["/css/app.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] }
+      { "Name": "global", "Css": ["/css/app.css", "/css/pages.css", "/css/prism-theme.css"], "Js": ["/js/site.js"] },
+      { "Name": "home", "Css": ["/css/home.css"], "Js": ["/js/quickscan.js"] },
+      { "Name": "docs", "Css": ["/css/docs.css"] },
+      { "Name": "api", "Css": ["/css/api.css"] },
+      { "Name": "tools", "Css": ["/css/tools.css"], "Js": ["/js/quickscan.js", "/js/tools.js"] }
     ],
     "RouteBundles": [
-      { "Match": "/products/**", "Bundles": ["product"] },
-      { "Match": "/api/**", "Bundles": ["api"] },
+      { "Match": "/**", "Bundles": ["global"] },
+      { "Match": "/", "Bundles": ["home"] },
       { "Match": "/docs/**", "Bundles": ["docs"] },
-      { "Match": "/**", "Bundles": ["global"] }
+      { "Match": "/api/**", "Bundles": ["api"] },
+      { "Match": "/tools/**", "Bundles": ["tools"] }
     ],
     "CriticalCss": [
       { "Name": "domaindetective", "Path": "themes/domaindetective/critical.css" }
@@ -267,17 +271,36 @@
       {
         "Name": "main",
         "Items": [
-          { "Title": "Home", "Url": "/" },
-          { "Title": "Tools", "Url": "/tools/" },
-          { "Title": "Docs", "Url": "/docs/" },
           {
-            "Title": "API",
-            "Url": "/api/",
+            "Id": "tools",
+            "Title": "Tools",
+            "Url": "/tools/",
+            "Description": "Run DomainDetective checks against any domain, right in your browser.",
+            "Meta": { "wide": true, "foot_text": "27 browser tools, no sign-up and nothing stored.", "foot_link": "Browse every tool" },
             "Items": [
-              { "Title": "DomainDetective C# API", "Url": "/api/" },
-              { "Title": "DomainDetective PowerShell API", "Url": "/api/powershell/" },
-              { "Title": "DnsClientX C# API", "Url": "/api/dnsclientx/" },
-              { "Title": "DnsClientX PowerShell API", "Url": "/api/dnsclientx-powershell/" }
+              { "Title": "Domain overview", "Url": "/tools/domain-overview/", "Description": "Every signal for a domain in one report." },
+              { "Title": "Email authentication", "Url": "/tools/#email-security", "Description": "SPF, DKIM, DMARC, MX, MTA-STS, TLS-RPT and BIMI." },
+              { "Title": "DNS and DNSSEC", "Url": "/tools/#dns", "Description": "Records, delegation, propagation and chain of trust." },
+              { "Title": "TLS and certificates", "Url": "/tools/#tls-cert", "Description": "Certificates, CAA and DANE." },
+              { "Title": "Web security", "Url": "/tools/#web-security", "Description": "Security headers and security.txt." },
+              { "Title": "Reputation", "Url": "/tools/#threat-intel", "Description": "Blocklists and dangling CNAME takeovers." },
+              { "Title": "Registration", "Url": "/tools/rdap/", "Description": "RDAP and WHOIS for owners and expiry." },
+              { "Title": "Discovery", "Url": "/tools/#web-discovery", "Description": "Sitemaps, AI agent readiness and CT subdomains." },
+              { "Title": "Raw DNS query", "Url": "/tools/raw-dns-query/", "Description": "Ask any resolver for any record type." }
+            ]
+          },
+          {
+            "Id": "developers",
+            "Title": "Developers",
+            "Url": "/docs/",
+            "Description": "Automate the same checks from PowerShell, .NET or your pipeline.",
+            "Items": [
+              { "Title": "Quick start", "Url": "/docs/quickstart/", "Description": "Install and run your first checks." },
+              { "Title": "PowerShell module", "Url": "/docs/powershell-cmdlets/", "Description": "Test-DD* cmdlets for scripts and reports." },
+              { "Title": ".NET library", "Url": "/docs/csharp-api/", "Description": "Embed DomainHealthCheck in your services." },
+              { "Title": "CLI", "Url": "/docs/cli-usage/", "Description": "Scan domains from a shell or CI job." },
+              { "Title": "API reference", "Url": "/api/", "Description": "Every public type and member." },
+              { "Title": "DnsClientX", "Url": "/products/dnsclientx/", "Description": "The DNS client underneath DomainDetective." }
             ]
           },
           { "Title": "Blog", "Url": "/blog/" },
@@ -287,55 +310,64 @@
       {
         "Name": "footer-tools",
         "Items": [
-          { "Title": "SPF Lookup", "Url": "/tools/spf/" },
-          { "Title": "DKIM Lookup", "Url": "/tools/dkim/" },
-          { "Title": "DMARC Lookup", "Url": "/tools/dmarc/" },
-          { "Title": "DNS Lookup", "Url": "/tools/dns-lookup/" },
-          { "Title": "DNSBL Check", "Url": "/tools/dnsbl/" },
-          { "Title": "All Tools", "Url": "/tools/" }
+          { "Title": "Domain overview", "Url": "/tools/domain-overview/" },
+          { "Title": "SPF lookup", "Url": "/tools/spf/" },
+          { "Title": "DMARC lookup", "Url": "/tools/dmarc/" },
+          { "Title": "DKIM lookup", "Url": "/tools/dkim/" },
+          { "Title": "DNS lookup", "Url": "/tools/dns-lookup/" },
+          { "Title": "Certificate check", "Url": "/tools/cert-check/" },
+          { "Title": "All tools", "Url": "/tools/" }
         ]
       },
       {
-        "Name": "footer-resources",
+        "Name": "footer-developers",
         "Items": [
-          { "Title": "Quick Start", "Url": "/docs/quickstart/" },
-          { "Title": "DnsClientX Toolkit", "Url": "/docs/dnsclientx/" },
-          { "Title": "C# API Reference", "Url": "/api/" },
-          { "Title": "PowerShell API Reference", "Url": "/api/powershell/" },
-          { "Title": "Raw DNS Query", "Url": "/tools/raw-dns-query/" },
-          { "Title": "DnsClientX Docs", "Url": "/docs/dnsclientx/" },
-          { "Title": "CLI Usage", "Url": "/docs/cli-usage/" },
-          { "Title": "FAQ", "Url": "/faq/" },
-          { "Title": "GitHub Repository", "Url": "https://github.com/EvotecIT/DomainDetective", "External": true }
+          { "Title": "Quick start", "Url": "/docs/quickstart/" },
+          { "Title": "Documentation", "Url": "/docs/" },
+          { "Title": "PowerShell reference", "Url": "/api/powershell/" },
+          { "Title": ".NET API reference", "Url": "/api/" },
+          { "Title": "DnsClientX", "Url": "/products/dnsclientx/" },
+          { "Title": "Downloads", "Url": "/downloads/" },
+          { "Title": "Changelog", "Url": "/changelog/" }
+        ]
+      },
+      {
+        "Name": "footer-community",
+        "Items": [
+          { "Title": "Star on GitHub", "Url": "https://github.com/EvotecIT/DomainDetective", "External": true },
+          { "Title": "Join Discord", "Url": "https://evo.yt/discord", "External": true },
+          { "Title": "Report an issue", "Url": "https://github.com/EvotecIT/DomainDetective/issues", "External": true },
+          { "Title": "Blog", "Url": "/blog/" },
+          { "Title": "FAQ", "Url": "/faq/" }
         ]
       },
       {
         "Name": "footer-company",
         "Items": [
-          { "Title": "Evotec Services", "Url": "https://evotec.xyz", "External": true },
-          { "Title": "Blog", "Url": "/blog/" },
-          { "Title": "Privacy Policy", "Url": "/privacy/" },
-          { "Title": "Changelog", "Url": "/changelog/" }
+          { "Title": "Evotec", "Url": "https://evotec.xyz/", "External": true },
+          { "Title": "All products", "Url": "https://evotec.xyz/products/", "External": true },
+          { "Title": "Privacy", "Url": "/privacy/" }
         ]
       }
     ],
     "Auto": [
-      {
-        "Collection": "docs",
-        "Menu": "docs",
-        "Root": "/docs",
-        "IncludeIndex": true,
-        "MaxDepth": 3,
-        "Sort": "weight"
-      }
+      { "Collection": "docs", "Menu": "docs", "Root": "/docs", "IncludeIndex": true, "MaxDepth": 3, "Sort": "weight" }
     ],
     "Actions": [
       {
         "Title": "Toggle theme",
-        "AriaLabel": "Toggle theme",
+        "AriaLabel": "Switch between light and dark theme",
         "Kind": "button",
         "CssClass": "nav-icon theme-cycle-btn",
-        "IconHtml": "<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='5'/><path d='M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42'/></svg>"
+        "IconHtml": "<svg class='dd-theme-sun' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' aria-hidden='true' focusable='false'><circle cx='12' cy='12' r='4.2'/><path d='M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6'/></svg><svg class='dd-theme-moon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linejoin='round' aria-hidden='true' focusable='false'><path d='M20 14.6A8 8 0 0 1 9.4 4a8 8 0 1 0 10.6 10.6Z'/></svg>"
+      },
+      {
+        "Title": "Join the Evotec Discord",
+        "AriaLabel": "Join the Evotec Discord",
+        "Url": "https://evo.yt/discord",
+        "External": true,
+        "CssClass": "nav-icon",
+        "IconHtml": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' focusable='false'><path d='M20.32 4.37A19.8 19.8 0 0 0 15.4 2.8a13.6 13.6 0 0 0-.63 1.3 18.4 18.4 0 0 0-5.53 0 13 13 0 0 0-.64-1.3 19.7 19.7 0 0 0-4.92 1.53C.56 9.04-.29 13.6.13 18.1a19.9 19.9 0 0 0 6.03 3.05c.49-.67.92-1.38 1.3-2.12a12.9 12.9 0 0 1-2.04-.98l.5-.39a14.2 14.2 0 0 0 12.17 0l.5.39c-.65.39-1.33.71-2.04.98.37.74.81 1.45 1.3 2.12a19.8 19.8 0 0 0 6.03-3.05c.5-5.2-.85-9.72-3.56-13.73ZM8.02 15.33c-1.18 0-2.16-1.09-2.16-2.42s.95-2.42 2.16-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Zm7.96 0c-1.18 0-2.16-1.09-2.16-2.42s.95-2.42 2.16-2.42c1.21 0 2.18 1.1 2.16 2.42 0 1.33-.95 2.42-2.16 2.42Z'/></svg>"
       },
       {
         "Title": "DomainDetective on GitHub",
@@ -343,15 +375,15 @@
         "Url": "https://github.com/EvotecIT/DomainDetective",
         "External": true,
         "CssClass": "nav-icon",
-        "IconHtml": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' focusable='false'><path d='M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z'/></svg>"
+        "IconHtml": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true' focusable='false'><path d='M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z'/></svg>"
       },
       {
-        "Title": "Try Online",
-        "AriaLabel": "Try Domain Detective Online",
-        "Url": "/tools/",
+        "Title": "Install DomainDetective",
+        "AriaLabel": "Install DomainDetective",
+        "Url": "/downloads/",
         "CssClass": "nav-cta",
-        "IconHtml": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' class='nav-cta-icon' aria-hidden='true' focusable='false'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.35-4.35'/></svg>",
-        "Text": "Try Online"
+        "IconHtml": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='nav-cta-icon' aria-hidden='true' focusable='false'><path d='M12 3v12'/><path d='m7 10 5 5 5-5'/><path d='M5 21h14'/></svg>",
+        "Text": "Install"
       }
     ]
   }

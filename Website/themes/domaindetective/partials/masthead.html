@@ -1,0 +1,11 @@
+{{~ ## Title band for content pages: eyebrow, title and description. Set masthead_eyebrow before including; blog posts add their date and category. ## ~}}
+<header class="dd-masthead">
+  <div class="dd-wrap dd-masthead__inner">
+    {{~ if masthead_eyebrow ~}}<p class="dd-eyebrow">{{ masthead_eyebrow }}</p>{{~ end ~}}
+    <h1>{{ page.title }}</h1>
+    {{~ if page.description ~}}<p class="dd-masthead__lede">{{ page.description }}</p>{{~ end ~}}
+    {{~ if page.collection == "blog" && page.kind == "Page" && page.date ~}}
+    <div class="dd-masthead__meta"><time datetime="{{ page.date | date.to_string "%Y-%m-%d" }}">{{ page.date | date.to_string "%d %B %Y" }}</time>{{ if page.meta && page.meta.categories && page.meta.categories.size > 0 }}<span>{{ page.meta.categories[0] }}</span>{{ end }}<a href="/blog/">All posts</a></div>
+    {{~ end ~}}
+  </div>
+</header>

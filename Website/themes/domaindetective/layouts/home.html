@@ -1,35 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title_html }}</title>
-  {{ if description_meta_html == "" }}
-  <meta name="description" content="DomainDetective - Comprehensive domain analysis toolkit for DNS, email security, TLS, and web security with 115+ protocol checks." />
-  {{ end }}
-  {{ description_meta_html }}
-  {{ canonical_html }}
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  {{ assets.critical_css_html }}
-  {{ include "theme-tokens" }}
-  {{ extra_css_html }}
-  {{ assets.css_html }}
-  {{ include "head-meta" }}
-  {{ head_html }}
+{{ include "head" }}
 </head>
-<body>
-  <div class="page">
+<body class="dd-body dd-body--home">
 {{ include "header" }}
-<main>
+<main id="main">
 {{ include "sections/hero" }}
-{{ include "sections/tools-preview" }}
-{{ include "sections/features" }}
-{{ include "sections/code-examples" }}
+{{ include "sections/signals" }}
+{{ include "sections/surfaces" }}
+{{ include "sections/ct" }}
+{{ include "sections/principles" }}
+{{ include "sections/family" }}
 {{ include "sections/cta" }}
 </main>
 {{ include "footer" }}
-  </div>
-  {{ assets.js_html }}
-  {{ extra_scripts_html }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
 </body>
 </html>

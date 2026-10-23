@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{ title_suffix = " | DomainDetective" }}
+{{ include "head" }}
+</head>
+<body class="dd-body dd-body--page dd-body--downloads">
+{{ include "header" }}
+<main id="main" class="dd-main">
+  {{ masthead_eyebrow = "Install"; include "masthead" }}
+  <div class="dd-wrap">
+    <section class="dd-install" aria-label="Ways to install">
+      <article class="dd-install__card dd-install__card--primary">
+        <div class="dd-install__head"><span class="dd-install__icon">{{ icon_name = "terminal"; include "icon" }}</span><div><h2>PowerShell module</h2><p>Windows PowerShell 5.1 and PowerShell 7 on Windows, macOS and Linux.</p></div></div>
+        <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">PS&gt;</span><code>Install-Module DomainDetective -Scope CurrentUser</code><button type="button" class="dd-copy" data-copy="Install-Module DomainDetective -Scope CurrentUser" aria-label="Copy PowerShell install command">Copy</button></div>
+        <ul class="dd-install__links"><li><a href="/docs/powershell-cmdlets/">PowerShell guide</a></li><li><a href="/api/powershell/">Cmdlet reference</a></li><li><a href="https://www.powershellgallery.com/packages/DomainDetective" target="_blank" rel="noopener">PowerShell Gallery</a></li></ul>
+      </article>
+      <article class="dd-install__card">
+        <div class="dd-install__head"><span class="dd-install__icon">{{ icon_name = "code"; include "icon" }}</span><div><h2>.NET library</h2><p>.NET 8, .NET 10 and .NET Framework 4.7.2.</p></div></div>
+        <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">&gt;</span><code>dotnet add package DomainDetective</code><button type="button" class="dd-copy" data-copy="dotnet add package DomainDetective" aria-label="Copy .NET install command">Copy</button></div>
+        <ul class="dd-install__links"><li><a href="/docs/csharp-api/">.NET guide</a></li><li><a href="/api/">API reference</a></li><li><a href="https://www.nuget.org/packages/DomainDetective" target="_blank" rel="noopener">NuGet</a></li></ul>
+      </article>
+      <article class="dd-install__card">
+        <div class="dd-install__head"><span class="dd-install__icon">{{ icon_name = "bolt"; include "icon" }}</span><div><h2>Command line</h2><p>A .NET tool for shells, CI jobs and scheduled scans.</p></div></div>
+        <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">&gt;</span><code>dotnet tool install -g DomainDetective.CLI</code><button type="button" class="dd-copy" data-copy="dotnet tool install -g DomainDetective.CLI" aria-label="Copy CLI install command">Copy</button></div>
+        <ul class="dd-install__links"><li><a href="/docs/cli-usage/">CLI guide</a></li><li><a href="https://github.com/EvotecIT/DomainDetective/releases" target="_blank" rel="noopener">Releases</a></li></ul>
+      </article>
+      <article class="dd-install__card">
+        <div class="dd-install__head"><span class="dd-install__icon">{{ icon_name = "browser"; include "icon" }}</span><div><h2>In your browser</h2><p>Nothing to install. DNS checks run locally through DNS-over-HTTPS.</p></div></div>
+        <a class="dd-button dd-button-primary dd-install__open" href="/tools/">Open the browser tools &rarr;</a>
+        <ul class="dd-install__links"><li><a href="/tools/domain-overview/">Domain overview</a></li><li><a href="/privacy/">What the tools send</a></li></ul>
+      </article>
+    </section>
+
+    <div class="dd-article dd-article--wide">
+      <div class="dd-article-body dd-prose">
+{{ content }}
+      </div>
+    </div>
+  </div>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
+</body>
+</html>

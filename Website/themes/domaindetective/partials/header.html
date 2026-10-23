@@ -1,82 +1,50 @@
-{{~ current_output = page.output_path | string.replace "\\" "/" ~}}
-{{~ current_url = current_output | string.replace "index.html" "" ~}}
-{{~ if current_url == "" ~}}{{~ current_url = "/" ~}}{{~ end ~}}
-{{~ if !(current_url | string.starts_with "/") ~}}{{~ current_url = "/" + current_url ~}}{{~ end ~}}
-<header class="dd-header">
+{{~ ## Grouped navigation from the "main" menu in site.json. Items with children open a panel of described
+     destinations; items without children are plain links. Without JavaScript the panels open on hover and focus,
+     and every destination stays an ordinary link. ## ~}}
+{{~ navmenu = pf.menu "main" ~}}
+<a class="dd-skip" href="#main">Skip to content</a>
+<header class="dd-header" data-dd-header>
   <div class="dd-header-inner">
-    <a href="/" class="dd-brand">
-      <svg class="dd-logo" viewBox="0 0 32 32" width="28" height="28" fill="none">
-        <circle cx="16" cy="16" r="14" stroke="var(--pf-accent)" stroke-width="2" fill="none"/>
-        <path d="M10 16l4 4 8-8" stroke="var(--pf-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      </svg>
-      <span>Domain Detective</span>
-    </a>
-
-    <button class="dd-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <a href="/" class="dd-brand" aria-label="DomainDetective home">{{ mark_id = "ddm-head"; include "logo" }}<span>Domain<b>Detective</b></span></a>
+    <button class="dd-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="dd-nav">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
-
-    <nav class="dd-nav" aria-label="Main navigation">
-      <div class="dd-nav-links">
-        {{~ if navigation.menus && navigation.menus.size > 0 ~}}
-          {{~ for menu in navigation.menus ~}}
-            {{~ if menu.name == "main" ~}}
-              {{~ for item in menu.items ~}}
-                {{~ if item.url ~}}
-                  {{~ item_url = item.url ~}}
-                  {{~ item_active = current_url == item_url || (item_url != "/" && (current_url | string.starts_with item_url)) ~}}
-                  {{~ child_active = false ~}}
-                  {{~ if item.items && item.items.size > 0 ~}}
-                    {{~ for child in item.items ~}}
-                      {{~ if child.url ~}}
-                        {{~ child_url = child.url ~}}
-                        {{~ if current_url == child_url || (child_url != "/" && (current_url | string.starts_with child_url)) ~}}
-                          {{~ child_active = true ~}}
-                        {{~ end ~}}
-                      {{~ end ~}}
-                    {{~ end ~}}
-                    {{~ item_active = item_active || child_active ~}}
-                    <div class="dd-nav-dropdown{{ if item_active }} open{{ end }}">
-                      <button class="dd-nav-link dd-nav-dropdown-trigger{{ if item_active }} is-active{{ end }}" type="button" aria-expanded="{{ if item_active }}true{{ else }}false{{ end }}" aria-haspopup="true">
-                        <span class="dd-nav-dropdown-label">{{ item.title }}</span>
-                        <svg class="dd-nav-dropdown-arrow" viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg>
-                      </button>
-                      <div class="dd-nav-dropdown-menu">
-                        {{~ for child in item.items ~}}
-                          {{~ if child.url ~}}
-                            {{~ child_url = child.url ~}}
-                            {{~ is_child_active = current_url == child_url || (child_url != "/" && (current_url | string.starts_with child_url)) ~}}
-                            <a href="{{ child.url }}" class="{{ if is_child_active }}active{{ end }}"{{ if child.target }} target="{{ child.target }}"{{ end }}{{ if child.rel }} rel="{{ child.rel }}"{{ end }}>{{ child.title }}</a>
-                          {{~ end ~}}
-                        {{~ end ~}}
-                      </div>
-                    </div>
-                  {{~ else ~}}
-                    <a href="{{ item.url }}" class="dd-nav-link{{ if item_active }} is-active{{ end }}"{{ if item.target }} target="{{ item.target }}"{{ end }}{{ if item.rel }} rel="{{ item.rel }}"{{ end }}>{{ item.title }}</a>
-                  {{~ end ~}}
-                {{~ end ~}}
+    <nav class="dd-nav" id="dd-nav" aria-label="Main navigation">
+      <ul class="dd-nav-links">
+        {{~ if navmenu ~}}
+        {{~ for g in navmenu.items ~}}
+        {{~ if g.items && g.items.size > 0 ~}}
+        {{~ current = null; for it in g.items; if it.is_active || it.is_ancestor; current = it; end; end ~}}
+        {{~ if !current && g.url && g.url != "/" && (current_path | string.starts_with g.url); current = g; end ~}}
+        <li class="dd-navgroup{{ if current }} is-current{{ end }}" data-dd-navgroup>
+          <button type="button" class="dd-navgroup__trigger" id="dd-nav-{{ g.id }}-trigger" aria-expanded="false" aria-controls="dd-nav-{{ g.id }}">
+            <span>{{ g.title }}</span>{{ if current }}<span class="dd-visually-hidden">, holds the current page</span>{{ end }}
+            <svg class="dd-navgroup__chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="dd-navpanel{{ if g.meta && g.meta.wide }} dd-navpanel--wide{{ end }}" id="dd-nav-{{ g.id }}">
+            {{~ if g.description ~}}<p class="dd-navpanel__lede">{{ g.description }}</p>{{~ end ~}}
+            <ul class="dd-navpanel__items">
+              {{~ for item in g.items ~}}
+              {{~ here = item.is_active || item.is_ancestor ~}}
+              <li class="dd-navitem{{ if here }} is-current{{ end }}">
+                <a class="dd-navitem__link" href="{{ item.url }}"{{ if item.description }} aria-describedby="dd-nav-{{ g.id }}-{{ for.index }}"{{ end }}{{ if here }} aria-current="{{ if item.is_active }}page{{ else }}true{{ end }}"{{ end }}{{ if item.external }} target="_blank" rel="noopener"{{ end }}>{{ item.title }}</a>
+                {{~ if item.description ~}}<span class="dd-navitem__desc" id="dd-nav-{{ g.id }}-{{ for.index }}">{{ item.description }}</span>{{~ end ~}}
+              </li>
               {{~ end ~}}
+            </ul>
+            {{~ if g.meta && g.meta.foot_text ~}}
+            <div class="dd-navpanel__foot"><span>{{ g.meta.foot_text }}</span>{{ if g.url }}<a href="{{ g.url }}">{{ if g.meta.foot_link }}{{ g.meta.foot_link }}{{ else }}See all{{ end }} &rarr;</a>{{ end }}</div>
             {{~ end ~}}
-          {{~ end ~}}
+          </div>
+        </li>
+        {{~ else ~}}
+        {{~ active = g.is_active || g.is_ancestor ~}}
+        <li><a href="{{ g.url }}" class="dd-nav-link{{ if active }} is-active{{ end }}"{{ if active }} aria-current="page"{{ end }}{{ if g.external }} target="_blank" rel="noopener"{{ end }}>{{ g.title }}</a></li>
         {{~ end ~}}
-      </div>
-      <div class="dd-nav-actions">
-        {{~ if navigation.actions && navigation.actions.size > 0 ~}}
-          {{~ for action in navigation.actions ~}}
-            {{~ if action.kind && action.kind == "button" ~}}
-              <button type="button"{{ if action.css_class }} class="{{ action.css_class }}"{{ end }}{{ if action.title }} title="{{ action.title }}"{{ end }}{{ if action.aria_label }} aria-label="{{ action.aria_label }}"{{ else if action.title }} aria-label="{{ action.title }}"{{ end }}>
-                {{ if action.icon_html && action.icon_html != "" }}{{ action.icon_html }}{{ else if action.icon && action.icon != "" }}{{ action.icon }}{{ end }}
-                {{ if action.text && action.text != "" }} {{ action.text }}{{ else if (!action.icon_html && !action.icon) && action.title && action.title != "" }} {{ action.title }}{{ end }}
-              </button>
-            {{~ else if action.url ~}}
-              <a href="{{ action.url }}"{{ if action.css_class }} class="{{ action.css_class }}"{{ end }}{{ if action.target }} target="{{ action.target }}"{{ else if action.external }} target="_blank"{{ end }}{{ if action.rel }} rel="{{ action.rel }}"{{ else if action.external }} rel="noopener"{{ end }}{{ if action.title }} title="{{ action.title }}"{{ end }}{{ if action.aria_label }} aria-label="{{ action.aria_label }}"{{ else if action.title }} aria-label="{{ action.title }}"{{ end }}>
-                {{ if action.icon_html && action.icon_html != "" }}{{ action.icon_html }}{{ else if action.icon && action.icon != "" }}{{ action.icon }}{{ end }}
-                {{ if action.text && action.text != "" }} {{ action.text }}{{ else if (!action.icon_html && !action.icon) && action.title && action.title != "" }} {{ action.title }}{{ end }}
-              </a>
-            {{~ end ~}}
-          {{~ end ~}}
         {{~ end ~}}
-      </div>
+        {{~ end ~}}
+      </ul>
+      <div class="dd-nav-actions">{{ pf.nav_actions }}</div>
     </nav>
   </div>
 </header>

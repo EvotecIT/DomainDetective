@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{ title_suffix = " | DomainDetective" }}
+{{ include "head" }}
+</head>
+<body class="dd-body dd-body--notfound">
+{{ include "header" }}
+<main id="main" class="dd-main dd-notfound dd-stage">
+  <div class="dd-wrap dd-notfound__inner">
+    <p class="dd-notfound__code" aria-hidden="true">NXDOMAIN</p>
+    <h1>This page does not resolve.</h1>
+    <p class="dd-notfound__lede">The address may have moved, or the link was mistyped. The answer section is empty, but these records still point somewhere useful.</p>
+    <form class="dd-notfound__form" action="/tools/domain-overview/" method="get" role="search">
+      <label class="dd-visually-hidden" for="dd-404-domain">Domain to investigate</label>
+      <input id="dd-404-domain" type="text" name="q" placeholder="Investigate a domain instead" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <button class="dd-button dd-button-primary" type="submit">Investigate</button>
+    </form>
+    <ul class="dd-notfound__links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/tools/">Browser tools</a></li>
+      <li><a href="/docs/">Documentation</a></li>
+      <li><a href="/blog/">Blog</a></li>
+    </ul>
+  </div>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
+</body>
+</html>

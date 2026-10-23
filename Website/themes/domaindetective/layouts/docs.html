@@ -1,57 +1,45 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title_html }} | DomainDetective Docs</title>
-  {{ if description_meta_html == "" }}
-  <meta name="description" content="DomainDetective documentation - guides, configuration, API reference, and usage examples." />
-  {{ end }}
-  {{ description_meta_html }}
-  {{ canonical_html }}
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  {{ assets.critical_css_html }}
-  {{ include "theme-tokens" }}
-  {{ extra_css_html }}
-  {{ assets.css_html }}
-  {{ include "head-meta" }}
-  {{ head_html }}
+{{ title_suffix = " | DomainDetective Docs" }}
+{{ include "head" }}
 </head>
-<body>
-  {{ include "header" }}
-  <div class="docs-layout">
-    <button class="docs-sidebar-toggle" type="button" aria-label="Toggle documentation navigation" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-      <span>Docs Menu</span>
-    </button>
-    <div class="docs-sidebar-overlay"></div>
-    <aside class="docs-sidebar">
-      {{ include "sidebar" }}
-    </aside>
-    <main class="docs-main">
-      <article class="docs-article">
-        <header class="docs-article-header">
-          <div class="docs-article-header-top">
-            <h1>{{ page.title }}</h1>
-            {{ if page.edit_url }}
-            <a href="{{ page.edit_url }}" target="_blank" rel="noopener noreferrer" class="docs-edit-link">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit on GitHub
-            </a>
-            {{ end }}
-          </div>
-          {{ if page.description }}
-          <p class="docs-article-desc">{{ page.description }}</p>
-          {{ end }}
-        </header>
-        <div class="docs-article-body">
+<body class="dd-body dd-body--docs">
+{{ include "header" }}
+<div class="docs-layout dd-wrap">
+  <button class="docs-sidebar-toggle" type="button" aria-label="Show documentation navigation" aria-expanded="false" aria-controls="docs-sidebar">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h10M4 17h16"/></svg>
+    <span>Documentation menu</span>
+  </button>
+  <div class="docs-sidebar-overlay"></div>
+  <aside class="docs-sidebar" id="docs-sidebar">
+    {{ include "sidebar" }}
+  </aside>
+  <main id="main" class="docs-main">
+    <article class="docs-article">
+      <header class="docs-article-header">
+        <p class="dd-eyebrow">Documentation</p>
+        <h1>{{ page.title }}</h1>
+        {{ if page.description }}<p class="docs-article-desc">{{ page.description }}</p>{{ end }}
+      </header>
+      <div class="docs-article-body dd-prose">
 {{ content }}
-        </div>
-      </article>
-    </main>
-  </div>
-  {{ include "footer" }}
-  {{ assets.js_html }}
-  {{ extra_scripts_html }}
+      </div>
+      <footer class="docs-article-foot">
+        {{ if page.edit_url }}
+        <a href="{{ page.edit_url }}" target="_blank" rel="noopener noreferrer" class="docs-edit-link">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          Edit this page on GitHub
+        </a>
+        {{ end }}
+        <a href="https://evo.yt/discord" target="_blank" rel="noopener">Questions? Ask on Discord</a>
+      </footer>
+    </article>
+  </main>
+  {{ include "toc" }}
+</div>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
 </body>
 </html>

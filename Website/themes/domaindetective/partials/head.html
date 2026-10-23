@@ -1,0 +1,15 @@
+{{~ ## Shared document head for every layout. Theme is resolved before first paint: stored choice, else dark. ## ~}}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title_html }}{{ if title_suffix }}{{ title_suffix }}{{ end }}</title>
+  {{~ if description_meta_html == "" ~}}
+  <meta name="description" content="DomainDetective checks DNS, email authentication, TLS, web security and reputation for any domain, from your browser, PowerShell, the CLI or .NET." />
+  {{~ end ~}}
+  {{ description_meta_html }}
+  {{ canonical_html }}
+  {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
