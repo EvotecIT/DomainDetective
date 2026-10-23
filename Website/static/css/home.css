@@ -115,10 +115,15 @@
   }
 }
 
+.dd-hero__copy {
+  container-type: inline-size;
+}
+
 .dd-hero__title {
   margin: 0 0 1.5rem;
   color: #ffffff;
-  font-size: var(--dd-t-hero);
+  /* Each line stays on one row on wide screens, so size it to the column rather than the viewport. */
+  font-size: min(var(--dd-t-hero), 12.6cqi);
   font-weight: 800;
   letter-spacing: -.045em;
   line-height: .92;
