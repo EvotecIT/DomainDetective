@@ -51,13 +51,7 @@
 }
 
 @if (Info is not null && tenant is not null) {
-@if (Info.IsBrowserLimited) {
-    <div class="tool-callout tool-callout-inline">
-        <strong>Web edition overview</strong>
-        <p>This view uses the DD checks that run cleanly in the browser. Sections that need deeper online validation stay visible below and are marked clearly.</p>
-    </div>
-}
-
+@* The browser-edition explanation is shown once by ToolPage above this component. *@
 @if (Info.IsPartial) {
     <div class="tool-callout tool-callout-inline">
         <strong>@(string.IsNullOrWhiteSpace(Info.StageLabel) ? "First pass ready" : Info.StageLabel)</strong>

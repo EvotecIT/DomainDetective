@@ -130,7 +130,7 @@
     "SecurityHeaders": {
       "Enabled": true,
       "Hsts": false,
-      "ContentSecurityPolicyValue": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://dns.google https://cloudflare-dns.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      "ContentSecurityPolicyValue": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://dns.google https://cloudflare-dns.com https://stat.ripe.net; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     },
     "ContentSignals": {
       "Enabled": true,
