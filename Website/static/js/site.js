@@ -62,13 +62,19 @@
     }
 
     function flashCopied(button, label) {
-        var original = button.getAttribute('data-label') || button.innerHTML;
-        button.setAttribute('data-label', original);
+        // Keep the button's own nodes (icon and text) and put them back, rather than re-parsing stored HTML.
+        if (button.dataset.flashing === 'true') {
+            return;
+        }
+        button.dataset.flashing = 'true';
+        var original = Array.prototype.slice.call(button.childNodes);
         button.classList.add('is-copied', 'copied');
         button.textContent = label;
         window.setTimeout(function () {
             button.classList.remove('is-copied', 'copied');
-            button.innerHTML = original;
+            button.textContent = '';
+            original.forEach(function (node) { button.appendChild(node); });
+            button.dataset.flashing = 'false';
         }, 1500);
     }
 
