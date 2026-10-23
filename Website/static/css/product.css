@@ -40,6 +40,7 @@
 
 .dx-console__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -63,9 +64,13 @@
 
 .dx-console__form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: .4rem;
   padding: .6rem 1.25rem 1rem;
+}
+
+.dx-console__form input {
+  grid-column: 1 / -1;
 }
 
 .dx-console__form input,
@@ -179,14 +184,6 @@
 }
 
 @media (max-width: 560px) {
-  .dx-console__form {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .dx-console__form input {
-    grid-column: 1 / -1;
-  }
-
   .dx-console__form .dd-button {
     grid-column: 1 / -1;
   }
