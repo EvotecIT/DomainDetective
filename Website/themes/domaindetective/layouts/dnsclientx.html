@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{ title_suffix = "" }}
+{{ include "head" }}
+  {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
+</head>
+<body class="dd-body dd-body--product">
+{{ include "header" }}
+{{~ ## DnsClientX landing page, built from data/dnsclientx.json. The hero resolver queries public DNS-over-HTTPS
+     from the browser and shows the matching C# and PowerShell for the same question. ## ~}}
+{{~ x = data.dnsclientx ~}}
+<main id="main">
+  <section class="dd-hero dd-stage dx-hero" aria-labelledby="dx-title">
+    <div class="dd-hero__backdrop" aria-hidden="true"></div>
+    <div class="dd-wrap dd-hero__grid">
+      <div class="dd-hero__copy">
+        <p class="dd-hero__kicker"><span class="dd-hero__pulse" aria-hidden="true"></span>DnsClientX {{ x.version }} &middot; the DNS engine inside DomainDetective</p>
+        <h1 id="dx-title" class="dd-hero__title"><span class="dd-hero__line">Every DNS transport.</span> <span class="dd-hero__line dd-trace">One .NET client.</span></h1>
+        <p class="dd-hero__lede">DnsClientX is an async DNS library and PowerShell module for UDP, TCP, DoT, DoH, DoH3 and DoQ, with typed records, local DNSSEC validation, zone transfers, updates and service discovery. The core has no dependencies and runs from .NET Framework 4.7.2 to .NET 10.</p>
+        <div class="dx-install">
+          <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">&gt;</span><code>dotnet add package DnsClientX</code><button type="button" class="dd-copy" data-copy="dotnet add package DnsClientX" aria-label="Copy NuGet install command">Copy</button></div>
+          <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">PS&gt;</span><code>Install-Module DnsClientX</code><button type="button" class="dd-copy" data-copy="Install-Module DnsClientX -Scope CurrentUser" aria-label="Copy PowerShell install command">Copy</button></div>
+        </div>
+        <ul class="dd-chips dd-hero__chips" aria-label="Project facts">
+          <li class="dd-chip">{{ x.downloads }} NuGet downloads</li>
+          <li class="dd-chip">MIT licensed</li>
+          <li class="dd-chip">No dependencies in core</li>
+          <li class="dd-chip">PowerShell 5.1 and 7</li>
+        </ul>
+      </div>
+
+      <div class="dd-hero__visual">
+        <article class="dx-console" data-dx-console aria-labelledby="dx-console-title">
+          <header class="dx-console__head">
+            <p class="dd-case__eyebrow" id="dx-console-title">Try it: live DNS over HTTPS</p>
+            <span class="dx-console__status" data-dx-status>Ready</span>
+          </header>
+          <form class="dx-console__form" data-dx-form>
+            <label class="dd-visually-hidden" for="dx-name">Name</label>
+            <input id="dx-name" name="name" type="text" value="evotec.pl" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+            <label class="dd-visually-hidden" for="dx-type">Record type</label>
+            <select id="dx-type" name="type">
+              {{~ for t in ["A", "AAAA", "MX", "TXT", "NS", "SOA", "CAA", "CNAME", "DNSKEY", "DS", "SRV", "HTTPS", "TLSA"] ~}}
+              <option{{ if t == "MX" }} selected{{ end }}>{{ t }}</option>
+              {{~ end ~}}
+            </select>
+            <label class="dd-visually-hidden" for="dx-provider">Resolver</label>
+            <select id="dx-provider" name="provider">
+              <option value="cloudflare" selected>Cloudflare</option>
+              <option value="google">Google</option>
+            </select>
+            <button type="submit" class="dd-button dd-button-primary">Resolve</button>
+          </form>
+          <ol class="dx-console__answers" data-dx-answers aria-live="polite">
+            <li class="dx-console__empty">Press Resolve to ask DNS.</li>
+          </ol>
+          <div class="dx-console__code">
+            <div class="dx-console__tabs" role="tablist" aria-label="Same query in code">
+              <button type="button" role="tab" aria-selected="true" data-dx-lang="cs">C#</button>
+              <button type="button" role="tab" aria-selected="false" data-dx-lang="ps">PowerShell</button>
+            </div>
+            <pre><code data-dx-code>var response = await ClientX.QueryDns("evotec.pl", DnsRecordType.MX, DnsEndpoint.Cloudflare);</code></pre>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="dd-section dx-transports" aria-labelledby="dx-transports-title">
+    <div class="dd-wrap">
+      <div class="dd-section__head dd-section__head--split">
+        <div>
+          <p class="dd-eyebrow">Transports</p>
+          <h2 id="dx-transports-title">Plain, encrypted<br /><span class="dd-trace">or oblivious.</span></h2>
+        </div>
+        <p>Every transport sits behind one endpoint syntax shared by the library, the PowerShell module and the CLI. Modern transports live in the core package; privacy transports are separate packages so the core stays dependency-free.</p>
+      </div>
+      <ul class="dx-transports__grid">
+        {{~ for t in x.transports ~}}
+        <li class="dx-transport dx-transport--{{ t.status }}">
+          <div class="dx-transport__top">
+            <h3>{{ t.name }}</h3>
+            <span class="dx-status dx-status--{{ t.status }}">{{ case t.status }}{{ when "core" }}Core{{ when "modern" }}.NET 8 and 10{{ when "next" }}Next release{{ else }}{{ t.status }}{{ end }}</span>
+          </div>
+          <p>{{ t.detail }}</p>
+          <code>{{ t.syntax }}</code>
+        </li>
+        {{~ end ~}}
+      </ul>
+    </div>
+  </section>
+
+  <section class="dd-section dd-section--alt dx-capabilities" aria-labelledby="dx-cap-title">
+    <div class="dd-wrap">
+      <div class="dd-section__head">
+        <p class="dd-eyebrow">Beyond lookups</p>
+        <h2 id="dx-cap-title">A DNS toolkit,<br /><span class="dd-trace">not just a resolver.</span></h2>
+        <p>The same engine answers a quick lookup, validates a DNSSEC chain from the root, transfers a zone or keeps a live view of the services on your network.</p>
+      </div>
+      <div class="dx-cap__grid">
+        {{~ for c in x.capabilities ~}}
+        <article class="dx-cap">
+          <span class="dd-signal__icon">{{ icon_name = c.icon; include "icon" }}</span>
+          <h3>{{ c.title }}</h3>
+          <p>{{ c.body }}</p>
+          <pre><code class="language-{{ c.lang }}">{{ c.code | html.escape }}</code></pre>
+        </article>
+        {{~ end ~}}
+      </div>
+    </div>
+  </section>
+
+  <section class="dd-section dx-providers" aria-labelledby="dx-providers-title">
+    <div class="dd-wrap dx-providers__grid">
+      <div>
+        <p class="dd-eyebrow">Built-in resolvers</p>
+        <h2 id="dx-providers-title">Pick a provider,<br /><span class="dd-trace">or bring your own.</span></h2>
+        <p>Named profiles cover the major public resolvers and their filtering, wire-format and QUIC variants. Anything else is one endpoint string away, including DNS stamps, private resolvers and the root servers.</p>
+        <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -Type A `
+  -ResolverEndpoint 'udp@1.1.1.1:53','doh@https://dns.google/dns-query' `
+  -ResolverStrategy FirstSuccess</code></pre>
+      </div>
+      <ul class="dx-providers__list">
+        {{~ for g in x.providers ~}}
+        <li>
+          <h3>{{ g.group }}</h3>
+          <ul class="dd-signal__tools">
+            {{~ for item in g.items ~}}<li><span>{{ item }}</span></li>{{~ end ~}}
+          </ul>
+        </li>
+        {{~ end ~}}
+      </ul>
+    </div>
+  </section>
+
+  <section class="dd-section dd-section--alt dx-powershell" aria-labelledby="dx-ps-title">
+    <div class="dd-wrap">
+      <div class="dd-section__head dd-section__head--split">
+        <div>
+          <p class="dd-eyebrow">PowerShell module</p>
+          <h2 id="dx-ps-title">{{ x.cmdlets.size }} cmdlets<br /><span class="dd-trace">for DNS work.</span></h2>
+        </div>
+        <p>Thin commands over the same engine, with typed output that pipes into the rest of your scripts. Windows PowerShell 5.1 and PowerShell 7 on Windows, macOS and Linux.</p>
+      </div>
+      <ul class="dx-cmdlets">
+        {{~ for c in x.cmdlets ~}}
+        <li class="dx-cmdlet{{ if c.status == "next" }} dx-cmdlet--next{{ end }}">
+          <code>{{ c.name }}</code>
+          <span>{{ c.desc }}</span>
+          {{~ if c.status == "next" ~}}<span class="dx-status dx-status--next">Next release</span>{{~ end ~}}
+        </li>
+        {{~ end ~}}
+      </ul>
+      <p class="dx-note">{{ x.releaseNote }} <a href="/api/dnsclientx-powershell/">Full cmdlet reference &rarr;</a></p>
+    </div>
+  </section>
+
+  <section class="dd-section dx-inside" aria-labelledby="dx-inside-title">
+    <div class="dd-wrap dx-inside__grid">
+      <div>
+        <p class="dd-eyebrow">Proven in DomainDetective</p>
+        <h2 id="dx-inside-title">Every check<br /><span class="dd-trace">runs on it.</span></h2>
+        <p>SPF flattening, DKIM selector discovery, DNSSEC chains, DANE, MTA-STS and every other DomainDetective check asks DNS through DnsClientX. In the browser tools it runs as WebAssembly, so the same parser and validation logic you install runs on this site.</p>
+        <div class="dd-ct__actions">
+          <a class="dd-button dd-button-primary" href="/tools/raw-dns-query/">Open the DNS playground</a>
+          <a class="dd-button dd-button-ghost" href="/tools/domain-overview/">Run a domain overview</a>
+        </div>
+      </div>
+      <ul class="dx-docs">
+        <li><a href="/docs/dnsclientx/"><strong>Overview</strong><span>Choose the library, the module or the CLI.</span></a></li>
+        <li><a href="/docs/dnsclientx/csharp/"><strong>.NET guide</strong><span>Queries, typed records and client configuration.</span></a></li>
+        <li><a href="/docs/dnsclientx/powershell/"><strong>PowerShell guide</strong><span>Resolve-Dns and the diagnostic cmdlets.</span></a></li>
+        <li><a href="/docs/dnsclientx/transports/"><strong>Transports and endpoints</strong><span>UDP to DoQ, stamps and capability checks.</span></a></li>
+        <li><a href="/docs/dnsclientx/multi-resolver/"><strong>Multi-resolver and benchmarking</strong><span>Strategies, caching, probes and scores.</span></a></li>
+        <li><a href="/docs/dnsclientx/dnssec/"><strong>DNSSEC and resolution</strong><span>Validation states, root resolution, anchors.</span></a></li>
+        <li><a href="/docs/dnsclientx/zones/"><strong>Zones and updates</strong><span>AXFR, IXFR, ZONEMD, TSIG and RFC 2136.</span></a></li>
+        <li><a href="/docs/dnsclientx/discovery/"><strong>Service discovery</strong><span>DNS-SD, mDNS and designated resolvers.</span></a></li>
+        <li><a href="/api/dnsclientx/"><strong>.NET API reference</strong><span>Every public type and member.</span></a></li>
+        <li><a href="https://github.com/EvotecIT/DnsClientX" target="_blank" rel="noopener"><strong>Source on GitHub</strong><span>Issues, releases and the changelog.</span></a></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="dd-section dd-cta" aria-labelledby="dx-cta-title">
+    <div class="dd-wrap">
+      <div class="dd-band">
+        <div class="dd-band__grid">
+          <div>
+            <h2 id="dx-cta-title">Resolve your first record in a minute.</h2>
+            <p>Add the package, ask a question, read typed answers. Star DnsClientX on GitHub if it saves you writing your own resolver.</p>
+          </div>
+          <div class="dd-band__actions">
+            <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">&gt;</span><code>dotnet add package DnsClientX</code><button type="button" class="dd-copy" data-copy="dotnet add package DnsClientX" aria-label="Copy install command">Copy</button></div>
+            <div class="dd-band__buttons">
+              <a class="dd-button dd-button-primary" href="https://github.com/EvotecIT/DnsClientX" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="m12 2.6 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9L12 2.6Z"/></svg>
+                Star on GitHub
+              </a>
+              <a class="dd-button dd-button-ghost" href="https://www.nuget.org/packages/DnsClientX" target="_blank" rel="noopener">NuGet</a>
+              <a class="dd-button dd-button-ghost" href="https://www.powershellgallery.com/packages/DnsClientX" target="_blank" rel="noopener">PowerShell Gallery</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
+</body>
+</html>

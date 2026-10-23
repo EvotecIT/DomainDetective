@@ -35,6 +35,6 @@ dotnet add package DnsClientX
 Install-Module DnsClientX -Scope CurrentUser
 ```
 
-- [DnsClientX product page](/products/dnsclientx/)
+- [DnsClientX product page](/dnsclientx/)
 - [DnsClientX .NET API](/api/dnsclientx/)
 - [DnsClientX PowerShell API](/api/dnsclientx-powershell/)

@@ -3830,3 +3830,54 @@
 .overview-verdict__skipped strong {
   color: var(--dd-ink-strong);
 }
+
+/* ------------------------------------------------------------------ DnsClientX promotion on DNS tools */
+
+.dd-dxpromo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem 2.5rem;
+  padding: 1.6rem 1.75rem;
+  border: 1px solid rgba(59, 227, 245, .3);
+  border-radius: var(--dd-r-lg);
+  background:
+    radial-gradient(80% 140% at 100% 0%, var(--dd-glow), transparent 65%),
+    var(--dd-card);
+}
+
+.dd-dxpromo > * {
+  min-width: 0;
+}
+
+.dd-dxpromo .dd-eyebrow {
+  margin-bottom: .5rem;
+}
+
+.dd-dxpromo h2 {
+  margin: 0 0 .4rem;
+  font-size: 1.35rem;
+}
+
+.dd-dxpromo p:not(.dd-eyebrow) {
+  margin: 0;
+  color: var(--dd-ink-2);
+  font-size: .925rem;
+}
+
+.dd-dxpromo__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .6rem;
+}
+
+.dd-dxpromo__actions .dd-button {
+  justify-self: start;
+}
+
+@media (max-width: 860px) {
+  .dd-dxpromo {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1.25rem;
+  }
+}

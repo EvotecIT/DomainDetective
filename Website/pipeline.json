@@ -181,7 +181,7 @@
       "legacyAliasMode": "omit",
       "template": "docs",
       "bodyClass": "pf-api-docs pf-api-docs--powershell",
-      "docsHome": "/products/dnsclientx/",
+      "docsHome": "/dnsclientx/",
       "nav": "./site.json",
       "navContextPath": "/",
       "css": "/css/app.css,/css/api.css",
@@ -419,7 +419,7 @@
       "checkUtf8": true,
       "checkMetaCharset": true,
       "checkUnicodeReplacementChars": true,
-      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/sitemap.xml,/products/dnsclientx/,/docs/dnsclientx/"
+      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/sitemap.xml,/products/dnsclientx/,/dnsclientx/,/docs/dnsclientx/"
     }
   ]
 }

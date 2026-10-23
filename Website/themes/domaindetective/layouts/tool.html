@@ -105,6 +105,20 @@ using DomainDetective;
       </div>
     </section>
 
+    {{~ if tool.category == "dns" ~}}
+    <aside class="dd-dxpromo" aria-label="DnsClientX">
+      <div>
+        <p class="dd-eyebrow">Powered by DnsClientX</p>
+        <h2>Need this DNS lookup in your own code?</h2>
+        <p>This tool resolves through DnsClientX, our open-source DNS client for .NET and PowerShell. It speaks UDP, TCP, DoT, DoH, DoH3 and DoQ, parses typed records and validates DNSSEC locally.</p>
+      </div>
+      <div class="dd-dxpromo__actions">
+        <a class="dd-button dd-button-primary" href="/dnsclientx/">Meet DnsClientX</a>
+        <div class="dd-command"><span class="dd-command__prompt" aria-hidden="true">&gt;</span><code>dotnet add package DnsClientX</code><button type="button" class="dd-copy" data-copy="dotnet add package DnsClientX" aria-label="Copy DnsClientX install command">Copy</button></div>
+      </div>
+    </aside>
+    {{~ end ~}}
+
     {{~ related = null; for cat in data.tools_catalog.categories; if cat.slug == tool.category; related = cat; end; end ~}}
     {{~ if related && related.count > 1 ~}}
     <nav class="dd-related" aria-labelledby="dd-related-title">

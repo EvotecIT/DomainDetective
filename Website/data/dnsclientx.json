@@ -1,0 +1,105 @@
+{
+  "version": "2.1.2",
+  "downloads": "80k+",
+  "releaseNote": "Badges mark what ships in DnsClientX 2.1.2 on NuGet and the PowerShell Gallery. Items marked Next release are merged in source and arrive with the next public version.",
+  "transports": [
+    { "name": "UDP", "detail": "Classic DNS with automatic TCP fallback on truncation and socket reuse.", "syntax": "udp@1.1.1.1:53", "status": "core" },
+    { "name": "TCP", "detail": "Persistent, pipelined sessions for large answers and zone work.", "syntax": "tcp@9.9.9.9:53", "status": "core" },
+    { "name": "DNS over TLS", "detail": "RFC 7858 with pooled sessions, dot ALPN and strict certificate checks.", "syntax": "dot@dns.quad9.net:853", "status": "core" },
+    { "name": "DNS over HTTPS", "detail": "RFC 8484 wire format over GET or POST, plus the JSON APIs, on HTTP/1.1 and HTTP/2.", "syntax": "doh@https://dns.google/dns-query", "status": "core" },
+    { "name": "DNS over HTTP/3", "detail": "DoH3 in the core package on .NET 8 and .NET 10, no extra dependencies.", "syntax": "doh3@https://dns.quad9.net/dns-query", "status": "modern" },
+    { "name": "DNS over QUIC", "detail": "RFC 9250 pooled DoQ where the runtime exposes QUIC.", "syntax": "doq@dns.quad9.net:853", "status": "modern" },
+    { "name": "DNS over gRPC", "detail": "Wire-format DNS over gRPC for resolvers that publish it, with runtime capability checks.", "syntax": "DnsOverGrpc", "status": "modern" },
+    { "name": "Multicast DNS", "detail": "mDNS queries and continuous DNS-SD browsing across IPv4 and IPv6 interfaces.", "syntax": "224.0.0.251:5353", "status": "core" },
+    { "name": "DNS stamps", "detail": "sdns:// stamps for plain DNS, DoH, DoT and DoQ from one shared parser.", "syntax": "sdns://AgUAAAAAAAAA…", "status": "core" },
+    { "name": "Oblivious DoH", "detail": "RFC 9230 through a separate relay so no single party sees who asked what.", "syntax": "DnsClientX.Odoh", "status": "next" },
+    { "name": "DNSCrypt v2", "detail": "Authenticated, encrypted UDP/TCP and Anonymized DNSCrypt relays.", "syntax": "DnsClientX.DnsCrypt", "status": "next" }
+  ],
+  "providers": [
+    { "group": "Cloudflare", "items": ["Cloudflare", "CloudflareWireFormat", "CloudflareWireFormatPost", "CloudflareSecurity", "CloudflareFamily"] },
+    { "group": "Google", "items": ["Google", "GoogleWireFormat", "GoogleWireFormatPost"] },
+    { "group": "Quad9", "items": ["Quad9", "Quad9Http3", "Quad9Quic", "Quad9ECS", "Quad9Unsecure"] },
+    { "group": "OpenDNS", "items": ["OpenDNS", "OpenDNSFamily"] },
+    { "group": "AdGuard", "items": ["AdGuard", "AdGuardFamily", "AdGuardNonFiltering"] },
+    { "group": "Your network", "items": ["System", "SystemTcp", "RootServer"] }
+  ],
+  "capabilities": [
+    {
+      "title": "Typed records",
+      "icon": "document",
+      "body": "Ask for raw strings or parsed objects: MX priorities, SOA timers, TXT fragments, TLSA, SVCB and more, with owner, class, remaining TTL and the original wire evidence kept.",
+      "lang": "csharp",
+      "code": "var response = await ClientX.QueryDns(\"evotec.pl\", DnsRecordType.MX,\n    DnsEndpoint.Cloudflare, typedRecords: true);"
+    },
+    {
+      "title": "DNSSEC you can trust",
+      "icon": "shield",
+      "body": "Local chain validation to the IANA root with Secure, Insecure, Bogus and Indeterminate results, authenticated denial, iterative root resolution, QNAME minimisation and RFC 5011 anchor rollover.",
+      "lang": "csharp",
+      "code": "var response = await client.Resolve(\"evotec.pl\", DnsRecordType.A,\n    requestDnsSec: true, validateDnsSec: true);\nConsole.WriteLine(response.DnsSecValidationStatus);"
+    },
+    {
+      "title": "Many resolvers, one answer",
+      "icon": "layers",
+      "body": "FirstSuccess, FastestWins, SequentialFallback and RoundRobin strategies with global and per-endpoint concurrency caps, single-flight caching and order-preserving batches.",
+      "lang": "powershell",
+      "code": "Resolve-Dns -Name evotec.pl -Type A `\n  -DnsProvider Cloudflare,Quad9 -ResolverStrategy FirstSuccess"
+    },
+    {
+      "title": "Measure resolvers",
+      "icon": "bolt",
+      "body": "Probe, benchmark and score resolver catalogs, save the results and let DnsClientX pick the best endpoint for the network you are on.",
+      "lang": "powershell",
+      "code": "Test-DnsBenchmark -Name evotec.pl -DnsProvider Cloudflare,Google,Quad9"
+    },
+    {
+      "title": "Zones and updates",
+      "icon": "database",
+      "body": "AXFR and IXFR, XFR-over-TLS, ZONEMD digests, TSIG authentication, a BIND master-file parser and atomic RFC 2136 UPDATE batches with prerequisites.",
+      "lang": "csharp",
+      "code": "await foreach (var rrset in client.ZoneTransferStreamAsync(\"example.com\")) {\n    Console.WriteLine(string.Join(\", \", rrset));\n}"
+    },
+    {
+      "title": "Service discovery",
+      "icon": "globe",
+      "body": "RFC 6763 DNS-SD over unicast and multicast, continuous mDNS browsing with goodbyes and expiry, and DDR discovery of a resolver's verified encrypted endpoints.",
+      "lang": "csharp",
+      "code": "var services = await client.BrowseServicesAsync(\"http\", \"tcp\", \"example.com\");"
+    },
+    {
+      "title": "Your system resolver",
+      "icon": "terminal",
+      "body": "Reads the operating system's resolvers without silent public fallback: Windows NRPT routing, resolv.conf search lists and ndots, EDNS client subnet and source binding.",
+      "lang": "csharp",
+      "code": "var response = await ClientX.QueryDns(\"intranet.contoso\", DnsRecordType.A, DnsEndpoint.System);"
+    },
+    {
+      "title": "Works in the browser",
+      "icon": "browser",
+      "body": "A caller-owned HttpClient DNS JSON client runs in Blazor WebAssembly. Every DomainDetective browser tool resolves through it.",
+      "lang": "csharp",
+      "code": "var response = await DnsJsonQueryClient.QueryAsync(httpClient,\n    new Uri(\"https://dns.google/resolve\"), \"evotec.pl\", DnsRecordType.A);"
+    }
+  ],
+  "cmdlets": [
+    { "name": "Resolve-Dns", "desc": "Query any record type across providers, endpoints and strategies.", "status": "released" },
+    { "name": "Test-DnsBenchmark", "desc": "Benchmark resolvers and save comparable results.", "status": "released" },
+    { "name": "Test-DnsProbe", "desc": "Probe endpoints and record capability evidence.", "status": "released" },
+    { "name": "Test-DnsResolverCatalog", "desc": "Validate a list of resolver endpoints.", "status": "released" },
+    { "name": "Get-DnsResolverSelection", "desc": "Pick the best resolver from saved scores.", "status": "released" },
+    { "name": "Get-DnsTransportCapability", "desc": "Show which transports this runtime supports.", "status": "released" },
+    { "name": "Get-DnsZone", "desc": "Transfer a zone with AXFR, IXFR or XFR-over-TLS.", "status": "released" },
+    { "name": "Invoke-DnsUpdate", "desc": "Send RFC 2136 updates, confirmed before any network call.", "status": "released" },
+    { "name": "Find-DnsService", "desc": "Discover DNS-SD service types and instances.", "status": "released" },
+    { "name": "Get-DnsService", "desc": "Resolve a service instance's SRV and TXT data.", "status": "released" },
+    { "name": "ConvertFrom-DnsStamp", "desc": "Decode an sdns:// stamp into an endpoint.", "status": "released" },
+    { "name": "Clear-DnsMultiResolverCache", "desc": "Reset the FastestWins resolver choice.", "status": "released" },
+    { "name": "Test-DnsHealth", "desc": "Health profiles for a set of resolvers.", "status": "next" },
+    { "name": "Get-DnsDesignatedResolver", "desc": "Discover a resolver's verified encrypted endpoints (DDR).", "status": "next" },
+    { "name": "Receive-DnsService", "desc": "Stream continuous mDNS service changes.", "status": "next" },
+    { "name": "Get-DnsQueryExplanation", "desc": "Explain how a query was routed and answered.", "status": "next" },
+    { "name": "Compare-DnsResolverSnapshot", "desc": "Diff two saved resolver snapshots.", "status": "next" },
+    { "name": "Get-DnsCache", "desc": "Inspect the process-wide response cache.", "status": "next" },
+    { "name": "Clear-DnsCache", "desc": "Clear the process-wide response cache.", "status": "next" }
+  ]
+}

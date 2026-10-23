@@ -123,7 +123,7 @@
   margin: 0 0 1.5rem;
   color: #ffffff;
   /* Each line stays on one row on wide screens, so size it to the column rather than the viewport. */
-  font-size: min(var(--dd-t-hero), 12.6cqi);
+  font-size: min(var(--dd-t-hero), var(--dd-hero-fit, 12.6cqi));
   font-weight: 800;
   letter-spacing: -.045em;
   line-height: .92;
@@ -1030,4 +1030,90 @@
 
 .dd-cta {
   padding-top: clamp(3rem, 2rem + 3vw, 5rem);
+}
+
+/* ------------------------------------------------------------------ DnsClientX introduction */
+
+.dd-dx__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(2rem, 1.5rem + 3vw, 4.5rem);
+}
+
+.dd-dx__grid > * {
+  min-width: 0;
+}
+
+.dd-dx__copy h2 {
+  font-size: var(--dd-t-display);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.02;
+}
+
+.dd-dx__copy > p:not(.dd-eyebrow):not(.dd-dx__meta) {
+  color: var(--dd-ink-2);
+  font-size: var(--dd-t-lede);
+}
+
+.dd-dx__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin: 1.75rem 0 1rem;
+}
+
+.dd-dx__meta {
+  color: var(--dd-ink-3);
+  font-family: var(--dd-mono);
+  font-size: .78rem;
+}
+
+.dd-dx__transports {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dd-dx__transports li {
+  display: grid;
+  gap: .1rem;
+  padding: .6rem .8rem;
+  border: 1px solid var(--dd-line);
+  border-left: 3px solid var(--dd-pass);
+  border-radius: var(--dd-r-sm);
+  background: var(--dd-card);
+}
+
+.dd-dx__transports li.dx-status--modern { border-left-color: var(--dd-accent); }
+.dd-dx__transports li.dx-status--next { border-left-color: var(--dd-warn); border-style: dashed; border-left-style: solid; }
+
+.dd-dx__transports strong {
+  color: var(--dd-ink-strong);
+  font-size: .875rem;
+}
+
+.dd-dx__transports code {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dd-ink-3);
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dd-dx__visual pre {
+  font-size: .8rem;
+}
+
+@media (max-width: 960px) {
+  .dd-dx__grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,0 +1,33 @@
+{{~ ## Home page introduction to DnsClientX, the DNS engine under DomainDetective, with its transports as proof. ## ~}}
+{{~ x = data.dnsclientx ~}}
+<section class="dd-section dd-dx" aria-labelledby="dd-dx-title">
+  <div class="dd-wrap dd-dx__grid">
+    <div class="dd-dx__copy">
+      <p class="dd-eyebrow">Also from us: DnsClientX</p>
+      <h2 id="dd-dx-title">The DNS engine<br /><span class="dd-trace">underneath it all.</span></h2>
+      <p>Every DomainDetective check asks DNS through DnsClientX, our open-source DNS client for .NET and PowerShell. Use it on its own when you need DNS without the analysis: any transport, typed records, local DNSSEC validation, zone transfers and service discovery, with no dependencies in the core.</p>
+      <div class="dd-dx__actions">
+        <a class="dd-button dd-button-primary" href="/dnsclientx/">Meet DnsClientX</a>
+        <a class="dd-button dd-button-ghost" href="/tools/raw-dns-query/">Try the DNS playground</a>
+      </div>
+      <p class="dd-dx__meta">{{ x.downloads }} NuGet downloads &middot; version {{ x.version }} &middot; MIT licensed</p>
+    </div>
+    <div class="dd-dx__visual">
+      <ul class="dd-dx__transports" aria-label="Supported transports">
+        {{~ for t in x.transports ~}}
+        <li class="dx-status--{{ t.status }}"><strong>{{ t.name }}</strong><code>{{ t.syntax }}</code></li>
+        {{~ end ~}}
+      </ul>
+      <div class="dd-window">
+        <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--cs"></span><span class="dd-window__title">Program.cs</span></div>
+        <pre><code class="language-csharp">using DnsClientX;
+
+using var client = new ClientX(DnsEndpoint.Quad9Quic);
+var response = await client.Resolve("evotec.pl", DnsRecordType.MX,
+    requestDnsSec: true, validateDnsSec: true);
+
+Console.WriteLine(response.DnsSecValidationStatus); // Secure</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
