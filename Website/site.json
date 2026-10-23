@@ -218,14 +218,16 @@
       { "Name": "home", "Css": ["/css/home.css"], "Js": ["/js/quickscan.js"] },
       { "Name": "docs", "Css": ["/css/docs.css"] },
       { "Name": "api", "Css": ["/css/api.css"] },
-      { "Name": "tools", "Css": ["/css/tools.css"], "Js": ["/js/quickscan.js", "/js/tools.js"] }
+      { "Name": "tools", "Css": ["/css/tools.css"], "Js": ["/js/quickscan.js", "/js/tools.js"] },
+      { "Name": "product", "Css": ["/css/home.css", "/css/product.css"], "Js": ["/js/quickscan.js", "/js/dnsclientx.js"] }
     ],
     "RouteBundles": [
       { "Match": "/**", "Bundles": ["global"] },
       { "Match": "/", "Bundles": ["home"] },
       { "Match": "/docs/**", "Bundles": ["docs"] },
       { "Match": "/api/**", "Bundles": ["api"] },
-      { "Match": "/tools/**", "Bundles": ["tools"] }
+      { "Match": "/tools/**", "Bundles": ["tools"] },
+      { "Match": "/dnsclientx/**", "Bundles": ["product"] }
     ],
     "CriticalCss": [
       { "Name": "domaindetective", "Path": "themes/domaindetective/critical.css" }
@@ -307,7 +309,22 @@
               { "Title": ".NET library", "Url": "/docs/csharp-api/", "Description": "Embed DomainHealthCheck in your services." },
               { "Title": "CLI", "Url": "/docs/cli-usage/", "Description": "Scan domains from a shell or CI job." },
               { "Title": "API reference", "Url": "/api/", "Description": "Every public type and member." },
-              { "Title": "DnsClientX", "Url": "/products/dnsclientx/", "Description": "The DNS client underneath DomainDetective." }
+              { "Title": "Roadmap", "Url": "/roadmap/", "Description": "What is next for every product." }
+            ]
+          },
+          {
+            "Id": "dnsclientx",
+            "Title": "DnsClientX",
+            "Url": "/dnsclientx/",
+            "Description": "Our DNS client for .NET and PowerShell: every transport, typed records, DNSSEC and zones.",
+            "Meta": { "foot_text": "Open source on NuGet and the PowerShell Gallery.", "foot_link": "Meet DnsClientX" },
+            "Items": [
+              { "Title": "Overview", "Url": "/dnsclientx/", "Description": "What it does and how to install it." },
+              { "Title": "DNS playground", "Url": "/tools/raw-dns-query/", "Description": "Query any resolver from your browser." },
+              { "Title": ".NET guide", "Url": "/docs/dnsclientx/csharp/", "Description": "ClientX, typed records and configuration." },
+              { "Title": "PowerShell guide", "Url": "/docs/dnsclientx/powershell/", "Description": "Resolve-Dns and the diagnostic cmdlets." },
+              { "Title": "Transports", "Url": "/docs/dnsclientx/transports/", "Description": "UDP to DoQ, stamps and endpoints." },
+              { "Title": "API reference", "Url": "/api/dnsclientx/", "Description": "Every public DnsClientX type." }
             ]
           },
           { "Title": "Blog", "Url": "/blog/" },
@@ -327,15 +344,26 @@
         ]
       },
       {
+        "Name": "footer-dnsclientx",
+        "Items": [
+          { "Title": "Overview", "Url": "/dnsclientx/" },
+          { "Title": "DNS playground", "Url": "/tools/raw-dns-query/" },
+          { "Title": "Documentation", "Url": "/docs/dnsclientx/" },
+          { "Title": ".NET API reference", "Url": "/api/dnsclientx/" },
+          { "Title": "PowerShell reference", "Url": "/api/dnsclientx-powershell/" },
+          { "Title": "Source on GitHub", "Url": "https://github.com/EvotecIT/DnsClientX", "External": true }
+        ]
+      },
+      {
         "Name": "footer-developers",
         "Items": [
           { "Title": "Quick start", "Url": "/docs/quickstart/" },
           { "Title": "Documentation", "Url": "/docs/" },
           { "Title": "PowerShell reference", "Url": "/api/powershell/" },
           { "Title": ".NET API reference", "Url": "/api/" },
-          { "Title": "DnsClientX", "Url": "/products/dnsclientx/" },
           { "Title": "Downloads", "Url": "/downloads/" },
-          { "Title": "Changelog", "Url": "/changelog/" }
+          { "Title": "Changelog", "Url": "/changelog/" },
+          { "Title": "Roadmap", "Url": "/roadmap/" }
         ]
       },
       {

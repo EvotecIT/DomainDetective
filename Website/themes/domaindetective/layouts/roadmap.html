@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{ title_suffix = " | DomainDetective" }}
+{{ include "head" }}
+  {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
+</head>
+<body class="dd-body dd-body--page dd-body--roadmap">
+{{ include "header" }}
+{{~ ## Public roadmap rendered from data/roadmap.json: one track per product, Now / Next / Exploring columns. ## ~}}
+{{~ r = data.roadmap ~}}
+<main id="main" class="dd-main">
+  {{ masthead_eyebrow = "Roadmap, " + r.updated; include "masthead" }}
+  <div class="dd-wrap dd-roadmap">
+    <p class="dd-roadmap__intro">{{ r.intro }}</p>
+    <nav class="dd-roadmap__jump" aria-label="Roadmap tracks">
+      {{~ for t in r.tracks ~}}<a href="#{{ t.id }}">{{ t.name }}</a>{{~ end ~}}
+    </nav>
+    {{~ for t in r.tracks ~}}
+    <section class="dd-roadmap__track" id="{{ t.id }}" aria-labelledby="dd-rm-{{ t.id }}">
+      <header class="dd-roadmap__head">
+        <div>
+          <h2 id="dd-rm-{{ t.id }}">{{ t.name }}</h2>
+          <p>{{ t.summary }}</p>
+        </div>
+        <a href="{{ t.source.url }}" target="_blank" rel="noopener">{{ t.source.label }} &rarr;</a>
+      </header>
+      <div class="dd-roadmap__cols">
+        {{~ for col in [["now", "Now", "Being worked on"], ["next", "Next", "Planned after that"], ["exploring", "Exploring", "Ideas we are validating"]] ~}}
+        <div class="dd-roadmap__col dd-roadmap__col--{{ col[0] }}">
+          <h3><span>{{ col[1] }}</span> {{ col[2] }}</h3>
+          <ul>
+            {{~ for item in t[col[0]] ~}}
+            <li class="{{ if item.status == "shipped" }}is-shipped{{ end }}">
+              <strong>{{ item.title }}{{ if item.status == "shipped" }} <span class="dd-verdict dd-verdict--pass">Shipped</span>{{ end }}</strong>
+              <span>{{ item.detail }}</span>
+            </li>
+            {{~ end ~}}
+          </ul>
+        </div>
+        {{~ end ~}}
+      </div>
+    </section>
+    {{~ end ~}}
+    <aside class="dd-post-end">
+      <div>
+        <h2>Want something here?</h2>
+        <p>Open an issue with the workflow you are trying to complete, or talk it through on Discord. Real use cases move items up.</p>
+      </div>
+      <div class="dd-post-end__actions">
+        <a class="dd-button dd-button-primary" href="https://github.com/EvotecIT/DomainDetective/issues" target="_blank" rel="noopener">Open an issue</a>
+        <a class="dd-button dd-button-ghost" href="https://evo.yt/discord" target="_blank" rel="noopener">Join Discord</a>
+      </div>
+    </aside>
+  </div>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
+</body>
+</html>
