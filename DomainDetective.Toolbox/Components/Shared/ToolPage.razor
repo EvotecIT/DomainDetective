@@ -421,9 +421,15 @@
                     break;
                 case "tls-rpt": await hc.VerifyTLSRPT(_domain); break;
                 case "bimi":
-                    try {
-                        _bimiInfo = await HostedAnalysisService.AnalyzeBimiAsync(_domain, _forceHostedRefresh);
-                    } catch (HostedAnalysisUnavailableException) {
+                    // Static deployments (such as GitHub Pages) have no /tool-api, so the browser checks the
+                    // BIMI record itself; only a hosted deployment fetches and validates the indicator.
+                    if (Availability.IsHostedOnline) {
+                        try {
+                            _bimiInfo = await HostedAnalysisService.AnalyzeBimiAsync(_domain, _forceHostedRefresh);
+                        } catch (HostedAnalysisUnavailableException) {
+                            await hc.VerifyBIMI(_domain, skipIndicatorDownload: true);
+                        }
+                    } else {
                         await hc.VerifyBIMI(_domain, skipIndicatorDownload: true);
                     }
                     break;
