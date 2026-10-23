@@ -8,6 +8,12 @@
 <html lang="en">
 <head>
 {{ include "head" }}
+  {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
   <link rel="preload" href="/tools/_framework/blazor.webassembly.js" as="script" />
   <link rel="stylesheet" href="/tools/DomainDetective.Website.styles.css" />
 </head>

@@ -1,4 +1,5 @@
-{{~ ## Shared document head for every layout. Theme is resolved before first paint: stored choice, else dark. ## ~}}
+{{~ ## Document metadata shared by every layout. Each layout follows it with the theme-tokens script and the asset
+     tokens itself, which keeps the PowerForge theme contract checks able to see them. ## ~}}
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   {{~ if base_href ~}}<base href="{{ base_href }}" />{{~ end ~}}
@@ -8,9 +9,3 @@
   {{~ end ~}}
   {{ description_meta_html }}
   {{ canonical_html }}
-  {{ include "theme-tokens" }}
-  {{ assets.critical_css_html }}
-  {{ extra_css_html }}
-  {{ assets.css_html }}
-  {{ include "head-meta" }}
-  {{ head_html }}

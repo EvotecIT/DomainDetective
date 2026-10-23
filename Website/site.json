@@ -198,6 +198,12 @@
       "EdgeTtlSeconds": 604800
     },
     "PurgeMode": "incremental",
+    "ImmutablePaths": [
+      "/tools/_framework/*.wasm",
+      "/tools/_framework/*.dat",
+      "/tools/_framework/dotnet.native.*.js",
+      "/tools/_framework/dotnet.runtime.*.js"
+    ],
     "SmartTieredCache": true
   },
   "EditLinks": {
@@ -284,7 +290,7 @@
               { "Title": "TLS and certificates", "Url": "/tools/#tls-cert", "Description": "Certificates, CAA and DANE." },
               { "Title": "Web security", "Url": "/tools/#web-security", "Description": "Security headers and security.txt." },
               { "Title": "Reputation", "Url": "/tools/#threat-intel", "Description": "Blocklists and dangling CNAME takeovers." },
-              { "Title": "Registration", "Url": "/tools/rdap/", "Description": "RDAP and WHOIS for owners and expiry." },
+              { "Title": "Registration", "Url": "/tools/#registration", "Description": "RDAP and WHOIS for owners and expiry." },
               { "Title": "Discovery", "Url": "/tools/#web-discovery", "Description": "Sitemaps, AI agent readiness and CT subdomains." },
               { "Title": "Raw DNS query", "Url": "/tools/raw-dns-query/", "Description": "Ask any resolver for any record type." }
             ]
@@ -295,6 +301,7 @@
             "Url": "/docs/",
             "Description": "Automate the same checks from PowerShell, .NET or your pipeline.",
             "Items": [
+              { "Title": "Documentation", "Url": "/docs/", "Description": "Guides for every surface and the DNS toolkit." },
               { "Title": "Quick start", "Url": "/docs/quickstart/", "Description": "Install and run your first checks." },
               { "Title": "PowerShell module", "Url": "/docs/powershell-cmdlets/", "Description": "Test-DD* cmdlets for scripts and reports." },
               { "Title": ".NET library", "Url": "/docs/csharp-api/", "Description": "Embed DomainHealthCheck in your services." },

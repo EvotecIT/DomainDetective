@@ -3,6 +3,12 @@
 <head>
 {{ title_suffix = " | DomainDetective" }}
 {{ include "head" }}
+  {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
+  {{ extra_css_html }}
+  {{ assets.css_html }}
+  {{ include "head-meta" }}
+  {{ head_html }}
 </head>
 <body class="dd-body dd-body--notfound">
 {{ include "header" }}
