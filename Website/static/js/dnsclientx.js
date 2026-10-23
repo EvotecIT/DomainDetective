@@ -55,10 +55,7 @@
             root.setAttribute('aria-busy', 'true');
             status.textContent = 'Asking ' + ENDPOINT[q.provider] + '…';
             updateCode();
-            // quickscan.js tries Cloudflare first and falls back to Google; ask the chosen one first.
-            var query = q.provider === 'google'
-                ? fetch('https://dns.google/resolve?name=' + encodeURIComponent(q.name) + '&type=' + encodeURIComponent(q.type), { credentials: 'omit', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); })
-                : window.DomainDetectiveQuickScan.query(q.name, q.type);
+            var query = window.DomainDetectiveQuickScan.query(q.name, q.type, { provider: q.provider });
             query.then(function (response) {
                 if (run !== token) {
                     return;

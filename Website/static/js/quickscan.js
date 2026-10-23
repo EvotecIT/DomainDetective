@@ -30,8 +30,10 @@
 
     function query(name, type, options) {
         var dnssec = options && options.dnssec;
+        var provider = options && options.provider;
+        var resolvers = provider === 'google' ? [RESOLVERS[1]] : provider === 'cloudflare' ? [RESOLVERS[0]] : RESOLVERS;
         var attempt = function (index) {
-            var resolver = RESOLVERS[index];
+            var resolver = resolvers[index];
             var url = resolver.url + '?name=' + encodeURIComponent(name) + '&type=' + encodeURIComponent(type) + (dnssec ? '&do=1' : '');
             var controller = typeof AbortController === 'function' ? new AbortController() : null;
             var timer = controller ? window.setTimeout(function () { controller.abort(); }, 4500) : null;
@@ -42,13 +44,20 @@
                     }
                     return response.json();
                 })
+                .then(function (response) {
+                    // HTTP success does not imply DNS success. Preserve failed or truncated evidence as unknown.
+                    if (!response || (response.Status !== 0 && response.Status !== 3) || response.TC === true) {
+                        throw new Error('DNS lookup failed or returned an incomplete response.');
+                    }
+                    return response;
+                })
                 .finally(function () {
                     if (timer) {
                         window.clearTimeout(timer);
                     }
                 })
                 .catch(function (error) {
-                    if (index + 1 < RESOLVERS.length) {
+                    if (index + 1 < resolvers.length) {
                         return attempt(index + 1);
                     }
                     throw error;
@@ -78,22 +87,6 @@
         return match ? match[1].trim() : null;
     }
 
-    function caa(data) {
-        var text = String(data).trim();
-        /* RFC 3597 generic form: \# <length> <hex bytes> */
-        var generic = /^\\#\s+\d+\s+([0-9a-f\s]+)$/i.exec(text);
-        if (generic) {
-            var bytes = generic[1].replace(/\s+/g, '').match(/../g) || [];
-            var codes = bytes.map(function (pair) { return parseInt(pair, 16); });
-            var tagLength = codes[1] || 0;
-            var tagName = String.fromCharCode.apply(null, codes.slice(2, 2 + tagLength));
-            var tagValue = String.fromCharCode.apply(null, codes.slice(2 + tagLength));
-            return { tag: tagName.toLowerCase(), value: tagValue };
-        }
-        var match = /^\d+\s+([a-z0-9]+)\s+"?(.*?)"?$/i.exec(text);
-        return match ? { tag: match[1].toLowerCase(), value: match[2] } : null;
-    }
-
     function providerFor(host) {
         var h = host.toLowerCase();
         if (/\.mail\.protection\.outlook\.com\.?$/.test(h)) { return 'Microsoft 365'; }
@@ -113,7 +106,7 @@
             result.label = label;
             return result;
         }).catch(function () {
-            return { id: id, label: label, status: 'info', value: 'Lookup failed', detail: 'The resolver did not answer in time.' };
+            return { id: id, label: label, status: 'info', value: 'Lookup failed', detail: 'No complete DNS answer was available.' };
         });
     }
 
@@ -124,27 +117,33 @@
                 return query(domain, 'TXT').then(function (response) {
                     var records = answers(response, 'TXT').map(txt).filter(function (value) { return /^v=spf1(\s|$)/i.test(value); });
                     if (records.length === 0) {
-                        return { status: 'fail', value: 'Not published', detail: 'Anyone can send mail as this domain.' };
+                        return { status: 'fail', value: 'Not published', detail: 'No SPF policy found at this name.' };
                     }
                     if (records.length > 1) {
                         return { status: 'fail', value: records.length + ' records', detail: 'Multiple SPF records cause a permanent error.' };
                     }
                     var record = records[0];
-                    var all = /([-~?+])?all\b/i.exec(record);
-                    var lookups = (record.match(/\b(include:|a\b|a:|mx\b|mx:|ptr|exists:|redirect=)/gi) || []).length;
+                    var terms = record.split(/\s+/);
+                    var all = /(?:^|\s)([-~?+])?all(?=\s|$)/i.exec(record);
+                    var lookups = terms.filter(function (term) {
+                        return /^[+~?-]?(?:include:|a(?=[:/]|$)|mx(?=[:/]|$)|ptr(?=:|$)|exists:)/i.test(term) || (!all && /^redirect=/i.test(term));
+                    }).length;
                     var qualifier = all ? (all[1] || '+') : null;
                     var budget = lookups + ' of 10 direct lookups';
                     if (qualifier === '-') { return { status: 'pass', value: 'Enforced (-all)', detail: budget, record: record }; }
                     if (qualifier === '~') { return { status: 'warn', value: 'Soft fail (~all)', detail: budget, record: record }; }
-                    if (/redirect=/i.test(record)) { return { status: 'info', value: 'Redirected', detail: tag(record.replace(/\s+/g, ';'), 'redirect') || budget, record: record }; }
+                    if (!all && /(?:^|\s)redirect=/i.test(record)) { return { status: 'info', value: 'Redirected', detail: tag(record.replace(/\s+/g, ';'), 'redirect') || budget, record: record }; }
                     return { status: 'fail', value: qualifier ? 'Permissive (' + qualifier + 'all)' : 'No all mechanism', detail: budget, record: record };
                 });
             }),
             check('dmarc', 'DMARC', function () {
                 return query('_dmarc.' + domain, 'TXT').then(function (response) {
-                    var records = answers(response, 'TXT').map(txt).filter(function (value) { return /^v=DMARC1/i.test(value); });
+                    var records = answers(response, 'TXT').map(txt).filter(function (value) { return /^v=DMARC1(?:\s*;|\s*$)/i.test(value); });
                     if (records.length === 0) {
-                        return { status: 'fail', value: 'Not published', detail: 'Receivers get no policy for spoofed mail.' };
+                        return { status: 'info', value: 'No policy at this name', detail: 'An organizational-domain DMARC policy may apply; use the full analysis.' };
+                    }
+                    if (records.length > 1) {
+                        return { status: 'fail', value: records.length + ' records', detail: 'Multiple DMARC records invalidate the policy.' };
                     }
                     var policy = (tag(records[0], 'p') || '').toLowerCase();
                     var pct = tag(records[0], 'pct');
@@ -162,7 +161,7 @@
                         return { pref: parseInt(parts[0], 10), host: (parts[1] || '').replace(/\.$/, '') };
                     }).sort(function (a, b) { return a.pref - b.pref; });
                     if (hosts.length === 0) {
-                        return { status: 'info', value: 'No MX', detail: 'This domain does not receive mail.' };
+                        return { status: 'info', value: 'No MX', detail: 'Mail may use an implicit A/AAAA fallback.' };
                     }
                     if (hosts.length === 1 && (hosts[0].host === '' || hosts[0].host === '.')) {
                         return { status: 'info', value: 'Null MX', detail: 'Mail explicitly refused (RFC 7505).' };
@@ -177,27 +176,16 @@
                     if (response && response.AD === true) {
                         return { status: 'pass', value: 'Signed and validated', detail: 'Resolver set the AD flag.' };
                     }
-                    return { status: 'warn', value: 'Not signed', detail: 'Answers can be forged in transit.' };
+                    return { status: 'info', value: 'Not validated', detail: 'The resolver did not set AD; this does not establish whether the zone is signed.' };
                 });
             }),
             check('caa', 'CAA', function () {
                 return query(domain, 'CAA').then(function (response) {
                     var records = answers(response, 'CAA');
                     if (records.length === 0) {
-                        return { status: 'warn', value: 'Not published', detail: 'Any certificate authority may issue.' };
+                        return { status: 'info', value: 'No records at this name', detail: 'Parent CAA policy may apply; use the full analysis.' };
                     }
-                    var parsed = records.map(caa).filter(Boolean);
-                    var issueTags = parsed.filter(function (item) { return item.tag === 'issue' || item.tag === 'issuewild'; });
-                    if (issueTags.length === 0) {
-                        return { status: 'warn', value: 'No issuer restriction', detail: 'CAA exists but has no issue tag.' };
-                    }
-                    var issuers = issueTags.map(function (item) { return item.value.split(';')[0].trim(); })
-                        .filter(function (value, index, all) { return all.indexOf(value) === index; });
-                    var named = issuers.filter(Boolean);
-                    if (named.length === 0) {
-                        return { status: 'pass', value: 'Issuance forbidden', detail: 'No certificate authority may issue.' };
-                    }
-                    return { status: 'pass', value: named.length + ' issuer' + (named.length === 1 ? '' : 's'), detail: named.slice(0, 3).join(', ') };
+                    return { status: 'info', value: records.length + ' record' + (records.length === 1 ? '' : 's'), detail: 'Exact-name records only; certificate authorization is not assessed.', record: records.join('\n') };
                 });
             }),
             check('mta-sts', 'MTA-STS', function () {

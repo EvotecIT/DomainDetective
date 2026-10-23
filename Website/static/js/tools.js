@@ -15,6 +15,15 @@
         if (!form) {
             return;
         }
+        // Older links opened the overview through the hub, which no longer mounts Blazor.
+        var legacyDomain = new URLSearchParams(window.location.search).get('domain');
+        if (legacyDomain && window.DomainDetectiveQuickScan) {
+            var normalized = window.DomainDetectiveQuickScan.normalizeDomain(legacyDomain);
+            if (normalized) {
+                window.location.replace('/tools/domain-overview/?q=' + encodeURIComponent(normalized));
+                return;
+            }
+        }
         var input = form.querySelector('input');
         var groups = Array.prototype.slice.call(document.querySelectorAll('[data-dd-hub-group]'));
         var empty = document.querySelector('[data-dd-hub-empty]');

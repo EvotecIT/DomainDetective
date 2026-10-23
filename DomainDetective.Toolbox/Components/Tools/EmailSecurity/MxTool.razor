@@ -6,8 +6,11 @@
 @if (HealthCheck.MXAnalysis is { } mx) {
     var view = Converters.Convert(mx);
     var records = view.Hosts;
+    var configurationUnknown = (mx.CnameQueryFailed || mx.AddressQueryFailed)
+        && mx.MxRecordExists && !mx.PointsToCname && !mx.PointsToIpAddress
+        && !mx.PointsToNonExistentDomain && !mx.PointsToDomainWithoutAOrAaaaRecord;
 
-    <ResultCard Title="Mail routing posture" Status="@(view.MxRecordExists ? GetStatus(view.Assessments) : ResultCard.ResultStatus.Fail)">
+    <ResultCard Title="Mail routing posture" Status="@(view.MxRecordExists ? GetStatus(view) : ResultCard.ResultStatus.Fail)">
         <div class="tool-summary-grid">
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Published MX</span>
@@ -32,14 +35,26 @@
         </div>
 
         <ResultChecklist Items="@(new[] {
-            ResultCheck.Expect("Valid MX configuration", view.Raw.ValidMxConfiguration, FormatBool(view.Raw.ValidMxConfiguration)),
+            configurationUnknown
+                ? ResultCheck.Fact("Valid MX configuration", "Not assessed: DNS lookup failed")
+                : ResultCheck.Expect("Valid MX configuration", view.Raw.ValidMxConfiguration, FormatBool(view.Raw.ValidMxConfiguration)),
             ResultCheck.Expect("No MX pointing to an IP", !view.PointsToIpAddress, view.PointsToIpAddress ? "Targets an IP address" : "Yes"),
-            ResultCheck.Expect("No MX pointing to a CNAME", !view.PointsToCname, view.PointsToCname ? "Targets a CNAME" : "Yes", warnOnly: true),
+            view.Raw.CnameQueryFailed && !view.PointsToCname
+                ? ResultCheck.Fact("No MX pointing to a CNAME", "Not assessed: DNS lookup failed")
+                : ResultCheck.Expect("No MX pointing to a CNAME", !view.PointsToCname, view.PointsToCname ? "Targets a CNAME" : "Yes", warnOnly: true),
             ResultCheck.Expect("No MX pointing to localhost", !view.PointsToLocalhost, view.PointsToLocalhost ? "Targets localhost" : "Yes"),
-            ResultCheck.Expect("All MX targets exist", !view.PointsToNonExistentDomain, view.PointsToNonExistentDomain ? "NXDOMAIN target" : "Yes"),
-            ResultCheck.Expect("All MX targets have A/AAAA", !view.PointsToDomainWithoutAOrAaaaRecord, view.PointsToDomainWithoutAOrAaaaRecord ? "Target without address" : "Yes"),
-            ResultCheck.Expect("MX consistent across nameservers", view.MxRrsetConsistentAcrossNs, FormatBool(view.MxRrsetConsistentAcrossNs), warnOnly: true),
-            ResultCheck.Expect("Addresses consistent across nameservers", view.TargetAddressConsistentAcrossNs, FormatBool(view.TargetAddressConsistentAcrossNs), warnOnly: true),
+            view.Raw.AddressQueryFailed && !view.PointsToNonExistentDomain
+                ? ResultCheck.Fact("All MX targets exist", "Not assessed: DNS lookup failed")
+                : ResultCheck.Expect("All MX targets exist", !view.PointsToNonExistentDomain, view.PointsToNonExistentDomain ? "NXDOMAIN target" : "Yes"),
+            view.Raw.AddressQueryFailed && !view.PointsToDomainWithoutAOrAaaaRecord
+                ? ResultCheck.Fact("All MX targets have A/AAAA", "Not assessed: DNS lookup failed")
+                : ResultCheck.Expect("All MX targets have A/AAAA", !view.PointsToDomainWithoutAOrAaaaRecord, view.PointsToDomainWithoutAOrAaaaRecord ? "Target without address" : "Yes"),
+            view.MxRrsetComparisonIncomplete && view.MxRrsetConsistentAcrossNs
+                ? ResultCheck.Fact("MX consistent across nameservers", "Not assessed: authoritative evidence incomplete")
+                : ResultCheck.Expect("MX consistent across nameservers", view.MxRrsetConsistentAcrossNs, FormatBool(view.MxRrsetConsistentAcrossNs), warnOnly: true),
+            view.TargetAddressComparisonIncomplete && view.TargetAddressConsistentAcrossNs
+                ? ResultCheck.Fact("Addresses consistent across nameservers", "Not assessed: authoritative evidence incomplete")
+                : ResultCheck.Expect("Addresses consistent across nameservers", view.TargetAddressConsistentAcrossNs, FormatBool(view.TargetAddressConsistentAcrossNs), warnOnly: true),
             ResultCheck.Expect("Priorities ordered", view.PrioritiesInOrder, FormatBool(view.PrioritiesInOrder), warnOnly: true),
             ResultCheck.Fact("Null MX", FormatBool(view.HasNullMx, view.HasNullMx ? "Present" : "No"))
         })" />
@@ -196,15 +211,15 @@
         return flags.Count > 0 ? string.Join(", ", flags) : "—";
     }
 
-    private static ResultCard.ResultStatus GetStatus(IReadOnlyList<DomainDetective.Assessment> assessments) {
-        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
+    private static ResultCard.ResultStatus GetStatus(MxInfo view) {
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Error)) {
             return ResultCard.ResultStatus.Fail;
         }
 
-        if (assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
+        if (view.Assessments.Any(static assessment => assessment.Severity == DomainDetective.AssessmentSeverity.Warning)) {
             return ResultCard.ResultStatus.Warning;
         }
 
-        return ResultCard.ResultStatus.Pass;
+        return view.Status == "Incomplete" ? ResultCard.ResultStatus.Info : ResultCard.ResultStatus.Pass;
     }
 }
