@@ -879,7 +879,7 @@ internal static class DomainOverviewPresentation
             {
                 "Mail: " + FormatProviderValue(info.MailProvider),
                 "DNS: " + FormatProviderValue(info.DnsProvider),
-                "Subdomains: " + info.SubdomainCount
+                IsUnavailable(info, ExposureSection) ? "Subdomains: not checked" : "Subdomains: " + info.SubdomainCount
             },
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray()
         };

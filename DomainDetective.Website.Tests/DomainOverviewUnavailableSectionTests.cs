@@ -26,7 +26,11 @@ public sealed class DomainOverviewUnavailableSectionTests : BunitContext {
         Assert.DoesNotContain("Security.txt: missing", text);
         Assert.DoesNotContain("No security.txt", text);
         Assert.DoesNotContain("0 subdomain", text);
+        Assert.DoesNotContain("Subdomains: 0", text);
+        Assert.DoesNotContain("Observed: 0", text);
         Assert.DoesNotContain("Expiry unknown", text);
+        Assert.DoesNotContain("No security.txt disclosure file found.", text);
+        Assert.DoesNotContain("HTTP endpoint not reachable.", text);
 
         Assert.Contains("HTTP: not checked", text);
         Assert.Contains("Security.txt: not checked", text);
@@ -39,12 +43,14 @@ public sealed class DomainOverviewUnavailableSectionTests : BunitContext {
         var info = BrowserEditionInfo();
         info.IsBrowserLimited = false;
         info.UnavailableSections = Array.Empty<string>();
+        info.SubdomainCount = 3;
 
         var cut = RenderOverview(info);
 
         Assert.Contains("Offline", cut.Markup);
         Assert.Contains("HTTP not reachable", cut.Markup);
         Assert.Contains("Security.txt missing", cut.Markup);
+        Assert.Contains("Subdomains: 3", cut.Markup);
         Assert.DoesNotContain("not checked", cut.Markup);
     }
 
@@ -66,6 +72,11 @@ public sealed class DomainOverviewUnavailableSectionTests : BunitContext {
             Rdap = new RdapInfo(),
             Dnsbl = new DnsblInfo { ProvidersChecked = 12, HostsChecked = 1 },
             Subdomains = new SubdomainsInfo(),
+            // The browser edition's empty web evidence still converts into failing web controls.
+            WebRegistrationChecks = new[] {
+                new AggregateCheckStatusInfo { Key = "http", Label = "HTTP", State = AggregateCheckState.Fail, Value = "Offline", Detail = "HTTP endpoint not reachable." },
+                new AggregateCheckStatusInfo { Key = "security-txt", Label = "Security.txt", State = AggregateCheckState.Fail, Value = "Missing", Detail = "No security.txt disclosure file found." }
+            },
             IsBrowserLimited = true,
             UnavailableSections = new[] { "Web and registration", "Exposure" }
         };
