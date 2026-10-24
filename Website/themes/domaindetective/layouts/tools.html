@@ -19,7 +19,7 @@
     <div class="dd-wrap dd-masthead__inner">
       <p class="dd-eyebrow">Browser tools</p>
       <h1>Investigate any domain, <span class="dd-trace">right here.</span></h1>
-      <p class="dd-masthead__lede">{{ catalog.count }} tools built on the DomainDetective engine. {{ catalog.browserCount }} run entirely in your browser; the rest do a lighter browser pass and show the PowerShell or CLI command for the full check.</p>
+      <p class="dd-masthead__lede">{{ catalog.count }} tools built on the DomainDetective engine. {{ catalog.browserCount }} run entirely in your browser and {{ catalog.partialCount }} do a lighter browser pass. The other {{ catalog.localCount }} cannot run on a web page, so their pages explain why and show the PowerShell and CLI commands.</p>
       <form class="dd-hub__search" role="search" data-dd-hub-search onsubmit="return false">
         <label class="dd-visually-hidden" for="dd-hub-filter">Filter tools</label>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>

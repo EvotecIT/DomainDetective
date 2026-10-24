@@ -8,6 +8,15 @@ namespace DomainDetective.Toolbox.Components.Tools.Overview;
 
 internal static class DomainOverviewPresentation
 {
+    private const string WebSection = "Web and registration";
+    private const string ExposureSection = "Exposure";
+    private const string NotChecked = "Not checked";
+
+    // A section this run could not assess (for example in the browser edition) carries empty evidence objects.
+    // Cards must say it was not checked instead of reading those empty objects as offline, missing or zero.
+    private static bool IsUnavailable(DomainOverviewInfo info, string section) =>
+        info.UnavailableSections.Any(item => string.Equals(item, section, StringComparison.OrdinalIgnoreCase));
+
     public static IReadOnlyList<DomainOverviewDetailCardView> BuildSnapshotCards(DomainOverviewInfo? info)
     {
         if (info == null)
@@ -45,19 +54,20 @@ internal static class DomainOverviewPresentation
             lines.Add("DNS provider: " + info.DnsProvider);
         }
 
+        var webChecked = !IsUnavailable(info, WebSection);
         var failingChecks = info.MailDnsChecks
-            .Concat(info.WebRegistrationChecks)
+            .Concat(webChecked ? info.WebRegistrationChecks : Array.Empty<AggregateCheckStatusInfo>())
             .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
             .Take(4)
             .Select(static check => check.Label + ": " + check.Value + " (" + check.Detail + ")");
         lines.AddRange(failingChecks);
 
-        if (lines.Count < 5 && info.DaysUntilExpiration.HasValue)
+        if (lines.Count < 5 && webChecked && info.DaysUntilExpiration.HasValue)
         {
             lines.Add("Registration: " + FormatExpiryLabel(info.DaysUntilExpiration.Value));
         }
 
-        if (lines.Count < 5 && info.SubdomainCount > 0)
+        if (lines.Count < 5 && !IsUnavailable(info, ExposureSection) && info.SubdomainCount > 0)
         {
             lines.Add("Subdomains observed: " + info.SubdomainCount);
         }
@@ -121,6 +131,18 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildWebSnapshotCard(DomainOverviewInfo info)
     {
+        if (IsUnavailable(info, WebSection))
+        {
+            return new DomainOverviewDetailCardView
+            {
+                Title = "Web posture",
+                ValueLabel = NotChecked,
+                Summary = "This run did not request the website, so HTTP posture, the certificate and security.txt are unknown. The PowerShell module and CLI include them.",
+                Tags = new[] { "HTTP: not checked", "Security.txt: not checked" },
+                Samples = Array.Empty<string>()
+            };
+        }
+
         var samples = new List<string>();
         if (info.HttpReachable)
         {
@@ -171,6 +193,18 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildExposureSnapshotCard(DomainOverviewInfo info)
     {
+        if (IsUnavailable(info, ExposureSection))
+        {
+            return new DomainOverviewDetailCardView
+            {
+                Title = "Exposure",
+                ValueLabel = NotChecked,
+                Summary = "This run did not search for subdomains, so the exposure surface is unknown. The PowerShell module and CLI include subdomain discovery.",
+                Tags = new[] { "Detected apps: " + info.DetectedApplicationCount, "Subdomains: not checked" },
+                Samples = Array.Empty<string>()
+            };
+        }
+
         var samples = (info.SubdomainSample ?? Array.Empty<string>())
             .Take(3)
             .ToArray();
@@ -191,6 +225,18 @@ internal static class DomainOverviewPresentation
 
     private static DomainOverviewDetailCardView BuildRegistrationSnapshotCard(DomainOverviewInfo info)
     {
+        if (IsUnavailable(info, WebSection))
+        {
+            return new DomainOverviewDetailCardView
+            {
+                Title = "Registration",
+                ValueLabel = NotChecked,
+                Summary = "This run did not query registration data, so the registrar and expiry are unknown. The PowerShell module and CLI include RDAP.",
+                Tags = new[] { "Registration: not checked" },
+                Samples = Array.Empty<string>()
+            };
+        }
+
         var samples = new List<string>();
         if (info.Rdap != null && !string.IsNullOrWhiteSpace(info.Rdap.Registrar))
         {
@@ -220,12 +266,16 @@ internal static class DomainOverviewPresentation
             return Array.Empty<DomainOverviewDetailCardView>();
         }
 
-        var cards = new List<DomainOverviewDetailCardView>
+        var cards = new List<DomainOverviewDetailCardView> { BuildProviderNotesCard(info) };
+        if (!IsUnavailable(info, WebSection))
         {
-            BuildProviderNotesCard(info),
-            BuildWebRegistrationNotesCard(info),
-            BuildExposureNotesCard(info)
-        };
+            cards.Add(BuildWebRegistrationNotesCard(info));
+        }
+
+        if (!IsUnavailable(info, ExposureSection))
+        {
+            cards.Add(BuildExposureNotesCard(info));
+        }
 
         return cards.Where(static card => card.Tags.Count > 0 || card.Samples.Count > 0).ToArray();
     }
@@ -384,17 +434,18 @@ internal static class DomainOverviewPresentation
             BuildApplicationFootprintCard(info)
         };
 
-        if (info.Http != null || info.Certificate != null || info.SecurityTxt != null)
+        var webChecked = !IsUnavailable(info, WebSection);
+        if (webChecked && (info.Http != null || info.Certificate != null || info.SecurityTxt != null))
         {
             cards.Add(BuildWebEvidenceCard(info));
         }
 
-        if (info.Subdomains != null && info.Subdomains.SubdomainCount > 0)
+        if (!IsUnavailable(info, ExposureSection) && info.Subdomains != null && info.Subdomains.SubdomainCount > 0)
         {
             cards.Add(BuildExposureEvidenceCard(info.Subdomains));
         }
 
-        if (info.Rdap != null)
+        if (webChecked && info.Rdap != null)
         {
             cards.Add(BuildRegistrationEvidenceCard(info.Rdap));
         }
@@ -415,12 +466,12 @@ internal static class DomainOverviewPresentation
             BuildProviderSurfaceCard(info)
         };
 
-        if (info.Http != null || info.Certificate != null || info.SecurityTxt != null || info.Rdap != null || info.Dnsbl != null)
+        if (!IsUnavailable(info, WebSection) && (info.Http != null || info.Certificate != null || info.SecurityTxt != null || info.Rdap != null || info.Dnsbl != null))
         {
             cards.Add(BuildWebRegistrationSurfaceCard(info));
         }
 
-        if (info.Subdomains != null && info.Subdomains.SubdomainCount > 0)
+        if (!IsUnavailable(info, ExposureSection) && info.Subdomains != null && info.Subdomains.SubdomainCount > 0)
         {
             cards.Add(BuildExposureSurfaceCard(info.Subdomains));
         }
@@ -779,7 +830,9 @@ internal static class DomainOverviewPresentation
             .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
             .Take(2)
             .Select(static check => check.Label + ": " + check.Value));
-        samples.AddRange(info.WebRegistrationChecks
+        var webChecked = !IsUnavailable(info, WebSection);
+        var webChecks = webChecked ? info.WebRegistrationChecks : Array.Empty<AggregateCheckStatusInfo>();
+        samples.AddRange(webChecks
             .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
             .Take(2)
             .Select(static check => check.Label + ": " + check.Value));
@@ -787,12 +840,12 @@ internal static class DomainOverviewPresentation
         return new DomainOverviewDetailCardView
         {
             Title = "Evidence coverage",
-            ValueLabel = (info.MailDnsChecks.Count + info.WebRegistrationChecks.Count) + " control findings",
+            ValueLabel = (info.MailDnsChecks.Count + webChecks.Count) + " control findings",
             Summary = "DomainDetective combined mail, DNS, web, registration, and exposure checks into the domain posture shown on this page. This card summarizes how broad that evidence set was.",
             Tags = new[]
             {
                 "Mail/DNS checks: " + info.MailDnsChecks.Count,
-                "Web/registration checks: " + info.WebRegistrationChecks.Count,
+                webChecked ? "Web/registration checks: " + webChecks.Count : "Web/registration: not checked",
                 "Assessments: " + info.TotalAssessments
             },
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
@@ -826,7 +879,7 @@ internal static class DomainOverviewPresentation
             {
                 "Mail: " + FormatProviderValue(info.MailProvider),
                 "DNS: " + FormatProviderValue(info.DnsProvider),
-                "Subdomains: " + info.SubdomainCount
+                IsUnavailable(info, ExposureSection) ? "Subdomains: not checked" : "Subdomains: " + info.SubdomainCount
             },
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray()
         };
@@ -1012,7 +1065,7 @@ internal static class DomainOverviewPresentation
             Tags = new[]
             {
                 info.DetectedApplicationCount + " application match(es)",
-                info.SubdomainCount + " subdomain(s)"
+                IsUnavailable(info, ExposureSection) ? "Subdomains: not checked" : info.SubdomainCount + " subdomain(s)"
             },
             Samples = applications
         };

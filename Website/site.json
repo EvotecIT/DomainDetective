@@ -284,7 +284,7 @@
             "Title": "Tools",
             "Url": "/tools/",
             "Description": "Run DomainDetective checks against any domain, right in your browser.",
-            "Meta": { "wide": true, "foot_text": "27 browser tools, no sign-up and nothing stored.", "foot_link": "Browse every tool" },
+            "Meta": { "wide": true, "foot_text": "20 tools run in your browser, no sign-up and nothing stored.", "foot_link": "Browse every tool" },
             "Items": [
               { "Title": "Domain overview", "Url": "/tools/domain-overview/", "Description": "Every signal for a domain in one report." },
               { "Title": "Email authentication", "Url": "/tools/#email-security", "Description": "SPF, DKIM, DMARC, MX, MTA-STS, TLS-RPT and BIMI." },

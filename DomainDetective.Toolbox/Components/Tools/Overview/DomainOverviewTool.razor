@@ -6,8 +6,10 @@
 @inject NavigationManager Navigation
 
 @{
+    // Controls from a section this run could not assess are placeholders, not findings about the domain.
+    var webChecked = Info is not null && !IsSectionUnavailable(Info, "Web and registration");
     var allChecks = (Info?.MailDnsChecks ?? Array.Empty<AggregateCheckStatusInfo>())
-        .Concat(Info?.WebRegistrationChecks ?? Array.Empty<AggregateCheckStatusInfo>())
+        .Concat(webChecked ? Info!.WebRegistrationChecks : Array.Empty<AggregateCheckStatusInfo>())
         .ToList();
     var attentionChecks = allChecks
         .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
@@ -531,7 +533,10 @@
         var provider = FormatProvider(info.MailProvider);
         var dnsProvider = FormatProvider(info.DnsProvider);
         var mailSummary = string.Join(", ", info.MailDnsChecks.Select(static check => $"{check.Label}={check.Value}"));
-        var webSummary = string.Join(", ", info.WebRegistrationChecks.Select(static check => $"{check.Label}={check.Value}"));
+        var webSummary = IsSectionUnavailable(info, "Web and registration")
+            ? "not checked"
+            : string.Join(", ", info.WebRegistrationChecks.Select(static check => $"{check.Label}={check.Value}"));
+        var subdomains = IsSectionUnavailable(info, "Exposure") ? "not checked" : info.SubdomainCount.ToString();
 
         return string.Join(Environment.NewLine, new[] {
             $"Domain Detective domain overview for {info.Subject}",
@@ -545,7 +550,7 @@
             $"Mail provider: {provider}",
             $"DNS provider: {dnsProvider}",
             $"Warnings/Errors: {info.WarningCount}/{info.ErrorCount}",
-            $"Subdomains: {info.SubdomainCount}",
+            $"Subdomains: {subdomains}",
             $"Mail controls: {mailSummary}",
             $"Web/registration: {webSummary}"
         });
@@ -565,7 +570,7 @@
         };
 
         var failingChecks = info.MailDnsChecks
-            .Concat(info.WebRegistrationChecks)
+            .Concat(IsSectionUnavailable(info, "Web and registration") ? Array.Empty<AggregateCheckStatusInfo>() : info.WebRegistrationChecks)
             .Where(static check => check.State == AggregateCheckState.Fail || check.State == AggregateCheckState.Warning)
             .Take(10)
             .Select(static check => $"{check.Label}: {check.Value} ({check.Detail})")

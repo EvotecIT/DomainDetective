@@ -125,7 +125,13 @@ public sealed class ToolCatalogTests {
             .ToList();
 
         var flat = categories.SelectMany(category => category.Tools).ToList();
-        var catalog = new Catalog(flat.Count, flat.Count(tool => tool.Support == "browser"), categories, flat);
+        var catalog = new Catalog(
+            flat.Count,
+            flat.Count(tool => tool.Support == "browser"),
+            flat.Count(tool => tool.Support == "partial"),
+            flat.Count(tool => tool.Support == "local"),
+            categories,
+            flat);
         return JsonSerializer.Serialize(catalog, JsonOptions).Replace("\r\n", "\n") + "\n";
     }
 
@@ -195,7 +201,7 @@ public sealed class ToolCatalogTests {
         throw new DirectoryNotFoundException("Could not find Website/site.json above the test output directory.");
     }
 
-    private sealed record Catalog(int Count, int BrowserCount, IReadOnlyList<CatalogCategory> Categories, IReadOnlyList<CatalogTool> Tools);
+    private sealed record Catalog(int Count, int BrowserCount, int PartialCount, int LocalCount, IReadOnlyList<CatalogCategory> Categories, IReadOnlyList<CatalogTool> Tools);
 
     private sealed record CatalogCategory(string Slug, string Name, string Summary, string Icon, int Count, IReadOnlyList<CatalogTool> Tools);
 
