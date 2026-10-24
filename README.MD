@@ -11,7 +11,7 @@
 
 - **115+ protocol checks** across SPF, DKIM, DMARC, ARC, BIMI, MTA-STS, TLS-RPT, DNSSEC, DANE, CAA, certificates, HTTP security headers, RDAP, blocklists, Certificate Transparency and more.
 - **Evidence, not a score.** Every finding carries the record it came from, the RFC behind it and the change to make. Overviews lead with a verdict and the three things to fix first.
-- **Four surfaces, one engine.** 27 [browser tools](https://domaindetective.dev/tools/) (DNS checks run locally through DNS-over-HTTPS), 150+ `Test-DD*` PowerShell cmdlets, a .NET library and a CLI.
+- **Four surfaces, one engine.** 27 [website tools](https://domaindetective.dev/tools/), 20 of them running in your browser through DNS-over-HTTPS, 150+ `Test-DD*` PowerShell cmdlets, a .NET library and a CLI.
 - **Reports people read.** Word, Excel, HTML and Markdown exports built on [OfficeIMO](https://officeimo.com/) and [HtmlForgeX](https://htmlforgex.com/).
 - **Open source and private.** MIT licensed. The website has no cookies or analytics and never stores lookups.
 

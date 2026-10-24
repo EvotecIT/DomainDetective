@@ -16,7 +16,7 @@ Reviewed on 2026-10-04. This file tracks open work and qualification gaps. Compl
 ## Release integration
 
 - [ ] Publish a public three-part DnsClientX version containing the merged DNSSEC and transport source fixes, plus any additional resolver contracts selected for that release, when package publication is authorized.
-- [ ] Update the DnsClientX pin in `DomainDetective/DomainDetective.csproj` from 2.1.0 to that public version, then validate DomainDetective against the package rather than only a local source reference.
+- [ ] Update the DnsClientX pin in `DomainDetective/DomainDetective.csproj` from 2.1.2 to that public version, then validate DomainDetective against the package rather than only a local source reference.
 - [ ] Keep source, merged PR, package, and installed-module evidence distinct in release notes and support guidance.
 
 ## Protocol qualification

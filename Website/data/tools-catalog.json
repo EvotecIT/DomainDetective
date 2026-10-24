@@ -1,6 +1,8 @@
 {
   "count": 27,
   "browserCount": 16,
+  "partialCount": 4,
+  "localCount": 7,
   "categories": [
     {
       "slug": "overview",
