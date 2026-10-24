@@ -327,7 +327,8 @@
           "cli": "domaindetective check 'example.com' --checks CERT",
           "powershell": "Test-DDDomainCertificate -Url 'example.com'",
           "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
-          "examples": []
+          "examples": [],
+          "localReason": "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates."
         },
         {
           "slug": "caa",
@@ -386,7 +387,8 @@
           "cli": "domaindetective check 'example.com' --checks WEBSITE",
           "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
           "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
-          "examples": []
+          "examples": [],
+          "localReason": "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it."
         },
         {
           "slug": "security-txt",
@@ -400,7 +402,8 @@
           "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
           "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
           "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
-          "examples": []
+          "examples": [],
+          "localReason": "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it."
         }
       ]
     },
@@ -466,7 +469,8 @@
           "cli": "domaindetective TestRDAP 'example.com'",
           "powershell": "Get-DDRdap -DomainName 'example.com'",
           "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
-          "examples": []
+          "examples": [],
+          "localReason": "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet."
         }
       ]
     },
@@ -493,7 +497,8 @@
             "evotec.pl",
             "cloudflare.com",
             "microsoft.com"
-          ]
+          ],
+          "localReason": "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it."
         },
         {
           "slug": "agent-readiness",
@@ -511,7 +516,8 @@
             "evotec.pl",
             "cloudflare.com",
             "microsoft.com"
-          ]
+          ],
+          "localReason": "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it."
         }
       ]
     },
@@ -534,7 +540,8 @@
           "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
           "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
           "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
-          "examples": []
+          "examples": [],
+          "localReason": "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local."
         }
       ]
     }
@@ -831,7 +838,8 @@
       "cli": "domaindetective check 'example.com' --checks CERT",
       "powershell": "Test-DDDomainCertificate -Url 'example.com'",
       "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
-      "examples": []
+      "examples": [],
+      "localReason": "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates."
     },
     {
       "slug": "caa",
@@ -881,7 +889,8 @@
       "cli": "domaindetective check 'example.com' --checks WEBSITE",
       "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
       "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
-      "examples": []
+      "examples": [],
+      "localReason": "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it."
     },
     {
       "slug": "security-txt",
@@ -895,7 +904,8 @@
       "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
       "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
       "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
-      "examples": []
+      "examples": [],
+      "localReason": "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it."
     },
     {
       "slug": "dnsbl",
@@ -943,7 +953,8 @@
       "cli": "domaindetective TestRDAP 'example.com'",
       "powershell": "Get-DDRdap -DomainName 'example.com'",
       "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
-      "examples": []
+      "examples": [],
+      "localReason": "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet."
     },
     {
       "slug": "sitemap",
@@ -961,7 +972,8 @@
         "evotec.pl",
         "cloudflare.com",
         "microsoft.com"
-      ]
+      ],
+      "localReason": "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it."
     },
     {
       "slug": "agent-readiness",
@@ -979,7 +991,8 @@
         "evotec.pl",
         "cloudflare.com",
         "microsoft.com"
-      ]
+      ],
+      "localReason": "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it."
     },
     {
       "slug": "ct-subdomains",
@@ -993,7 +1006,8 @@
       "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
       "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
       "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
-      "examples": []
+      "examples": [],
+      "localReason": "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local."
     }
   ]
 }

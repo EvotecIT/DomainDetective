@@ -486,6 +486,43 @@
   color: var(--dd-warn);
 }
 
+/* Tools that cannot run on the static site say so instead of offering a form that would not work. */
+.dd-localonly {
+  max-width: 46rem;
+  padding: clamp(1.25rem, 1rem + 1.5vw, 2rem);
+  border: 1px dashed var(--dd-line-strong);
+  border-radius: var(--dd-r-xl);
+  background: var(--dd-card);
+}
+
+.dd-localonly__eyebrow {
+  margin: 0 0 .5rem;
+  color: var(--dd-warn);
+  font-family: var(--dd-mono);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.dd-localonly h2 {
+  margin: 0 0 .75rem;
+  font-size: clamp(1.25rem, 1.1rem + .8vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.dd-localonly p {
+  margin: 0 0 .75rem;
+  color: var(--dd-ink-2);
+}
+
+.dd-localonly__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1.25rem;
+}
+
 .dd-automate {
   display: grid;
   grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr);

@@ -391,6 +391,21 @@ public sealed class ToolRegistry {
     };
 
     /// <summary>
+    /// Why a tool cannot run on the static website, shown on its page instead of a form that would not work.
+    /// Empty for tools that run fully or partly in the browser.
+    /// </summary>
+    public static string GetLocalOnlyReason(string slug) => slug switch {
+        "cert-check" => "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates.",
+        "http-headers" => "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it.",
+        "security-txt" => "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it.",
+        "rdap" => "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet.",
+        "sitemap" => "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it.",
+        "agent-readiness" => "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it.",
+        "ct-subdomains" => "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local.",
+        _ => string.Empty
+    };
+
+    /// <summary>
     /// URL fragment used for a category on the static tools hub (for example <c>/tools/#email-security</c>).
     /// </summary>
     public static string GetCategorySlug(ToolCategory category) => category switch {

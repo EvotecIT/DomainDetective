@@ -50,6 +50,17 @@ public sealed class ToolCatalogTests {
     }
 
     [Fact]
+    public void ToolsThatCannotRunInTheBrowserExplainWhy() {
+        foreach (var tool in new ToolRegistry().GetAll()) {
+            if (tool.BrowserCompatible || tool.LiteCompatible) {
+                continue;
+            }
+
+            Assert.False(string.IsNullOrWhiteSpace(ToolRegistry.GetLocalOnlyReason(tool.Slug)), $"{tool.Slug} runs only locally but has no reason for its static page.");
+        }
+    }
+
+    [Fact]
     public void ToolPagesMatchToolRegistry() {
         var root = Path.Combine(FindWebsiteRoot(), "content", "pages", "tools");
         var update = Environment.GetEnvironmentVariable("DD_UPDATE_TOOL_CATALOG") == "1";
@@ -166,7 +177,8 @@ public sealed class ToolCatalogTests {
             tool.CliExample ?? string.Empty,
             tool.PowerShellExample ?? string.Empty,
             tool.CSharpExample ?? string.Empty,
-            ToolRegistry.GetExampleDomains(tool.Slug));
+            ToolRegistry.GetExampleDomains(tool.Slug),
+            support == "local" ? ToolRegistry.GetLocalOnlyReason(tool.Slug) : null);
     }
 
     private static string FindWebsiteRoot() {
@@ -199,5 +211,6 @@ public sealed class ToolCatalogTests {
         string Cli,
         [property: JsonPropertyName("powershell")] string PowerShell,
         [property: JsonPropertyName("csharp")] string CSharp,
-        IReadOnlyList<string> Examples);
+        IReadOnlyList<string> Examples,
+        string? LocalReason);
 }

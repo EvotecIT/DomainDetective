@@ -14,8 +14,10 @@
   {{ assets.css_html }}
   {{ include "head-meta" }}
   {{ head_html }}
+  {{~ if tool.support != "local" ~}}
   <link rel="preload" href="/tools/_framework/blazor.webassembly.js" as="script" />
   <link rel="stylesheet" href="/tools/DomainDetective.Website.styles.css" />
+  {{~ end ~}}
 </head>
 <body class="dd-body dd-body--tool"{{ if tool.slug == "raw-dns-query" }} data-webmcp-page-tool data-webmcp-tool-name="query_dns_records" data-webmcp-tool-description="Resolve one bounded public DNS record query and leave the result visible in the DomainDetective playground." data-webmcp-read-only="true"{{ end }}>
 {{ include "header" }}
@@ -38,6 +40,18 @@
   </header>
 
   <div class="dd-wrap dd-toolbody">
+    {{~ if tool.support == "local" ~}}
+    <section class="dd-localonly" aria-labelledby="dd-localonly-title">
+      <p class="dd-localonly__eyebrow">Not available on this site</p>
+      <h2 id="dd-localonly-title">{{ tool.name | html.escape }} runs from PowerShell or the CLI</h2>
+      {{~ if tool.localReason ~}}<p>{{ tool.localReason | html.escape }}</p>{{~ end ~}}
+      <p>The commands for the DomainDetective PowerShell module, .NET library and CLI are below.</p>
+      <div class="dd-localonly__actions">
+        <a class="dd-button dd-button-primary" href="#dd-automate-title">Show the commands</a>
+        <a class="dd-button dd-button-ghost" href="/tools/">Tools that run in your browser</a>
+      </div>
+    </section>
+    {{~ else ~}}
     <div id="dd-tool-root" class="dd-tool-root" data-dd-tool-root data-tool="{{ tool.slug }}" data-category="{{ tool.category }}">
       <div class="tool-page tool-page--static">
         {{~ if tool.slug != "message-analyzer" && tool.slug != "raw-dns-query" ~}}
@@ -67,6 +81,7 @@
         <noscript><p class="dd-noscript">The browser tools need JavaScript. Every check is also available from PowerShell and the CLI below.</p></noscript>
       </div>
     </div>
+    {{~ end ~}}
 
     <section class="dd-automate" aria-labelledby="dd-automate-title">
       <div class="dd-automate__intro">
@@ -140,7 +155,9 @@ using DomainDetective;
 {{~ if tool.slug == "raw-dns-query" ~}}
 <script src="/tools/js/raw-dns-query.js" data-powerforge-webmcp data-webmcp-tool-name="query_dns_records"></script>
 {{~ end ~}}
+{{~ if tool.support != "local" ~}}
 <script src="/tools/_framework/blazor.webassembly.js" autostart="false" data-dd-blazor></script>
+{{~ end ~}}
 {{ extra_scripts_html }}
 </body>
 </html>
