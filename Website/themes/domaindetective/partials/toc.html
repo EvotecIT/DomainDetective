@@ -1,12 +1,7 @@
-{{ if page_toc && page_toc.size > 0 }}
+{{~ ## "On this page" rail. PowerForge renders the heading list as HTML in the global toc variable. ## ~}}
+{{ if toc && toc != "" }}
 <aside class="docs-toc" aria-label="On this page">
   <p class="docs-toc-heading">On this page</p>
-  <nav>
-    <ul>
-      {{ for item in page_toc }}
-      <li><a href="#{{ item.id }}">{{ item.text }}</a></li>
-      {{ end }}
-    </ul>
-  </nav>
+  <nav class="docs-toc-nav">{{ toc }}</nav>
 </aside>
 {{ end }}

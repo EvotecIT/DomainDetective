@@ -1,0 +1,69 @@
+{
+  "updated": "October 2026",
+  "intro": "Where DomainDetective, its browser tools and DnsClientX are heading. This is a direction, not a delivery promise: items move as we learn, and the engineering detail lives in each repository.",
+  "tracks": [
+    {
+      "id": "domaindetective",
+      "name": "DomainDetective",
+      "summary": "The analysis engine, PowerShell module, CLI and reports.",
+      "source": { "label": "Engineering roadmap (TODO.md)", "url": "https://github.com/EvotecIT/DomainDetective/blob/master/TODO.md" },
+      "now": [
+        { "title": "Public packages", "detail": "Publish DomainDetective to NuGet and the PowerShell Gallery, and the CLI as a .NET tool, so the install commands on this site work everywhere." },
+        { "title": "DnsClientX upgrade", "detail": "Move to the next public DnsClientX release with its DNSSEC and transport fixes, validated against the package rather than local source." },
+        { "title": "One report, every format", "detail": "Word, Markdown, HTML and Excel reports share one set of section facts, statuses and references, checked by a parity fixture." }
+      ],
+      "next": [
+        { "title": "Enforcement readiness", "detail": "Evidence-based guidance on when DMARC, MTA-STS and TLS-RPT are ready to move to enforcement." },
+        { "title": "Per-MX transport evidence", "detail": "STARTTLS coverage and certificate paths for every mail exchanger in reports." },
+        { "title": "Registration that degrades well", "detail": "RDAP first, with a bounded WHOIS fallback and clear status meanings." },
+        { "title": "Wider qualification", "detail": "DANE-TA against live services, RFC 9990/9991 DMARC reports with real producer samples, and internationalised DKIM/ARC selectors." }
+      ],
+      "exploring": [
+        { "title": "Scheduled audits", "detail": "Local run history, alert thresholds and a bounded export format for recurring checks." },
+        { "title": "Portfolio drift", "detail": "Snapshots across many domains to show what changed and when." },
+        { "title": "Batch presets", "detail": "Shared CLI and PowerShell batch inputs and CSV output, if they improve on piping." }
+      ]
+    },
+    {
+      "id": "tools",
+      "name": "Browser tools and website",
+      "summary": "domaindetective.dev, the browser tools and the services around them.",
+      "source": { "label": "Website on GitHub", "url": "https://github.com/EvotecIT/DomainDetective/tree/master/Website" },
+      "now": [
+        { "title": "Faster, clearer tools", "detail": "Static tool pages, an instant DNS first look, a smaller engine download and verdict-first results.", "status": "shipped" },
+        { "title": "Edge caching for the engine", "detail": "Serve the fingerprinted WebAssembly files from Cloudflare's cache with long-lived headers and Brotli." },
+        { "title": "Checklist results everywhere", "detail": "Bring the problems-first checklist to certificates, HTTP headers, DANE, BIMI and CAA." }
+      ],
+      "next": [
+        { "title": "Deeper checks online", "detail": "An optional hosted service for the checks a browser cannot run, such as HTTP, TLS handshakes and RDAP, without storing results." },
+        { "title": "Certificate Transparency monitoring", "detail": "Open the private CT preview: new certificates for your domains as they are logged, including lookalikes." },
+        { "title": "Share and export", "detail": "Shareable links and downloadable reports straight from a browser run." }
+      ],
+      "exploring": [
+        { "title": "Compare domains", "detail": "Side-by-side posture for a domain and its subsidiaries, brands or vendors." },
+        { "title": "Guided fixes", "detail": "Copy-ready DNS records for the fix-first items, tailored to the provider that hosts the zone." }
+      ]
+    },
+    {
+      "id": "dnsclientx",
+      "name": "DnsClientX",
+      "summary": "The DNS client for .NET and PowerShell underneath everything here.",
+      "source": { "label": "Engineering plan (PLAN.md)", "url": "https://github.com/EvotecIT/DnsClientX/blob/main/PLAN.md" },
+      "now": [
+        { "title": "Next public release", "detail": "Ship the merged work: ODoH and DNSCrypt packages, the EdDSA DNSSEC provider, DDR, the CLI and seven new cmdlets." },
+        { "title": "A home of its own", "detail": "A dedicated DnsClientX page, transport and DNSSEC guides and a live resolver on this site.", "status": "shipped" },
+        { "title": "Native CLI archives", "detail": "Exercise CLI builds on their native x64 and ARM64 platforms." }
+      ],
+      "next": [
+        { "title": "Independent qualification", "detail": "Test against independently operated authoritative servers alongside the reproducible BIND lab." },
+        { "title": "Split DNS everywhere", "detail": "Extend search-domain and split-DNS evidence beyond Windows NRPT and Linux to macOS scoped resolvers and common VPNs." },
+        { "title": "Privacy stamps", "detail": "DNS stamp workflows for ODoH and DNSCrypt, plus mobile native assets." }
+      ],
+      "exploring": [
+        { "title": "DNS policy evaluator", "detail": "One deterministic DNS-only evaluator for blocking, static answers and resolver selection." },
+        { "title": "Published performance numbers", "detail": "Repeatable benchmarks that separate allocations, throughput and network latency." },
+        { "title": "Post-quantum DNSCrypt", "detail": "Under its own compatibility and dependency contract." }
+      ]
+    }
+  ]
+}

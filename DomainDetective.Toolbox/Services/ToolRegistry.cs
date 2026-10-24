@@ -7,7 +7,7 @@ public sealed class ToolRegistry {
         new ToolDefinition {
             Name = "M365 Tenant Overview",
             Slug = "m365-overview",
-            Description = "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one DD-backed dashboard",
+            Description = "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
             Category = ToolCategory.Overview,
             Icon = "building",
             InputPlaceholder = "example.com",
@@ -15,7 +15,7 @@ public sealed class ToolRegistry {
             HostedCompatible = true,
             LiteCompatible = true,
             CliExample = "domaindetective check 'example.com'",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com'",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
         new ToolDefinition {
@@ -29,7 +29,7 @@ public sealed class ToolRegistry {
             HostedCompatible = true,
             LiteCompatible = true,
             CliExample = "domaindetective check 'example.com'",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com'",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com'",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");"
         },
 
@@ -137,7 +137,7 @@ public sealed class ToolRegistry {
             Icon = "search",
             InputPlaceholder = "example.com",
             CliExample = "domaindetective check 'example.com' --checks DNSINVENTORY",
-            PowerShellExample = "Test-DomainHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
+            PowerShellExample = "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
             CSharpExample = "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");"
         },
         new ToolDefinition {
@@ -374,6 +374,69 @@ public sealed class ToolRegistry {
         ToolCategory.Subdomain => "Subdomain Discovery",
         ToolCategory.Network => "Network",
         _ => category.ToString()
+    };
+
+    /// <summary>
+    /// Example domains offered as one-click "Try" chips for a tool, shared by the static pages and the WebAssembly tools.
+    /// </summary>
+    public static IReadOnlyList<string> GetExampleDomains(string slug) => slug switch {
+        "m365-overview" => new[] { "evotec.pl", "microsoft.com" },
+        "domain-overview" => new[] { "evotec.pl", "microsoft.com", "cloudflare.com" },
+        "mta-sts" or "tls-rpt" or "bimi" => new[] { "evotec.pl", "microsoft.com", "google.com" },
+        "spf" or "dkim" or "dmarc" or "mx" => new[] { "evotec.pl", "microsoft.com", "gmail.com" },
+        "dns-lookup" or "dnssec" or "soa" or "ns" or "dns-propagation" or "caa" or "dane" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+        "sitemap" or "agent-readiness" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
+        "dnsbl" or "dangling-cname" => new[] { "evotec.pl", "microsoft.com" },
+        _ => Array.Empty<string>()
+    };
+
+    /// <summary>
+    /// Why a tool cannot run on the static website, shown on its page instead of a form that would not work.
+    /// Empty for tools that run fully or partly in the browser.
+    /// </summary>
+    public static string GetLocalOnlyReason(string slug) => slug switch {
+        "cert-check" => "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates.",
+        "http-headers" => "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it.",
+        "security-txt" => "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it.",
+        "rdap" => "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet.",
+        "sitemap" => "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it.",
+        "agent-readiness" => "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it.",
+        "ct-subdomains" => "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local.",
+        _ => string.Empty
+    };
+
+    /// <summary>
+    /// URL fragment used for a category on the static tools hub (for example <c>/tools/#email-security</c>).
+    /// </summary>
+    public static string GetCategorySlug(ToolCategory category) => category switch {
+        ToolCategory.Overview => "overview",
+        ToolCategory.EmailSecurity => "email-security",
+        ToolCategory.Dns => "dns",
+        ToolCategory.TlsCert => "tls-cert",
+        ToolCategory.WebSecurity => "web-security",
+        ToolCategory.WebDiscovery => "web-discovery",
+        ToolCategory.Registration => "registration",
+        ToolCategory.ThreatIntel => "threat-intel",
+        ToolCategory.Subdomain => "subdomain",
+        ToolCategory.Network => "network",
+        _ => category.ToString().ToLowerInvariant()
+    };
+
+    /// <summary>
+    /// One-line summary of what a category of checks answers, shown on the tools hub and home page.
+    /// </summary>
+    public static string GetCategorySummary(ToolCategory category) => category switch {
+        ToolCategory.Overview => "Every signal for a domain or Microsoft 365 tenant in one report.",
+        ToolCategory.EmailSecurity => "Who may send as the domain, and what receivers do with spoofed mail.",
+        ToolCategory.Dns => "Records, delegation, propagation and the DNSSEC chain of trust.",
+        ToolCategory.TlsCert => "Certificates, which authorities may issue them, and DANE pins.",
+        ToolCategory.WebSecurity => "The security headers and contact details a website publishes.",
+        ToolCategory.WebDiscovery => "Sitemaps and how ready the site is for AI agents.",
+        ToolCategory.Registration => "Registrar, owner and expiry through RDAP and WHOIS.",
+        ToolCategory.ThreatIntel => "Blocklist listings and dangling records open to takeover.",
+        ToolCategory.Subdomain => "Subdomains revealed by Certificate Transparency logs.",
+        ToolCategory.Network => "Reachability and exposure of the hosts behind the domain.",
+        _ => string.Empty
     };
 
     public static string GetCategoryIcon(ToolCategory category) => category switch {

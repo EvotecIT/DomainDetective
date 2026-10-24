@@ -1,0 +1,109 @@
+@using DomainDetective.Views
+
+@* The first thing an overview shows: a plain verdict, the balance of passing, review and failing controls, the
+   three things to fix first with a link to the tool that checks each one, and the passing controls folded away. *@
+
+<section class="overview-verdict overview-verdict--@ToneClass" aria-labelledby="overview-verdict-title">
+    <div class="overview-verdict__head">
+        <div>
+            <p class="overview-verdict__eyebrow">@(IsPartial ? "First-pass verdict" : "Verdict")</p>
+            <h2 id="overview-verdict-title" class="overview-verdict__title">
+                <span class="overview-verdict__icon" aria-hidden="true">@((MarkupString)ToneIcon)</span>
+                @View.Headline
+            </h2>
+            <p class="overview-verdict__summary">@View.Summary</p>
+        </div>
+        @if (View.Assessed > 0) {
+            <dl class="overview-verdict__counts">
+                <div class="overview-verdict__count overview-verdict__count--fail"><dt>Failing</dt><dd>@View.Failed</dd></div>
+                <div class="overview-verdict__count overview-verdict__count--warn"><dt>To review</dt><dd>@View.Review</dd></div>
+                <div class="overview-verdict__count overview-verdict__count--pass"><dt>Passing</dt><dd>@View.Passed</dd></div>
+            </dl>
+        }
+    </div>
+
+    @if (View.Assessed > 0) {
+        <div class="overview-verdict__bar" role="img" aria-label="@($"{View.Passed} passing, {View.Review} to review, {View.Failed} failing")">
+            @if (View.Failed > 0) { <span class="overview-verdict__seg overview-verdict__seg--fail" style="flex-grow: @View.Failed"></span> }
+            @if (View.Review > 0) { <span class="overview-verdict__seg overview-verdict__seg--warn" style="flex-grow: @View.Review"></span> }
+            @if (View.Passed > 0) { <span class="overview-verdict__seg overview-verdict__seg--pass" style="flex-grow: @View.Passed"></span> }
+        </div>
+    }
+
+    @if (View.FixFirst.Count > 0) {
+        <div class="overview-verdict__fixes">
+            <h3 class="overview-verdict__subtitle">Fix these first</h3>
+            <ol class="overview-fixlist">
+                @foreach (var item in View.FixFirst) {
+                    <li class="overview-fix overview-fix--@item.Severity">
+                        <div class="overview-fix__body">
+                            <strong class="overview-fix__title">@item.Title</strong>
+                            @if (!string.IsNullOrWhiteSpace(item.Why)) {
+                                <p class="overview-fix__why">@item.Why</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.How)) {
+                                <p class="overview-fix__how"><span>How to fix</span> @item.How</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.Meta)) {
+                                <p class="overview-fix__meta">@item.Meta</p>
+                            }
+                        </div>
+                        @if (item.ToolSlug is not null) {
+                            <a class="overview-fix__link" href="@BuildToolHref(item.ToolSlug)">Check in detail <span aria-hidden="true">&rarr;</span></a>
+                        }
+                    </li>
+                }
+            </ol>
+        </div>
+    } else if (View.Tone == OverviewVerdictTone.Healthy) {
+        <p class="overview-verdict__clean">Nothing to fix right now. Keep the controls below in place and re-run after DNS or mail changes.</p>
+    }
+
+    @if (View.NotChecked.Count > 0) {
+        <p class="overview-verdict__skipped"><strong>Not counted:</strong> @string.Join(", ", View.NotChecked) need the full run, which the browser cannot do. Run <code>Test-DDDomainOverallHealth</code> in PowerShell for those.</p>
+    }
+
+    @if (View.Healthy.Count > 0) {
+        <details class="overview-verdict__healthy">
+            <summary><span class="overview-verdict__check" aria-hidden="true">✓</span> @(View.Healthy.Count == 1 ? "1 control passing" : $"{View.Healthy.Count} controls passing")</summary>
+            <ul class="overview-verdict__chips">
+                @foreach (var check in View.Healthy) {
+                    var slug = OverviewVerdictPresentation.ResolveToolSlug(check.Key);
+                    <li>
+                        @if (slug is not null) {
+                            <a href="@BuildToolHref(slug)"><strong>@check.Label</strong>@(string.IsNullOrWhiteSpace(check.Value) ? string.Empty : " " + check.Value)</a>
+                        } else {
+                            <span><strong>@check.Label</strong>@(string.IsNullOrWhiteSpace(check.Value) ? string.Empty : " " + check.Value)</span>
+                        }
+                    </li>
+                }
+            </ul>
+        </details>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public OverviewVerdictView View { get; set; } = default!;
+
+    /// <summary>Domain passed to the linked tools as ?q= so they open with the same subject.</summary>
+    [Parameter] public string? Domain { get; set; }
+
+    [Parameter] public bool IsPartial { get; set; }
+
+    private string ToneClass => View.Tone switch {
+        OverviewVerdictTone.Action => "action",
+        OverviewVerdictTone.Review => "review",
+        OverviewVerdictTone.Healthy => "healthy",
+        _ => "unknown"
+    };
+
+    private string ToneIcon => View.Tone switch {
+        OverviewVerdictTone.Action => "<svg viewBox=\"0 0 24 24\"><path d=\"M12 7.5v6M12 16.5v.2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"/></svg>",
+        OverviewVerdictTone.Review => "<svg viewBox=\"0 0 24 24\"><path d=\"M12 7.5v6M12 16.5v.2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"/></svg>",
+        OverviewVerdictTone.Healthy => "<svg viewBox=\"0 0 24 24\"><path d=\"M7 12.5l3.2 3.2L17 9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+        _ => "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"1.6\" fill=\"currentColor\"/></svg>"
+    };
+
+    private string BuildToolHref(string slug) =>
+        string.IsNullOrWhiteSpace(Domain) ? $"/tools/{slug}/" : $"/tools/{slug}/?q={Uri.EscapeDataString(Domain.Trim())}";
+}

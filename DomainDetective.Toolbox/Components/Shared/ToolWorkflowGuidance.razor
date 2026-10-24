@@ -33,7 +33,7 @@
                     @GetCopyButtonText("powershell")
                 </button>
             </div>
-            <p class="tool-workflow-note">Good when you want the DD module in shell automation.</p>
+            <p class="tool-workflow-note">Good when you want the module in shell automation.</p>
             <pre class="tool-workflow-code"><code class="language-powershell">@GetPowerShellCommand()</code></pre>
         </article>
 
@@ -90,8 +90,8 @@
         }
 
         return Tool.BrowserCompatible
-            ? "The web edition is ready here, but the same check is also available locally when you want scripting, privacy, or repeatable automation."
-            : "GitHub Pages and browser sandboxing limit the deeper online path here, so this page keeps the workflow discoverable and shows the local commands that work today.";
+            ? "The browser edition is ready here, but the same check is also available locally when you want scripting, privacy, or repeatable automation."
+            : "Browser sandboxing limits the deeper online path here, so this page keeps the workflow discoverable and shows the local commands that work today.";
     }
 
     private string GetCopyButtonClass(string workflow) {

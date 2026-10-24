@@ -4,43 +4,11 @@
 @inject ToolAvailabilityService Availability
 @inject NavigationManager Navigation
 
-<PageTitle>@GetPageTitle()</PageTitle>
+@* Mounted into #dd-tool-root on each static tool page. The page itself renders the breadcrumb, title,
+   description, code samples and related tools, so this component renders only the interactive tool. *@
 
-@if (!_isReady) {
-    <div class="tools-home">
-        <div class="tools-hero">
-            <h1>Domain Analysis Tools</h1>
-            <p>Loading available tools...</p>
-        </div>
-    </div>
-} else if (string.IsNullOrEmpty(ToolSlug)) {
-    <div class="tools-home">
-        <div class="tools-hero">
-            <h1>Domain Analysis Tools</h1>
-            <p>@Availability.GetHomeDescription()</p>
-            <ToolSearch OnSearch="HandleSearch" />
-        </div>
-
-        @if (Availability.IsStaticOnly) {
-            <div class="tools-availability-legend">
-                <span class="legend-item"><span class="legend-dot legend-dot-browser"></span> Runs in browser</span>
-                <span class="legend-item"><span class="legend-dot legend-dot-partial"></span> Partial browser support</span>
-                <span class="legend-item"><span class="legend-dot legend-dot-local"></span> Run locally (CLI / PowerShell)</span>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(_searchQuery)) {
-            @if (_filteredAllTools.Count > 0) {
-                <ToolCategoryGrid Tools="_filteredAllTools" DeploymentMode="Availability.Mode" Domain="@GetToolDomainQuery()" />
-            } else {
-                <div class="tools-empty">
-                    <p>No tools match "<strong>@_searchQuery</strong>"</p>
-                </div>
-            }
-        } else {
-            <ToolCategoryGrid Tools="_allTools" DeploymentMode="Availability.Mode" Domain="@GetToolDomainQuery()" />
-        }
-    </div>
+@if (!_isReady || string.IsNullOrEmpty(ToolSlug)) {
+    @* Nothing to render: the tools hub at /tools/ is a static page and never mounts the WebAssembly app. *@
 } else {
     var tool = Registry.GetBySlug(ToolSlug);
     if (tool is null) {
@@ -50,32 +18,14 @@
         </div>
     } else if (Availability.IsStaticOnly && tool.HostedCompatible && !tool.BrowserCompatible && !tool.LiteCompatible) {
         <div class="tool-page">
-            <div class="tool-breadcrumb">
-                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
-            </div>
-
-            <div class="tool-page-header">
-                <h1>@tool.Name</h1>
-                <p>@tool.Description</p>
-            </div>
-
             <HostedFeaturePreview Tool="tool" Domain="@GetToolDomainQuery()" />
         </div>
     } else if (!Availability.CanRun(tool)) {
         <div class="tool-page">
-            <div class="tool-breadcrumb">
-                <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(tool.Category) / @tool.Name
-            </div>
-
-            <div class="tool-page-header">
-                <h1>@tool.Name</h1>
-                <p>@tool.Description</p>
-            </div>
-
             <ToolNotAvailable Tool="tool" Domain="@GetToolDomainQuery()" />
         </div>
     } else {
-        <ToolPage Definition="tool" />
+        <ToolPage Definition="tool" ShowHeader="false" ShowUsageExamples="false" />
     }
 }
 
@@ -85,43 +35,33 @@
     [SupplyParameterFromQuery(Name = "q")] public string? ToolDomainQuery { get; set; }
 
     private bool _isReady;
-    private string? _searchQuery;
-    private IReadOnlyList<ToolDefinition> _allTools = Array.Empty<ToolDefinition>();
-    private IReadOnlyList<ToolDefinition> _filteredAllTools = Array.Empty<ToolDefinition>();
+    private string? _mountedSlug;
 
     protected override async Task OnParametersSetAsync() {
+        // Every tool is its own static page, so moving to another tool (a link inside a result, for example)
+        // loads that page instead of swapping the tool inside the current page's title and samples.
+        if (_mountedSlug is null) {
+            _mountedSlug = ToolSlug ?? string.Empty;
+        } else if (!string.Equals(_mountedSlug, ToolSlug ?? string.Empty, StringComparison.OrdinalIgnoreCase)) {
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+            return;
+        }
+
         if (string.Equals(ToolSlug, "dns-query-playground", StringComparison.OrdinalIgnoreCase)) {
             var currentUri = new Uri(Navigation.Uri);
             var suffix = $"{currentUri.Query}{currentUri.Fragment}";
-            Navigation.NavigateTo($"/tools/raw-dns-query/{suffix}", replace: true);
+            Navigation.NavigateTo($"/tools/raw-dns-query/{suffix}", forceLoad: true, replace: true);
             return;
         }
 
         if (string.IsNullOrEmpty(ToolSlug) && !string.IsNullOrWhiteSpace(DomainQuery)) {
             var target = "/tools/domain-overview/?q=" + Uri.EscapeDataString(DomainQuery.Trim());
-            Navigation.NavigateTo(target, replace: true);
+            Navigation.NavigateTo(target, forceLoad: true, replace: true);
             return;
         }
 
         await Availability.InitializeAsync();
-        _allTools = Registry.GetAll();
-        if (!string.IsNullOrWhiteSpace(_searchQuery)) {
-            _filteredAllTools = Registry.Search(_searchQuery);
-        }
         _isReady = true;
-    }
-
-    private void HandleSearch(string query) {
-        _searchQuery = query;
-        _filteredAllTools = string.IsNullOrWhiteSpace(query)
-            ? Array.Empty<ToolDefinition>()
-            : Registry.Search(query);
-    }
-
-    private string GetPageTitle() {
-        if (!_isReady || string.IsNullOrEmpty(ToolSlug)) return "Tools | Domain Detective";
-        var tool = Registry.GetBySlug(ToolSlug);
-        return tool is not null ? $"{tool.Name} | Domain Detective" : "Tool Not Available | Domain Detective";
     }
 
     private string? GetToolDomainQuery() {

@@ -22,22 +22,30 @@ public sealed class ToolsPageComponentTests : BunitContext {
             BaseAddress = new Uri("http://localhost")
         });
         Services.AddScoped<ToolAvailabilityService>();
+        Services.AddScoped(_ => new BrowserDnsService(new HttpClient(new StaticHttpMessageHandler())));
+        Services.AddScoped<BrowserOverviewService>();
+        Services.AddScoped(_ => new HostedAnalysisService(new HttpClient(new StaticHttpMessageHandler()) {
+            BaseAddress = new Uri("http://localhost")
+        }));
     }
 
     [Fact]
-    public void ToolsPageShowsSimpleCatalogAndLegendInStaticMode() {
+    public void ToolsRootRendersNothingBecauseTheHubIsStatic() {
         var cut = Render<DomainDetective.Website.Pages.Tools>();
 
+        cut.WaitForAssertion(() => Assert.True(string.IsNullOrWhiteSpace(cut.Markup)));
+    }
+
+    [Fact]
+    public void ToolRouteRendersOnlyTheInteractiveToolInsideTheStaticPage() {
+        var cut = Render<DomainDetective.Website.Pages.Tools>(parameters => parameters
+            .Add(component => component.ToolSlug, "spf"));
+
         cut.WaitForAssertion(() => {
-            Assert.Contains("Domain Analysis Tools", cut.Markup);
-            Assert.Contains("Web-ready domain security analysis with live DNS, mail, adaptive overview checks, and local workflows for deeper tools.", cut.Markup);
-            Assert.Contains("Runs in browser", cut.Markup);
-            Assert.Contains("Partial browser support", cut.Markup);
-            Assert.Contains("Run locally (CLI / PowerShell)", cut.Markup);
-            Assert.Contains("/tools/dns-lookup/", cut.Markup);
-            Assert.Contains("/tools/raw-dns-query/", cut.Markup);
-            Assert.Contains("/tools/domain-overview/", cut.Markup);
-            Assert.DoesNotContain("Guided Local Workflows", cut.Markup);
+            Assert.Contains("tool-input-form", cut.Markup);
+            Assert.DoesNotContain("tool-page-header", cut.Markup);
+            Assert.DoesNotContain("tool-breadcrumb", cut.Markup);
+            Assert.DoesNotContain("tool-usage-examples", cut.Markup);
         });
     }
 
@@ -49,19 +57,6 @@ public sealed class ToolsPageComponentTests : BunitContext {
         Render<DomainDetective.Website.Pages.Tools>();
 
         Assert.Equal("http://localhost/tools/domain-overview/?q=contoso.com", navigation.Uri);
-    }
-
-    [Fact]
-    public void ToolsPagePreservesQDomainInCatalogLinks() {
-        var navigation = Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo("http://localhost/tools/?q=evotec.pl");
-
-        var cut = Render<DomainDetective.Website.Pages.Tools>();
-
-        cut.WaitForAssertion(() => {
-            Assert.Contains("/tools/spf/?q=evotec.pl", cut.Markup);
-            Assert.Contains("/tools/cert-check/?q=evotec.pl", cut.Markup);
-        });
     }
 
     [Fact]

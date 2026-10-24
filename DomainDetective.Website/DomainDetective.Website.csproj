@@ -16,6 +16,16 @@
         <ProjectReference Include="..\DomainDetective.Toolbox\DomainDetective.Toolbox.csproj" />
     </ItemGroup>
 
+    <!-- These libraries are not marked trimmable, so partial trimming ships them whole (BouncyCastle alone was
+         over 2 MB compressed). They use little reflection, so let the trimmer remove what the tools never call. -->
+    <Target Name="DomainDetectiveTrimLargeDependencies" BeforeTargets="PrepareForILLink">
+        <ItemGroup>
+            <ManagedAssemblyToLink Condition="'%(Filename)' == 'BouncyCastle.Cryptography' Or '%(Filename)' == 'MimeKit' Or '%(Filename)' == 'MailKit'">
+                <IsTrimmable>true</IsTrimmable>
+            </ManagedAssemblyToLink>
+        </ItemGroup>
+    </Target>
+
     <ItemGroup>
         <Content Include="..\Website\static\css\prism-theme.css" Link="wwwroot\css\prism-theme.css" CopyToOutputDirectory="PreserveNewest" />
         <Content Include="..\Website\static\assets\prism\**\*" Link="wwwroot\assets\prism\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

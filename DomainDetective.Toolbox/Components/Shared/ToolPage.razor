@@ -11,14 +11,16 @@
 @inject IJSRuntime JS
 
 <div class="tool-page @(IsOverviewTool(Definition) ? "tool-page-overview" : string.Empty)">
-    <div class="tool-breadcrumb">
-        <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
-    </div>
+    @if (ShowHeader) {
+        <div class="tool-breadcrumb">
+            <a href="/tools/">Tools</a> / @ToolRegistry.GetCategoryDisplayName(Definition.Category) / @Definition.Name
+        </div>
 
-    <div class="tool-page-header">
-        <h1>@Definition.Name</h1>
-        <p>@Definition.Description</p>
-    </div>
+        <div class="tool-page-header">
+            <h1>@Definition.Name</h1>
+            <p>@Definition.Description</p>
+        </div>
+    }
 
     @if (!CanRunOnline(Definition)) {
         <ToolNotAvailable Tool="Definition" />
@@ -255,12 +257,24 @@
     }
 
     @if (!UsesCustomToolLayout(Definition)) {
-        <ToolUsageExamples Definition="Definition" />
+        @if (ShowUsageExamples) {
+            <ToolUsageExamples Definition="Definition" />
+        }
     }
 </div>
 
 @code {
     [Parameter] public required ToolDefinition Definition { get; set; }
+
+    /// <summary>
+    /// Renders the breadcrumb, title and description. The static tool pages render these themselves.
+    /// </summary>
+    [Parameter] public bool ShowHeader { get; set; } = true;
+
+    /// <summary>
+    /// Renders the CLI, PowerShell and C# samples. The static tool pages render these themselves.
+    /// </summary>
+    [Parameter] public bool ShowUsageExamples { get; set; } = true;
 
     private string _domain = "";
     private string? _secondaryInput;
@@ -407,9 +421,15 @@
                     break;
                 case "tls-rpt": await hc.VerifyTLSRPT(_domain); break;
                 case "bimi":
-                    try {
-                        _bimiInfo = await HostedAnalysisService.AnalyzeBimiAsync(_domain, _forceHostedRefresh);
-                    } catch (HostedAnalysisUnavailableException) {
+                    // Static deployments (such as GitHub Pages) have no /tool-api, so the browser checks the
+                    // BIMI record itself; only a hosted deployment fetches and validates the indicator.
+                    if (Availability.IsHostedOnline) {
+                        try {
+                            _bimiInfo = await HostedAnalysisService.AnalyzeBimiAsync(_domain, _forceHostedRefresh);
+                        } catch (HostedAnalysisUnavailableException) {
+                            await hc.VerifyBIMI(_domain, skipIndicatorDownload: true);
+                        }
+                    } else {
                         await hc.VerifyBIMI(_domain, skipIndicatorDownload: true);
                     }
                     break;
@@ -663,17 +683,17 @@
 
     private static string GetStaticEditionTitle(ToolDefinition definition) {
         return definition.Slug switch {
-            "dns-propagation" => "Web edition propagation sample",
-            "mta-sts" => "Web edition MTA-STS check",
-            _ => "Web edition overview"
+            "dns-propagation" => "Browser edition propagation sample",
+            "mta-sts" => "Browser edition MTA-STS check",
+            _ => "Browser edition overview"
         };
     }
 
     private static string GetStaticEditionDescription(ToolDefinition definition) {
         return definition.Slug switch {
-            "dns-propagation" => "This web edition compares answers across a smaller public resolver sample. Extra resolver coverage is added automatically in the deeper online run.",
-            "mta-sts" => "This web edition validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation are added automatically in the deeper online run.",
-            _ => "This web edition shows the DD sections that run safely in the browser. Deeper sections stay visible below and are marked clearly when they need the broader online run."
+            "dns-propagation" => "This browser edition compares answers across a smaller public resolver sample. Extra resolver coverage is added automatically in the deeper online run.",
+            "mta-sts" => "This browser edition validates the published MTA-STS DNS bootstrap record. Policy hosting and MX-policy correlation are added automatically in the deeper online run.",
+            _ => "This browser edition shows the sections that run safely in the browser. Deeper sections stay visible below and are marked clearly when they need the broader online run."
         };
     }
 
@@ -781,8 +801,8 @@
         }
 
         return IsOverviewTool(Definition)
-            ? $"{GetActiveProgressActivity()} Browser DNS resolvers can pause while public answers come back, so DD keeps this progress view moving until the first result is ready."
-            : $"{GetActiveProgressActivity()} DD is building the result view from the browser-safe checks for this tool.";
+            ? $"{GetActiveProgressActivity()} Browser DNS resolvers can pause while public answers come back, so DomainDetective keeps this progress view moving until the first result is ready."
+            : $"{GetActiveProgressActivity()} DomainDetective is building the result view from the browser checks for this tool.";
     }
 
     private int GetPendingSectionCount() {
@@ -825,7 +845,7 @@
     };
 
     private static readonly IReadOnlyList<string> DefaultToolProgressActivities = new[] {
-        "Starting the browser-safe DD checks.",
+        "Starting the browser checks.",
         "Resolving public DNS evidence.",
         "Normalizing findings into report cards.",
         "Waiting for slower resolver responses."
@@ -900,7 +920,7 @@
                 "Building NS findings."
             },
             ["dns-propagation"] = new[] {
-                "Querying the web-edition resolver sample.",
+                "Querying the browser resolver sample.",
                 "Comparing resolver answers.",
                 "Checking answer drift and availability.",
                 "Waiting for slower public resolvers."
@@ -945,18 +965,7 @@
         return ToolProgressActivitiesBySlug.TryGetValue(Definition.Slug, out var activities) ? activities : DefaultToolProgressActivities;
     }
 
-    private IReadOnlyList<string> BuildExampleDomains() {
-        return Definition.Slug switch {
-            "m365-overview" => new[] { "evotec.pl", "microsoft.com" },
-            "domain-overview" => new[] { "evotec.pl", "microsoft.com", "cloudflare.com" },
-            "mta-sts" or "tls-rpt" or "bimi" => new[] { "evotec.pl", "microsoft.com", "google.com" },
-            "spf" or "dkim" or "dmarc" or "mx" => new[] { "evotec.pl", "microsoft.com", "gmail.com" },
-            "dns-lookup" or "dnssec" or "soa" or "ns" or "dns-propagation" or "caa" or "dane" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
-            "sitemap" or "agent-readiness" => new[] { "evotec.pl", "cloudflare.com", "microsoft.com" },
-            "dnsbl" or "dangling-cname" => new[] { "evotec.pl", "microsoft.com" },
-            _ => Array.Empty<string>()
-        };
-    }
+    private IReadOnlyList<string> BuildExampleDomains() => ToolRegistry.GetExampleDomains(Definition.Slug);
 
     private void StartProgressTicker() {
         StopProgressTicker();

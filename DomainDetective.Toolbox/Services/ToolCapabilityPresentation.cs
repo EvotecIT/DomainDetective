@@ -23,7 +23,7 @@ public static class ToolCapabilityPresentation {
         if (deploymentMode == ToolsDeploymentMode.HostedOnline) {
             return new ToolCapabilityInfo(
                 "Online coverage",
-                "This deployment can use the hosted DD analysis path when the tool needs network access beyond the browser sandbox.",
+                "This deployment can use the hosted analysis path when the tool needs network access beyond the browser sandbox.",
                 new[] { "Live hosted analysis where configured", "Browser-safe fallback checks for DNS-oriented tools" },
                 new[] { "CLI, PowerShell, and C# workflows for repeatable local automation" });
         }
@@ -31,7 +31,7 @@ public static class ToolCapabilityPresentation {
         return tool.Slug switch {
             "m365-overview" => new ToolCapabilityInfo(
                 "Partial browser support",
-                "The GitHub Pages edition builds a Microsoft 365 posture from public DNS and mail evidence, then marks tenant-only probes as deeper-run work.",
+                "The browser edition builds a Microsoft 365 posture from public DNS and mail evidence, then marks tenant-only probes as deeper-run work.",
                 new[] {
                     "SPF, DKIM, DMARC, MX, TLS-RPT, BIMI, CAA, and DANE evidence",
                     "Microsoft mail provider and DNS application fingerprints",
@@ -44,7 +44,7 @@ public static class ToolCapabilityPresentation {
                 }),
             "domain-overview" => new ToolCapabilityInfo(
                 "Partial browser support",
-                "The GitHub Pages edition runs the DD checks that are safe through browser DNS and keeps deeper network sections visible as deeper-run work.",
+                "The browser edition runs the checks that work through browser DNS and keeps deeper network sections visible as deeper-run work.",
                 new[] {
                     "DNS inventory, provider hints, and DNS application fingerprints",
                     "Core mail authentication and transport DNS controls",
@@ -57,7 +57,7 @@ public static class ToolCapabilityPresentation {
                 }),
             "mta-sts" => new ToolCapabilityInfo(
                 "Partial browser support",
-                "The web edition validates the DNS bootstrap record and leaves policy hosting checks to the deeper online run.",
+                "The browser edition validates the DNS bootstrap record and leaves policy hosting checks to the deeper online run.",
                 new[] {
                     "MTA-STS TXT bootstrap lookup",
                     "Record presence and syntax-oriented posture",
@@ -70,14 +70,14 @@ public static class ToolCapabilityPresentation {
                 }),
             "dns-propagation" => new ToolCapabilityInfo(
                 "Partial browser support",
-                "The web edition compares a compact public resolver sample so propagation checks still work on GitHub Pages.",
+                "The browser edition compares a compact public resolver sample so propagation checks still work in the browser.",
                 new[] {
                     "Public resolver sample from the browser",
                     "Answer drift and resolver availability",
                     "Fast propagation signal for common records"
                 },
                 new[] {
-                    "Broader DD resolver pool",
+                    "Broader DomainDetective resolver pool",
                     "Hosted cache refresh and wider vantage points",
                     "Repeatable CLI or PowerShell propagation audits"
                 }),
@@ -86,7 +86,7 @@ public static class ToolCapabilityPresentation {
                 "This workspace is designed for direct browser DNS-over-HTTPS queries and copyable DnsClientX examples.",
                 new[] {
                     "Record-by-record DNS-over-HTTPS queries",
-                    "Resolver selection for browser-safe providers",
+                    "Resolver selection for browser providers",
                     "Raw JSON answer review"
                 },
                 new[] {
@@ -102,7 +102,7 @@ public static class ToolCapabilityPresentation {
         if (tool.BrowserCompatible) {
             return new ToolCapabilityInfo(
                 "Runs in browser",
-                "This check can run directly from the GitHub Pages edition using browser-safe DD lookups.",
+                "This check can run directly from the browser edition using DNS-over-HTTPS lookups in your browser.",
                 BuildBrowserCompatibleChecks(tool),
                 new[] {
                     "CLI, PowerShell, and C# automation",
@@ -114,7 +114,7 @@ public static class ToolCapabilityPresentation {
         if (tool.LiteCompatible) {
             return new ToolCapabilityInfo(
                 "Partial browser support",
-                "This check has a lighter web edition here and a deeper DD path outside GitHub Pages.",
+                "This check has a lighter browser edition here and a deeper path from PowerShell or the CLI.",
                 new[] {
                     "Browser-safe public evidence",
                     "Clear status for checks that are not run here",
@@ -122,21 +122,21 @@ public static class ToolCapabilityPresentation {
                 },
                 new[] {
                     "Network probes that browser sandboxing blocks",
-                    "Hosted or local DD validation",
+                    "Hosted or local validation",
                     "Full remediation evidence"
                 });
         }
 
         return new ToolCapabilityInfo(
             "Guided locally",
-            "This check needs network access that the GitHub Pages browser edition cannot provide.",
+            "This check needs network access that the browser edition cannot provide.",
             new[] {
                 "Tool description and exact run commands",
-                "Related DD workflows",
+                "Related workflows",
                 "Install and usage links"
             },
             new[] {
-                "Full DD analysis through CLI, PowerShell, or C#",
+                "Full analysis through CLI, PowerShell, or C#",
                 "Network probes from your environment",
                 "Repeatable local automation"
             });
@@ -146,27 +146,27 @@ public static class ToolCapabilityPresentation {
         return tool.Category switch {
             ToolCategory.EmailSecurity => new[] {
                 "Public DNS records for this mail control",
-                "DD parsing and posture classification",
+                "parsing and posture classification",
                 "Actionable findings and record details"
             },
             ToolCategory.Dns => new[] {
-                "Public DNS answers through browser-safe resolvers",
-                "DD normalization and provider hints",
+                "Public DNS answers through browser resolvers",
+                "DomainDetective normalization and provider hints",
                 "Record details and copyable evidence"
             },
             ToolCategory.TlsCert => new[] {
                 "Public DNS records related to certificate posture",
-                "DD parsing and posture classification",
+                "parsing and posture classification",
                 "Actionable findings and record details"
             },
             ToolCategory.ThreatIntel => new[] {
                 "DNS-backed posture checks available to the browser",
-                "DD findings for public takeover or blacklist signals",
+                "findings for public takeover or blacklist signals",
                 "Actionable result cards"
             },
             _ => new[] {
                 "Browser-safe public evidence",
-                "DD parsing and result cards",
+                "parsing and result cards",
                 "Actionable findings"
             }
         };

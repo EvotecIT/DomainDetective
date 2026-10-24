@@ -1,29 +1,89 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title_html }} | DomainDetective</title>
-  {{ if description_meta_html == "" }}
-  <meta name="description" content="DomainDetective online tools - analyze any domain directly in your browser." />
-  {{ end }}
-  {{ description_meta_html }}
-  {{ canonical_html }}
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  {{ assets.critical_css_html }}
+{{ title_suffix = " | DomainDetective" }}
+{{ include "head" }}
   {{ include "theme-tokens" }}
+  {{ assets.critical_css_html }}
   {{ extra_css_html }}
   {{ assets.css_html }}
   {{ include "head-meta" }}
   {{ head_html }}
 </head>
-<body>
-  {{ include "header" }}
-  <main class="dd-main dd-tools-main">
-{{ content }}
-  </main>
-  {{ include "footer" }}
-  {{ assets.js_html }}
-  {{ extra_scripts_html }}
+<body class="dd-body dd-body--tools">
+{{ include "header" }}
+{{~ ## Static tools hub rendered from data/tools-catalog.json. No WebAssembly loads here; search filters in place. ## ~}}
+{{~ catalog = data.tools_catalog ~}}
+<main id="main" class="dd-main">
+  <header class="dd-masthead dd-hub__head">
+    <div class="dd-wrap dd-masthead__inner">
+      <p class="dd-eyebrow">Browser tools</p>
+      <h1>Investigate any domain, <span class="dd-trace">right here.</span></h1>
+      <p class="dd-masthead__lede">{{ catalog.count }} tools built on the DomainDetective engine. {{ catalog.browserCount }} run entirely in your browser; the rest do a lighter browser pass and show the PowerShell or CLI command for the full check.</p>
+      <form class="dd-hub__search" role="search" data-dd-hub-search onsubmit="return false">
+        <label class="dd-visually-hidden" for="dd-hub-filter">Filter tools</label>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="dd-hub-filter" type="search" placeholder="Filter tools: SPF, DNSSEC, certificate, blocklist…" autocomplete="off" />
+        <kbd aria-hidden="true">/</kbd>
+      </form>
+      <ul class="dd-hub__legend" aria-label="Where each tool runs">
+        <li><span class="dd-support dd-support--browser" aria-hidden="true"></span>Runs in your browser</li>
+        <li><span class="dd-support dd-support--partial" aria-hidden="true"></span>Partial in browser, full locally</li>
+        <li><span class="dd-support dd-support--local" aria-hidden="true"></span>Runs locally with PowerShell or the CLI</li>
+      </ul>
+    </div>
+  </header>
+
+  <div class="dd-wrap dd-hub">
+    <nav class="dd-hub__jump" aria-label="Tool categories">
+      {{~ for cat in catalog.categories ~}}
+      <a href="#{{ cat.slug }}">{{ cat.name }} <span>{{ cat.count }}</span></a>
+      {{~ end ~}}
+    </nav>
+
+    <div class="dd-hub__groups" data-dd-hub-groups>
+      {{~ for cat in catalog.categories ~}}
+      <section class="dd-hub__group" id="{{ cat.slug }}" aria-labelledby="dd-hub-{{ cat.slug }}" data-dd-hub-group>
+        <div class="dd-hub__grouphead">
+          <span class="dd-hub__groupicon">{{ icon_name = cat.icon; include "icon" }}</span>
+          <div>
+            <h2 id="dd-hub-{{ cat.slug }}">{{ cat.name }}</h2>
+            <p>{{ cat.summary }}</p>
+          </div>
+        </div>
+        <ul class="dd-hub__tools">
+          {{~ for tool in cat.tools ~}}
+          <li data-dd-hub-tool data-search="{{ tool.name | string.downcase }} {{ tool.slug }} {{ tool.description | string.downcase }} {{ cat.name | string.downcase }}">
+            <a class="dd-hubtool" href="/tools/{{ tool.slug }}/">
+              <span class="dd-hubtool__top">
+                <strong>{{ tool.name | html.escape }}</strong>
+                <span class="dd-support dd-support--{{ tool.support }}" title="{{ tool.supportLabel | html.escape }}"><span class="dd-visually-hidden">{{ tool.supportLabel | html.escape }}</span></span>
+              </span>
+              <span class="dd-hubtool__desc">{{ tool.description | html.escape }}</span>
+              <span class="dd-hubtool__go" aria-hidden="true">Open &rarr;</span>
+            </a>
+          </li>
+          {{~ end ~}}
+        </ul>
+      </section>
+      {{~ end ~}}
+      <p class="dd-hub__empty" data-dd-hub-empty hidden>No tool matches that search. Try <a href="/tools/domain-overview/">the domain overview</a>, which runs every check.</p>
+    </div>
+
+    <aside class="dd-hub__automate">
+      <div>
+        <h2>Need this on a schedule?</h2>
+        <p>Every tool maps to a PowerShell cmdlet and a .NET call. Run the same checks across hundreds of domains and export Word, HTML or Markdown reports.</p>
+      </div>
+      <div class="dd-hub__automate-actions">
+        <a class="dd-button dd-button-primary" href="/docs/powershell-cmdlets/">PowerShell guide</a>
+        <a class="dd-button dd-button-ghost" href="/docs/csharp-api/">.NET guide</a>
+      </div>
+    </aside>
+  </div>
+</main>
+{{ include "footer" }}
+{{ assets.js_html }}
+{{ extra_scripts_html }}
 </body>
 </html>

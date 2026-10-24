@@ -22,7 +22,7 @@ public sealed class ToolCapabilityPresentationTests {
         var capability = ToolCapabilityPresentation.Build(tool, ToolsDeploymentMode.StaticOnly);
 
         Assert.Equal("Guided locally", capability.Title);
-        Assert.Contains("GitHub Pages browser edition", capability.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("browser edition cannot provide", capability.Description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(capability.DeeperChecks, item => item.Contains("CLI", StringComparison.OrdinalIgnoreCase));
     }
 

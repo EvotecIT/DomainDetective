@@ -224,14 +224,14 @@
     private static string BuildSummary(AgentReadinessInfo view) {
         var score = view.Score.ToString("0.##", CultureInfo.InvariantCulture);
         if (view.ErrorCount > 0) {
-            return $"DD scored this site {score}/100 and found blocking agent-readiness gaps.";
+            return $"DomainDetective scored this site {score}/100 and found blocking agent-readiness gaps.";
         }
 
         if (view.WarningCount > 0) {
-            return $"DD scored this site {score}/100 and found readiness improvements to review.";
+            return $"DomainDetective scored this site {score}/100 and found readiness improvements to review.";
         }
 
-        return $"DD scored this site {score}/100 with no warning or error findings.";
+        return $"DomainDetective scored this site {score}/100 with no warning or error findings.";
     }
 
     private static string FormatBool(bool value) {

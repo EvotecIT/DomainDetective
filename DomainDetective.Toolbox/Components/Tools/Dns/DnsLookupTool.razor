@@ -24,7 +24,7 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Focused types</span>
                 <strong class="tool-summary-value">@requestedTypesLabel</strong>
-                <p class="tool-summary-note">Browser-safe answer view over the DD DNS inventory.</p>
+                <p class="tool-summary-note">Browser-safe answer view over the DNS inventory.</p>
             </div>
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Visible queries</span>
@@ -219,7 +219,7 @@
             <div class="tool-summary-card">
                 <span class="tool-summary-label">Benchmarking</span>
                 <strong class="tool-summary-value">Compare resolver performance</strong>
-                <p class="tool-summary-note">Benchmark Cloudflare, Google, and Quad9 locally when you want more than the browser-safe resolver switch on this page.</p>
+                <p class="tool-summary-note">Benchmark Cloudflare, Google, and Quad9 locally when you want more than the browser resolver switch on this page.</p>
                 <div class="tool-export-actions">
                     <button type="button"
                             class="@GetCopyButtonClass("benchmark")"
@@ -380,7 +380,7 @@
     }
 
     private string GetResolverNote() {
-        return $"Browser-safe DoH answers through {GetResolverLabel()} in the DnsClientX-backed DD inventory.";
+        return $"Browser-safe DoH answers through {GetResolverLabel()} in the DnsClientX-backed DomainDetective inventory.";
     }
 
     private IReadOnlyList<QueryTargetPreset> GetQueryTargets() {

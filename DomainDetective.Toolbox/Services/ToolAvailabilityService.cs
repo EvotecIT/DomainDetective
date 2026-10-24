@@ -96,8 +96,8 @@ public sealed class ToolAvailabilityService {
         }
 
         return definition.LiteCompatible
-            ? $"{definition.Name} is available here as a lighter web edition."
-            : $"{definition.Name} is not available in this web edition yet.";
+            ? $"{definition.Name} is available here as a lighter browser edition."
+            : $"{definition.Name} is not available in this browser edition yet.";
     }
 
     private async Task<ToolsDeploymentMode> DetectModeAsync(CancellationToken cancellationToken) {

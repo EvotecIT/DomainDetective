@@ -1,40 +1,64 @@
-<section class="hero">
-  <div class="hero-grid-bg"></div>
-  <div class="hero-inner">
-    <h1 class="hero-title">Analyze Any Domain</h1>
-    <p class="hero-tagline">115+ protocol checks for DNS, email security, TLS, and web security. Open source, privacy-first, browser-native where possible.</p>
-    <div class="hero-search">
-      <form action="/tools/domain-overview/" method="get" class="hero-search-form">
-        <svg class="hero-search-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" name="q" placeholder="Enter a domain to analyze (e.g. example.com)" autocomplete="off" spellcheck="false" />
-        <button type="submit" class="hero-search-btn">Analyze</button>
+{{~ ## Home hero: headline and domain form on the left, a live "case file" on the right.
+     The case file is prerendered with a real quick scan so it reads well before scripts run; quickscan.js refreshes
+     it from DNS on idle and answers the form in place, then the button carries on to the full report. ## ~}}
+<section class="dd-hero dd-stage" aria-labelledby="dd-hero-title">
+  <div class="dd-hero__backdrop" aria-hidden="true"></div>
+  <div class="dd-wrap dd-hero__grid">
+    <div class="dd-hero__copy">
+      <p class="dd-hero__kicker"><span class="dd-hero__pulse" aria-hidden="true"></span>Open source &middot; 115+ protocol checks</p>
+      <h1 id="dd-hero-title" class="dd-hero__title"><span class="dd-hero__line">Every domain</span> <span class="dd-hero__line dd-trace">leaves evidence.</span></h1>
+      <p class="dd-hero__lede">DomainDetective reads what a domain publishes about its mail, DNS, certificates and web security, then tells you what is broken and how to fix it. Run it in your browser, from PowerShell, the CLI or .NET.</p>
+
+      <form class="dd-hero__form" action="/tools/domain-overview/" method="get" role="search" data-dd-quickscan-form>
+        <label class="dd-visually-hidden" for="dd-hero-domain">Domain to investigate</label>
+        <svg class="dd-hero__form-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="dd-hero-domain" type="text" name="q" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourdomain.com" required />
+        <button type="submit" class="dd-button dd-button-primary" data-label="Investigate" data-full-label="Full report &rarr;"><span data-dd-label>Investigate</span></button>
       </form>
+      <p class="dd-hero__hint">A quick DNS pass answers here in under a second. The full report runs every check in your browser.</p>
+
+      <ul class="dd-chips dd-hero__chips" aria-label="Project facts">
+        <li class="dd-chip">MIT licensed</li>
+        <li class="dd-chip">.NET 8, .NET 10 and Framework 4.7.2</li>
+        <li class="dd-chip">PowerShell 5.1 and 7</li>
+        <li class="dd-chip">No cookies, nothing stored</li>
+      </ul>
     </div>
-    <div class="hero-links">
-      <a href="/downloads/" class="hero-pill">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Downloads
-      </a>
-      <a href="/docs/quickstart/" class="hero-pill">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        Get Started
-      </a>
-      <a href="/changelog/" class="hero-pill">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Changelog
-      </a>
-      <a href="/faq/" class="hero-pill">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        FAQ
-      </a>
-    </div>
-    <div class="hero-install">
-      <span class="hero-install-prompt">$</span>
-      <code>dotnet add package DomainDetective</code>
-      <button class="hero-copy-btn" type="button" data-copy="dotnet add package DomainDetective">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy
-      </button>
+
+    <div class="dd-hero__visual">
+      <article class="dd-case" data-dd-casefile data-dd-domain="evotec.pl" data-dd-form="[data-dd-quickscan-form]" aria-labelledby="dd-case-heading">
+        <header class="dd-case__head">
+          <div>
+            <p class="dd-case__eyebrow">Case file</p>
+            <h2 class="dd-case__domain" id="dd-case-heading" data-dd-case-domain>evotec.pl</h2>
+          </div>
+          <p class="dd-case__status" data-dd-case-status>Sample result</p>
+        </header>
+        <div class="dd-case__score" data-dd-case-score>
+          <span class="dd-case__count dd-case__count--pass"><b>6</b> passed</span>
+          <span class="dd-case__count dd-case__count--warn"><b>1</b> to review</span>
+          <span class="dd-case__count dd-case__count--fail"><b>0</b> failing</span>
+        </div>
+        <ul class="dd-case__rows" data-dd-case-rows aria-label="Quick scan results">
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">SPF</span><span class="dd-case__value"><strong>Enforced (-all)</strong><small>3 of 10 direct lookups</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">DMARC</span><span class="dd-case__value"><strong>p=reject</strong><small>Aggregate reports on</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">MX</span><span class="dd-case__value"><strong>Microsoft 365</strong><small>evotec-pl.mail.protection.outlook.com</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">DNSSEC</span><span class="dd-case__value"><strong>Signed and validated</strong><small>Resolver set the AD flag.</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">CAA</span><span class="dd-case__value"><strong>5 issuers</strong><small>comodoca.com, digicert.com, letsencrypt.org</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+          <li class="dd-case__row" data-status="warn"><span class="dd-case__name">MTA-STS</span><span class="dd-case__value"><strong>Not published</strong><small>Inbound TLS can be downgraded.</small></span><span class="dd-verdict dd-verdict--warn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.2v4.6M8 11.6v.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Review</span></li>
+          <li class="dd-case__row" data-status="pass"><span class="dd-case__name">TLS-RPT</span><span class="dd-case__value"><strong>Reporting on</strong><small>tls.eu.dmarcian.com</small></span><span class="dd-verdict dd-verdict--pass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pass</span></li>
+        </ul>
+        <footer class="dd-case__foot">
+          <span>DKIM, TLS, headers, blocklists and 100+ more in the full report.</span>
+          <a href="/tools/domain-overview/?q=evotec.pl" data-dd-case-full>Full report &rarr;</a>
+        </footer>
+        <p class="dd-visually-hidden" aria-live="polite" data-dd-case-live></p>
+      </article>
+
+      <div class="dd-window dd-hero__ps" aria-hidden="true">
+        <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--ps"></span><span class="dd-window__title">PowerShell</span></div>
+        <pre><code><span class="tk-p">PS&gt;</span> <span class="tk-c">Test-DDDomainOverallHealth</span> <span class="tk-s">evotec.pl</span></code></pre>
+      </div>
     </div>
   </div>
 </section>

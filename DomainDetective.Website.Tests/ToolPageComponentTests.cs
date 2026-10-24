@@ -57,6 +57,22 @@ public sealed class ToolPageComponentTests : BunitContext {
     }
 
     [Fact]
+    public void BimiInStaticModeChecksDnsInsteadOfCallingTheHostedApi() {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("http://localhost/tools/bimi/?q=contoso.com");
+
+        var tool = _registry.GetBySlug("bimi")!;
+        var cut = Render<ToolPage>(parameters => parameters
+            .Add(component => component.Definition, tool));
+
+        cut.WaitForAssertion(() => {
+            Assert.Contains(_dnsHandler.RequestUris, uri => uri.Query.Contains("default._bimi.contoso.com", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(_dnsHandler.RequestUris, uri => uri.AbsolutePath.StartsWith("/tool-api/", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain("Hosted analysis failed", cut.Markup);
+        }, AsyncToolRenderTimeout);
+    }
+
+    [Fact]
     public void DnsLookupPageNormalizesUnknownResolverQueryToDefaultResolver() {
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("http://localhost/tools/dns-lookup/?q=contoso.com&h=_dmarc&r=Cloudflaer&s=TXT");
@@ -125,8 +141,8 @@ public sealed class ToolPageComponentTests : BunitContext {
             .Add(component => component.Definition, tool));
 
         Assert.Contains("Guided locally", cut.Markup);
-        Assert.Contains("This check needs network access that the GitHub Pages browser edition cannot provide.", cut.Markup);
-        Assert.Contains("Full DD analysis through CLI, PowerShell, or C#", cut.Markup);
+        Assert.Contains("This check needs network access that the browser edition cannot provide.", cut.Markup);
+        Assert.Contains("Full analysis through CLI, PowerShell, or C#", cut.Markup);
     }
 
     private sealed class RecordingDnsHandler : HttpMessageHandler {

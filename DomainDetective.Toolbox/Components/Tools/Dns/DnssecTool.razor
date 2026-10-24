@@ -34,15 +34,15 @@
             <p>@BuildSummary(view, expiringSoon)</p>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>DNSKEY AD flag</td><td>@FormatBool(view.AuthenticData)</td></tr>
-            <tr><td>DS AD flag</td><td>@FormatBool(view.DsAuthenticData)</td></tr>
-            <tr><td>Root trust anchor</td><td>@(view.RootKeyTag > 0 ? view.RootKeyTag.ToString() : "Not captured")</td></tr>
-            <tr><td>Root anchor expiration</td><td>@FormatAnchorExpiry(view.RootAnchorExpiration)</td></tr>
-            <tr><td>Key rollover watch</td><td>@FormatBool(view.KeyExpiresSoon)</td></tr>
-            <tr><td>DS TTL profile</td><td>@FormatTtls(view.DsTtls)</td></tr>
-            <tr><td>Mismatch count</td><td>@view.MismatchSummary.Count</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(new[] {
+            ResultCheck.Expect("DNSKEY validated (AD flag)", view.AuthenticData, FormatBool(view.AuthenticData)),
+            ResultCheck.Expect("DS validated (AD flag)", view.DsAuthenticData, FormatBool(view.DsAuthenticData)),
+            ResultCheck.Expect("No key expiring soon", !view.KeyExpiresSoon, view.KeyExpiresSoon ? "Rollover due" : "Yes", warnOnly: true),
+            ResultCheck.Expect("No DS/DNSKEY mismatches", view.MismatchSummary.Count == 0, view.MismatchSummary.Count.ToString()),
+            ResultCheck.Fact("Root trust anchor", view.RootKeyTag > 0 ? view.RootKeyTag.ToString() : "Not captured"),
+            ResultCheck.Fact("Root anchor expiration", FormatAnchorExpiry(view.RootAnchorExpiration)),
+            ResultCheck.Fact("DS TTL profile", FormatTtls(view.DsTtls))
+        })" />
     </ResultCard>
 
     @if (view.Warnings.Count > 0 || view.RootAnchorExpiration.HasValue) {

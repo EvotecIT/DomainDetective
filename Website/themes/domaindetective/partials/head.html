@@ -1,0 +1,11 @@
+{{~ ## Document metadata shared by every layout. Each layout follows it with the theme-tokens script and the asset
+     tokens itself, which keeps the PowerForge theme contract checks able to see them. ## ~}}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {{~ if base_href ~}}<base href="{{ base_href }}" />{{~ end ~}}
+  <title>{{ page.title | html.escape }}{{ if title_suffix }}{{ title_suffix }}{{ end }}</title>
+  {{~ if description_meta_html == "" ~}}
+  <meta name="description" content="DomainDetective checks DNS, email authentication, TLS, web security and reputation for any domain, from your browser, PowerShell, the CLI or .NET." />
+  {{~ end ~}}
+  {{ description_meta_html }}
+  {{ canonical_html }}

@@ -229,6 +229,12 @@
                 return false;
             }
 
+            // Sections can be collapsed result cards; open the one being navigated to.
+            var disclosure = element.matches('details') ? element : element.querySelector('details.result-card-collapsible');
+            if (disclosure) {
+                disclosure.open = true;
+            }
+
             var header = document.querySelector('.dd-header');
             var headerHeight = header ? header.getBoundingClientRect().height : 0;
             var extraOffset = 20;

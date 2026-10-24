@@ -118,8 +118,8 @@ internal static class Microsoft365OverviewPresentation
             Title = "Tenant detection",
             ValueLabel = FormatTenantDetectionLabel(info),
             Summary = info.IsBrowserLimited
-                ? "DD used the browser-safe DNS, mail, and application evidence available here. Tenant identity and auth probes require the deeper online run."
-                : "DD combined namespace, tenant, and Microsoft identity evidence to decide whether this domain maps to a Microsoft 365 tenant.",
+                ? "DomainDetective used the browser DNS, mail, and application evidence available here. Tenant identity and auth probes require the deeper online run."
+                : "DomainDetective combined namespace, tenant, and Microsoft identity evidence to decide whether this domain maps to a Microsoft 365 tenant.",
             Tags = new[]
             {
                 "Confidence: " + FormatConfidence(tenant.DetectionConfidence),
@@ -161,11 +161,11 @@ internal static class Microsoft365OverviewPresentation
             Title = "Identity posture",
             ValueLabel = FormatIdentityPostureLabel(info),
             Summary = info.IsBrowserLimited
-                ? "Microsoft authentication probes do not run in the browser edition, so DD keeps identity posture separate from DNS and mail evidence."
-                : "Authentication flow, identity provider, and exposed Microsoft protocol hints shape the public identity posture DD reports here.",
+                ? "Microsoft authentication probes do not run in the browser edition, so DomainDetective keeps identity posture separate from DNS and mail evidence."
+                : "Authentication flow, identity provider, and exposed Microsoft protocol hints shape the public identity posture DomainDetective reports here.",
             Tags = new[]
             {
-                info.IsBrowserLimited ? "Auth path: unavailable in web edition" : tenant.FederationMode == Microsoft365FederationMode.CloudManaged ? "Cloud-managed" : Humanize(tenant.FederationMode.ToString()),
+                info.IsBrowserLimited ? "Auth path: unavailable in browser edition" : tenant.FederationMode == Microsoft365FederationMode.CloudManaged ? "Cloud-managed" : Humanize(tenant.FederationMode.ToString()),
                 info.IsBrowserLimited ? "Provider: deeper online run" : tenant.UserEnumerationStatus == Microsoft365AuthExposureStatus.Exposed ? "User enumeration exposed" : Humanize(tenant.UserEnumerationStatus.ToString()),
                 info.IsBrowserLimited ? "Throttling: not probed" : tenant.ThrottlingStatus == Microsoft365AuthThrottlingStatus.ThrottlingObserved ? "Throttling detected" : Humanize(tenant.ThrottlingStatus.ToString())
             },
@@ -186,7 +186,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Detected services",
             ValueLabel = info.DetectedServiceCount.ToString(),
-            Summary = "DD scores visible Microsoft 365 workloads from identity, DNS, mail, and namespace signals rather than from a single banner or TXT record.",
+            Summary = "DomainDetective scores visible Microsoft 365 workloads from identity, DNS, mail, and namespace signals rather than from a single banner or TXT record.",
             Tags = new[]
             {
                 "Strong: " + info.StrongServiceCount,
@@ -209,7 +209,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "DNS app footprint",
             ValueLabel = info.DetectedApplicationCount.ToString(),
-            Summary = "Application and provider clues come from DD’s DNS fingerprinting pass across TXT, MX, NS, CNAME, and hostname evidence.",
+            Summary = "Application and provider clues come from DomainDetective’s DNS fingerprinting pass across TXT, MX, NS, CNAME, and hostname evidence.",
             Tags = new[]
             {
                 "Known subdomains: " + info.KnownSubdomainCount,
@@ -232,7 +232,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Accepted domains",
             ValueLabel = info.AcceptedDomainCount.ToString(),
-            Summary = "DD combines accepted-domain evidence with current mail control findings so the domain inventory is read together with the posture around it.",
+            Summary = "DomainDetective combines accepted-domain evidence with current mail control findings so the domain inventory is read together with the posture around it.",
             Tags = new[]
             {
                 "Warnings: " + info.WarningCount,
@@ -398,7 +398,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Tenant identity",
             ValueLabel = tenant.IsMicrosoft365Tenant ? "Microsoft 365 detected" : "Tenant not confirmed",
-            Summary = "DD combined tenant namespace, cloud placement, and public Microsoft identity signals to establish the tenant identity footprint.",
+            Summary = "DomainDetective combined tenant namespace, cloud placement, and public Microsoft identity signals to establish the tenant identity footprint.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -416,7 +416,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Workload coverage",
             ValueLabel = info.DetectedServiceCount + "/" + totalModeled + " detected",
-            Summary = "DD correlated identity, mail, DNS application, and known-subdomain signals to estimate how much of the Microsoft 365 workload surface is publicly visible.",
+            Summary = "DomainDetective correlated identity, mail, DNS application, and known-subdomain signals to estimate how much of the Microsoft 365 workload surface is publicly visible.",
             Tags = new[]
             {
                 "Strong: " + info.StrongServiceCount,
@@ -439,8 +439,8 @@ internal static class Microsoft365OverviewPresentation
             Title = "Workloads not observed",
             ValueLabel = missing.Length == 0 ? "All observed" : missing.Length + " not observed",
             Summary = missing.Length == 0
-                ? "All modeled Microsoft 365 service families produced public DD evidence in this run."
-                : "These modeled service families did not produce enough public DD evidence to be marked as detected in this run.",
+                ? "All modeled Microsoft 365 service families produced public evidence in this run."
+                : "These modeled service families did not produce enough public evidence to be marked as detected in this run.",
             Tags = new[]
             {
                 "Modeled families: " + services.Count,
@@ -496,7 +496,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Authentication posture",
             ValueLabel = FormatValue(tenant.IdentityProvider, Humanize(tenant.IdentityProviderKind.ToString())),
-            Summary = "DD used Microsoft authentication probes and federation behavior to describe the tenant sign-in surface and external auth exposure.",
+            Summary = "DomainDetective used Microsoft authentication probes and federation behavior to describe the tenant sign-in surface and external auth exposure.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -513,7 +513,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Tenant domain coverage",
             ValueLabel = domains.Count + " linked domain(s)",
-            Summary = "DD grouped primary, accepted, identity-linked, and Microsoft-managed namespaces to map the tenant's public domain footprint.",
+            Summary = "DomainDetective grouped primary, accepted, identity-linked, and Microsoft-managed namespaces to map the tenant's public domain footprint.",
             Tags = new[]
             {
                 "Primary: " + primaryCount,
@@ -539,7 +539,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Known subdomain coverage",
             ValueLabel = subdomains.Count + " subdomain(s)",
-            Summary = "DD tracked known Microsoft-related naming patterns and current resolution status to outline the tenant's public Microsoft 365 hostname surface.",
+            Summary = "DomainDetective tracked known Microsoft-related naming patterns and current resolution status to outline the tenant's public Microsoft 365 hostname surface.",
             Tags = new[]
             {
                 "Resolving: " + resolving,
@@ -567,7 +567,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = group.CategoryLabel + " evidence",
             ValueLabel = group.ItemCount + " item(s)",
-            Summary = "This evidence category contributed DD reasoning for the Microsoft 365 inference and is grouped here to show the strongest supporting signals first.",
+            Summary = "This evidence category contributed reasoning for the Microsoft 365 inference and is grouped here to show the strongest supporting signals first.",
             Tags = new[]
             {
                 "Highest confidence: " + group.HighestConfidenceLabel,
@@ -611,7 +611,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Protocol and evidence surface",
             ValueLabel = tenant.EvidenceSummary.CategoryCount + " evidence group(s)",
-            Summary = "DD tracked the tenant's advertised OAuth surface and highest-confidence evidence groups to explain how the Microsoft 365 inference was built.",
+            Summary = "DomainDetective tracked the tenant's advertised OAuth surface and highest-confidence evidence groups to explain how the Microsoft 365 inference was built.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -652,7 +652,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "SPF policy",
             ValueLabel = queryFailed ? "Query failed" : info.SpfRecordExists ? (info.AllMechanism ?? "Published") : "Missing",
-            Summary = queryFailed ? "SPF discovery failed; policy presence was not established." : "DD evaluated SPF structure, lookup budget, include chain, and flattening posture for the tenant domain.",
+            Summary = queryFailed ? "SPF discovery failed; policy presence was not established." : "DomainDetective evaluated SPF structure, lookup budget, include chain, and flattening posture for the tenant domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -687,7 +687,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "DKIM selectors",
             ValueLabel = selectors.Count + " selector(s)",
-            Summary = "DD checked discovered selectors for key presence, key strength, and selector record quality.",
+            Summary = "DomainDetective checked discovered selectors for key presence, key strength, and selector record quality.",
             Tags = tags,
             Samples = samples
         };
@@ -726,7 +726,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "DMARC policy",
             ValueLabel = queryFailed ? "Query failed" : info.DmarcRecordExists ? (string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant()) : "Missing",
-            Summary = queryFailed ? "DMARC discovery failed; policy presence was not established." : info.DnsQueryFailed ? "A DNS query needed for full DMARC policy evaluation failed." : "DD validated policy mode, alignment, and reporting destinations for the tenant DMARC record.",
+            Summary = queryFailed ? "DMARC discovery failed; policy presence was not established." : info.DnsQueryFailed ? "A DNS query needed for full DMARC policy evaluation failed." : "DomainDetective validated policy mode, alignment, and reporting destinations for the tenant DMARC record.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -755,7 +755,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "MX routing",
             ValueLabel = info.MxRecordExists ? info.MxRecords.Count + " route(s)" : "Missing",
-            Summary = "DD analyzed tenant MX routing, provider fingerprints, redundancy, and target quality for the mail path.",
+            Summary = "DomainDetective analyzed tenant MX routing, provider fingerprints, redundancy, and target quality for the mail path.",
             Tags = tags,
             Samples = samples
         };
@@ -819,7 +819,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Transport and trust policies",
             ValueLabel = tags.Count(static tag => !tag.StartsWith("No ", StringComparison.Ordinal)) + " enabled",
-            Summary = "DD checked transport policy, reporting, brand indicators, certificate authority policy, and TLSA posture for tenant mail delivery hardening.",
+            Summary = "DomainDetective checked transport policy, reporting, brand indicators, certificate authority policy, and TLSA posture for tenant mail delivery hardening.",
             Tags = tags,
             Samples = samples.Take(5).ToArray()
         };
@@ -854,7 +854,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "DNS infrastructure",
             ValueLabel = info.Ns != null ? info.Ns.NsRecords.Count + " nameserver(s)" : "Unknown",
-            Summary = "DD checked authoritative nameservers, resolver diversity, and DNSSEC integrity for the tenant-facing domain.",
+            Summary = "DomainDetective checked authoritative nameservers, resolver diversity, and DNSSEC integrity for the tenant-facing domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Take(4).ToArray()
         };
@@ -931,7 +931,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Identity notes",
             ValueLabel = tenant.IsMicrosoft365Tenant ? "Microsoft 365 detected" : "Tenant not confirmed",
-            Summary = "DD combined tenant identifiers, authentication probe results, and federation posture to build the identity summary for this domain.",
+            Summary = "DomainDetective combined tenant identifiers, authentication probe results, and federation posture to build the identity summary for this domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -970,7 +970,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Workload notes",
             ValueLabel = info.DetectedServiceCount + " workload(s)",
-            Summary = "DD correlated mail, identity, subdomain, and DNS-application signals to estimate the Microsoft 365 workload footprint.",
+            Summary = "DomainDetective correlated mail, identity, subdomain, and DNS-application signals to estimate the Microsoft 365 workload footprint.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -1012,7 +1012,7 @@ internal static class Microsoft365OverviewPresentation
         {
             Title = "Domain footprint notes",
             ValueLabel = (info.AcceptedDomainCount + info.KnownSubdomainCount) + " linked names",
-            Summary = "DD used tenant-linked domains, known Microsoft subdomains, and DNS application signals to map the public tenant footprint.",
+            Summary = "DomainDetective used tenant-linked domains, known Microsoft subdomains, and DNS application signals to map the public tenant footprint.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray()
         };
@@ -1127,7 +1127,7 @@ internal static class Microsoft365OverviewPresentation
             Microsoft365TenantDomainRole.IdentityDomain => "Identity-linked domain inferred from Microsoft authentication and tenant metadata.",
             Microsoft365TenantDomainRole.AcceptedCustomDomain => "Accepted custom domain inferred from tenant-linked mail and DNS evidence.",
             Microsoft365TenantDomainRole.MicrosoftManagedNamespace => "Microsoft-managed namespace tied to the tenant footprint.",
-            _ => "Tenant-related domain discovered from DD public-signal evidence."
+            _ => "Tenant-related domain discovered from public-signal evidence."
         };
 
         var observationCount = domain.Evidence.Count(static value => !string.IsNullOrWhiteSpace(value));

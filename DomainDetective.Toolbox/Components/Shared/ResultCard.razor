@@ -1,17 +1,48 @@
-<div class="result-card">
-    <div class="result-card-header">
-        <span class="result-card-title">@Title</span>
-        @if (Status is not null) {
-            <ResultStatusBadge Status="@Status.Value" />
-        }
+@if (Collapsible) {
+    <details class="result-card result-card-collapsible" open="@Open">
+        <summary class="result-card-header">
+            <span class="result-card-heading">
+                <span class="result-card-title">@Title</span>
+                @if (!string.IsNullOrWhiteSpace(Hint)) {
+                    <span class="result-card-hint">@Hint</span>
+                }
+            </span>
+            <span class="result-card-header-end">
+                @if (Status is not null) {
+                    <ResultStatusBadge Status="@Status.Value" />
+                }
+                <span class="result-card-toggle" aria-hidden="true"></span>
+            </span>
+        </summary>
+        <div class="result-card-body">
+            @ChildContent
+        </div>
+    </details>
+} else {
+    <div class="result-card">
+        <div class="result-card-header">
+            <span class="result-card-title">@Title</span>
+            @if (Status is not null) {
+                <ResultStatusBadge Status="@Status.Value" />
+            }
+        </div>
+        @ChildContent
     </div>
-    @ChildContent
-</div>
+}
 
 @code {
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public ResultStatus? Status { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Renders the card as a disclosure so long secondary sections stay out of the way until needed.</summary>
+    [Parameter] public bool Collapsible { get; set; }
+
+    /// <summary>Whether a collapsible card starts open.</summary>
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>Short description shown next to the title of a collapsible card.</summary>
+    [Parameter] public string? Hint { get; set; }
 }
 
 @code {

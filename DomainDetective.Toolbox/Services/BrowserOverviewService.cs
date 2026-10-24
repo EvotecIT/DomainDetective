@@ -122,7 +122,7 @@ public sealed class BrowserOverviewService {
 
         overview.IsPartial = false;
         overview.IsBrowserLimited = true;
-        overview.StageLabel = "Web edition overview ready";
+        overview.StageLabel = "Browser edition overview ready";
         overview.GeneratedAtUtc = generatedAtUtc;
         overview.CompletedAtUtc = generatedAtUtc;
         overview.PendingSections = Array.Empty<string>();
@@ -261,7 +261,7 @@ public sealed class BrowserOverviewService {
 
         overview.IsPartial = false;
         overview.IsBrowserLimited = true;
-        overview.StageLabel = "Web edition overview ready";
+        overview.StageLabel = "Browser edition overview ready";
         overview.GeneratedAtUtc = generatedAtUtc;
         overview.CompletedAtUtc = generatedAtUtc;
         overview.PendingSections = Array.Empty<string>();
@@ -298,7 +298,7 @@ public sealed class BrowserOverviewService {
             highlights.Add($"Detected {dnsInventory.DetectedDnsApplications.Count} DNS application hint(s).");
         }
 
-        highlights.Add("Web edition: identity, tenant, and auth probing require the deeper online run.");
+        highlights.Add("Browser edition: identity, tenant, and auth probing require the deeper online run.");
 
         return new Microsoft365TenantInfo {
             Subject = domainName,
@@ -315,8 +315,8 @@ public sealed class BrowserOverviewService {
             EvidenceLedger = evidenceLedger,
             Highlights = highlights,
             Summary = isMicrosoft365Observed
-                ? "Web edition Microsoft 365 overview built from observed DNS, mail, and application evidence. Tenant identity and auth posture need the deeper online run."
-                : "Web edition Microsoft 365 overview built from public DNS and mail posture only. Tenant identity and auth posture need the deeper online run."
+                ? "Browser edition Microsoft 365 overview built from observed DNS, mail, and application evidence. Tenant identity and auth posture need the deeper online run."
+                : "Browser edition Microsoft 365 overview built from public DNS and mail posture only. Tenant identity and auth posture need the deeper online run."
         };
     }
 

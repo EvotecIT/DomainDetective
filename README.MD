@@ -5,11 +5,18 @@
 
 # DomainDetective
 
-DomainDetective is a domain, DNS, email, web, and certificate security toolkit for people who want repeatable checks instead of one-off website lookups. It is built around the same analysis engine and exposed through three entry points:
+**Every domain leaves evidence.** DomainDetective reads what a domain publishes about its mail, DNS, certificates and web security, then tells you what is broken and how to fix it. It runs the same analysis engine from your browser, PowerShell, the CLI and .NET.
 
-- A C# library for custom automation and integrations
-- A PowerShell module for operational scripts and reporting
-- A .NET CLI for wizard-driven scans, batch usage, artifacts, and report generation
+[Website](https://domaindetective.dev/) · [Browser tools](https://domaindetective.dev/tools/) · [Documentation](https://domaindetective.dev/docs/) · [Roadmap](https://domaindetective.dev/roadmap/) · [DnsClientX](https://domaindetective.dev/dnsclientx/) · [Discord](https://evo.yt/discord)
+
+- **115+ protocol checks** across SPF, DKIM, DMARC, ARC, BIMI, MTA-STS, TLS-RPT, DNSSEC, DANE, CAA, certificates, HTTP security headers, RDAP, blocklists, Certificate Transparency and more.
+- **Evidence, not a score.** Every finding carries the record it came from, the RFC behind it and the change to make. Overviews lead with a verdict and the three things to fix first.
+- **Four surfaces, one engine.** 27 [browser tools](https://domaindetective.dev/tools/) (DNS checks run locally through DNS-over-HTTPS), 150+ `Test-DD*` PowerShell cmdlets, a .NET library and a CLI.
+- **Reports people read.** Word, Excel, HTML and Markdown exports built on [OfficeIMO](https://officeimo.com/) and [HtmlForgeX](https://htmlforgex.com/).
+- **Open source and private.** MIT licensed. The website has no cookies or analytics and never stores lookups.
+
+> [!NOTE]
+> DomainDetective is preparing its first public NuGet and PowerShell Gallery release. Until then, use the [browser tools](https://domaindetective.dev/tools/) or [build from source](#build-and-test). DNS resolution is handled by [DnsClientX](https://github.com/EvotecIT/DnsClientX), which is already published.
 
 ## Choose Your Interface
 
@@ -47,11 +54,12 @@ flowchart LR
 
 ## Website and Online Tools
 
-The repository also includes the public website and the online tools experience:
+This repository also contains [domaindetective.dev](https://domaindetective.dev/):
 
-- `Website` builds the static marketing/docs/API site into `Website/_site`
-- `DomainDetective.Website` contains the Blazor WebAssembly tools app that is published into `Website/_site/tools`
-- `DomainDetective.OnlineHost` serves the built site and exposes same-origin `/tool-api` endpoints for checks that browsers cannot perform directly
+- `Website` is the PowerForge static site. It renders every page, including the tools hub and one static page per browser tool, generated from `ToolRegistry` into `Website/data/tools-catalog.json` and `Website/content/pages/tools`. `ToolCatalogTests` fails if they drift.
+- `DomainDetective.Website` is the Blazor WebAssembly engine. It mounts into each tool page's `#dd-tool-root` and replaces the static form when it has loaded; until then, `Website/static/js/quickscan.js` answers submits with a DNS-over-HTTPS first look.
+- `DomainDetective.Toolbox` holds the tool components, the overview verdict and the result checklists.
+- `DomainDetective.OnlineHost` serves the built site and adds same-origin `/tool-api` endpoints for checks browsers cannot run themselves.
 
 Build the full website stack:
 
@@ -65,25 +73,26 @@ Run the website regression suite:
 dotnet test ./DomainDetective.Website.Tests/DomainDetective.Website.Tests.csproj --configuration Release --framework net10.0
 ```
 
+After changing `ToolRegistry`, regenerate the catalog and tool pages:
+
+```powershell
+$env:DD_UPDATE_TOOL_CATALOG = '1'
+dotnet test ./DomainDetective.Website.Tests/DomainDetective.Website.Tests.csproj --filter ToolCatalogTests
+```
+
 Run the local online host after the build:
 
 ```powershell
 dotnet run --project ./DomainDetective.OnlineHost/DomainDetective.OnlineHost.csproj --urls http://localhost:8097
 ```
 
-Then open:
-
-- `http://localhost:8097/` for the static site
-- `http://localhost:8097/tools/` for the online tools
-- `http://localhost:8097/tool-api/health` to confirm the hosted analysis API is available
+Then open `http://localhost:8097/` for the site, `http://localhost:8097/tools/` for the browser tools and `http://localhost:8097/tool-api/health` for the hosted analysis API.
 
 Why the host matters:
 
-- DNS-style lookups can run directly in the browser through DNS-over-HTTPS
-- HTTP header inspection, `security.txt`, certificate analysis, and some richer probes need a hosted backend because browsers cannot reliably inspect remote TLS handshakes or arbitrary cross-origin responses
-- Hosted-first checks include HTTP headers, `security.txt`, certificate analysis, MTA-STS policy retrieval, RDAP, and BIMI indicator/logo fetches
-- A static-only deployment such as GitHub Pages will publish the site, but it will not provide `/tool-api`
-- Production deployments should serve the site through `DomainDetective.OnlineHost` or an equivalent reverse proxy/application host that exposes the same `/tool-api` endpoints
+- DNS lookups run directly in the browser through DNS-over-HTTPS.
+- HTTP headers, `security.txt`, certificate analysis, MTA-STS policy retrieval, RDAP and BIMI indicator fetches need a backend, because browsers cannot inspect remote TLS handshakes or arbitrary cross-origin responses.
+- A static-only deployment such as GitHub Pages publishes the site and the browser-safe checks but not `/tool-api`; those tools show the matching PowerShell and CLI commands instead.
 
 ### Website PR Checklist
 
@@ -932,7 +941,17 @@ If you just want one-off web lookups instead of local automation, common alterna
 
 ## Roadmap
 
-See [`TODO.md`](./TODO.md) for the current backlog and roadmap.
+The [public roadmap](https://domaindetective.dev/roadmap/) shows what is being worked on now, next and under exploration for DomainDetective, the browser tools and DnsClientX. The engineering backlog and qualification gaps live in [`TODO.md`](./TODO.md).
+
+## Part of the Evotec toolkit
+
+DomainDetective is built on other open-source Evotec projects:
+
+- [DnsClientX](https://github.com/EvotecIT/DnsClientX) resolves every DNS query, over UDP, TCP, DoT, DoH, DoH3 and DoQ, with local DNSSEC validation.
+- [OfficeIMO](https://officeimo.com/) writes the Word and Excel reports.
+- [HtmlForgeX](https://htmlforgex.com/) renders the HTML reports.
+
+Related tools: [ChartForgeX](https://chartforgex.com/), [CodeGlyphX](https://codeglyphx.com/), [TestimoX](https://testimox.com/) for Active Directory security, and [more on evotec.xyz](https://evotec.xyz/products/).
 
 ## Contributing
 

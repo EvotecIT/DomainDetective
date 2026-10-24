@@ -1,0 +1,38 @@
+{{~ ## Certificate Transparency showcase: the private DomainDetective CT service, presented as a preview and a
+     use case. The feed is an illustration (marked as such), not live data. ## ~}}
+<section class="dd-section dd-ct" aria-labelledby="dd-ct-title">
+  <div class="dd-wrap dd-ct__grid">
+    <div class="dd-ct__copy">
+      <p class="dd-eyebrow">In private preview</p>
+      <h2 id="dd-ct-title">Know about a certificate<br /><span class="dd-trace">before attackers use it.</span></h2>
+      <p>Every publicly trusted certificate is written to Certificate Transparency logs within minutes. We built our own CT ingestion on the same DomainDetective parsing you use here, so new certificates for your domains surface as they are logged: unexpected issuers, lookalike names and forgotten subdomains included.</p>
+      <ul class="dd-ct__points">
+        <li><strong>Native ingestion</strong> straight from the RFC 6962 logs Chrome and Apple trust, not a third-party search.</li>
+        <li><strong>Scoped to you</strong> with domain allow-lists, so you watch your estate rather than the whole internet.</li>
+        <li><strong>Same engine</strong> as the CT subdomain tool and <code>Invoke-DDCertificateInventory</code> in PowerShell.</li>
+      </ul>
+      <div class="dd-ct__actions">
+        <a class="dd-button dd-button-primary" href="/tools/ct-subdomains/">Try CT subdomain discovery</a>
+        <a class="dd-button dd-button-ghost" href="https://evo.yt/discord" target="_blank" rel="noopener">Ask about the preview on Discord</a>
+      </div>
+    </div>
+
+    <figure class="dd-ct__visual">
+      <div class="dd-ctfeed" aria-hidden="true">
+        <div class="dd-ctfeed__head">
+          <span class="dd-ctfeed__live"><span></span>Watching contoso.com</span>
+          <span>3 logs &middot; 1,284 entries/s</span>
+        </div>
+        <ol class="dd-ctfeed__rows">
+          <li data-status="info"><time>14:02:11</time><span class="dd-ctfeed__name">www.contoso.com</span><span class="dd-ctfeed__issuer">Let's Encrypt R11</span><span class="dd-verdict dd-verdict--pass">Expected</span></li>
+          <li data-status="info"><time>14:02:09</time><span class="dd-ctfeed__name">api.contoso.com</span><span class="dd-ctfeed__issuer">DigiCert G2</span><span class="dd-verdict dd-verdict--pass">Expected</span></li>
+          <li data-status="warn"><time>14:01:47</time><span class="dd-ctfeed__name">staging-old.contoso.com</span><span class="dd-ctfeed__issuer">Let's Encrypt E6</span><span class="dd-verdict dd-verdict--warn">New name</span></li>
+          <li data-status="fail"><time>14:01:30</time><span class="dd-ctfeed__name">contoso-login.com</span><span class="dd-ctfeed__issuer">ZeroSSL ECC</span><span class="dd-verdict dd-verdict--fail">Lookalike</span></li>
+          <li data-status="fail"><time>14:00:58</time><span class="dd-ctfeed__name">mail.contoso.com</span><span class="dd-ctfeed__issuer">Unknown CA</span><span class="dd-verdict dd-verdict--fail">Not in CAA</span></li>
+          <li data-status="info"><time>14:00:41</time><span class="dd-ctfeed__name">shop.contoso.com</span><span class="dd-ctfeed__issuer">Sectigo RSA DV</span><span class="dd-verdict dd-verdict--pass">Expected</span></li>
+        </ol>
+      </div>
+      <figcaption>Illustration of the CT monitor. Names and timings are examples.</figcaption>
+    </figure>
+  </div>
+</section>

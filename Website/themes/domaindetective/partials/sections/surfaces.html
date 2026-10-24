@@ -1,0 +1,61 @@
+{{~ ## One engine, four surfaces: the same checks from the browser, PowerShell, .NET and the CLI.
+     Accessible tabs (site.js wires arrow keys); without JavaScript every panel is visible in order. ## ~}}
+<section class="dd-section dd-section--alt dd-surfaces" aria-labelledby="dd-surfaces-title">
+  <div class="dd-wrap dd-surfaces__grid">
+    <div class="dd-surfaces__intro">
+      <p class="dd-eyebrow">One engine, four surfaces</p>
+      <h2 id="dd-surfaces-title">Check it once.<br /><span class="dd-trace">Automate it forever.</span></h2>
+      <p>The browser tools run the same DomainDetective library you install. When a one-off check becomes a weekly report, a CI gate or a fleet audit, the code is already written for you.</p>
+      <ul class="dd-surfaces__list">
+        <li>{{ icon_name = "browser"; include "icon" }}<span><strong>Browser</strong> DNS checks run locally through DNS-over-HTTPS. Nothing to install.</span></li>
+        <li>{{ icon_name = "terminal"; include "icon" }}<span><strong>PowerShell</strong> 150+ <code>Test-DD*</code> cmdlets that pipe into Word, HTML and Markdown reports.</span></li>
+        <li>{{ icon_name = "code"; include "icon" }}<span><strong>.NET</strong> <code>DomainHealthCheck</code> for services, scanners and dashboards.</span></li>
+        <li>{{ icon_name = "bolt"; include "icon" }}<span><strong>CLI</strong> JSON output for pipelines, cron jobs and incident runbooks.</span></li>
+      </ul>
+    </div>
+
+    <div class="dd-tabs" data-dd-tabs>
+      <div class="dd-tabs__list" role="tablist" aria-label="Code samples">
+        <button type="button" role="tab" id="dd-tab-ps" aria-controls="dd-panel-ps" aria-selected="true">PowerShell</button>
+        <button type="button" role="tab" id="dd-tab-cs" aria-controls="dd-panel-cs" aria-selected="false" tabindex="-1">C#</button>
+        <button type="button" role="tab" id="dd-tab-cli" aria-controls="dd-panel-cli" aria-selected="false" tabindex="-1">CLI</button>
+      </div>
+      <div class="dd-window dd-tabs__panel" role="tabpanel" id="dd-panel-ps" aria-labelledby="dd-tab-ps">
+        <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--ps"></span><span class="dd-window__title">weekly-mail-report.ps1</span></div>
+        <pre><code class="language-powershell">Install-Module DomainDetective -Scope CurrentUser
+
+# One domain, every check
+Test-DDDomainOverallHealth -DomainName 'contoso.com'
+
+# Mail posture for many domains, straight into a Word report
+Export-DDSecurityReport -ExportFormat Word -ExportPath '.\Reports' {
+    Test-DDEmailSpfRecord   -DomainName contoso.com, fabrikam.com
+    Test-DDEmailDkimRecord  -DomainName contoso.com, fabrikam.com
+    Test-DDEmailDmarcRecord -DomainName contoso.com, fabrikam.com
+}</code></pre>
+      </div>
+      <div class="dd-window dd-tabs__panel" role="tabpanel" id="dd-panel-cs" aria-labelledby="dd-tab-cs" hidden>
+        <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--cs"></span><span class="dd-window__title">Program.cs</span></div>
+        <pre><code class="language-csharp">using DomainDetective;
+
+var health = new DomainHealthCheck();
+await health.Verify("contoso.com");
+
+Console.WriteLine(health.SpfAnalysis.SpfRecord);
+Console.WriteLine(health.DmarcAnalysis.Policy);
+
+// Everything DomainDetective found, ready to store or ship
+File.WriteAllText("contoso.json", health.ToJson());</code></pre>
+      </div>
+      <div class="dd-window dd-tabs__panel" role="tabpanel" id="dd-panel-cli" aria-labelledby="dd-tab-cli" hidden>
+        <div class="dd-window__bar"><span class="dd-window__dot dd-window__dot--sh"></span><span class="dd-window__title">terminal</span></div>
+        <pre><code class="language-bash"># Mail authentication only, summarised
+domaindetective check contoso.com --checks SPF,DKIM,DMARC --summary
+
+# Full scan as JSON for a pipeline gate
+domaindetective check contoso.com --json &gt; contoso.json</code></pre>
+      </div>
+      <p class="dd-tabs__foot">Every browser tool shows the matching PowerShell, C# and CLI commands under its results.</p>
+    </div>
+  </div>
+</section>

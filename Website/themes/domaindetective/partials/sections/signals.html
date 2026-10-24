@@ -1,0 +1,42 @@
+{{~ ## What DomainDetective checks: one tile per catalog category, built from data/tools-catalog.json
+     (generated from ToolRegistry), so the home page always matches the tools that exist. ## ~}}
+{{~ catalog = data.tools_catalog ~}}
+<section class="dd-section dd-signals" aria-labelledby="dd-signals-title">
+  <div class="dd-wrap">
+    <div class="dd-section__head dd-section__head--split">
+      <div>
+        <p class="dd-eyebrow">What it checks</p>
+        <h2 id="dd-signals-title">The whole domain,<br /><span class="dd-trace">not one record.</span></h2>
+      </div>
+      <p>{{ catalog.count }} browser tools and 115+ protocol checks across mail, DNS, certificates, web security and reputation. Pick a single check or run the overview and get every signal in one report.</p>
+    </div>
+
+    <div class="dd-signals__grid">
+      {{~ for cat in catalog.categories ~}}
+      {{~ if cat.slug == "overview" ~}}
+      <a class="dd-signal dd-signal--feature" href="/tools/domain-overview/">
+        <span class="dd-signal__icon">{{ icon_name = cat.icon; include "icon" }}</span>
+        <span class="dd-signal__kicker">Start here</span>
+        <h3>Domain overview</h3>
+        <p>{{ cat.summary }} One run checks SPF, DKIM, DMARC, MTA-STS, DNSSEC, certificates, headers, blocklists and more, then lists what to fix first.</p>
+        <span class="dd-signal__more">Open the overview &rarr;</span>
+      </a>
+      {{~ else ~}}
+      <article class="dd-signal" id="signal-{{ cat.slug }}">
+        <div class="dd-signal__top">
+          <span class="dd-signal__icon">{{ icon_name = cat.icon; include "icon" }}</span>
+          <span class="dd-signal__count">{{ cat.count }} tool{{ if cat.count != 1 }}s{{ end }}</span>
+        </div>
+        <h3><a href="/tools/#{{ cat.slug }}">{{ cat.name }}</a></h3>
+        <p>{{ cat.summary }}</p>
+        <ul class="dd-signal__tools">
+          {{~ for tool in cat.tools ~}}
+          <li><a href="/tools/{{ tool.slug }}/">{{ tool.name }}</a></li>
+          {{~ end ~}}
+        </ul>
+      </article>
+      {{~ end ~}}
+      {{~ end ~}}
+    </div>
+  </div>
+</section>

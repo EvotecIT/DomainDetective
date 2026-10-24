@@ -1,0 +1,500 @@
+/* Product landing pages (DnsClientX). Builds on app.css and the hero/section styles in home.css. */
+
+.dx-hero {
+  /* The longest headline line here ("Every DNS transport.") is wider than the home page's. */
+  --dd-hero-fit: 10.4cqi;
+}
+
+.dx-install {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .5rem;
+  max-width: 34rem;
+  margin-bottom: 1.5rem;
+}
+
+.dx-hero .dd-command {
+  border-color: var(--dd-line-strong);
+  background: rgba(13, 17, 24, .85);
+}
+
+/* ------------------------------------------------------------------ live console */
+
+.dx-console {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: var(--dd-r-xl);
+  background: linear-gradient(180deg, rgba(19, 24, 36, .95), rgba(10, 13, 19, .95));
+  box-shadow: var(--dd-shadow-float);
+}
+
+.dx-console::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: var(--dd-trace);
+  opacity: .7;
+}
+
+.dx-console__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem .4rem;
+}
+
+.dx-console__head .dd-case__eyebrow {
+  margin: 0;
+}
+
+.dx-console__status {
+  color: var(--dd-ink-3);
+  font-family: var(--dd-mono);
+  font-size: .72rem;
+  white-space: nowrap;
+}
+
+.dx-console[aria-busy="true"] .dx-console__status {
+  color: var(--dd-accent);
+}
+
+.dx-console__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: .4rem;
+  padding: .6rem 1.25rem 1rem;
+}
+
+.dx-console__form input {
+  grid-column: 1 / -1;
+}
+
+.dx-console__form input,
+.dx-console__form select {
+  min-width: 0;
+  height: 42px;
+  padding: 0 .7rem;
+  border: 1px solid var(--dd-line-strong);
+  border-radius: 9px;
+  background: rgba(5, 7, 10, .7);
+  color: #ffffff;
+  font: 500 .9rem/1 var(--dd-mono);
+}
+
+.dx-console__form input:focus,
+.dx-console__form select:focus {
+  border-color: var(--dd-accent);
+  outline: none;
+}
+
+.dx-console__form .dd-button {
+  min-height: 42px;
+  padding: .5rem .95rem;
+  border-radius: 9px;
+}
+
+.dx-console__answers {
+  min-height: 8.5rem;
+  margin: 0;
+  padding: .3rem 0;
+  list-style: none;
+  border-top: 1px solid var(--dd-line);
+  border-bottom: 1px solid var(--dd-line);
+  font-family: var(--dd-mono);
+  font-size: .8rem;
+}
+
+.dx-console__answers li {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) 4rem minmax(0, 1.6fr);
+  gap: .75rem;
+  padding: .45rem 1.25rem;
+}
+
+.dx-console__answers li:nth-child(odd) {
+  background: rgba(255, 255, 255, .02);
+}
+
+.dx-console__name {
+  overflow: hidden;
+  color: var(--dd-ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dx-console__ttl {
+  color: var(--dd-ink-3);
+  text-align: right;
+}
+
+.dx-console__data {
+  color: #ffffff;
+  overflow-wrap: anywhere;
+}
+
+.dx-console__answers .dx-console__empty {
+  display: block;
+  color: var(--dd-ink-3);
+  background: none;
+}
+
+.dx-console[aria-busy="true"] .dx-console__answers {
+  opacity: .5;
+}
+
+.dx-console__code {
+  padding: .7rem 1.25rem 1.1rem;
+}
+
+.dx-console__tabs {
+  display: inline-flex;
+  gap: .25rem;
+  margin-bottom: .5rem;
+}
+
+.dx-console__tabs button {
+  padding: .3rem .65rem;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--dd-ink-3);
+  font: 600 .75rem/1 var(--dd-font);
+  cursor: pointer;
+}
+
+.dx-console__tabs button[aria-selected="true"] {
+  background: var(--dd-card-2);
+  color: #ffffff;
+}
+
+.dx-console__code pre {
+  margin: 0;
+  padding: .75rem .9rem;
+  border: 1px solid var(--dd-code-line);
+  border-radius: 9px;
+  background: var(--dd-code-bg);
+  color: #7ff0fb;
+  font-size: .78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .dx-console__form .dd-button {
+    grid-column: 1 / -1;
+  }
+
+  .dx-console__answers li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dx-console__data {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ------------------------------------------------------------------ status labels */
+
+.dx-status {
+  display: inline-flex;
+  align-items: center;
+  padding: .15rem .5rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dx-status--core { background: var(--dd-pass-soft); color: var(--dd-pass); }
+.dx-status--modern { background: var(--dd-accent-soft); color: var(--dd-accent); }
+.dx-status--next { background: var(--dd-warn-soft); color: var(--dd-warn); }
+
+/* ------------------------------------------------------------------ transports */
+
+.dx-transports__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: .9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dx-transport {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r-lg);
+  background: var(--dd-card);
+}
+
+.dx-transport--next {
+  border-style: dashed;
+}
+
+.dx-transport__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.dx-transport h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.dx-transport p {
+  margin: 0;
+  color: var(--dd-ink-2);
+  font-size: .9rem;
+}
+
+.dx-transport code {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: .2rem .5rem;
+  border: 1px solid var(--dd-line);
+  border-radius: 6px;
+  background: var(--dd-page-2);
+  color: var(--dd-accent);
+  font-size: .76rem;
+}
+
+/* ------------------------------------------------------------------ capabilities */
+
+.dx-cap__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.dx-cap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1.4rem;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r-lg);
+  background: var(--dd-card);
+}
+
+.dx-cap .dd-signal__icon {
+  margin-bottom: 1rem;
+}
+
+.dx-cap h3 {
+  margin: 0 0 .4rem;
+  font-size: 1.15rem;
+}
+
+.dx-cap p {
+  margin: 0 0 1rem;
+  color: var(--dd-ink-2);
+  font-size: .9rem;
+}
+
+.dx-cap pre {
+  margin: auto 0 0;
+  padding: .75rem .85rem;
+  overflow-x: auto;
+  font-size: .72rem;
+  white-space: pre;
+}
+
+/* ------------------------------------------------------------------ providers */
+
+.dx-providers__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: clamp(2rem, 1.5rem + 3vw, 4.5rem);
+}
+
+.dx-providers__grid > * {
+  min-width: 0;
+}
+
+.dx-providers__grid h2 {
+  font-size: var(--dd-t-display);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.02;
+}
+
+.dx-providers__grid > div > p:not(.dd-eyebrow) {
+  color: var(--dd-ink-2);
+  font-size: var(--dd-t-lede);
+}
+
+.dx-providers__code {
+  margin-top: 1.5rem;
+  font-size: .8rem;
+}
+
+.dx-providers__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dx-providers__list > li {
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r-lg);
+  background: var(--dd-card);
+}
+
+.dx-providers__list h3 {
+  margin: 0 0 .7rem;
+  font-size: 1rem;
+}
+
+.dx-providers__list .dd-signal__tools span {
+  display: inline-block;
+  padding: .2rem .5rem;
+  border: 1px solid var(--dd-line);
+  border-radius: 6px;
+  color: var(--dd-ink-2);
+  font-family: var(--dd-mono);
+  font-size: .72rem;
+}
+
+@media (max-width: 960px) {
+  .dx-providers__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .dx-providers__list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------ cmdlets */
+
+.dx-cmdlets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: .6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dx-cmdlet {
+  display: grid;
+  gap: .25rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r);
+  background: var(--dd-card);
+}
+
+.dx-cmdlet code {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dd-accent);
+  font-size: .85rem;
+  font-weight: 600;
+}
+
+.dx-cmdlet > span:not(.dx-status) {
+  color: var(--dd-ink-2);
+  font-size: .85rem;
+}
+
+.dx-cmdlet--next {
+  border-style: dashed;
+}
+
+.dx-cmdlet .dx-status {
+  justify-self: start;
+}
+
+.dx-note {
+  margin: 1.25rem 0 0;
+  color: var(--dd-ink-3);
+  font-size: .85rem;
+}
+
+/* ------------------------------------------------------------------ inside DomainDetective */
+
+.dx-inside__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: clamp(2rem, 1.5rem + 3vw, 4.5rem);
+}
+
+.dx-inside__grid > * {
+  min-width: 0;
+}
+
+.dx-inside__grid h2 {
+  font-size: var(--dd-t-display);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.02;
+}
+
+.dx-inside__grid > div > p:not(.dd-eyebrow) {
+  margin-bottom: 1.75rem;
+  color: var(--dd-ink-2);
+  font-size: var(--dd-t-lede);
+}
+
+.dx-docs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dx-docs a {
+  display: grid;
+  gap: .15rem;
+  height: 100%;
+  padding: .9rem 1rem;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r);
+  background: var(--dd-card);
+  color: var(--dd-ink-2);
+  font-size: .85rem;
+  text-decoration: none;
+}
+
+.dx-docs a:hover {
+  border-color: var(--dd-line-strong);
+  background: var(--dd-card-2);
+}
+
+.dx-docs strong {
+  color: var(--dd-ink-strong);
+  font-size: .95rem;
+}
+
+@media (max-width: 960px) {
+  .dx-inside__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .dx-docs {
+    grid-template-columns: 1fr;
+  }
+}

@@ -181,7 +181,7 @@
       "legacyAliasMode": "omit",
       "template": "docs",
       "bodyClass": "pf-api-docs pf-api-docs--powershell",
-      "docsHome": "/products/dnsclientx/",
+      "docsHome": "/dnsclientx/",
       "nav": "./site.json",
       "navContextPath": "/",
       "css": "/css/app.css,/css/api.css",
@@ -219,41 +219,13 @@
       "dependsOn": "publish-toolbox",
       "source": "../DomainDetective.Website/bin/Release/net10.0/publish/wwwroot",
       "destination": "./_site/tools",
+      "exclude": "index.html,index.html.br,index.html.gz",
       "skipIfSourceMissing": true
-    },
-    {
-      "task": "route-fallbacks",
-      "id": "generate-tool-route-fallbacks",
-      "dependsOn": "overlay-toolbox",
-      "siteRoot": "./_site",
-      "template": "../DomainDetective.Website/wwwroot/index.html",
-      "items": "./data/tool-route-meta.json",
-      "destinationTemplate": "tools/{slug}/index.html",
-      "rootOutput": "tools/index.html",
-      "rootValues": {
-        "__DD_PAGE_TITLE__": "Domain Detective Browser Tools",
-        "__DD_META_DESCRIPTION__": "Browse DomainDetective browser tools for DNS, email, TLS, web security, and threat intelligence checks.",
-        "__DD_CANONICAL_URL__": "https://domaindetective.dev/tools/",
-        "__DD_OG_TITLE__": "Domain Detective Browser Tools",
-        "__DD_OG_DESCRIPTION__": "Browse DomainDetective browser tools for DNS, email, TLS, web security, and threat intelligence checks.",
-        "__DD_LOADING_TITLE__": "Preparing browser tools",
-        "__DD_LOADING_TEXT__": "Loading the shared navigation, theme, and DNS analysis toolkit."
-      },
-      "replacements": {
-        "__DD_PAGE_TITLE__": "{name} | Domain Detective Tools",
-        "__DD_META_DESCRIPTION__": "{description}",
-        "__DD_CANONICAL_URL__": "https://domaindetective.dev/tools/{slug}/",
-        "__DD_OG_TITLE__": "{name} | Domain Detective Tools",
-        "__DD_OG_DESCRIPTION__": "{description}",
-        "__DD_LOADING_TITLE__": "Preparing {name}",
-        "__DD_LOADING_TEXT__": "Loading the {name} workspace."
-      },
-      "reportPath": "./_reports/tool-route-fallbacks.json"
     },
     {
       "task": "exec",
       "id": "test-webmcp-dns-tool",
-      "dependsOn": "generate-tool-route-fallbacks",
+      "dependsOn": "overlay-toolbox",
       "skipModes": ["dev"],
       "command": "pwsh",
       "argsList": [
@@ -433,7 +405,7 @@
       "navCanonicalPath": "index.html",
       "navCanonicalSelector": "header nav.dd-nav",
       "navCanonicalRequired": true,
-      "navRequiredLinks": "/,/docs/,/tools/",
+      "navRequiredLinks": "/docs/,/tools/",
       "minNavCoveragePercent": 35,
       "failOnCategories": "budget,nav,link,asset,rendered-console-error,rendered-request-failure",
       "rendered": false,
@@ -447,7 +419,7 @@
       "checkUtf8": true,
       "checkMetaCharset": true,
       "checkUnicodeReplacementChars": true,
-      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/sitemap.xml,/products/dnsclientx/,/docs/dnsclientx/"
+      "requiredRoutes": "/,/docs/,/tools/,/404.html,/search/,/sitemap/,/sitemap.xml,/products/dnsclientx/,/dnsclientx/,/docs/dnsclientx/"
     }
   ]
 }

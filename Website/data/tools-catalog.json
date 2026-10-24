@@ -1,0 +1,1013 @@
+{
+  "count": 27,
+  "browserCount": 16,
+  "categories": [
+    {
+      "slug": "overview",
+      "name": "Overview",
+      "summary": "Every signal for a domain or Microsoft 365 tenant in one report.",
+      "icon": "layout-dashboard",
+      "count": 2,
+      "tools": [
+        {
+          "slug": "m365-overview",
+          "name": "M365 Tenant Overview",
+          "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
+          "category": "overview",
+          "categoryName": "Overview",
+          "support": "partial",
+          "supportLabel": "Partial in browser, full locally",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com'",
+          "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "domain-overview",
+          "name": "Domain Overview",
+          "description": "Aggregate DNS, mail, web, registration, and exposure posture for any domain",
+          "category": "overview",
+          "categoryName": "Overview",
+          "support": "partial",
+          "supportLabel": "Partial in browser, full locally",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com'",
+          "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "cloudflare.com"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "email-security",
+      "name": "Email Security",
+      "summary": "Who may send as the domain, and what receivers do with spoofed mail.",
+      "icon": "mail",
+      "count": 8,
+      "tools": [
+        {
+          "slug": "message-analyzer",
+          "name": "Email Message Analyzer",
+          "description": "Analyze message headers and verify DKIM/ARC locally with offline public keys. Message content stays in your browser.",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective AnalyzeMessageHeader --file message.eml",
+          "powershell": "Get-DDEmailMessageHeaderInfo -Path './message.eml'",
+          "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");",
+          "examples": []
+        },
+        {
+          "slug": "spf",
+          "name": "SPF Lookup",
+          "description": "Validate SPF records and check for misconfigurations",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks SPF",
+          "powershell": "Test-DDEmailSpfRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
+        },
+        {
+          "slug": "dkim",
+          "name": "DKIM Lookup",
+          "description": "Verify DKIM records and key validity",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DKIM",
+          "powershell": "Test-DDEmailDkimRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
+        },
+        {
+          "slug": "dmarc",
+          "name": "DMARC Lookup",
+          "description": "Analyze DMARC policy and reporting configuration",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DMARC",
+          "powershell": "Test-DDEmailDmarcRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
+        },
+        {
+          "slug": "mx",
+          "name": "MX Lookup",
+          "description": "Check mail exchanger records and priorities",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks MX",
+          "powershell": "Test-DDDnsMxRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "gmail.com"
+          ]
+        },
+        {
+          "slug": "mta-sts",
+          "name": "MTA-STS Check",
+          "description": "Verify MTA-STS policy for enforced TLS",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "partial",
+          "supportLabel": "Partial in browser, full locally",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks MTASTS",
+          "powershell": "Test-DDEmailMtaSts -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
+        },
+        {
+          "slug": "tls-rpt",
+          "name": "TLS-RPT Check",
+          "description": "Check TLS reporting DNS record configuration",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks TLSRPT",
+          "powershell": "Test-DDEmailTlsRptRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
+        },
+        {
+          "slug": "bimi",
+          "name": "BIMI Lookup",
+          "description": "Validate BIMI record and brand indicator",
+          "category": "email-security",
+          "categoryName": "Email Security",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks BIMI",
+          "powershell": "Test-DDEmailBimiRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com",
+            "google.com"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "dns",
+      "name": "DNS",
+      "summary": "Records, delegation, propagation and the DNSSEC chain of trust.",
+      "icon": "globe",
+      "count": 6,
+      "tools": [
+        {
+          "slug": "dns-lookup",
+          "name": "DNS Lookup",
+          "description": "Inspect a domain's DNS inventory, providers, and common record coverage",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DNSINVENTORY",
+          "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "dnssec",
+          "name": "DNSSEC Check",
+          "description": "Validate DNSSEC chain of trust",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DNSSEC",
+          "powershell": "Test-DDDnsSecStatus -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "soa",
+          "name": "SOA Lookup",
+          "description": "Check SOA record and zone authority",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks SOA",
+          "powershell": "Test-DDDnsSoaRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "ns",
+          "name": "NS Lookup",
+          "description": "List authoritative nameservers",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks NS",
+          "powershell": "Test-DDDnsNsRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "dns-propagation",
+          "name": "DNS Propagation",
+          "description": "Compare DNS answers across DomainDetective's distributed public resolver pool",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "partial",
+          "supportLabel": "Partial in browser, full locally",
+          "placeholder": "example.com",
+          "cli": "domaindetective DnsPropagation --domain 'example.com' --record-type A",
+          "powershell": "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "raw-dns-query",
+          "name": "Raw DNS Query",
+          "description": "Resolve one record type at a time, inspect the raw JSON response, and copy equivalent DnsClientX code",
+          "category": "dns",
+          "categoryName": "DNS",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "",
+          "powershell": "",
+          "csharp": "",
+          "examples": []
+        }
+      ]
+    },
+    {
+      "slug": "tls-cert",
+      "name": "TLS & Certificates",
+      "summary": "Certificates, which authorities may issue them, and DANE pins.",
+      "icon": "lock",
+      "count": 3,
+      "tools": [
+        {
+          "slug": "cert-check",
+          "name": "Certificate Check",
+          "description": "Inspect TLS certificate details and chain",
+          "category": "tls-cert",
+          "categoryName": "TLS & Certificates",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks CERT",
+          "powershell": "Test-DDDomainCertificate -Url 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
+          "examples": [],
+          "localReason": "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates."
+        },
+        {
+          "slug": "caa",
+          "name": "CAA Lookup",
+          "description": "Check Certificate Authority Authorization records",
+          "category": "tls-cert",
+          "categoryName": "TLS & Certificates",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks CAA",
+          "powershell": "Test-DDDnsCaaRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "dane",
+          "name": "DANE Check",
+          "description": "Validate DANE/TLSA records",
+          "category": "tls-cert",
+          "categoryName": "TLS & Certificates",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DANE",
+          "powershell": "Test-DDTlsDaneRecord -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "web-security",
+      "name": "Web Security",
+      "summary": "The security headers and contact details a website publishes.",
+      "icon": "shield",
+      "count": 2,
+      "tools": [
+        {
+          "slug": "http-headers",
+          "name": "HTTP Headers",
+          "description": "Analyze security headers (CSP, HSTS, X-Frame-Options, etc.)",
+          "category": "web-security",
+          "categoryName": "Web Security",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks WEBSITE",
+          "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
+          "examples": [],
+          "localReason": "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it."
+        },
+        {
+          "slug": "security-txt",
+          "name": "Security.txt",
+          "description": "Check for security.txt disclosure file",
+          "category": "web-security",
+          "categoryName": "Web Security",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
+          "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
+          "examples": [],
+          "localReason": "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it."
+        }
+      ]
+    },
+    {
+      "slug": "threat-intel",
+      "name": "Threat Intelligence",
+      "summary": "Blocklist listings and dangling records open to takeover.",
+      "icon": "alert-triangle",
+      "count": 2,
+      "tools": [
+        {
+          "slug": "dnsbl",
+          "name": "DNSBL Check",
+          "description": "Check domain/IP against DNS blacklists",
+          "category": "threat-intel",
+          "categoryName": "Threat Intelligence",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DNSBL",
+          "powershell": "Test-DDDnsBlacklist -NameOrIpAddress 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
+        },
+        {
+          "slug": "dangling-cname",
+          "name": "Dangling CNAME",
+          "description": "Detect dangling CNAME records vulnerable to takeover",
+          "category": "threat-intel",
+          "categoryName": "Threat Intelligence",
+          "support": "browser",
+          "supportLabel": "Runs in your browser",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks DANGLINGCNAME",
+          "powershell": "Test-DDDnsDanglingCname -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "microsoft.com"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "registration",
+      "name": "Registration",
+      "summary": "Registrar, owner and expiry through RDAP and WHOIS.",
+      "icon": "database",
+      "count": 1,
+      "tools": [
+        {
+          "slug": "rdap",
+          "name": "RDAP / WHOIS",
+          "description": "Query domain registration data via RDAP",
+          "category": "registration",
+          "categoryName": "Registration",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective TestRDAP 'example.com'",
+          "powershell": "Get-DDRdap -DomainName 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
+          "examples": [],
+          "localReason": "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet."
+        }
+      ]
+    },
+    {
+      "slug": "web-discovery",
+      "name": "Web Discovery",
+      "summary": "Sitemaps and how ready the site is for AI agents.",
+      "icon": "file-search",
+      "count": 2,
+      "tools": [
+        {
+          "slug": "sitemap",
+          "name": "Sitemap XML Analyzer",
+          "description": "Validate sitemap XML, sitemap indexes, duplicate URLs, redirects, redirect loops, noindex, and canonical mismatches",
+          "category": "web-discovery",
+          "categoryName": "Web Discovery",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks SITEMAP",
+          "powershell": "Test-DDSitemap -Subject 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ],
+          "localReason": "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it."
+        },
+        {
+          "slug": "agent-readiness",
+          "name": "AI Agent Readiness",
+          "description": "Assess robots, llms.txt, markdown access, Link headers, agent discovery endpoints, and trust signals for AI crawlers and agents",
+          "category": "web-discovery",
+          "categoryName": "Web Discovery",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective check 'example.com' --checks AGENTREADINESS",
+          "powershell": "Test-DDAgentReadiness -Subject 'example.com'",
+          "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");",
+          "examples": [
+            "evotec.pl",
+            "cloudflare.com",
+            "microsoft.com"
+          ],
+          "localReason": "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it."
+        }
+      ]
+    },
+    {
+      "slug": "subdomain",
+      "name": "Subdomain Discovery",
+      "summary": "Subdomains revealed by Certificate Transparency logs.",
+      "icon": "layers",
+      "count": 1,
+      "tools": [
+        {
+          "slug": "ct-subdomains",
+          "name": "CT Subdomain Discovery",
+          "description": "Discover subdomains via Certificate Transparency logs",
+          "category": "subdomain",
+          "categoryName": "Subdomain Discovery",
+          "support": "local",
+          "supportLabel": "Runs locally with PowerShell or the CLI",
+          "placeholder": "example.com",
+          "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
+          "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
+          "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
+          "examples": [],
+          "localReason": "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local."
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "slug": "m365-overview",
+      "name": "M365 Tenant Overview",
+      "description": "Aggregate Microsoft 365 tenant, identity, DNS, and mail posture in one dashboard",
+      "category": "overview",
+      "categoryName": "Overview",
+      "support": "partial",
+      "supportLabel": "Partial in browser, full locally",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com'",
+      "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "domain-overview",
+      "name": "Domain Overview",
+      "description": "Aggregate DNS, mail, web, registration, and exposure posture for any domain",
+      "category": "overview",
+      "categoryName": "Overview",
+      "support": "partial",
+      "supportLabel": "Partial in browser, full locally",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com'",
+      "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.Verify(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "cloudflare.com"
+      ]
+    },
+    {
+      "slug": "message-analyzer",
+      "name": "Email Message Analyzer",
+      "description": "Analyze message headers and verify DKIM/ARC locally with offline public keys. Message content stays in your browser.",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective AnalyzeMessageHeader --file message.eml",
+      "powershell": "Get-DDEmailMessageHeaderInfo -Path './message.eml'",
+      "csharp": "using var health = new DomainHealthCheck();\nvar analysis = await health.AnalyzeMessageFileAsync(\"message.eml\");",
+      "examples": []
+    },
+    {
+      "slug": "spf",
+      "name": "SPF Lookup",
+      "description": "Validate SPF records and check for misconfigurations",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks SPF",
+      "powershell": "Test-DDEmailSpfRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySPF(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
+    },
+    {
+      "slug": "dkim",
+      "name": "DKIM Lookup",
+      "description": "Verify DKIM records and key validity",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DKIM",
+      "powershell": "Test-DDEmailDkimRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDKIM(\"example.com\", new[] { \"selector1\" });",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
+    },
+    {
+      "slug": "dmarc",
+      "name": "DMARC Lookup",
+      "description": "Analyze DMARC policy and reporting configuration",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DMARC",
+      "powershell": "Test-DDEmailDmarcRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDMARC(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
+    },
+    {
+      "slug": "mx",
+      "name": "MX Lookup",
+      "description": "Check mail exchanger records and priorities",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks MX",
+      "powershell": "Test-DDDnsMxRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMX(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "gmail.com"
+      ]
+    },
+    {
+      "slug": "mta-sts",
+      "name": "MTA-STS Check",
+      "description": "Verify MTA-STS policy for enforced TLS",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "partial",
+      "supportLabel": "Partial in browser, full locally",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks MTASTS",
+      "powershell": "Test-DDEmailMtaSts -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyMTASTS(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
+    },
+    {
+      "slug": "tls-rpt",
+      "name": "TLS-RPT Check",
+      "description": "Check TLS reporting DNS record configuration",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks TLSRPT",
+      "powershell": "Test-DDEmailTlsRptRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyTLSRPT(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
+    },
+    {
+      "slug": "bimi",
+      "name": "BIMI Lookup",
+      "description": "Validate BIMI record and brand indicator",
+      "category": "email-security",
+      "categoryName": "Email Security",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks BIMI",
+      "powershell": "Test-DDEmailBimiRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyBIMI(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com",
+        "google.com"
+      ]
+    },
+    {
+      "slug": "dns-lookup",
+      "name": "DNS Lookup",
+      "description": "Inspect a domain's DNS inventory, providers, and common record coverage",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DNSINVENTORY",
+      "powershell": "Test-DDDomainOverallHealth -DomainName 'example.com' -HealthCheckType DNSINVENTORY",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsInventoryAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "dnssec",
+      "name": "DNSSEC Check",
+      "description": "Validate DNSSEC chain of trust",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DNSSEC",
+      "powershell": "Test-DDDnsSecStatus -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSSEC(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "soa",
+      "name": "SOA Lookup",
+      "description": "Check SOA record and zone authority",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks SOA",
+      "powershell": "Test-DDDnsSoaRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySOA(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "ns",
+      "name": "NS Lookup",
+      "description": "List authoritative nameservers",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks NS",
+      "powershell": "Test-DDDnsNsRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyNS(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "dns-propagation",
+      "name": "DNS Propagation",
+      "description": "Compare DNS answers across DomainDetective's distributed public resolver pool",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "partial",
+      "supportLabel": "Partial in browser, full locally",
+      "placeholder": "example.com",
+      "cli": "domaindetective DnsPropagation --domain 'example.com' --record-type A",
+      "powershell": "Test-DDDnsPropagation -DomainName 'example.com' -RecordType A",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDnsPropagationAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "raw-dns-query",
+      "name": "Raw DNS Query",
+      "description": "Resolve one record type at a time, inspect the raw JSON response, and copy equivalent DnsClientX code",
+      "category": "dns",
+      "categoryName": "DNS",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "",
+      "powershell": "",
+      "csharp": "",
+      "examples": []
+    },
+    {
+      "slug": "cert-check",
+      "name": "Certificate Check",
+      "description": "Inspect TLS certificate details and chain",
+      "category": "tls-cert",
+      "categoryName": "TLS & Certificates",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks CERT",
+      "powershell": "Test-DDDomainCertificate -Url 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteCertificate(\"example.com\");",
+      "examples": [],
+      "localReason": "It opens a TLS connection to the server and reads the certificate chain. Web pages cannot open raw TLS connections or see certificates."
+    },
+    {
+      "slug": "caa",
+      "name": "CAA Lookup",
+      "description": "Check Certificate Authority Authorization records",
+      "category": "tls-cert",
+      "categoryName": "TLS & Certificates",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks CAA",
+      "powershell": "Test-DDDnsCaaRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyCAA(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "dane",
+      "name": "DANE Check",
+      "description": "Validate DANE/TLSA records",
+      "category": "tls-cert",
+      "categoryName": "TLS & Certificates",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DANE",
+      "powershell": "Test-DDTlsDaneRecord -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDANE(\"example.com\", new[] { 443 });",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "http-headers",
+      "name": "HTTP Headers",
+      "description": "Analyze security headers (CSP, HSTS, X-Frame-Options, etc.)",
+      "category": "web-security",
+      "categoryName": "Web Security",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks WEBSITE",
+      "powershell": "Test-DDWebsiteSecurity -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyWebsiteHttps(\"example.com\");",
+      "examples": [],
+      "localReason": "It requests the website and reads every response header. Browsers stop one site from reading another site's responses unless that site allows it."
+    },
+    {
+      "slug": "security-txt",
+      "name": "Security.txt",
+      "description": "Check for security.txt disclosure file",
+      "category": "web-security",
+      "categoryName": "Web Security",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks SECURITYTXT",
+      "powershell": "Test-DDDomainSecurityTxt -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySecurityTxt(\"example.com\");",
+      "examples": [],
+      "localReason": "It downloads /.well-known/security.txt from the domain. Browsers stop one site from reading another site's files unless that site allows it."
+    },
+    {
+      "slug": "dnsbl",
+      "name": "DNSBL Check",
+      "description": "Check domain/IP against DNS blacklists",
+      "category": "threat-intel",
+      "categoryName": "Threat Intelligence",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DNSBL",
+      "powershell": "Test-DDDnsBlacklist -NameOrIpAddress 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDNSBL(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "dangling-cname",
+      "name": "Dangling CNAME",
+      "description": "Detect dangling CNAME records vulnerable to takeover",
+      "category": "threat-intel",
+      "categoryName": "Threat Intelligence",
+      "support": "browser",
+      "supportLabel": "Runs in your browser",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks DANGLINGCNAME",
+      "powershell": "Test-DDDnsDanglingCname -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyDanglingCname(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "microsoft.com"
+      ]
+    },
+    {
+      "slug": "rdap",
+      "name": "RDAP / WHOIS",
+      "description": "Query domain registration data via RDAP",
+      "category": "registration",
+      "categoryName": "Registration",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective TestRDAP 'example.com'",
+      "powershell": "Get-DDRdap -DomainName 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.QueryRDAP(\"example.com\");",
+      "examples": [],
+      "localReason": "It asks the registry's RDAP service for registration data. That lookup is not part of the browser edition yet."
+    },
+    {
+      "slug": "sitemap",
+      "name": "Sitemap XML Analyzer",
+      "description": "Validate sitemap XML, sitemap indexes, duplicate URLs, redirects, redirect loops, noindex, and canonical mismatches",
+      "category": "web-discovery",
+      "categoryName": "Web Discovery",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks SITEMAP",
+      "powershell": "Test-DDSitemap -Subject 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifySitemapAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ],
+      "localReason": "It downloads robots.txt and the sitemaps from the website. Browsers stop one site from reading another site's files unless that site allows it."
+    },
+    {
+      "slug": "agent-readiness",
+      "name": "AI Agent Readiness",
+      "description": "Assess robots, llms.txt, markdown access, Link headers, agent discovery endpoints, and trust signals for AI crawlers and agents",
+      "category": "web-discovery",
+      "categoryName": "Web Discovery",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective check 'example.com' --checks AGENTREADINESS",
+      "powershell": "Test-DDAgentReadiness -Subject 'example.com'",
+      "csharp": "var hc = new DomainHealthCheck();\nawait hc.VerifyAgentReadinessAsync(\"example.com\");",
+      "examples": [
+        "evotec.pl",
+        "cloudflare.com",
+        "microsoft.com"
+      ],
+      "localReason": "It downloads robots.txt, llms.txt and other files from the website and reads their headers. Browsers stop one site from reading another site's files unless that site allows it."
+    },
+    {
+      "slug": "ct-subdomains",
+      "name": "CT Subdomain Discovery",
+      "description": "Discover subdomains via Certificate Transparency logs",
+      "category": "subdomain",
+      "categoryName": "Subdomain Discovery",
+      "support": "local",
+      "supportLabel": "Runs locally with PowerShell or the CLI",
+      "placeholder": "example.com",
+      "cli": "domaindetective cert-inventory-capture 'example.com' --include-ct-subdomains",
+      "powershell": "Invoke-DDCertificateInventory -DomainName 'example.com' -IncludeCtSubdomains",
+      "csharp": "var capture = new CertificateInventoryCapture();\nvar options = new CertificateInventoryCaptureOptions { IncludeCtDiscoveredSubdomains = true };\nawait capture.CaptureAsync(new[] { \"example.com\" }, options);",
+      "examples": [],
+      "localReason": "It searches public Certificate Transparency logs. The free public search services are too slow and unreliable to call from a web page, so this check stays local."
+    }
+  ]
+}

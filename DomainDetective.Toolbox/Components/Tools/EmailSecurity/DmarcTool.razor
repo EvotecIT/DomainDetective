@@ -33,20 +33,20 @@
             <p>@(view.Highlights.Count > 0 ? string.Join(" ", view.Highlights.Take(3)) : view.Summary)</p>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>Record published</td><td>@FormatBool(view.DmarcRecordExists)</td></tr>
-            <tr><td>Mandatory tags present</td><td>@FormatBool(view.HasMandatoryTags)</td></tr>
-            <tr><td>Starts with v=DMARC1</td><td>@FormatBool(view.StartsCorrectly)</td></tr>
-            <tr><td>Multiple DMARC records</td><td>@FormatBool(view.MultipleRecords)</td></tr>
-            <tr><td>Policy valid</td><td>@FormatBool(view.IsPolicyValid)</td></tr>
-            <tr><td>Weak policy</td><td>@FormatBool(view.WeakPolicy)</td></tr>
-            <tr><td>Resolved through CNAME</td><td>@FormatBool(view.IsCnameResolved)</td></tr>
-            <tr><td>Record TTL</td><td>@FormatTtl(view.DnsRecordTtl)</td></tr>
-            <tr><td>Length within 255 chars</td><td>@FormatBool(!view.ExceedsCharacterLimit)</td></tr>
-            <tr><td>Report URIs valid</td><td>@FormatBool(!view.InvalidReportUri)</td></tr>
-            <tr><td>Deprecated tags</td><td>@(view.DeprecatedTags.Count > 0 ? string.Join(", ", view.DeprecatedTags) : "None")</td></tr>
-            <tr><td>Unknown tags</td><td>@(view.UnknownTags.Count > 0 ? string.Join(", ", view.UnknownTags) : "None")</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(new[] {
+            ResultCheck.Expect("Record published", view.DmarcRecordExists, FormatBool(view.DmarcRecordExists)),
+            ResultCheck.Expect("Mandatory tags present", view.HasMandatoryTags, FormatBool(view.HasMandatoryTags)),
+            ResultCheck.Expect("Starts with v=DMARC1", view.StartsCorrectly, FormatBool(view.StartsCorrectly)),
+            ResultCheck.Expect("Single DMARC record", !view.MultipleRecords, view.MultipleRecords ? "Multiple records" : "Yes"),
+            ResultCheck.Expect("Policy valid", view.IsPolicyValid, FormatBool(view.IsPolicyValid)),
+            ResultCheck.Expect("Enforcing policy", !view.WeakPolicy, view.WeakPolicy ? "Weak policy" : "Yes", warnOnly: true),
+            ResultCheck.Expect("Length within 255 chars", !view.ExceedsCharacterLimit, FormatBool(!view.ExceedsCharacterLimit)),
+            ResultCheck.Expect("Report URIs valid", !view.InvalidReportUri, FormatBool(!view.InvalidReportUri)),
+            ResultCheck.Expect("No deprecated tags", view.DeprecatedTags.Count == 0, view.DeprecatedTags.Count > 0 ? string.Join(", ", view.DeprecatedTags) : "None", warnOnly: true),
+            ResultCheck.Expect("No unknown tags", view.UnknownTags.Count == 0, view.UnknownTags.Count > 0 ? string.Join(", ", view.UnknownTags) : "None", warnOnly: true),
+            ResultCheck.Fact("Through CNAME", FormatBool(view.IsCnameResolved)),
+            ResultCheck.Fact("Record TTL", FormatTtl(view.DnsRecordTtl))
+        })" />
     </ResultCard>
 
     @if (!string.IsNullOrWhiteSpace(view.Advisory) || !string.IsNullOrWhiteSpace(view.PolicyRecommendation) || view.Details.Count > 0 || view.UnauthorizedExternalReportDomains.Count > 0) {
@@ -140,14 +140,14 @@
 
                 <div class="tool-summary-card">
                     <span class="tool-summary-label">Alignment and coverage</span>
-                    <ResultTable Columns="@(new[] { "Property", "Value" })">
-                        <tr><td>DKIM alignment tag valid</td><td>@FormatBool(view.ValidDkimAlignment)</td></tr>
-                        <tr><td>SPF alignment tag valid</td><td>@FormatBool(view.ValidSpfAlignment)</td></tr>
-                        <tr><td>DKIM aligned</td><td>@FormatBool(view.DkimAligned)</td></tr>
-                        <tr><td>SPF aligned</td><td>@FormatBool(view.SpfAligned)</td></tr>
-                        <tr><td>pct valid</td><td>@FormatBool(view.IsPctValid)</td></tr>
-                        <tr><td>Original pct</td><td>@FormatPct(view.OriginalPct)</td></tr>
-                    </ResultTable>
+                    <ResultChecklist Items="@(new[] {
+                        ResultCheck.Expect("DKIM alignment tag valid", view.ValidDkimAlignment, FormatBool(view.ValidDkimAlignment)),
+                        ResultCheck.Expect("SPF alignment tag valid", view.ValidSpfAlignment, FormatBool(view.ValidSpfAlignment)),
+                        ResultCheck.Expect("pct valid", view.IsPctValid, FormatBool(view.IsPctValid)),
+                        ResultCheck.Fact("DKIM aligned", FormatBool(view.DkimAligned)),
+                        ResultCheck.Fact("SPF aligned", FormatBool(view.SpfAligned)),
+                        ResultCheck.Fact("Original pct", FormatPct(view.OriginalPct))
+                    })" />
                 </div>
             </div>
         </ResultCard>

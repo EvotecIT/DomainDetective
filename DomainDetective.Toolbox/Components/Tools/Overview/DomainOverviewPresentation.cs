@@ -85,7 +85,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Assessments",
             ValueLabel = info.TotalAssessments.ToString(),
-            Summary = "DD merged mail, web, registration, and exposure findings into the overview assessment count shown here.",
+            Summary = "DomainDetective merged mail, web, registration, and exposure findings into the overview assessment count shown here.",
             Tags = new[]
             {
                 "Warnings: " + info.WarningCount,
@@ -109,7 +109,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Mail and DNS",
             ValueLabel = passCount + " pass",
-            Summary = "The mail and DNS posture combines SPF, DKIM, DMARC, MX, transport policy, and DNS infrastructure into one DD control surface.",
+            Summary = "The mail and DNS posture combines SPF, DKIM, DMARC, MX, transport policy, and DNS infrastructure into one control surface.",
             Tags = new[]
             {
                 "Failing controls: " + failCount,
@@ -137,7 +137,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Web posture",
             ValueLabel = info.HttpReachable ? "Grade " + info.HttpGrade : "Offline",
-            Summary = "DD blends HTTP reachability, certificate posture, and disclosure metadata to summarize the exposed web surface.",
+            Summary = "DomainDetective blends HTTP reachability, certificate posture, and disclosure metadata to summarize the exposed web surface.",
             Tags = new[]
             {
                 info.HttpReachable ? "HTTP reachable" : "HTTP not reachable",
@@ -159,7 +159,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Providers",
             ValueLabel = FormatProviderValue(info.MailProvider),
-            Summary = "Mail routing, authoritative DNS, and detected DNS application fingerprints shape the provider footprint DD reports here.",
+            Summary = "Mail routing, authoritative DNS, and detected DNS application fingerprints shape the provider footprint DomainDetective reports here.",
             Tags = new[]
             {
                 "DNS: " + FormatProviderValue(info.DnsProvider),
@@ -179,7 +179,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Exposure",
             ValueLabel = info.SubdomainCount + " subdomains",
-            Summary = "DD uses subdomain discovery and external application clues to outline the domain’s visible exposure surface.",
+            Summary = "DomainDetective uses subdomain discovery and external application clues to outline the domain’s visible exposure surface.",
             Tags = new[]
             {
                 "Detected apps: " + info.DetectedApplicationCount,
@@ -203,7 +203,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Registration",
             ValueLabel = info.DaysUntilExpiration.HasValue ? FormatExpiryLabel(info.DaysUntilExpiration.Value) : "Expiry unknown",
-            Summary = "Registration timing, registrar context, and DD hinting combine here to summarize the registration and lifecycle posture.",
+            Summary = "Registration timing, registrar context, and hinting combine here to summarize the registration and lifecycle posture.",
             Tags = new[]
             {
                 "Hints: " + (info.Summary?.Hints?.Count ?? 0),
@@ -289,7 +289,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Provider notes",
             ValueLabel = info.DetectedApplicationCount + " provider hints",
-            Summary = "DD combined DNS inventory, routing, and application fingerprints to summarize the provider footprint behind this domain.",
+            Summary = "DomainDetective combined DNS inventory, routing, and application fingerprints to summarize the provider footprint behind this domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -325,7 +325,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Web and registration notes",
             ValueLabel = info.HttpReachable ? "Grade " + info.HttpGrade : "Offline",
-            Summary = "DD blended web reachability, certificate/security metadata, and registration timing into these posture notes.",
+            Summary = "DomainDetective blended web reachability, certificate/security metadata, and registration timing into these posture notes.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -364,7 +364,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Exposure notes",
             ValueLabel = info.SubdomainCount + " subdomain(s)",
-            Summary = "DD used subdomain discovery, naming sensitivity, and certificate context to summarize the external exposure profile.",
+            Summary = "DomainDetective used subdomain discovery, naming sensitivity, and certificate context to summarize the external exposure profile.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -462,7 +462,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "SPF policy",
             ValueLabel = queryFailed ? "Query failed" : info.SpfRecordExists ? (info.AllMechanism ?? "Published") : "Missing",
-            Summary = queryFailed ? "SPF discovery failed; policy presence was not established." : "DD evaluated SPF structure, lookup budget, includes, and flattening posture for the domain.",
+            Summary = queryFailed ? "SPF discovery failed; policy presence was not established." : "DomainDetective evaluated SPF structure, lookup budget, includes, and flattening posture for the domain.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -497,7 +497,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "DKIM selectors",
             ValueLabel = selectors.Count + " selector(s)",
-            Summary = "DD checked discovered selectors for key presence, key strength, and selector record quality.",
+            Summary = "DomainDetective checked discovered selectors for key presence, key strength, and selector record quality.",
             Tags = tags,
             Samples = samples
         };
@@ -536,7 +536,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "DMARC policy",
             ValueLabel = queryFailed ? "Query failed" : info.DmarcRecordExists ? (string.IsNullOrWhiteSpace(info.Policy) ? "Published" : info.Policy.ToUpperInvariant()) : "Missing",
-            Summary = queryFailed ? "DMARC discovery failed; policy presence was not established." : info.DnsQueryFailed ? "A DNS query needed for full DMARC policy evaluation failed." : "DD validated policy mode, alignment, and reporting destinations for the domain DMARC record.",
+            Summary = queryFailed ? "DMARC discovery failed; policy presence was not established." : info.DnsQueryFailed ? "A DNS query needed for full DMARC policy evaluation failed." : "DomainDetective validated policy mode, alignment, and reporting destinations for the domain DMARC record.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -565,7 +565,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "MX routing",
             ValueLabel = info.MxRecordExists ? info.MxRecords.Count + " route(s)" : "Missing",
-            Summary = "DD analyzed MX routing, provider fingerprints, redundancy, and target quality for the domain mail path.",
+            Summary = "DomainDetective analyzed MX routing, provider fingerprints, redundancy, and target quality for the domain mail path.",
             Tags = tags,
             Samples = samples
         };
@@ -629,7 +629,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Transport and trust policies",
             ValueLabel = tags.Count(static tag => !tag.StartsWith("No ", StringComparison.Ordinal)) + " enabled",
-            Summary = "DD checked transport policy, reporting, brand indicators, certificate authority policy, and TLSA posture for mail delivery hardening.",
+            Summary = "DomainDetective checked transport policy, reporting, brand indicators, certificate authority policy, and TLSA posture for mail delivery hardening.",
             Tags = tags,
             Samples = samples.Take(5).ToArray()
         };
@@ -675,7 +675,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "DNS infrastructure",
             ValueLabel = info.Dnssec?.ChainValid == true ? "Protected" : "Review needed",
-            Summary = "DD used DNSSEC validation, nameserver delegation, and SOA timing to judge baseline DNS infrastructure quality.",
+            Summary = "DomainDetective used DNSSEC validation, nameserver delegation, and SOA timing to judge baseline DNS infrastructure quality.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray()
         };
@@ -762,7 +762,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Provider signals",
             ValueLabel = info.DetectedApplicationCount + " app hints",
-            Summary = "DD correlated DNS inventory, mail routing, and application fingerprints to infer provider posture for this domain.",
+            Summary = "DomainDetective correlated DNS inventory, mail routing, and application fingerprints to infer provider posture for this domain.",
             Tags = new[]
             {
                 "Mail: " + FormatProviderValue(info.MailProvider),
@@ -788,7 +788,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Evidence coverage",
             ValueLabel = (info.MailDnsChecks.Count + info.WebRegistrationChecks.Count) + " control findings",
-            Summary = "DD combined mail, DNS, web, registration, and exposure checks into the domain posture shown on this page. This card summarizes how broad that evidence set was.",
+            Summary = "DomainDetective combined mail, DNS, web, registration, and exposure checks into the domain posture shown on this page. This card summarizes how broad that evidence set was.",
             Tags = new[]
             {
                 "Mail/DNS checks: " + info.MailDnsChecks.Count,
@@ -821,7 +821,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Provider and app surface",
             ValueLabel = info.DetectedApplicationCount + " app hint(s)",
-            Summary = "Provider, routing, and third-party application evidence all contributed to DD's view of the domain's public operating surface.",
+            Summary = "Provider, routing, and third-party application evidence all contributed to DomainDetective's view of the domain's public operating surface.",
             Tags = new[]
             {
                 "Mail: " + FormatProviderValue(info.MailProvider),
@@ -875,7 +875,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Web and registration surface",
             ValueLabel = enabledCount + " core sources available",
-            Summary = "DD blended HTTP, certificate, disclosure, DNSBL, and RDAP sources to judge the outward-facing web and registration surface for this domain.",
+            Summary = "DomainDetective blended HTTP, certificate, disclosure, DNSBL, and RDAP sources to judge the outward-facing web and registration surface for this domain.",
             Tags = new[]
             {
                 info.HttpReachable ? "HTTP reachable" : "HTTP offline",
@@ -899,7 +899,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Exposure surface",
             ValueLabel = subdomains.SubdomainCount + " subdomain(s)",
-            Summary = "DD used discovered subdomains, naming sensitivity, resolution status, and certificate observations to judge the domain's exposure footprint.",
+            Summary = "DomainDetective used discovered subdomains, naming sensitivity, resolution status, and certificate observations to judge the domain's exposure footprint.",
             Tags = new[]
             {
                 "Resolving: " + subdomains.ResolvesCount,
@@ -929,7 +929,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Mail and DNS posture",
             ValueLabel = info.MailDnsChecks.Count(static check => check.State == AggregateCheckState.Pass) + " pass",
-            Summary = "DD combined SPF, DKIM, DMARC, MX, transport policy, and authoritative DNS checks into the mail-security posture shown on this page.",
+            Summary = "DomainDetective combined SPF, DKIM, DMARC, MX, transport policy, and authoritative DNS checks into the mail-security posture shown on this page.",
             Tags = info.MailDnsChecks
                 .Select(static check => check.Label + " " + check.Value)
                 .Take(5)
@@ -960,7 +960,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Web posture evidence",
             ValueLabel = info.HttpReachable ? "Grade " + info.HttpGrade : "Offline",
-            Summary = "HTTP response behavior, TLS certificate posture, and disclosure controls contribute to the web-facing DD assessment for the domain.",
+            Summary = "HTTP response behavior, TLS certificate posture, and disclosure controls contribute to the web-facing assessment for the domain.",
             Tags = BuildWebEvidenceTags(info),
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray()
         };
@@ -984,8 +984,8 @@ internal static class DomainOverviewPresentation
             Title = "Registration evidence",
             ValueLabel = info.RecordAvailable ? FormatDays(info.DaysUntilExpiration, "Available") : "Unavailable",
             Summary = info.RecordAvailable
-                ? "RDAP data contributed registrar, expiry, status, and contact evidence to the DD overview."
-                : "Registration evidence was not available during the DD run.",
+                ? "RDAP data contributed registrar, expiry, status, and contact evidence to the overview."
+                : "Registration evidence was not available during the run.",
             Tags = new[]
             {
                 "Registrar: " + (string.IsNullOrWhiteSpace(info.Registrar) ? "Unknown" : info.Registrar),
@@ -1008,7 +1008,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Application footprint evidence",
             ValueLabel = info.DetectedApplicationCount + " detected",
-            Summary = "DD used DNS application fingerprints to infer third-party services and provider overlap across the domain.",
+            Summary = "DomainDetective used DNS application fingerprints to infer third-party services and provider overlap across the domain.",
             Tags = new[]
             {
                 info.DetectedApplicationCount + " application match(es)",
@@ -1031,7 +1031,7 @@ internal static class DomainOverviewPresentation
         {
             Title = "Exposure evidence",
             ValueLabel = subdomains.SubdomainCount + " found",
-            Summary = "Certificate transparency, resolver checks, and certificate signals drive the exposure picture in this DD overview.",
+            Summary = "Certificate transparency, resolver checks, and certificate signals drive the exposure picture in this overview.",
             Tags = new[]
             {
                 subdomains.ResolvesCount + " resolving",
@@ -1088,7 +1088,7 @@ internal static class DomainOverviewPresentation
             ValueLabel = info.IsReachable ? "Grade " + info.Grade : "Offline",
             Summary = info.IsReachable
                 ? $"Reachable over {(string.IsNullOrWhiteSpace(info.ProtocolVersion) ? "HTTP" : info.ProtocolVersion)} with {(info.HstsPresent ? "HSTS enabled" : "no HSTS")} and {missingCount} missing security header(s)."
-                : (string.IsNullOrWhiteSpace(info.FailureReason) ? "HTTP endpoint was not reachable during the DD run." : info.FailureReason),
+                : (string.IsNullOrWhiteSpace(info.FailureReason) ? "HTTP endpoint was not reachable during the run." : info.FailureReason),
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };
@@ -1233,7 +1233,7 @@ internal static class DomainOverviewPresentation
             ValueLabel = info.RecordAvailable ? FormatDays(info.DaysUntilExpiration, "Available") : "Unavailable",
             Summary = info.RecordAvailable
                 ? $"Registration data is available from {(string.IsNullOrWhiteSpace(info.Registrar) ? "the registrar" : info.Registrar)} with {(info.StatusValues?.Count ?? 0)} status value(s)."
-                : "Registration data was not available during the DD run.",
+                : "Registration data was not available during the run.",
             Tags = tags,
             Samples = samples.Where(static item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray()
         };

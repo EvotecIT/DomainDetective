@@ -27,13 +27,13 @@
             </div>
         </div>
 
-        <ResultTable Columns="@(new[] { "Property", "Value" })">
-            <tr><td>Record present</td><td>@FormatBool(view.TlsRptRecordExists)</td></tr>
-            <tr><td>RUA defined</td><td>@FormatBool(view.RuaDefined)</td></tr>
-            <tr><td>Multiple records</td><td>@FormatBool(view.MultipleRecords)</td></tr>
-            <tr><td>DNS TTL</td><td>@FormatNullableNumber(view.DnsRecordTtl)</td></tr>
-            <tr><td>CNAME TTL</td><td>@FormatNullableNumber(view.CnameTtl)</td></tr>
-        </ResultTable>
+        <ResultChecklist Items="@(new[] {
+            ResultCheck.Expect("Record present", view.TlsRptRecordExists, FormatBool(view.TlsRptRecordExists)),
+            ResultCheck.Expect("Reporting address (rua) defined", view.RuaDefined, FormatBool(view.RuaDefined)),
+            ResultCheck.Expect("Single TLS-RPT record", !view.MultipleRecords, view.MultipleRecords ? "Multiple records" : "Yes"),
+            ResultCheck.Fact("DNS TTL", FormatNullableNumber(view.DnsRecordTtl)),
+            ResultCheck.Fact("CNAME TTL", FormatNullableNumber(view.CnameTtl))
+        })" />
     </ResultCard>
 
     @if (view.MailtoRua.Count > 0 || view.HttpRua.Count > 0 || view.InvalidRua.Count > 0 || view.UnknownTags.Count > 0) {
