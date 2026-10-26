@@ -129,7 +129,7 @@ jobs:
                 path: Module
 
             - name: Setup .NET
-              uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
+              uses: EvotecIT/.github/actions/setup-dotnet@6a07f68bbcf97cfce479f930590d4fe4d85ef715
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -202,7 +202,7 @@ jobs:
                 path: Module
 
             - name: Setup .NET
-              uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
+              uses: EvotecIT/.github/actions/setup-dotnet@6a07f68bbcf97cfce479f930590d4fe4d85ef715
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -278,7 +278,7 @@ jobs:
                 path: Module
 
             - name: Setup .NET
-              uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
+              uses: EvotecIT/.github/actions/setup-dotnet@6a07f68bbcf97cfce479f930590d4fe4d85ef715
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -350,7 +350,7 @@ jobs:
                 path: Module
 
             - name: Setup .NET
-              uses: EvotecIT/PSPublishModule/.github/actions/setup-dotnet@6d2eef9cb69e2d93f89e7f22e9c39fa294260d19
+              uses: EvotecIT/.github/actions/setup-dotnet@6a07f68bbcf97cfce479f930590d4fe4d85ef715
               with:
                 dotnet-version: ${{ env.DOTNET_VERSION }}
 
