@@ -25,7 +25,7 @@
   --dd-code-bar: #0f131b;
   --dd-code-line: rgba(255, 255, 255, .08);
   --dd-code-ink: #dfe6ef;
-  --dd-code-muted: #6f7a8b;
+  --dd-code-muted: #8490a3;
   color-scheme: dark;
   background: var(--dd-stage-bg);
   color: var(--dd-ink);
