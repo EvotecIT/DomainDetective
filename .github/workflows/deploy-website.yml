@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   website-deploy:
-    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@fac62ab17a8360eedbbafde2711edb6788971512
+    uses: EvotecIT/PSPublishModule/.github/workflows/powerforge-website-deploy.yml@2e5374485f28c4927f571525ef80652e5fd3af82
     with:
       website_root: Website
       pipeline_config: Website/pipeline.json
@@ -29,7 +29,7 @@ jobs:
       engine_mode: source
       runner_labels_json: ${{ github.event.repository.private && '["self-hosted","linux"]' || '["ubuntu-latest"]' }}
       powerforge_repository: EvotecIT/PSPublishModule
-      powerforge_ref: fac62ab17a8360eedbbafde2711edb6788971512
+      powerforge_ref: 2e5374485f28c4927f571525ef80652e5fd3af82
       powerforge_web_tag: PowerForgeWeb-v1.0.0-preview-202604140746
       # DomainDetective uses the PowerForge doctor audit step rather than the localized seo-doctor guardrail contract.
       require_seo_doctor_guardrail: false
