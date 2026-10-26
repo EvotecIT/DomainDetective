@@ -52,6 +52,11 @@
             "azure-service-tag"
           ]
         },
+        "attributionEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include this predicate in legacy attribution scoring as well as pack classification."
+        },
         "values": {
           "type": "array",
           "items": {

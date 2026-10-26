@@ -47,6 +47,8 @@ public enum EndpointRuleEffect {
 public sealed class EndpointRuleMatcher {
     /// <summary>Evidence operation to evaluate.</summary>
     public EndpointMatcherType Type { get; set; }
+    /// <summary>Whether this predicate also contributes to legacy attribution scoring. Pack classification always evaluates it.</summary>
+    public bool AttributionEnabled { get; set; } = true;
     /// <summary>Matcher operands. The embedded-address detector needs no operands.</summary>
     public List<string> Values { get; set; } = new();
 }

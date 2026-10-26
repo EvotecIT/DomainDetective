@@ -89,7 +89,7 @@ public static class EndpointRulePackCatalog {
                 };
                 rule.ApplicablePorts.AddRange(source.Ports);
                 rule.ApplicableServices.AddRange(source.Services);
-                foreach (EndpointRuleMatcher matcher in source.AllOf.Concat(source.AnyOf)) {
+                foreach (EndpointRuleMatcher matcher in source.AllOf.Concat(source.AnyOf).Where(m => m.AttributionEnabled)) {
                     switch (matcher.Type) {
                         case EndpointMatcherType.LabelPrefix: rule.HostnamePrefixes.AddRange(matcher.Values); break;
                         case EndpointMatcherType.CnameSuffix:

@@ -22,6 +22,8 @@ Hits retain pack/rule versions, actual signals, source identity, fingerprint, en
 
 The existing `EndpointAttributionDetector` scorer consumes the same provider data. Its confidence/candidate semantics remain distinct from exact pack predicates and consumer policy. Front Door, CDN and Traffic Manager retain different service identities even when a deployment groups them for reporting.
 
+A matcher's `attributionEnabled` value defaults to `true`. Set it to `false` when a predicate belongs only to pack classification. The Front Door point-in-time address seeds use this distinction: they remain available to classification with live issuer evidence, while legacy attribution continues to use the caller's current Azure service-tag catalog without scoring the same address twice.
+
 Issuance/name assertions set `CertificateObservationIdentity.IsEndpointObservation` to false. They may match name rules, but never contribute live issuer, address or CNAME evidence, service-scoped rules, or endpoint counts. Summaries count all supplied source assertions once regardless of other live evidence for that host. A report leaves the issuance port empty and labels the observation scope.
 
 The `cname-regex` matcher applies a bounded, case-insensitive expression to each observed CNAME target. It preserves exact and wildcard target patterns when adapting an earlier configuration; it does not broaden an exact target into a suffix rule.

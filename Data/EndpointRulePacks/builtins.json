@@ -238,6 +238,7 @@
             },
             {
               "type": "ip-cidr",
+              "attributionEnabled": false,
               "values": [
                 "150.171.109.0/24",
                 "150.171.110.0/24"
