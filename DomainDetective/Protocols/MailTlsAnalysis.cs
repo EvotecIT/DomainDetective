@@ -123,6 +123,10 @@ public partial class MailTlsAnalysis : IHasAssessments {
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
     /// <summary>Maximum number of mail endpoints probed concurrently.</summary>
     public int MaxConcurrency { get; set; } = 4;
+    /// <summary>Whether to open auxiliary connections to enumerate protocol support.</summary>
+    public bool ProbeProtocolSupportEnabled { get; set; } = true;
+    /// <summary>Whether to invoke the optional OpenSSL stapling probe after negotiation.</summary>
+    public bool ProbeOcspStaplingEnabled { get; set; } = true;
     /// <summary>Address family used by hostname-based probes.</summary>
     public MailTransportAddressFamily AddressFamily { get; set; } = MailTransportAddressFamily.Any;
     /// <summary>Optional resolver that returns addresses approved for outbound connections.</summary>
@@ -190,14 +194,26 @@ public partial class MailTlsAnalysis : IHasAssessments {
                 nameof(endpoints));
         }
         using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
-        var results = await Task.WhenAll(targets.Select(async endpoint => {
+        var tasks = targets.Select(async endpoint => {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try {
                 return await CheckTls(protocol, endpoint, logger, cancellationToken).ConfigureAwait(false);
             } finally {
                 gate.Release();
             }
-        })).ConfigureAwait(false);
+        }).ToArray();
+        TlsResult[] results;
+        try {
+            results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        } catch {
+            // WhenAll has settled every probe, but none of its results can be published.
+            foreach (var task in tasks) {
+                if (task.Status == TaskStatus.RanToCompletion) {
+                    DisposeCertificateEvidence(task.Result);
+                }
+            }
+            throw;
+        }
         for (int i = 0; i < targets.Length; i++) {
             ServerResults[targets[i].Key] = results[i];
         }
@@ -348,8 +364,8 @@ public partial class MailTlsAnalysis : IHasAssessments {
                         logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
                     // Probe protocol support (best-effort)
-                    await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
-                    if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
+                    if (ProbeProtocolSupportEnabled) await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                    if (ProbeOcspStaplingEnabled && (OutboundAddressResolver == null || endpoint.ConnectAddress != null)) {
                         await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                     }
                 }
@@ -458,12 +474,13 @@ public partial class MailTlsAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                 }
                 // Probe protocol support (best-effort)
-                await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
-                if (OutboundAddressResolver == null || endpoint.ConnectAddress != null) {
+                if (ProbeProtocolSupportEnabled) await ProbeAndReportProtocolSupport(protocol, endpoint, result, logger, timeoutCts.Token).ConfigureAwait(false);
+                if (ProbeOcspStaplingEnabled && (OutboundAddressResolver == null || endpoint.ConnectAddress != null)) {
                     await ProbeOcspStaplingWithOpenSsl(protocol, endpoint, result, logger, timeoutCts.Token, cancellationToken).ConfigureAwait(false);
                 }
             }
         } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            DisposeCertificateEvidence(result);
             throw;
         } catch (Exception ex) when (!connected && (ex is SocketException || ex is OperationCanceledException || ex is TimeoutException)) {
             SetFailure(result, ex is OperationCanceledException ? new TimeoutException("Mail connection budget exhausted.", ex) : ex);
@@ -478,8 +495,21 @@ public partial class MailTlsAnalysis : IHasAssessments {
             logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested) {
+            DisposeCertificateEvidence(result);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
         return result;
+    }
+
+    // Returned and published results retain their existing caller-owned certificate lifetime.
+    private static void DisposeCertificateEvidence(TlsResult result) {
+        result.Certificate?.Dispose();
+        result.Certificate = null;
+        foreach (var certificate in result.Chain) {
+            certificate.Dispose();
+        }
+        result.Chain.Clear();
     }
 
     private static void SetFailure(TlsResult result, Exception exception) {

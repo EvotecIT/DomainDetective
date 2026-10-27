@@ -1,0 +1,405 @@
+{
+  "useBuiltInPacks": false,
+  "packs": [
+    {
+      "id": "localhost",
+      "version": "1.0.0",
+      "description": "Local names and loopback addresses; evidence is retained.",
+      "rules": [
+        {
+          "id": "localhost-name",
+          "label": "Localhost name",
+          "reason": "The name denotes the local machine.",
+          "effect": "exclude-from-owner-views",
+          "anyOf": [
+            {
+              "type": "label-prefix",
+              "values": [
+                "localhost."
+              ]
+            },
+            {
+              "type": "hostname-regex",
+              "values": [
+                "^localhost$"
+              ]
+            }
+          ],
+          "legacyKey": "local-test-name"
+        },
+        {
+          "id": "loopback-address",
+          "label": "Loopback address",
+          "reason": "The observed address is loopback.",
+          "effect": "exclude-from-owner-views",
+          "anyOf": [
+            {
+              "type": "ip-cidr",
+              "values": [
+                "127.0.0.0/8",
+                "::1/128"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosting-stubs",
+      "version": "1.0.0",
+      "description": "Generic shared-hosting template labels; deployment policy can override them.",
+      "rules": [
+        {
+          "id": "hosting-label",
+          "label": "Hosting template stub",
+          "reason": "The name matches a configured control-panel template label.",
+          "effect": "exclude-from-owner-views",
+          "anyOf": [
+            {
+              "type": "label-prefix",
+              "values": [
+                "cpanel.",
+                "cpcalendars.",
+                "cpcontacts.",
+                "webdisk.",
+                "whm.",
+                "webmail."
+              ]
+            }
+          ],
+          "legacyKey": "hosting-panel"
+        }
+      ]
+    },
+    {
+      "id": "m365-pointers",
+      "version": "1.0.0",
+      "description": "Client provisioning and autodiscovery labels.",
+      "rules": [
+        {
+          "id": "provisioning-label",
+          "label": "Client provisioning pointer",
+          "reason": "The label is an automatic client configuration pointer.",
+          "effect": "exclude-from-owner-views",
+          "anyOf": [
+            {
+              "type": "label-prefix",
+              "values": [
+                "autodiscover.",
+                "autoconfig.",
+                "lyncdiscover.",
+                "lyncdiscoverinternal.",
+                "sip.",
+                "msoid.",
+                "enterpriseregistration.",
+                "enterpriseenrollment."
+              ]
+            }
+          ],
+          "legacyKey": "autodiscovery"
+        }
+      ]
+    },
+    {
+      "id": "isp-rdns",
+      "version": "1.0.0",
+      "description": "IP-embedded hostname heuristic; a deployment may disable or constrain it.",
+      "rules": [
+        {
+          "id": "embedded-ipv4",
+          "label": "IP-embedded hostname",
+          "reason": "The name embeds four valid address octets.",
+          "effect": "exclude-from-owner-views",
+          "anyOf": [
+            {
+              "type": "ip-embedded-label"
+            }
+          ],
+          "legacyKey": "reverse-dns"
+        }
+      ]
+    },
+    {
+      "id": "cloud-saas",
+      "version": "1.0.0",
+      "description": "Public cloud and vendor-owned namespaces; no customer-specific domains.",
+      "rules": [
+        {
+          "id": "vendor-namespace",
+          "label": "Vendor namespace endpoint",
+          "reason": "The name belongs to a configured public vendor namespace.",
+          "effect": "tag-only",
+          "anyOf": [
+            {
+              "type": "hostname-suffix",
+              "values": [
+                "amazonaws.com",
+                "cloudfront.net",
+                "pphosted.com",
+                "mail.protection.outlook.com",
+                "nessus.org",
+                "wiz.io"
+              ]
+            }
+          ],
+          "legacyKey": "vendor-namespace",
+          "providerId": "vendor-namespace",
+          "serviceId": "vendor-hosted-endpoint"
+        }
+      ]
+    },
+    {
+      "id": "nameshield",
+      "version": "1.0.0",
+      "description": "Versioned public endpoint seed; validate against current provider data before enforcement.",
+      "rules": [
+        {
+          "id": "redirection",
+          "label": "NameShield Redirection Service",
+          "reason": "Endpoint target and live issuer support the provider tag.",
+          "effect": "tag-only",
+          "providerId": "nameshield",
+          "serviceId": "redirection",
+          "attributionRuleId": "builtin.nameshield.redirection",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
+          "services": [
+            "HTTPS",
+            "HTTPS-Alt",
+            "tls"
+          ],
+          "requireAddressCorroboration": true,
+          "matchRedirectTargets": true,
+          "allOf": [
+            {
+              "type": "live-issuer",
+              "values": [
+                "DigiCert"
+              ]
+            }
+          ],
+          "anyOf": [
+            {
+              "type": "cname-suffix",
+              "values": [
+                "cdn.perf1.com",
+                "perf1.com",
+                "perf1.fr"
+              ]
+            },
+            {
+              "type": "ip-cidr",
+              "values": [
+                "81.92.94.54/32",
+                "81.92.95.55/32",
+                "152.89.172.56/32",
+                "2a01:c8:101::55/128",
+                "2a01:c8:100::54/128",
+                "2a09:35c0:102::56/128"
+              ]
+            }
+          ],
+          "legacyKey": "nameshield-redirect"
+        }
+      ]
+    },
+    {
+      "id": "azure-front-door",
+      "version": "1.0.0",
+      "description": "Public endpoint seed and optional current AzureFrontDoor.Frontend service tags.",
+      "rules": [
+        {
+          "id": "front-door",
+          "label": "Azure Front Door",
+          "reason": "Endpoint target and live issuer support the provider tag.",
+          "effect": "tag-only",
+          "providerId": "microsoft",
+          "serviceId": "azure-front-door",
+          "attributionRuleId": "builtin.microsoft.azure-front-door",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
+          "services": [
+            "HTTPS",
+            "HTTPS-Alt",
+            "tls"
+          ],
+          "matchRedirectTargets": true,
+          "allOf": [
+            {
+              "type": "live-issuer",
+              "values": [
+                "DigiCert",
+                "Microsoft"
+              ]
+            }
+          ],
+          "anyOf": [
+            {
+              "type": "cname-suffix",
+              "values": [
+                "azurefd.net"
+              ]
+            },
+            {
+              "type": "ip-cidr",
+              "attributionEnabled": false,
+              "values": [
+                "150.171.109.0/24",
+                "150.171.110.0/24"
+              ]
+            },
+            {
+              "type": "azure-service-tag",
+              "values": [
+                "AzureFrontDoor.Frontend"
+              ]
+            }
+          ],
+          "legacyKey": "azure-front-door"
+        },
+        {
+          "id": "cdn",
+          "label": "Azure CDN",
+          "reason": "The CNAME and live issuer support the CDN provider tag.",
+          "effect": "tag-only",
+          "providerId": "microsoft",
+          "serviceId": "azure-cdn",
+          "attributionRuleId": "builtin.microsoft.azure-cdn",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
+          "services": [
+            "HTTPS",
+            "HTTPS-Alt",
+            "tls"
+          ],
+          "matchRedirectTargets": true,
+          "allOf": [
+            {
+              "type": "live-issuer",
+              "values": [
+                "DigiCert",
+                "Microsoft"
+              ]
+            }
+          ],
+          "anyOf": [
+            {
+              "type": "cname-suffix",
+              "values": [
+                "azureedge.net"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "traffic-manager",
+          "label": "Azure Traffic Manager",
+          "reason": "The CNAME and live issuer support the provider tag.",
+          "effect": "tag-only",
+          "providerId": "microsoft",
+          "serviceId": "azure-traffic-manager",
+          "attributionRuleId": "builtin.microsoft.azure-traffic-manager",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
+          "services": [
+            "HTTPS",
+            "HTTPS-Alt",
+            "tls"
+          ],
+          "matchRedirectTargets": true,
+          "allOf": [
+            {
+              "type": "live-issuer",
+              "values": [
+                "DigiCert",
+                "Microsoft"
+              ]
+            }
+          ],
+          "anyOf": [
+            {
+              "type": "cname-suffix",
+              "values": [
+                "trafficmanager.net"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "managed-services",
+      "version": "1.0.0",
+      "description": "Technical attribution candidates; a tag does not establish an organizational exception.",
+      "rules": [
+        {
+          "id": "microsoft-365-service",
+          "label": "Microsoft 365 Managed Service",
+          "reason": "Technical managed-service candidate.",
+          "effect": "tag-only",
+          "providerId": "microsoft",
+          "serviceId": "microsoft-365-service",
+          "attributionRuleId": "builtin.microsoft.microsoft-365-service",
+          "services": [
+            "HTTPS",
+            "HTTPS-Alt",
+            "SMTP-STARTTLS",
+            "SMTP-SUBMISSION-STARTTLS",
+            "IMAPS",
+            "POP3S"
+          ],
+          "anyOf": [
+            {
+              "type": "cname-suffix",
+              "values": [
+                "outlook.com",
+                "office.com",
+                "office365.com",
+                "online.lync.com",
+                "microsoftonline.com",
+                "microsoftonline-p.net"
+              ]
+            },
+            {
+              "type": "live-issuer",
+              "values": [
+                "Microsoft"
+              ]
+            }
+          ],
+          "classificationEnabled": false
+        },
+        {
+          "id": "cpanel-candidate",
+          "label": "cPanel/WHM Generated Service Hostname Candidate",
+          "reason": "A weak label clue, not a provider-management decision.",
+          "effect": "tag-only",
+          "providerId": "cpanel",
+          "serviceId": "generated-service-hostname",
+          "attributionRuleId": "builtin.cpanel.generated-service-hostname",
+          "minimumScore": 0.65,
+          "anyOf": [
+            {
+              "type": "label-prefix",
+              "values": [
+                "cpanel.",
+                "cpcalendars.",
+                "webdisk.",
+                "whm."
+              ]
+            }
+          ],
+          "classificationEnabled": false
+        }
+      ]
+    }
+  ]
+}

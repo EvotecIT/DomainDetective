@@ -60,6 +60,8 @@
         <EmbeddedResource Include="..\Data\email_b2c_providers.txt" LogicalName="DomainDetective.email_b2c_providers.txt" />
         <EmbeddedResource Include="..\Data\email_smtp_rules.json" LogicalName="DomainDetective.email_smtp_rules.json" />
         <EmbeddedResource Include="..\Data\takeover.json" />
+        <EmbeddedResource Include="..\Data\EndpointRulePacks\builtins.json" LogicalName="DomainDetective.EndpointRulePacks.json" />
+        <None Include="..\Data\EndpointRulePacks\*.json" Pack="true" PackagePath="contentFiles\any\any\EndpointRulePacks\" />
         <EmbeddedResource Include="..\Data\directory_paths.json" />
         <None Include="..\Data\hsts_preload.json.gz">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

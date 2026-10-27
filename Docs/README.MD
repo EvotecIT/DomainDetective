@@ -41,6 +41,12 @@ Assessment plan for AI crawler and agent readiness checks, including robots, llm
 ### 13. [SITEMAP.MD](SITEMAP.MD)
 Sitemap XML discovery, validation, URL probing, indexing signals, canonical mismatches, and report output.
 
+### 14. [Certificate rule packs](certificate-rule-packs.md)
+Versioned technical classification data, deployment overlays, traceable hits and reconciled source-observation counts.
+
+### 15. [Certificate probe profiles](certificate-probe-profiles.md)
+Direct TLS, SMTP STARTTLS and FTP TLS collection with independent endpoint/profile/vantage identities.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
 **[../TODO.md](../TODO.md)**

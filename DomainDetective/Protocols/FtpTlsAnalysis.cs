@@ -276,6 +276,9 @@ public sealed class FtpTlsAnalysis {
             SetFailure(result, exception);
             logger.WriteVerbose("FTP TLS probe timed out for {0}:{1}.", endpoint.HostName, endpoint.Port);
             return result;
+        } catch (OperationCanceledException) {
+            result.Dispose();
+            throw;
         } catch (Exception ex) when (ex is not OperationCanceledException) {
             SetFailure(result, ex);
             logger.WriteVerbose("FTP TLS probe failed for {0}:{1}: {2}", endpoint.HostName, endpoint.Port, ex.Message);

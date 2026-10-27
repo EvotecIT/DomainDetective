@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.domain-detective.com/endpoint-rule-packs/v1",
+  "title": "Endpoint rule packs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "useBuiltInPacks": {
+      "type": "boolean",
+      "default": true
+    },
+    "packs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pack"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "effect": {
+      "enum": [
+        "tag-only",
+        "exclude-from-owner-views",
+        "quarantine"
+      ]
+    },
+    "matcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "label-prefix",
+            "hostname-suffix",
+            "hostname-regex",
+            "ip-cidr",
+            "cname-suffix",
+            "cname-regex",
+            "live-issuer",
+            "ip-embedded-label",
+            "azure-service-tag"
+          ]
+        },
+        "attributionEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include this predicate in legacy attribution scoring as well as pack classification."
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "ip-embedded-label"
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "values"
+        ],
+        "properties": {
+          "values": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/version",
+          "default": "1.0.0"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/effect",
+          "default": "tag-only"
+        },
+        "allOf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/matcher"
+          }
+        },
+        "anyOf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/matcher"
+          }
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "serviceId": {
+          "type": "string"
+        },
+        "attributionRuleId": {
+          "type": "string"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "minimumScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "attributionServices": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requireAddressCorroboration": {
+          "type": "boolean"
+        },
+        "matchRedirectTargets": {
+          "type": "boolean"
+        },
+        "legacyKey": {
+          "type": "string"
+        },
+        "classificationEnabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "expected": {
+          "type": "boolean",
+          "default": false
+        },
+        "effect": {
+          "$ref": "#/$defs/effect"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rule"
+          }
+        }
+      }
+    }
+  }
+}
