@@ -68,6 +68,7 @@ public static class EndpointRulePackCatalog {
             Require(rule.AllOf != null && rule.AnyOf != null && rule.AllOf.Count + rule.AnyOf.Count > 0, "An enabled rule needs match criteria.");
             Require(rule.Ports != null && rule.Ports.All(p => p is > 0 and <= 65535), "Invalid rule port.");
             Require(rule.Services != null && rule.Services.All(s => !string.IsNullOrWhiteSpace(s)), "Invalid rule service.");
+            Require(rule.AttributionServices == null || rule.AttributionServices.All(s => !string.IsNullOrWhiteSpace(s)), "Invalid attribution service.");
             foreach (EndpointRuleMatcher matcher in rule.AllOf!.Concat(rule.AnyOf!)) EndpointRulePackEvaluator.ValidateMatcher(matcher);
         }
     }
@@ -88,7 +89,7 @@ public static class EndpointRulePackCatalog {
                     RequireCorroborationForIpAddressPrimary = source.RequireAddressCorroboration
                 };
                 rule.ApplicablePorts.AddRange(source.Ports);
-                rule.ApplicableServices.AddRange(source.Services);
+                rule.ApplicableServices.AddRange(source.AttributionServices ?? source.Services);
                 foreach (EndpointRuleMatcher matcher in source.AllOf.Concat(source.AnyOf).Where(m => m.AttributionEnabled)) {
                     switch (matcher.Type) {
                         case EndpointMatcherType.LabelPrefix: rule.HostnamePrefixes.AddRange(matcher.Values); break;

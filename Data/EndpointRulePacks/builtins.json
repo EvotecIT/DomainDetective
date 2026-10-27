@@ -161,6 +161,10 @@
           "providerId": "nameshield",
           "serviceId": "redirection",
           "attributionRuleId": "builtin.nameshield.redirection",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
           "services": [
             "HTTPS",
             "HTTPS-Alt",
@@ -214,6 +218,10 @@
           "providerId": "microsoft",
           "serviceId": "azure-front-door",
           "attributionRuleId": "builtin.microsoft.azure-front-door",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
           "services": [
             "HTTPS",
             "HTTPS-Alt",
@@ -261,6 +269,10 @@
           "providerId": "microsoft",
           "serviceId": "azure-cdn",
           "attributionRuleId": "builtin.microsoft.azure-cdn",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
           "services": [
             "HTTPS",
             "HTTPS-Alt",
@@ -293,6 +305,10 @@
           "providerId": "microsoft",
           "serviceId": "azure-traffic-manager",
           "attributionRuleId": "builtin.microsoft.azure-traffic-manager",
+          "attributionServices": [
+            "HTTPS",
+            "HTTPS-Alt"
+          ],
           "services": [
             "HTTPS",
             "HTTPS-Alt",

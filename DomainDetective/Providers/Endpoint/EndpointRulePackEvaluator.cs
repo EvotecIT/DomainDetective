@@ -114,8 +114,8 @@ public sealed class EndpointRulePackEvaluator {
                     bool matches = matcher.Type switch {
                         EndpointMatcherType.LabelPrefix => host.StartsWith(values[i], StringComparison.OrdinalIgnoreCase),
                         EndpointMatcherType.HostnameSuffix or EndpointMatcherType.CnameSuffix => Suffix(raw, values[i]),
-                        EndpointMatcherType.HostnameRegex => regexes[i].IsMatch(host),
-                        EndpointMatcherType.CnameRegex => regexes[i].IsMatch(raw.Trim().TrimEnd('.')),
+                        EndpointMatcherType.HostnameRegex => MatchesWithinBudget(regexes[i], host),
+                        EndpointMatcherType.CnameRegex => MatchesWithinBudget(regexes[i], raw.Trim().TrimEnd('.')),
                         EndpointMatcherType.LiveIssuer => raw.IndexOf(values[i], StringComparison.OrdinalIgnoreCase) >= 0,
                         EndpointMatcherType.IpCidr => IPAddress.TryParse(raw, out IPAddress? address) && ranges[i].Contains(address),
                         EndpointMatcherType.AzureServiceTag => IPAddress.TryParse(raw, out IPAddress? ip) && input.AzureServiceTags != null && input.AzureServiceTags.Entries.Any(e => string.Equals(e.Name, values[i], StringComparison.OrdinalIgnoreCase) && e.AddressPrefixes.Any(p => p.Contains(ip))),
@@ -126,6 +126,14 @@ public sealed class EndpointRulePackEvaluator {
             }
             return null;
         };
+    }
+
+    private static bool MatchesWithinBudget(Regex regex, string value) {
+        try {
+            return regex.IsMatch(value);
+        } catch (RegexMatchTimeoutException) {
+            return false;
+        }
     }
 
     private static bool Suffix(string value, string suffix) {

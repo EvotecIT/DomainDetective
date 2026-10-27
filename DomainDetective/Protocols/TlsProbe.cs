@@ -146,7 +146,7 @@ public static class TlsProbe
 
     private static Exception WrapWithFailureEvidence(Exception normalized, bool includeFailureEvidence, bool tcpConnected, Result result)
     {
-        if (!includeFailureEvidence || !tcpConnected || result.RemoteAddress == null)
+        if (normalized is OperationCanceledException || !includeFailureEvidence || !tcpConnected || result.RemoteAddress == null)
         {
             return normalized;
         }

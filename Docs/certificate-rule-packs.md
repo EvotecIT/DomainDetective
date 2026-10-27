@@ -24,6 +24,8 @@ The existing `EndpointAttributionDetector` scorer consumes the same provider dat
 
 A matcher's `attributionEnabled` value defaults to `true`. Set it to `false` when a predicate belongs only to pack classification. The Front Door point-in-time address seeds use this distinction: they remain available to classification with live issuer evidence, while legacy attribution continues to use the caller's current Azure service-tag catalog without scoring the same address twice.
 
+An optional rule `attributionServices` list preserves a different service scope for legacy scoring. When omitted, scoring uses `services`. The built-in HTTP provider rules keep `HTTPS` and `HTTPS-Alt` for legacy attribution while their classification predicates also accept raw `tls` observations. A timed-out hostname or CNAME regular expression counts as a non-match for that operand; later operands and other rules still run.
+
 Issuance/name assertions set `CertificateObservationIdentity.IsEndpointObservation` to false. They may match name rules, but never contribute live issuer, address or CNAME evidence, service-scoped rules, or endpoint counts. Summaries count all supplied source assertions once regardless of other live evidence for that host. A report leaves the issuance port empty and labels the observation scope.
 
 The `cname-regex` matcher applies a bounded, case-insensitive expression to each observed CNAME target. It preserves exact and wildcard target patterns when adapting an earlier configuration; it does not broaden an exact target into a suffix rule.

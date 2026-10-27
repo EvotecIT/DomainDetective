@@ -85,6 +85,8 @@ public sealed class EndpointPackRule {
     public List<int> Ports { get; set; } = new();
     /// <summary>Services this rule can classify; empty permits any service.</summary>
     public List<string> Services { get; set; } = new();
+    /// <summary>Optional service scope for legacy scoring when classification also supports other transports.</summary>
+    public List<string>? AttributionServices { get; set; }
     /// <summary>Legacy attribution score threshold.</summary>
     public double MinimumScore { get; set; } = .5;
     /// <summary>Require independent corroboration for a point-in-time address seed in the scorer.</summary>
@@ -123,14 +125,34 @@ public sealed class EndpointRulePackOptions {
 public sealed class EndpointMatcherTypeConverter : JsonConverter<EndpointMatcherType> {
     /// <inheritdoc />
     public override EndpointMatcherType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
-        string value = reader.GetString() ?? string.Empty;
-        if (string.IsNullOrEmpty(value) || !char.IsLetter(value[0]) || !Enum.TryParse(value.Replace("-", ""), true, out EndpointMatcherType result) || result == EndpointMatcherType.Undefined || !Enum.IsDefined(typeof(EndpointMatcherType), result))
-            throw new JsonException("Unsupported endpoint matcher type.");
-        return result;
+        if (reader.TokenType != JsonTokenType.String) throw new JsonException("An endpoint matcher must be a named token.");
+        return reader.GetString() switch {
+            "label-prefix" => EndpointMatcherType.LabelPrefix,
+            "hostname-suffix" => EndpointMatcherType.HostnameSuffix,
+            "hostname-regex" => EndpointMatcherType.HostnameRegex,
+            "ip-cidr" => EndpointMatcherType.IpCidr,
+            "cname-suffix" => EndpointMatcherType.CnameSuffix,
+            "cname-regex" => EndpointMatcherType.CnameRegex,
+            "live-issuer" => EndpointMatcherType.LiveIssuer,
+            "ip-embedded-label" => EndpointMatcherType.IpEmbeddedLabel,
+            "azure-service-tag" => EndpointMatcherType.AzureServiceTag,
+            _ => throw new JsonException("Unsupported endpoint matcher type.")
+        };
     }
     /// <inheritdoc />
     public override void Write(Utf8JsonWriter writer, EndpointMatcherType value, JsonSerializerOptions options)
-        => writer.WriteStringValue(System.Text.RegularExpressions.Regex.Replace(value.ToString(), "(?<!^)([A-Z])", "-$1").ToLowerInvariant());
+        => writer.WriteStringValue(value switch {
+            EndpointMatcherType.LabelPrefix => "label-prefix",
+            EndpointMatcherType.HostnameSuffix => "hostname-suffix",
+            EndpointMatcherType.HostnameRegex => "hostname-regex",
+            EndpointMatcherType.IpCidr => "ip-cidr",
+            EndpointMatcherType.CnameSuffix => "cname-suffix",
+            EndpointMatcherType.CnameRegex => "cname-regex",
+            EndpointMatcherType.LiveIssuer => "live-issuer",
+            EndpointMatcherType.IpEmbeddedLabel => "ip-embedded-label",
+            EndpointMatcherType.AzureServiceTag => "azure-service-tag",
+            _ => throw new JsonException("Unsupported endpoint matcher type.")
+        });
 }
 
 /// <summary>Serializes effect names using the portable contract.</summary>

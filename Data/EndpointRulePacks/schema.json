@@ -152,6 +152,10 @@
           "minimum": 0,
           "maximum": 1
         },
+        "attributionServices": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "minLength": 1 }
+        },
         "requireAddressCorroboration": {
           "type": "boolean"
         },

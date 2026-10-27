@@ -30,9 +30,11 @@ public sealed class TestCertificateProfileProbe {
         Assert.Throws<ArgumentException>(() => new CertificateProbeProfile { Id = "smtp", Port = 465, Transport = CertificateProbeTransport.SmtpStartTls }.Validate());
     }
 
-    [Fact]
+    [EphemeralTlsFact]
     public async Task ProfileDispatcherNegotiatesEachProtocolBeforeTlsAndReturnsTheProfile() {
-        foreach (CertificateProbeProfile profile in CertificateProbeProfile.StandardProfiles()) await ProbeFixture(profile);
+        foreach (var profile in CertificateProbeProfile.StandardProfiles()) {
+            await ProbeFixture(profile);
+        }
     }
 
     [Fact]
@@ -56,8 +58,13 @@ public sealed class TestCertificateProfileProbe {
         var san = new SubjectAlternativeNameBuilder();
         san.AddDnsName("localhost");
         request.CertificateExtensions.Add(san.Build());
-        using X509Certificate2 source = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
-        using X509Certificate2 certificate = CertificateLoaderCompat.LoadPkcs12(source.Export(X509ContentType.Pfx));
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection {
+            new Oid("1.3.6.1.5.5.7.3.1")
+        }, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -97,7 +104,7 @@ public sealed class TestCertificateProfileProbe {
             Assert.Equal(IPAddress.Loopback, result.RemoteAddress);
             Assert.NotNull(result.Certificate);
             Assert.Equal(certificate.Thumbprint, result.Certificate!.Thumbprint);
-            Assert.True(result.HostnameMatch);
+            Assert.True(result.HostnameMatch, $"{standard.Id}: localhost SAN; chain errors: {string.Join(", ", result.ChainErrors)}");
             Assert.False(result.ChainValid);
             Assert.Equal(SslProtocols.Tls12, result.Protocol);
         } finally {
