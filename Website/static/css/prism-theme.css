@@ -2,7 +2,7 @@
 
 :root {
     --prism-ink: #dfe6ef;
-    --prism-muted: #6f7a8b;
+    --prism-muted: #8490a3;
     --prism-keyword: #7ff0fb;
     --prism-string: #b8f08a;
     --prism-number: #ffb38a;
@@ -14,7 +14,7 @@
 
 :root[data-theme="light"] {
     --prism-ink: #1b2130;
-    --prism-muted: #6b7484;
+    --prism-muted: #616a7a;
     --prism-keyword: #0a7180;
     --prism-string: #3f7d0a;
     --prism-number: #b4450b;

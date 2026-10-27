@@ -73,7 +73,7 @@
   --dd-code-bar: #10141c;
   --dd-code-line: rgba(226, 236, 255, .08);
   --dd-code-ink: #dfe6ef;
-  --dd-code-muted: #6f7a8b;
+  --dd-code-muted: #8490a3;
 
   /* Shape and depth */
   --dd-r-sm: 8px;
@@ -194,14 +194,14 @@
   --dd-line-strong: rgba(14, 20, 30, .16);
   --dd-ink: #121722;
   --dd-ink-2: #4a5363;
-  --dd-ink-3: #697283;
+  --dd-ink-3: #60697a;
   --dd-ink-strong: #05080d;
-  --dd-accent: #0a8597;
+  --dd-accent: #0a7180;
   --dd-accent-strong: #066b7a;
   --dd-accent-ink: #ffffff;
   --dd-accent-soft: rgba(10, 133, 151, .1);
   --dd-glow: rgba(10, 133, 151, .14);
-  --dd-pass: #12925a;
+  --dd-pass: #0a7547;
   --dd-pass-soft: rgba(18, 146, 90, .1);
   --dd-warn: #a8670a;
   --dd-warn-soft: rgba(196, 128, 16, .12);
@@ -213,7 +213,7 @@
   --dd-code-bar: #eef0f3;
   --dd-code-line: rgba(14, 20, 30, .1);
   --dd-code-ink: #1b2130;
-  --dd-code-muted: #6b7484;
+  --dd-code-muted: #616a7a;
   --dd-shadow: 0 1px 0 rgba(14, 20, 30, .03), 0 18px 40px -26px rgba(14, 20, 30, .25);
   --dd-shadow-float: 0 40px 80px -36px rgba(14, 20, 30, .35);
   --pf-header-bg: rgba(244, 246, 248, .86);
@@ -1485,6 +1485,8 @@ html:not(.dd-js) .dd-tabs__list {
 .dd-footer__legal a:hover {
   color: var(--dd-ink-strong);
 }
+
+.dd-footer__legal a { text-decoration: underline; text-underline-offset: .18em; }
 
 .dd-footer__family {
   display: flex;
