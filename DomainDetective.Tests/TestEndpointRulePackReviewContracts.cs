@@ -42,12 +42,14 @@ public sealed class TestEndpointRulePackReviewContracts {
     [InlineData("0")]
     public void TransportTokensRejectCompositeAndUndocumentedNames(string token) {
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<CertificateProbeTransport>(JsonSerializer.Serialize(token)));
+        Assert.Throws<JsonException>(() => TypeDescriptor.GetConverter(typeof(CertificateProbeTransport)).ConvertFromInvariantString(token));
     }
 
     [Fact]
     public void DeclaredTransportTokensRoundTrip() {
         foreach (CertificateProbeTransport mode in Enum.GetValues(typeof(CertificateProbeTransport))) {
             Assert.Equal(mode, JsonSerializer.Deserialize<CertificateProbeTransport>(JsonSerializer.Serialize(mode)));
+            Assert.Equal(mode, TypeDescriptor.GetConverter(typeof(CertificateProbeTransport)).ConvertFromInvariantString(mode.ToString()));
         }
     }
 

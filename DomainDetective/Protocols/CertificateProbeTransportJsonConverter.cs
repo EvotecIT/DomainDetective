@@ -1,4 +1,6 @@
 using System;
+using System.ComponentModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -22,4 +24,13 @@ public sealed class CertificateProbeTransportJsonConverter : JsonConverter<Certi
         if (!Enum.IsDefined(typeof(CertificateProbeTransport), value)) throw new JsonException("Unknown profile transport.");
         writer.WriteStringValue(value.ToString());
     }
+}
+
+/// <summary>Uses the same exact transport names for configuration binding as for JSON profiles.</summary>
+public sealed class CertificateProbeTransportConfigurationConverter : EnumConverter {
+    /// <summary>Creates a protocol transport configuration converter.</summary>
+    public CertificateProbeTransportConfigurationConverter() : base(typeof(CertificateProbeTransport)) { }
+    /// <inheritdoc />
+    public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+        => value is string token ? JsonSerializer.Deserialize<CertificateProbeTransport>(JsonSerializer.Serialize(token)) : base.ConvertFrom(context, culture, value)!;
 }

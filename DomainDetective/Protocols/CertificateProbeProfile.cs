@@ -7,6 +7,7 @@ namespace DomainDetective;
 
 /// <summary>Protocol negotiation required before collecting a certificate.</summary>
 [System.Text.Json.Serialization.JsonConverter(typeof(CertificateProbeTransportJsonConverter))]
+[System.ComponentModel.TypeConverter(typeof(CertificateProbeTransportConfigurationConverter))]
 public enum CertificateProbeTransport {
     /// <summary>TLS starts immediately, including HTTPS and LDAPS.</summary>
     DirectTls,
