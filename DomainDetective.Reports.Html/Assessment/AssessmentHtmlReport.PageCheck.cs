@@ -50,9 +50,9 @@ public static partial class AssessmentHtmlReport {
             if (introduction != null || why != null || details.Length > 0 || actions.Length > 0 || narrative.References.Count > 0)
                 section.Deferred("Detailed guidance", detail => {
                     if (introduction != null) detail.Text(introduction);
-                    if (why != null) detail.Panel("Why it matters", panel => panel.Text(why));
+                    if (why != null) detail.Panel("Why it matters", panel => panel.Text(why)).Variant(BlockVariant.Plain);
                     foreach (var value in details) detail.Text(value!);
-                    foreach (var value in actions) detail.Panel("Suggested action", panel => panel.Text(value!));
+                    foreach (var value in actions) detail.Panel("Suggested action", panel => panel.Text(value!)).Variant(BlockVariant.Plain);
                     foreach (var reference in narrative.References) {
                         if (IsWebLink(reference)) detail.Link("Reference", reference); else Text(detail, reference);
                     }
