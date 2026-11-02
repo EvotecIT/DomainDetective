@@ -42,6 +42,9 @@ dmarc.Narrative = new NarrativeSections {
     Positives = { "Keep aggregate reports available during policy changes." },
     Remediations = { "Stage enforcement after validating legitimate sources." }
 };
+// Reused input prose must render once inside its check, including deferred guidance and evidence.
+dmarc.Narrative.Highlights.Add(dmarc.Summary!);
+dmarc.Evidence.Add(new CheckEvidence { Title = "Repeated summary", Text = dmarc.Summary });
 dmarc.Evidence.Add(new CheckEvidence { Title = "Policy answer", Kind = CheckEvidenceKind.Table,
     Columns = { "Record", "TTL", "Policy" }, Rows = { new() { "_dmarc.example.org", "300", "p=none" } } });
 using var classic = AssessmentHtmlReport.Build(report);
@@ -57,7 +60,7 @@ var printHtml = File.ReadAllText(Path.Combine(directory, "domain-print.html"));
 var parity = new[] {
     ("Expanded check name", dmarc.LongTitle!), ("Description", dmarc.Description!),
     ("Metric label", "Policy"), ("Metric note", "Rejection is not enabled"),
-    ("Finding code", "DMARC_MONITOR_ONLY"), ("Finding target", "_dmarc.example.org"),
+    ("Finding display label", "Monitor only"), ("Finding target", "_dmarc.example.org"),
     ("Finding", "The published policy requests monitoring only."), ("Positive", "Aggregate reporting is configured."),
     ("Highlight", "One DMARC policy record was collected."), ("Remediation", dmarc.Remediation!),
     ("Guidance impact", dmarc.Recommendations[0].Impact!), ("Guidance effort", dmarc.Recommendations[0].Effort!),
@@ -68,4 +71,22 @@ var parity = new[] {
     pagePrint = printHtml.Contains(WebUtility.HtmlEncode(item.Item2)) }).ToArray();
 File.WriteAllText(Path.Combine(directory, "domain-parity.json"), JsonSerializer.Serialize(parity, new JsonSerializerOptions { WriteIndented = true }));
 if (parity.Any(item => !item.pagePrint)) throw new InvalidOperationException("The page projection lost assessment content; see domain-parity.json.");
+var sectionStart = printHtml.IndexOf("id=\"domain-0-check-0\"", StringComparison.Ordinal);
+var sectionEnd = printHtml.IndexOf("</section>", sectionStart, StringComparison.Ordinal);
+// The first nested deferred section ends after the visible recommendation facts; browser proof also inspects all deferred content.
+var encodedSummary = WebUtility.HtmlEncode(dmarc.Summary);
+var detailHtml = printHtml.Substring(sectionStart, sectionEnd - sectionStart);
+if (detailHtml.Split(encodedSummary).Length != 2 || printHtml.Contains("DMARC_MONITOR_ONLY") ||
+    !detailHtml.Contains("<dt>Verify</dt>") || !detailHtml.Contains("<dt>Impact</dt>") || !detailHtml.Contains("<dt>Effort</dt>"))
+    throw new InvalidOperationException("Check details must use one summary, labelled guidance facts and display labels.");
+var strictLabels = new DisplayLabels { Strict = true }.Map("DMARC_MONITOR_ONLY", "Monitor only");
+_ = AssessmentHtmlReport.BuildPage(report, ThemeMode.Light, strictLabels).ToPrintHtml();
+dmarc.Findings.Add(new CheckFinding { Code = "MAIL_ROUTE_DELAYED", Message = "Delivery is delayed." });
+var fallbackHtml = AssessmentHtmlReport.BuildPage(report).ToPrintHtml();
+if (!fallbackHtml.Contains("Mail route delayed") || fallbackHtml.Contains("MAIL_ROUTE_DELAYED")) throw new InvalidOperationException("An unmapped finding must have a readable fallback.");
+try {
+    _ = AssessmentHtmlReport.BuildPage(report, ThemeMode.Light, strictLabels);
+    throw new Exception("Strict labels accepted an unmapped finding.");
+} catch (InvalidOperationException error) when (error.Message.Contains("MAIL_ROUTE_DELAYED")) { }
+dmarc.Findings.RemoveAt(dmarc.Findings.Count - 1);
 Console.WriteLine(directory);
