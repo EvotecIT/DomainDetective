@@ -355,8 +355,30 @@
 }
 
 .dx-providers__list h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .6rem;
   margin: 0 0 .7rem;
   font-size: 1rem;
+}
+
+.dx-providers__list > li:has(.dx-status--next) {
+  border-style: dashed;
+}
+
+.dx-providers__note {
+  margin: 1.5rem 0 0;
+  color: var(--dd-ink-2);
+  font-size: .9rem;
+}
+
+.dx-providers__note .dx-status {
+  margin-right: .35rem;
+}
+
+.dx-providers__note + .dx-providers__code {
+  margin-top: .75rem;
 }
 
 .dx-providers__list .dd-signal__tools span {
