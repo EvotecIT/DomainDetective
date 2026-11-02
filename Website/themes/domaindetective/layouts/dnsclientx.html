@@ -128,6 +128,7 @@
         <p class="dx-providers__note"><span class="dx-status dx-status--next">Next release</span> Keep a profile's filtering and TLS identity and choose how to reach it: UDP, TCP, DoT, DoH or DoQ, wherever the provider publishes it.</p>
         <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -DnsProvider ControlDAds `
   -ProviderTransport DnsOverQuic</code></pre>
+        <p class="dx-note"><a href="/docs/dnsclientx/transports/#choose-a-profiles-transport">See which transports each profile publishes &rarr;</a></p>
       </div>
       <ul class="dx-providers__list">
         {{~ for g in x.providers ~}}

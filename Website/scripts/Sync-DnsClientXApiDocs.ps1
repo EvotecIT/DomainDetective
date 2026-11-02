@@ -127,6 +127,13 @@ if ($resolvedManifestPath) {
     Write-Host 'DnsClientX module manifest not found in repo artefacts. Keeping checked-in fallback manifest snapshot.' -ForegroundColor Yellow
 }
 
+$sourceProvidersPath = Join-Path $resolvedRepoRoot 'Assets\Data\provider-profiles.json'
+if (Test-Path -LiteralPath $sourceProvidersPath -PathType Leaf) {
+    Copy-Item -LiteralPath $sourceProvidersPath -Destination (Join-Path $resolvedSiteRoot 'data\dnsclientx-providers.json') -Force
+} else {
+    Write-Host 'DnsClientX provider profiles not found in repo. Keeping checked-in provider matrix snapshot.' -ForegroundColor Yellow
+}
+
 $sourceExamplesPath = Join-Path $resolvedRepoRoot 'Module\Examples'
 if (Test-Path -LiteralPath $sourceExamplesPath -PathType Container) {
     Sync-DirectoryContents -Source $sourceExamplesPath -Destination $targetExamplesPath

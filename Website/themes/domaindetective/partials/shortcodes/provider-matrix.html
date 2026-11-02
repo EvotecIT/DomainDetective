@@ -1,0 +1,15 @@
+{{~ m = shortcode.data ~}}
+{{~ if m && m.profiles ~}}
+<p class="dx-matrix__legend" aria-hidden="true"><span><span class="dx-matrix__key dx-matrix__cell--default">●</span>default</span><span><span class="dx-matrix__key dx-matrix__cell--yes">✓</span>also available</span><span><span class="dx-matrix__key dx-matrix__cell--no">·</span>not published</span></p>
+<div class="dx-matrix" role="region" aria-labelledby="dx-matrix-caption" tabindex="0">
+<table>
+<caption id="dx-matrix-caption" class="dd-visually-hidden">Transports each built-in DnsClientX profile publishes</caption>
+<thead><tr><th scope="col">Profile</th>{{~ for t in m.transports ~}}<th scope="col">{{ t.label }}</th>{{~ end ~}}</tr></thead>
+<tbody>
+{{~ for p in m.profiles ~}}
+<tr><th scope="row"><code>{{ p.name }}</code></th>{{~ for t in m.transports ~}}{{~ if p.default == t.id ~}}<td class="dx-matrix__cell dx-matrix__cell--default"><span aria-hidden="true">●</span><span class="dd-visually-hidden">Default</span></td>{{~ else if array.contains p.transports t.id ~}}<td class="dx-matrix__cell dx-matrix__cell--yes"><span aria-hidden="true">✓</span><span class="dd-visually-hidden">Available</span></td>{{~ else ~}}<td class="dx-matrix__cell dx-matrix__cell--no"><span aria-hidden="true">·</span><span class="dd-visually-hidden">Not published</span></td>{{~ end ~}}{{~ end ~}}</tr>
+{{~ end ~}}
+</tbody>
+</table>
+</div>
+{{~ end ~}}

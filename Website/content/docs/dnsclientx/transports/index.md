@@ -53,6 +53,10 @@ Resolve-Dns -Name evotec.pl -DnsProvider Cloudflare -ProviderTransport DnsOverTL
 DnsClientX.Cli --endpoint ControlDAds --provider-transport DnsOverQuic evotec.pl
 ```
 
+The table is generated from DnsClientX's own provider definitions. It lists what each provider publishes, not a live reachability or filtering test, and DoH3 and DoQ still need a runtime with QUIC support.
+
+{{< provider-matrix data="dnsclientx_providers" >}}
+
 In .NET, `new Configuration(provider, requestFormat)` makes the same choice. Overrides for `System`, `SystemTcp` and `RootServer` keep the operating system's resolver policy or root iteration, so they need a single-provider query.
 
 ### Personal NextDNS profiles
