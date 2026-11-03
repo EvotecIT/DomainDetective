@@ -12,8 +12,8 @@
     { "name": "DNS over gRPC", "detail": "Wire-format DNS over gRPC for resolvers that publish it, with runtime capability checks.", "syntax": "DnsOverGrpc", "status": "modern" },
     { "name": "Multicast DNS", "detail": "mDNS queries and continuous DNS-SD browsing across IPv4 and IPv6 interfaces.", "syntax": "224.0.0.251:5353", "status": "core" },
     { "name": "DNS stamps", "detail": "sdns:// stamps for plain DNS, DoH, DoT and DoQ from one shared parser.", "syntax": "sdns://AgUAAAAAAAAA…", "status": "core" },
-    { "name": "Oblivious DoH", "detail": "RFC 9230 through a separate relay so no single party sees who asked what.", "syntax": "DnsClientX.Odoh", "status": "next" },
-    { "name": "DNSCrypt v2", "detail": "Authenticated, encrypted UDP/TCP and Anonymized DNSCrypt relays.", "syntax": "DnsClientX.DnsCrypt", "status": "next" }
+    { "name": "Oblivious DoH", "detail": "RFC 9230 through a separate relay so no single party sees who asked what. Configure the target and relay from DNS stamps or HTTPS endpoints.", "syntax": "New-DnsPrivacyTransport -Relay …", "status": "next" },
+    { "name": "DNSCrypt v2", "detail": "Authenticated, encrypted UDP/TCP and Anonymized DNSCrypt relays, configured from the resolver's own DNS stamp.", "syntax": "--privacy-resolver sdns://…", "status": "next" }
   ],
   "providers": [
     { "group": "Cloudflare", "items": ["Cloudflare", "CloudflareWireFormat", "CloudflareWireFormatPost", "CloudflareSecurity", "CloudflareFamily"] },
@@ -21,20 +21,24 @@
     { "group": "Quad9", "items": ["Quad9", "Quad9Http3", "Quad9Quic", "Quad9ECS", "Quad9Unsecure"] },
     { "group": "OpenDNS", "items": ["OpenDNS", "OpenDNSFamily"] },
     { "group": "AdGuard", "items": ["AdGuard", "AdGuardFamily", "AdGuardNonFiltering"] },
+    { "group": "NextDNS", "items": ["NextDNS"] },
+    { "group": "CleanBrowsing", "items": ["CleanBrowsingSecurity", "CleanBrowsingAdult", "CleanBrowsingFamily"], "status": "next" },
+    { "group": "Control D", "items": ["ControlD", "ControlDMalware", "ControlDAds", "ControlDFamily"], "status": "next" },
+    { "group": "Comodo and DNS.WATCH", "items": ["ComodoSecureDns", "DnsWatch"], "status": "next" },
     { "group": "Your network", "items": ["System", "SystemTcp", "RootServer"] }
   ],
   "capabilities": [
     {
       "title": "Typed records",
       "icon": "document",
-      "body": "Ask for raw strings or parsed objects: MX priorities, SOA timers, TXT fragments, TLSA, SVCB and more, with owner, class, remaining TTL and the original wire evidence kept.",
+      "body": "Ask for raw strings or parsed objects: MX priorities, SOA timers, TXT fragments, TLSA, SVCB and more, with owner, class, remaining TTL and the original wire evidence kept. Normalized Data sits beside the provider's original DataRaw, and the next release turns Extended DNS Errors from JSON providers into structured errors too.",
       "lang": "csharp",
       "code": "var response = await ClientX.QueryDns(\"evotec.pl\", DnsRecordType.MX,\n    DnsEndpoint.Cloudflare, typedRecords: true);"
     },
     {
       "title": "DNSSEC you can trust",
       "icon": "shield",
-      "body": "Local chain validation to the IANA root with Secure, Insecure, Bogus and Indeterminate results, authenticated denial, iterative root resolution, QNAME minimisation and RFC 5011 anchor rollover.",
+      "body": "Local chain validation to the IANA root with Secure, Insecure, Bogus and Indeterminate results, authenticated denial, iterative root resolution, QNAME minimisation and RFC 5011 anchor rollover. An optional verifier package adds Ed25519, Ed448 and portable ECDSA.",
       "lang": "csharp",
       "code": "var response = await client.Resolve(\"evotec.pl\", DnsRecordType.A,\n    requestDnsSec: true, validateDnsSec: true);\nConsole.WriteLine(response.DnsSecValidationStatus);"
     },
@@ -95,6 +99,7 @@
     { "name": "ConvertFrom-DnsStamp", "desc": "Decode an sdns:// stamp into an endpoint.", "status": "released" },
     { "name": "Clear-DnsMultiResolverCache", "desc": "Reset the FastestWins resolver choice.", "status": "released" },
     { "name": "Test-DnsHealth", "desc": "Health profiles for a set of resolvers.", "status": "next" },
+    { "name": "New-DnsPrivacyTransport", "desc": "Set up ODoH or DNSCrypt from DNS stamps and a trusted provider.", "status": "next" },
     { "name": "Get-DnsDesignatedResolver", "desc": "Discover a resolver's verified encrypted endpoints (DDR).", "status": "next" },
     { "name": "Receive-DnsService", "desc": "Stream continuous mDNS service changes.", "status": "next" },
     { "name": "Get-DnsQueryExplanation", "desc": "Explain how a query was routed and answered.", "status": "next" },

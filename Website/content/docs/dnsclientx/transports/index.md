@@ -38,6 +38,27 @@ var response = await quad9.Resolve("evotec.pl", DnsRecordType.MX);
 
 Profiles include filtering variants (`CloudflareFamily`, `OpenDNSFamily`, `AdGuardFamily`), wire-format and HTTP/3 variants, `Quad9ECS` for client-subnet answers and `RootServer` for iterative resolution from the root.
 
+The next release adds CleanBrowsing (`CleanBrowsingSecurity`, `CleanBrowsingAdult`, `CleanBrowsingFamily`), Control D (`ControlD`, `ControlDMalware`, `ControlDAds`, `ControlDFamily`), `ComodoSecureDns` and `DnsWatch`. Comodo and DNS.WATCH are plain UDP with the usual TCP fallback, so their queries are not encrypted.
+
+### Choose a profile's transport
+
+From the next release, a profile keeps its filtering policy and TLS identity while you choose how to reach it. Each provider publishes its own set of UDP, TCP, DoT, DoH and DoQ endpoints, and a combination the provider does not publish fails with an explicit error instead of silently switching.
+
+```powershell
+Resolve-Dns -Name evotec.pl -DnsProvider AdGuardFamily -ProviderTransport DnsOverQuic
+Resolve-Dns -Name evotec.pl -DnsProvider Cloudflare -ProviderTransport DnsOverTLS
+```
+
+```text
+DnsClientX.Cli --endpoint ControlDAds --provider-transport DnsOverQuic evotec.pl
+```
+
+In .NET, `new Configuration(provider, requestFormat)` makes the same choice. Overrides for `System`, `SystemTcp` and `RootServer` keep the operating system's resolver policy or root iteration, so they need a single-provider query.
+
+### Personal NextDNS profiles
+
+The `NextDNS` profile is the generic resolver. To use your own NextDNS configuration, pass its endpoint explicitly, for example `doh@https://dns.nextdns.io/abc123` or `dot@abc123.dns.nextdns.io:853`. The same works for a personal Control D URL.
+
 ## Explicit endpoint syntax
 
 The library, the PowerShell module and the CLI share one endpoint parser:
@@ -58,7 +79,7 @@ Resolve-Dns -Name evotec.pl -Type A `
   -ResolverStrategy FirstSuccess
 ```
 
-Stamps map into the same endpoint model for plain DNS, DoH, DoT and DoQ. DNSCrypt and ODoH stamps are detected and rejected with a clear unsupported-protocol error rather than being reinterpreted.
+Stamps map into the same endpoint model for plain DNS, DoH, DoT and DoQ. DNSCrypt and ODoH stamps are never reinterpreted as another transport: the core endpoint parser rejects them, and the privacy providers below consume them instead.
 
 ## Check what the runtime supports
 
@@ -72,6 +93,20 @@ In .NET, `DnsTransportCapabilities` answers the same question before you send a 
 ## Privacy transports
 
 Oblivious DoH (RFC 9230) and DNSCrypt v2 are separate packages, `DnsClientX.Odoh` and `DnsClientX.DnsCrypt`. They are merged in source and arrive with the next public release. Neither falls back to direct DoH or plaintext DNS when an exchange fails.
+
+You configure them from role-specific DNS stamps or HTTPS endpoints: a DNSCrypt resolver stamp with an optional anonymizing relay, or an ODoH target with its required relay. You choose the provider DLL explicitly, so the core package and CLI gain no cryptography dependencies.
+
+```powershell
+$transport = New-DnsPrivacyTransport -ProviderPath ./DnsClientX.Odoh.dll `
+  -Resolver https://target.example/dns-query -Relay https://relay.example/dns-query
+try {
+    Resolve-Dns example.com -Configuration $transport.CreateConfiguration() -FullResponse
+} finally {
+    $transport.Dispose()
+}
+```
+
+The CLI takes the same inputs through `--privacy-provider`, `--privacy-resolver` and `--privacy-relay`, and `--stamp-info` decodes a privacy stamp without loading any provider.
 
 ## Next steps
 

@@ -121,15 +121,18 @@
       <div>
         <p class="dd-eyebrow">Built-in resolvers</p>
         <h2 id="dx-providers-title">Pick a provider,<br /><span class="dd-trace">or bring your own.</span></h2>
-        <p>Named profiles cover the major public resolvers and their filtering, wire-format and QUIC variants. Anything else is one endpoint string away, including DNS stamps, private resolvers and the root servers.</p>
+        <p>Named profiles cover the major public resolvers and their filtering, wire-format and QUIC variants. Anything else is one endpoint string away, including DNS stamps, private resolvers, a personal NextDNS profile and the root servers.</p>
         <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -Type A `
   -ResolverEndpoint 'udp@1.1.1.1:53','doh@https://dns.google/dns-query' `
   -ResolverStrategy FirstSuccess</code></pre>
+        <p class="dx-providers__note"><span class="dx-status dx-status--next">Next release</span> Keep a profile's filtering and TLS identity and choose how to reach it: UDP, TCP, DoT, DoH or DoQ, wherever the provider publishes it.</p>
+        <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -DnsProvider ControlDAds `
+  -ProviderTransport DnsOverQuic</code></pre>
       </div>
       <ul class="dx-providers__list">
         {{~ for g in x.providers ~}}
         <li>
-          <h3>{{ g.group }}</h3>
+          <h3>{{ g.group }}{{ if g.status == "next" }} <span class="dx-status dx-status--next">Next release</span>{{ end }}</h3>
           <ul class="dd-signal__tools">
             {{~ for item in g.items ~}}<li><span>{{ item }}</span></li>{{~ end ~}}
           </ul>
