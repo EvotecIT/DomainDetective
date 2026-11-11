@@ -34,7 +34,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter AllowInternational;
 
-    /// <para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</para>
+    /// <para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. Combine with AllowInternational for non-ASCII local parts. This does not detect every homograph.</para>
     [Parameter(Mandatory = false)]
     public SwitchParameter AsciiIsLatin;
 

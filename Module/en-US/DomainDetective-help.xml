@@ -8705,7 +8705,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowDnsLookups</maml:name>
           <maml:description>
-            <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+            <maml:para>Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -8875,26 +8875,26 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaximumMimeComplianceIssues</maml:name>
           <maml:description>
-            <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+            <maml:para>Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
             <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
+          <dev:defaultValue>100</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaximumMimeHeaderBytes</maml:name>
           <maml:description>
-            <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+            <maml:para>Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
             <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
+          <dev:defaultValue>16384</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaxParallelism</maml:name>
@@ -9005,7 +9005,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowDnsLookups</maml:name>
           <maml:description>
-            <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+            <maml:para>Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -9163,26 +9163,26 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaximumMimeComplianceIssues</maml:name>
           <maml:description>
-            <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+            <maml:para>Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
             <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
+          <dev:defaultValue>100</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaximumMimeHeaderBytes</maml:name>
           <maml:description>
-            <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+            <maml:para>Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
           <dev:type>
             <maml:name>Int32</maml:name>
             <maml:uri />
           </dev:type>
-          <dev:defaultValue>None</dev:defaultValue>
+          <dev:defaultValue>16384</dev:defaultValue>
         </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaxParallelism</maml:name>
@@ -9305,7 +9305,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AllowDnsLookups</maml:name>
         <maml:description>
-          <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+          <maml:para>Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>
@@ -9475,26 +9475,26 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MaximumMimeComplianceIssues</maml:name>
         <maml:description>
-          <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+          <maml:para>Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
         <dev:type>
           <maml:name>Int32</maml:name>
           <maml:uri />
         </dev:type>
-        <dev:defaultValue>None</dev:defaultValue>
+        <dev:defaultValue>100</dev:defaultValue>
       </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MaximumMimeHeaderBytes</maml:name>
         <maml:description>
-          <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+          <maml:para>Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
         <dev:type>
           <maml:name>Int32</maml:name>
           <maml:uri />
         </dev:type>
-        <dev:defaultValue>None</dev:defaultValue>
+        <dev:defaultValue>16384</dev:defaultValue>
       </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MaxParallelism</maml:name>
@@ -64499,7 +64499,7 @@ Notes:&#xD;
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AsciiIsLatin</maml:name>
           <maml:description>
-            <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</maml:para>
+            <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. Combine with AllowInternational for non-ASCII local parts. This does not detect every homograph.</maml:para>
           </maml:description>
           <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
           <dev:type>
@@ -65165,7 +65165,7 @@ Notes:&#xD;
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AsciiIsLatin</maml:name>
         <maml:description>
-          <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</maml:para>
+          <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. Combine with AllowInternational for non-ASCII local parts. This does not detect every homograph.</maml:para>
         </maml:description>
         <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
         <dev:type>

@@ -1,7 +1,6 @@
 using DnsClientX;
 using DomainDetective.Helpers;
 using DomainDetective.Providers.Email;
-using MimeKit;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -246,24 +245,9 @@ public sealed partial class EmailAddressValidationAnalysis {
             return result;
         }
 
-        if (!MailboxAddress.TryParse(trimmed, out var mailbox)) {
-            result.IsValidSyntax = false;
-            result.Error = "Invalid email syntax.";
-            return result;
-        }
-        if (mailbox == null) {
-            result.IsValidSyntax = false;
-            result.Error = "Invalid email syntax.";
-            return result;
-        }
-
-        if (!string.IsNullOrWhiteSpace(mailbox.Name)) {
-            result.IsValidSyntax = false;
-            result.Error = "Display names are not allowed in this validator.";
-            return result;
-        }
-
-        var address = mailbox.Address;
+        // Validate the submitted addr-spec; the header parser can repair comments
+        // and whitespace that SMTP envelope syntax does not permit.
+        var address = trimmed;
         var at = address.LastIndexOf('@');
         if (at < 1 || at == address.Length - 1) {
             result.IsValidSyntax = false;
@@ -273,6 +257,11 @@ public sealed partial class EmailAddressValidationAnalysis {
 
         var local = address.Substring(0, at);
         var domain = address.Substring(at + 1);
+        if (domain != domain.Trim().Trim('.')) {
+            result.IsValidSyntax = false;
+            result.Error = "Invalid SMTP domain syntax.";
+            return result;
+        }
 
         if (!options.AllowInternational && ContainsNonAscii(local)) {
             result.IsValidSyntax = false;
@@ -298,14 +287,19 @@ public sealed partial class EmailAddressValidationAnalysis {
 
         var normalized = $"{local}@{asciiDomain}";
         string? smtpError = null;
-        if (ContainsNonAscii(local) || options.AsciiIsLatin) {
+        var internationalLocal = ContainsNonAscii(local);
+        if (!internationalLocal && !MimeKit.Utils.SmtpAddressValidator.TryValidate(normalized,
+            MimeKit.Utils.SmtpAddressValidationOptions.EnforceLengthLimits, out var asciiError)) {
+            smtpError = asciiError.ToString();
+        } else if (internationalLocal || options.AsciiIsLatin) {
             var validationOptions = MimeKit.Utils.SmtpUtf8AddressValidationOptions.DecodeIdn |
                 MimeKit.Utils.SmtpUtf8AddressValidationOptions.EnforceLengthLimits;
             if (options.AsciiIsLatin) validationOptions |= MimeKit.Utils.SmtpUtf8AddressValidationOptions.AsciiIsLatin;
-            if (!MimeKit.Utils.SmtpUtf8AddressValidator.TryValidate(normalized, validationOptions, out var error)) smtpError = error.ToString();
-        } else if (!MimeKit.Utils.SmtpAddressValidator.TryValidate(normalized,
-            MimeKit.Utils.SmtpAddressValidationOptions.EnforceLengthLimits, out var error)) {
-            smtpError = error.ToString();
+            // The ASCII local part already satisfies SMTP syntax, including
+            // valid xn-- atoms. Apply the optional Unicode policy to the domain
+            // independently; AsciiIsLatin counts scripts per local part/label.
+            var unicodePolicyAddress = internationalLocal ? normalized : "local@" + asciiDomain;
+            if (!MimeKit.Utils.SmtpUtf8AddressValidator.TryValidate(unicodePolicyAddress, validationOptions, out var error)) smtpError = error.ToString();
         }
         if (smtpError != null) {
             result.IsValidSyntax = false;

@@ -90,7 +90,7 @@ internal sealed class ValidateEmailSettings : CommandSettings {
 
     /// <summary>Treat ASCII letters as Latin during SMTPUTF8 mixed-script checks.</summary>
     [CommandOption("--ascii-is-latin")]
-    [Description("Treat ASCII as Latin in mixed-script checks; not comprehensive homograph detection.")]
+    [Description("Treat ASCII as Latin in mixed-script checks; use --allow-international for non-ASCII local parts. Not comprehensive homograph detection.")]
     public bool AsciiIsLatin { get; set; }
 
     /// <summary>Allow top-level-only domains.</summary>

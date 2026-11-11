@@ -23,7 +23,7 @@ public partial class MessageHeaderAnalysis {
             var severity = issue.Severity == MimeComplianceSeverity.Critical ? AssessmentSeverity.Error :
                 issue.Severity == MimeComplianceSeverity.Major ? AssessmentSeverity.Warning : AssessmentSeverity.Info;
             analysis.AddFinding("MIME." + issue.Violation, severity,
-                $"MIME {issue.Violation} at line {issue.LineNumber}, column {issue.ColumnNumber} ({issue.PositionKind}).");
+                $"MIME {issue.Violation} at line {issue.LineNumber}, column {issue.ColumnNumber}, stream offset {issue.StreamOffset} ({issue.PositionKind}).");
         }
     }
 

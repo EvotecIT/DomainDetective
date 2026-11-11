@@ -34,17 +34,19 @@ namespace DomainDetective.PowerShell {
         [Parameter]
         public SwitchParameter VerifySignatures { get; set; }
 
-        /// <para>Maximum raw bytes in one MIME header during original-message analysis.</para>
+        /// <para>Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.</para>
         [Parameter]
+        [PSDefaultValue(Value = 16384)]
         [ValidateRange(1, int.MaxValue)]
         public int MaximumMimeHeaderBytes { get; set; } = 16 * 1024;
 
-        /// <para>Maximum retained MIME compliance issues across the entire message.</para>
+        /// <para>Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.</para>
         [Parameter]
+        [PSDefaultValue(Value = 100)]
         [ValidateRange(1, int.MaxValue)]
         public int MaximumMimeComplianceIssues { get; set; } = 100;
 
-        /// <para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</para>
+        /// <para>Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.</para>
         [Parameter]
         public SwitchParameter AllowDnsLookups { get; set; }
 

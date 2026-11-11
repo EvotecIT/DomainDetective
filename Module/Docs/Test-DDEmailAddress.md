@@ -120,7 +120,7 @@ Accept wildcard characters: False
 ```
 
 ### -AsciiIsLatin
-Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.
+Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. Combine with AllowInternational for non-ASCII local parts. This does not detect every homograph.
 
 ```yaml
 Type: SwitchParameter

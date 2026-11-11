@@ -33,7 +33,7 @@ Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1
 ## PARAMETERS
 
 ### -AllowDnsLookups
-Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.
+Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.
 
 ```yaml
 Type: SwitchParameter
@@ -193,7 +193,7 @@ Accept wildcard characters: False
 ```
 
 ### -MaximumMimeComplianceIssues
-Maximum retained MIME compliance issues across the entire message.
+Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.
 
 ```yaml
 Type: Int32
@@ -203,13 +203,13 @@ Possible values:
 
 Required: False
 Position: named
-Default value: None
+Default value: 100
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
 ### -MaximumMimeHeaderBytes
-Maximum raw bytes in one MIME header during original-message analysis.
+Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.
 
 ```yaml
 Type: Int32
@@ -219,7 +219,7 @@ Possible values:
 
 Required: False
 Position: named
-Default value: None
+Default value: 16384
 Accept pipeline input: False
 Accept wildcard characters: False
 ```

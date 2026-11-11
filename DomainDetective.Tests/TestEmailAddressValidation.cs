@@ -11,6 +11,9 @@ public sealed class TestEmailAddressValidation {
     [InlineData("paypal@xn--aypal-uye.com", true, false)]
     [InlineData("иван@example.com", true, true)]
     [InlineData("user@example.com", true, true)]
+    [InlineData("xn--user@example.com", true, true)]
+    [InlineData("xn--user@bücher.de", true, true)]
+    [InlineData("xn--user@рaypal.com", true, false)]
     public async Task SmtpUtf8MixedScriptPolicyIsExplicit(string address, bool asciiIsLatin, bool valid) {
         var options = CreateOptions();
         options.AllowInternational = true;
@@ -27,6 +30,27 @@ public sealed class TestEmailAddressValidation {
         await analysis.AnalyzeAsync(new string('a', 65) + "@example.com", CreateOptions(), new InternalLogger(false));
         Assert.False(analysis.Syntax.IsValidSyntax);
         Assert.Contains("LocalPartTooLong", analysis.Syntax.Error);
+    }
+
+    [Theory]
+    [InlineData("user@(comment)example.com")]
+    [InlineData("user(comment)@example.com")]
+    [InlineData("user@ example.com")]
+    [InlineData("user@example.com.")]
+    public async Task InvalidOriginalAddrSpecCannotReachDnsOrSmtp(string address) {
+        var options = CreateOptions();
+        options.CheckMx = true;
+        options.CheckSmtp = true;
+        var analysis = new EmailAddressValidationAnalysis {
+            DnsConfiguration = new DnsConfiguration {
+                QueryDnsOverride = (_, _) => throw new InvalidOperationException("Invalid syntax must not reach DNS or SMTP.")
+            }
+        };
+        await analysis.AnalyzeAsync(address, options, new InternalLogger(false));
+        Assert.False(analysis.Syntax.IsValidSyntax);
+        Assert.Equal(EmailReachabilityStatus.Invalid, analysis.IsReachable);
+        Assert.False(analysis.Mx.Checked);
+        Assert.False(analysis.Smtp.Checked);
     }
 
     private static EmailAddressValidationOptions CreateOptions() => new EmailAddressValidationOptions {

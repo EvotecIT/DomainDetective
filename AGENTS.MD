@@ -185,4 +185,4 @@ public class MyType2 {}
 
 ## Shared test policy
 
-Before adding or changing tests, read the [test-audit authoring gate](<$CODEX_HOME/skills/test-audit/SKILL.md#authoring-gate>) and [contract-focused proof guidance](<$CODEX_HOME/skills/contract-focused-tests/SKILL.md>). Resolve these machine-local procedures against CODEX_HOME on other hosts.
+Before adding or changing tests, open `skills/test-audit/SKILL.md` (the authoring gate) and `skills/contract-focused-tests/SKILL.md` under the local `CODEX_HOME`, or `~/.codex` when it is unset. These are maintainer-local procedures; contributors without them should request the current test-authoring instructions from a maintainer.
