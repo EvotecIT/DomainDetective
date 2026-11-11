@@ -8700,8 +8700,20 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
       <maml:para>Part of the DomainDetective project.</maml:para>
     </maml:description>
     <command:syntax>
-      <command:syntaxItem parameterSetName="__AllParameterSets">
+      <command:syntaxItem parameterSetName="Text">
         <maml:name>Get-DDEmailMessageHeaderInfo</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>AllowDnsLookups</maml:name>
+          <maml:description>
+            <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
         <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="ArtifactsPath">
           <maml:name>ArtifactsDirectory</maml:name>
           <maml:description>
@@ -8714,7 +8726,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisableParallel</maml:name>
           <maml:description>
             <maml:para>Disable parallel execution for cmdlet-level work.</maml:para>
@@ -8726,7 +8738,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DnsEndpoints</maml:name>
           <maml:description>
             <maml:para>Optional list of resolver endpoints to use (multi-resolver).</maml:para>
@@ -8764,6 +8776,15 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
             <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>DnsEndpoint[]</maml:name>
@@ -8771,7 +8792,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DnsParallelism</maml:name>
           <maml:description>
             <maml:para>DNS resolver concurrency hint for health checks.</maml:para>
@@ -8783,7 +8804,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ExpectedMx</maml:name>
           <maml:description>
             <maml:para>Expected public MX hosts that should appear in the received path.</maml:para>
@@ -8827,7 +8848,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ExportPath</maml:name>
           <maml:description>
             <maml:para>Output file path for export.</maml:para>
@@ -8839,7 +8860,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="none">
           <maml:name>HeaderText</maml:name>
           <maml:description>
             <maml:para>Raw header text.</maml:para>
@@ -8851,7 +8872,31 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MaximumMimeComplianceIssues</maml:name>
+          <maml:description>
+            <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MaximumMimeHeaderBytes</maml:name>
+          <maml:description>
+            <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaxParallelism</maml:name>
           <maml:description>
             <maml:para>Maximum concurrent health checks within a single domain run.</maml:para>
@@ -8863,7 +8908,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MultiResolverMaxParallelism</maml:name>
           <maml:description>
             <maml:para>Maximum number of resolvers to query in parallel (null = all).</maml:para>
@@ -8875,7 +8920,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MultiResolverStrategy</maml:name>
           <maml:description>
             <maml:para>Strategy used when multiple DNS endpoints are provided.</maml:para>
@@ -8906,7 +8951,19 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>PublicKeyRecords</maml:name>
+          <maml:description>
+            <maml:para>Offline public-key TXT records indexed by selector._domainkey.domain. Requires VerifySignatures.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Hashtable</command:parameterValue>
+          <dev:type>
+            <maml:name>Hashtable</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ThrottleLimit</maml:name>
           <maml:description>
             <maml:para>Maximum number of concurrent items for cmdlet-level parallel work.</maml:para>
@@ -8918,9 +8975,345 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>TrustedAuthServId</maml:name>
+          <maml:description>
+            <maml:para>Exact authentication service identifiers trusted by the configured, sanitizing receiving gateway.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>VerifySignatures</maml:name>
+          <maml:description>
+            <maml:para>Verify DKIM and ARC with the body. Text input is encoded as UTF-8; use Path to preserve original file bytes.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+      </command:syntaxItem>
+      <command:syntaxItem parameterSetName="File">
+        <maml:name>Get-DDEmailMessageHeaderInfo</maml:name>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>AllowDnsLookups</maml:name>
+          <maml:description>
+            <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="ArtifactsPath">
+          <maml:name>ArtifactsDirectory</maml:name>
+          <maml:description>
+            <maml:para>Destination directory for artifacts when emitted.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>DisableParallel</maml:name>
+          <maml:description>
+            <maml:para>Disable parallel execution for cmdlet-level work.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>DnsEndpoints</maml:name>
+          <maml:description>
+            <maml:para>Optional list of resolver endpoints to use (multi-resolver).</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">DnsEndpoint[]</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">System</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SystemTcp</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Cloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Google</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormat</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleWireFormatPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleJsonPost</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9ECS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Unsecure</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">OpenDNSFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Http3</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Quad9Quic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">GoogleQuic</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuard</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">AdGuardNonFiltering</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">NextDNS</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptCloudflare</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptQuad9</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsCryptRelay</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>DnsEndpoint[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>DnsParallelism</maml:name>
+          <maml:description>
+            <maml:para>DNS resolver concurrency hint for health checks.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>ExpectedMx</maml:name>
+          <maml:description>
+            <maml:para>Expected public MX hosts that should appear in the received path.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="Artifacts">
+          <maml:name>ExportArtifacts</maml:name>
+          <maml:description>
+            <maml:para>Emit artifacts (scan.json, metrics.json, progress.jsonl).</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="Report">
+          <maml:name>ExportFormat</maml:name>
+          <maml:description>
+            <maml:para>Desired export format(s). Accepts one or many values.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">ReportFormat[]</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">Html</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Json</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Word</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Excel</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Markdown</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">MarkdownHtml</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>ReportFormat[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>ExportPath</maml:name>
+          <maml:description>
+            <maml:para>Output file path for export.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String</command:parameterValue>
+          <dev:type>
+            <maml:name>String</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MaximumMimeComplianceIssues</maml:name>
+          <maml:description>
+            <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MaximumMimeHeaderBytes</maml:name>
+          <maml:description>
+            <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MaxParallelism</maml:name>
+          <maml:description>
+            <maml:para>Maximum concurrent health checks within a single domain run.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MultiResolverMaxParallelism</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of resolvers to query in parallel (null = all).</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>MultiResolverStrategy</maml:name>
+          <maml:description>
+            <maml:para>Strategy used when multiple DNS endpoints are provided.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">MultiResolverStrategy</command:parameterValue>
+          <command:parameterValueGroup>
+            <command:parameterValue required="false" variableLength="false">FirstSuccess</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">FastestWins</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">SequentialFallback</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">RoundRobin</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">Random</command:parameterValue>
+          </command:parameterValueGroup>
+          <dev:type>
+            <maml:name>MultiResolverStrategy</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="OpenReport">
+          <maml:name>OpenInBrowser</maml:name>
+          <maml:description>
+            <maml:para>Open export in browser when applicable.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="FullName">
+          <maml:name>Path</maml:name>
+          <maml:description>
+            <maml:para>Local header or original MIME files. FileInfo objects supply FullName through the pipeline.</maml:para>
+          </maml:description>
+          <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>PublicKeyRecords</maml:name>
+          <maml:description>
+            <maml:para>Offline public-key TXT records indexed by selector._domainkey.domain. Requires VerifySignatures.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Hashtable</command:parameterValue>
+          <dev:type>
+            <maml:name>Hashtable</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>ThrottleLimit</maml:name>
+          <maml:description>
+            <maml:para>Maximum number of concurrent items for cmdlet-level parallel work.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+          <dev:type>
+            <maml:name>Int32</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>TrustedAuthServId</maml:name>
+          <maml:description>
+            <maml:para>Exact authentication service identifiers trusted by the configured, sanitizing receiving gateway.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+          <dev:type>
+            <maml:name>String[]</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>VerifySignatures</maml:name>
+          <maml:description>
+            <maml:para>Verify DKIM and ARC with the body. Text input is encoded as UTF-8; use Path to preserve original file bytes.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
       </command:syntaxItem>
     </command:syntax>
     <command:parameters>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>AllowDnsLookups</maml:name>
+        <maml:description>
+          <maml:para>Allow public-key TXT lookups. Message content is never uploaded. DNS is disabled by default.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
       <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="ArtifactsPath">
         <maml:name>ArtifactsDirectory</maml:name>
         <maml:description>
@@ -8933,7 +9326,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisableParallel</maml:name>
         <maml:description>
           <maml:para>Disable parallel execution for cmdlet-level work.</maml:para>
@@ -8945,7 +9338,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DnsEndpoints</maml:name>
         <maml:description>
           <maml:para>Optional list of resolver endpoints to use (multi-resolver).</maml:para>
@@ -8983,6 +9376,15 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
           <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>DnsEndpoint[]</maml:name>
@@ -8990,7 +9392,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DnsParallelism</maml:name>
         <maml:description>
           <maml:para>DNS resolver concurrency hint for health checks.</maml:para>
@@ -9002,7 +9404,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ExpectedMx</maml:name>
         <maml:description>
           <maml:para>Expected public MX hosts that should appear in the received path.</maml:para>
@@ -9046,7 +9448,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ExportPath</maml:name>
         <maml:description>
           <maml:para>Output file path for export.</maml:para>
@@ -9058,7 +9460,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="True (ByValue)" position="0" aliases="none">
         <maml:name>HeaderText</maml:name>
         <maml:description>
           <maml:para>Raw header text.</maml:para>
@@ -9070,7 +9472,31 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>MaximumMimeComplianceIssues</maml:name>
+        <maml:description>
+          <maml:para>Maximum retained MIME compliance issues across the entire message.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>MaximumMimeHeaderBytes</maml:name>
+        <maml:description>
+          <maml:para>Maximum raw bytes in one MIME header during original-message analysis.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
+        <dev:type>
+          <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MaxParallelism</maml:name>
         <maml:description>
           <maml:para>Maximum concurrent health checks within a single domain run.</maml:para>
@@ -9082,7 +9508,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MultiResolverMaxParallelism</maml:name>
         <maml:description>
           <maml:para>Maximum number of resolvers to query in parallel (null = all).</maml:para>
@@ -9094,7 +9520,7 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MultiResolverStrategy</maml:name>
         <maml:description>
           <maml:para>Strategy used when multiple DNS endpoints are provided.</maml:para>
@@ -9125,7 +9551,31 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="true" variableLength="true" globbing="false" pipelineInput="True (ByPropertyName)" position="0" aliases="FullName">
+        <maml:name>Path</maml:name>
+        <maml:description>
+          <maml:para>Local header or original MIME files. FileInfo objects supply FullName through the pipeline.</maml:para>
+        </maml:description>
+        <command:parameterValue required="true" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>PublicKeyRecords</maml:name>
+        <maml:description>
+          <maml:para>Offline public-key TXT records indexed by selector._domainkey.domain. Requires VerifySignatures.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">Hashtable</command:parameterValue>
+        <dev:type>
+          <maml:name>Hashtable</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ThrottleLimit</maml:name>
         <maml:description>
           <maml:para>Maximum number of concurrent items for cmdlet-level parallel work.</maml:para>
@@ -9133,6 +9583,30 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
         <command:parameterValue required="false" variableLength="false">Int32</command:parameterValue>
         <dev:type>
           <maml:name>Int32</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>TrustedAuthServId</maml:name>
+        <maml:description>
+          <maml:para>Exact authentication service identifiers trusted by the configured, sanitizing receiving gateway.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">String[]</command:parameterValue>
+        <dev:type>
+          <maml:name>String[]</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>VerifySignatures</maml:name>
+        <maml:description>
+          <maml:para>Verify DKIM and ARC with the body. Text input is encoded as UTF-8; use Path to preserve original file bytes.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
           <maml:uri />
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
@@ -63962,7 +64436,7 @@ Notes:&#xD;
     <command:syntax>
       <command:syntaxItem parameterSetName="__AllParameterSets">
         <maml:name>Test-DDEmailAddress</maml:name>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowB2CCatchAll</maml:name>
           <maml:description>
             <maml:para>Allow catch-all probing for B2C providers.</maml:para>
@@ -63974,7 +64448,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowInternational</maml:name>
           <maml:description>
             <maml:para>Allow international characters in local parts.</maml:para>
@@ -63986,7 +64460,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowInvalidSmtpCertificates</maml:name>
           <maml:description>
             <maml:para>Allow invalid SMTP TLS certificates when STARTTLS is used.</maml:para>
@@ -63998,7 +64472,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>AllowTopLevelDomains</maml:name>
           <maml:description>
             <maml:para>Allow top-level-only domains.</maml:para>
@@ -64022,7 +64496,19 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+          <maml:name>AsciiIsLatin</maml:name>
+          <maml:description>
+            <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</maml:para>
+          </maml:description>
+          <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+          <dev:type>
+            <maml:name>SwitchParameter</maml:name>
+            <maml:uri />
+          </dev:type>
+          <dev:defaultValue>None</dev:defaultValue>
+        </command:parameter>
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>B2CProvidersPath</maml:name>
           <maml:description>
             <maml:para>Override B2C provider list path.</maml:para>
@@ -64034,7 +64520,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>CheckCatchAll</maml:name>
           <maml:description>
             <maml:para>Enable catch-all detection when SMTP probing.</maml:para>
@@ -64046,7 +64532,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>CheckGravatar</maml:name>
           <maml:description>
             <maml:para>Check for an existing Gravatar image.</maml:para>
@@ -64058,7 +64544,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>CheckHaveIBeenPwned</maml:name>
           <maml:description>
             <maml:para>Check Have I Been Pwned breach status.</maml:para>
@@ -64070,7 +64556,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisableBuiltinSmtpRules</maml:name>
           <maml:description>
             <maml:para>Disable built-in SMTP rules.</maml:para>
@@ -64082,7 +64568,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisableFreeProvidersAsB2C</maml:name>
           <maml:description>
             <maml:para>Do not treat free providers as B2C.</maml:para>
@@ -64094,7 +64580,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisableParallel</maml:name>
           <maml:description>
             <maml:para>Disable parallel execution for cmdlet-level work.</maml:para>
@@ -64106,7 +64592,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisableProviderRules</maml:name>
           <maml:description>
             <maml:para>Disable provider-specific SMTP rules.</maml:para>
@@ -64118,7 +64604,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DisposableDomainsPath</maml:name>
           <maml:description>
             <maml:para>Override disposable domain list path.</maml:para>
@@ -64130,7 +64616,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="none">
           <maml:name>DnsEndpoint</maml:name>
           <maml:description>
             <maml:para>DNS server used for queries.</maml:para>
@@ -64168,6 +64654,15 @@ Notes:&#xD;
             <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>DnsEndpoint</maml:name>
@@ -64175,7 +64670,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DnsEndpoints</maml:name>
           <maml:description>
             <maml:para>Optional list of resolver endpoints to use (multi-resolver).</maml:para>
@@ -64213,6 +64708,15 @@ Notes:&#xD;
             <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
             <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+            <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
           </command:parameterValueGroup>
           <dev:type>
             <maml:name>DnsEndpoint[]</maml:name>
@@ -64220,7 +64724,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>DnsParallelism</maml:name>
           <maml:description>
             <maml:para>DNS resolver concurrency hint for health checks.</maml:para>
@@ -64232,7 +64736,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+        <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="none">
           <maml:name>EmailAddress</maml:name>
           <maml:description>
             <maml:para>Email address to validate.</maml:para>
@@ -64244,7 +64748,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>EnableProviderWebChecks</maml:name>
           <maml:description>
             <maml:para>Enable provider web checks when available.</maml:para>
@@ -64288,7 +64792,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ExportPath</maml:name>
           <maml:description>
             <maml:para>Output file path for export.</maml:para>
@@ -64300,7 +64804,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>FreeProvidersPath</maml:name>
           <maml:description>
             <maml:para>Override free provider list path.</maml:para>
@@ -64312,7 +64816,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>HaveIBeenPwnedApiKey</maml:name>
           <maml:description>
             <maml:para>Have I Been Pwned API key.</maml:para>
@@ -64324,7 +64828,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MaxParallelism</maml:name>
           <maml:description>
             <maml:para>Maximum concurrent health checks within a single domain run.</maml:para>
@@ -64336,7 +64840,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MultiResolverMaxParallelism</maml:name>
           <maml:description>
             <maml:para>Maximum number of resolvers to query in parallel (null = all).</maml:para>
@@ -64348,7 +64852,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>MultiResolverStrategy</maml:name>
           <maml:description>
             <maml:para>Strategy used when multiple DNS endpoints are provided.</maml:para>
@@ -64379,7 +64883,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ProtonAuthCookie</maml:name>
           <maml:description>
             <maml:para>Proton AUTH cookie value (AUTH-&lt;uid&gt; or raw value).</maml:para>
@@ -64391,7 +64895,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ProtonUid</maml:name>
           <maml:description>
             <maml:para>Proton uid value used for x-pm-uid.</maml:para>
@@ -64403,7 +64907,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>RoleAccountsPath</maml:name>
           <maml:description>
             <maml:para>Override role account list path.</maml:para>
@@ -64415,7 +64919,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpFromAddress</maml:name>
           <maml:description>
             <maml:para>MAIL FROM address to use.</maml:para>
@@ -64427,7 +64931,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpHelloName</maml:name>
           <maml:description>
             <maml:para>EHLO/HELO name to present.</maml:para>
@@ -64439,7 +64943,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpMaxHosts</maml:name>
           <maml:description>
             <maml:para>Max SMTP hosts to try.</maml:para>
@@ -64451,7 +64955,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpPort</maml:name>
           <maml:description>
             <maml:para>SMTP port for probing.</maml:para>
@@ -64463,7 +64967,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProbe</maml:name>
           <maml:description>
             <maml:para>Enable SMTP probe for deliverability.</maml:para>
@@ -64475,7 +64979,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProbeDelaySeconds</maml:name>
           <maml:description>
             <maml:para>Delay between SMTP probe attempts in seconds.</maml:para>
@@ -64487,7 +64991,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProxyHost</maml:name>
           <maml:description>
             <maml:para>SMTP proxy host (SOCKS5).</maml:para>
@@ -64499,7 +65003,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProxyPassword</maml:name>
           <maml:description>
             <maml:para>SMTP proxy password (SOCKS5).</maml:para>
@@ -64511,7 +65015,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProxyPort</maml:name>
           <maml:description>
             <maml:para>SMTP proxy port (SOCKS5).</maml:para>
@@ -64523,7 +65027,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpProxyUsername</maml:name>
           <maml:description>
             <maml:para>SMTP proxy username (SOCKS5).</maml:para>
@@ -64535,7 +65039,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpRetryCount</maml:name>
           <maml:description>
             <maml:para>SMTP retries on temporary failures.</maml:para>
@@ -64547,7 +65051,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpRetryDelaySeconds</maml:name>
           <maml:description>
             <maml:para>SMTP retry delay in seconds.</maml:para>
@@ -64559,7 +65063,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpRulesPath</maml:name>
           <maml:description>
             <maml:para>SMTP rules JSON path.</maml:para>
@@ -64571,7 +65075,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>SmtpTimeoutSeconds</maml:name>
           <maml:description>
             <maml:para>SMTP timeout in seconds.</maml:para>
@@ -64583,7 +65087,7 @@ Notes:&#xD;
           </dev:type>
           <dev:defaultValue>None</dev:defaultValue>
         </command:parameter>
-        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+        <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>ThrottleLimit</maml:name>
           <maml:description>
             <maml:para>Maximum number of concurrent items for cmdlet-level parallel work.</maml:para>
@@ -64598,7 +65102,7 @@ Notes:&#xD;
       </command:syntaxItem>
     </command:syntax>
     <command:parameters>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AllowB2CCatchAll</maml:name>
         <maml:description>
           <maml:para>Allow catch-all probing for B2C providers.</maml:para>
@@ -64610,7 +65114,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AllowInternational</maml:name>
         <maml:description>
           <maml:para>Allow international characters in local parts.</maml:para>
@@ -64622,7 +65126,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AllowInvalidSmtpCertificates</maml:name>
         <maml:description>
           <maml:para>Allow invalid SMTP TLS certificates when STARTTLS is used.</maml:para>
@@ -64634,7 +65138,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>AllowTopLevelDomains</maml:name>
         <maml:description>
           <maml:para>Allow top-level-only domains.</maml:para>
@@ -64658,7 +65162,19 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
+        <maml:name>AsciiIsLatin</maml:name>
+        <maml:description>
+          <maml:para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</maml:para>
+        </maml:description>
+        <command:parameterValue required="false" variableLength="false">SwitchParameter</command:parameterValue>
+        <dev:type>
+          <maml:name>SwitchParameter</maml:name>
+          <maml:uri />
+        </dev:type>
+        <dev:defaultValue>None</dev:defaultValue>
+      </command:parameter>
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>B2CProvidersPath</maml:name>
         <maml:description>
           <maml:para>Override B2C provider list path.</maml:para>
@@ -64670,7 +65186,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>CheckCatchAll</maml:name>
         <maml:description>
           <maml:para>Enable catch-all detection when SMTP probing.</maml:para>
@@ -64682,7 +65198,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>CheckGravatar</maml:name>
         <maml:description>
           <maml:para>Check for an existing Gravatar image.</maml:para>
@@ -64694,7 +65210,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>CheckHaveIBeenPwned</maml:name>
         <maml:description>
           <maml:para>Check Have I Been Pwned breach status.</maml:para>
@@ -64706,7 +65222,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisableBuiltinSmtpRules</maml:name>
         <maml:description>
           <maml:para>Disable built-in SMTP rules.</maml:para>
@@ -64718,7 +65234,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisableFreeProvidersAsB2C</maml:name>
         <maml:description>
           <maml:para>Do not treat free providers as B2C.</maml:para>
@@ -64730,7 +65246,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisableParallel</maml:name>
         <maml:description>
           <maml:para>Disable parallel execution for cmdlet-level work.</maml:para>
@@ -64742,7 +65258,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisableProviderRules</maml:name>
         <maml:description>
           <maml:para>Disable provider-specific SMTP rules.</maml:para>
@@ -64754,7 +65270,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DisposableDomainsPath</maml:name>
         <maml:description>
           <maml:para>Override disposable domain list path.</maml:para>
@@ -64766,7 +65282,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="1" aliases="none">
         <maml:name>DnsEndpoint</maml:name>
         <maml:description>
           <maml:para>DNS server used for queries.</maml:para>
@@ -64804,6 +65320,15 @@ Notes:&#xD;
           <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>DnsEndpoint</maml:name>
@@ -64811,7 +65336,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DnsEndpoints</maml:name>
         <maml:description>
           <maml:para>Optional list of resolver endpoints to use (multi-resolver).</maml:para>
@@ -64849,6 +65374,15 @@ Notes:&#xD;
           <command:parameterValue required="false" variableLength="false">RootServer</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">CloudflareOdoh</command:parameterValue>
           <command:parameterValue required="false" variableLength="false">Custom</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingSecurity</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingAdult</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">CleanBrowsingFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlD</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDMalware</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDAds</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ControlDFamily</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">ComodoSecureDns</command:parameterValue>
+          <command:parameterValue required="false" variableLength="false">DnsWatch</command:parameterValue>
         </command:parameterValueGroup>
         <dev:type>
           <maml:name>DnsEndpoint[]</maml:name>
@@ -64856,7 +65390,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>DnsParallelism</maml:name>
         <maml:description>
           <maml:para>DNS resolver concurrency hint for health checks.</maml:para>
@@ -64868,7 +65402,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="None">
+      <command:parameter required="true" variableLength="false" globbing="false" pipelineInput="False" position="0" aliases="none">
         <maml:name>EmailAddress</maml:name>
         <maml:description>
           <maml:para>Email address to validate.</maml:para>
@@ -64880,7 +65414,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>EnableProviderWebChecks</maml:name>
         <maml:description>
           <maml:para>Enable provider web checks when available.</maml:para>
@@ -64924,7 +65458,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ExportPath</maml:name>
         <maml:description>
           <maml:para>Output file path for export.</maml:para>
@@ -64936,7 +65470,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>FreeProvidersPath</maml:name>
         <maml:description>
           <maml:para>Override free provider list path.</maml:para>
@@ -64948,7 +65482,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>HaveIBeenPwnedApiKey</maml:name>
         <maml:description>
           <maml:para>Have I Been Pwned API key.</maml:para>
@@ -64960,7 +65494,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MaxParallelism</maml:name>
         <maml:description>
           <maml:para>Maximum concurrent health checks within a single domain run.</maml:para>
@@ -64972,7 +65506,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MultiResolverMaxParallelism</maml:name>
         <maml:description>
           <maml:para>Maximum number of resolvers to query in parallel (null = all).</maml:para>
@@ -64984,7 +65518,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>MultiResolverStrategy</maml:name>
         <maml:description>
           <maml:para>Strategy used when multiple DNS endpoints are provided.</maml:para>
@@ -65015,7 +65549,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ProtonAuthCookie</maml:name>
         <maml:description>
           <maml:para>Proton AUTH cookie value (AUTH-&lt;uid&gt; or raw value).</maml:para>
@@ -65027,7 +65561,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ProtonUid</maml:name>
         <maml:description>
           <maml:para>Proton uid value used for x-pm-uid.</maml:para>
@@ -65039,7 +65573,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>RoleAccountsPath</maml:name>
         <maml:description>
           <maml:para>Override role account list path.</maml:para>
@@ -65051,7 +65585,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpFromAddress</maml:name>
         <maml:description>
           <maml:para>MAIL FROM address to use.</maml:para>
@@ -65063,7 +65597,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpHelloName</maml:name>
         <maml:description>
           <maml:para>EHLO/HELO name to present.</maml:para>
@@ -65075,7 +65609,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpMaxHosts</maml:name>
         <maml:description>
           <maml:para>Max SMTP hosts to try.</maml:para>
@@ -65087,7 +65621,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpPort</maml:name>
         <maml:description>
           <maml:para>SMTP port for probing.</maml:para>
@@ -65099,7 +65633,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProbe</maml:name>
         <maml:description>
           <maml:para>Enable SMTP probe for deliverability.</maml:para>
@@ -65111,7 +65645,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProbeDelaySeconds</maml:name>
         <maml:description>
           <maml:para>Delay between SMTP probe attempts in seconds.</maml:para>
@@ -65123,7 +65657,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProxyHost</maml:name>
         <maml:description>
           <maml:para>SMTP proxy host (SOCKS5).</maml:para>
@@ -65135,7 +65669,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProxyPassword</maml:name>
         <maml:description>
           <maml:para>SMTP proxy password (SOCKS5).</maml:para>
@@ -65147,7 +65681,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProxyPort</maml:name>
         <maml:description>
           <maml:para>SMTP proxy port (SOCKS5).</maml:para>
@@ -65159,7 +65693,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpProxyUsername</maml:name>
         <maml:description>
           <maml:para>SMTP proxy username (SOCKS5).</maml:para>
@@ -65171,7 +65705,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpRetryCount</maml:name>
         <maml:description>
           <maml:para>SMTP retries on temporary failures.</maml:para>
@@ -65183,7 +65717,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpRetryDelaySeconds</maml:name>
         <maml:description>
           <maml:para>SMTP retry delay in seconds.</maml:para>
@@ -65195,7 +65729,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpRulesPath</maml:name>
         <maml:description>
           <maml:para>SMTP rules JSON path.</maml:para>
@@ -65207,7 +65741,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>SmtpTimeoutSeconds</maml:name>
         <maml:description>
           <maml:para>SMTP timeout in seconds.</maml:para>
@@ -65219,7 +65753,7 @@ Notes:&#xD;
         </dev:type>
         <dev:defaultValue>None</dev:defaultValue>
       </command:parameter>
-      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="None">
+      <command:parameter required="false" variableLength="false" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>ThrottleLimit</maml:name>
         <maml:description>
           <maml:para>Maximum number of concurrent items for cmdlet-level parallel work.</maml:para>

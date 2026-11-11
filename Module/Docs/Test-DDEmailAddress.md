@@ -11,7 +11,7 @@ Validates an email address using syntax, DNS, and optional SMTP checks.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Test-DDEmailAddress [-EmailAddress] <string> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-AllowInternational] [-AllowTopLevelDomains] [-SmtpProbe] [-CheckCatchAll] [-SmtpPort <int>] [-SmtpTimeoutSeconds <int>] [-AllowInvalidSmtpCertificates] [-SmtpProbeDelaySeconds <int>] [-SmtpMaxHosts <int>] [-SmtpRetryCount <int>] [-SmtpRetryDelaySeconds <int>] [-SmtpHelloName <string>] [-SmtpFromAddress <string>] [-SmtpProxyHost <string>] [-SmtpProxyPort <int>] [-SmtpProxyUsername <string>] [-SmtpProxyPassword <string>] [-CheckGravatar] [-DisableProviderRules] [-CheckHaveIBeenPwned] [-HaveIBeenPwnedApiKey <string>] [-DisposableDomainsPath <string>] [-RoleAccountsPath <string>] [-FreeProvidersPath <string>] [-B2CProvidersPath <string>] [-DisableFreeProvidersAsB2C] [-SmtpRulesPath <string>] [-DisableBuiltinSmtpRules] [-AllowB2CCatchAll] [-EnableProviderWebChecks] [-ProtonAuthCookie <string>] [-ProtonUid <string>] [<CommonParameters>]
+Test-DDEmailAddress [-EmailAddress] <string> [[-DnsEndpoint] <DnsEndpoint>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [-AllowInternational] [-AsciiIsLatin] [-AllowTopLevelDomains] [-SmtpProbe] [-CheckCatchAll] [-SmtpPort <int>] [-SmtpTimeoutSeconds <int>] [-AllowInvalidSmtpCertificates] [-SmtpProbeDelaySeconds <int>] [-SmtpMaxHosts <int>] [-SmtpRetryCount <int>] [-SmtpRetryDelaySeconds <int>] [-SmtpHelloName <string>] [-SmtpFromAddress <string>] [-SmtpProxyHost <string>] [-SmtpProxyPort <int>] [-SmtpProxyUsername <string>] [-SmtpProxyPassword <string>] [-CheckGravatar] [-DisableProviderRules] [-CheckHaveIBeenPwned] [-HaveIBeenPwnedApiKey <string>] [-DisposableDomainsPath <string>] [-RoleAccountsPath <string>] [-FreeProvidersPath <string>] [-B2CProvidersPath <string>] [-DisableFreeProvidersAsB2C] [-SmtpRulesPath <string>] [-DisableBuiltinSmtpRules] [-AllowB2CCatchAll] [-EnableProviderWebChecks] [-ProtonAuthCookie <string>] [-ProtonUid <string>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -110,6 +110,22 @@ Destination directory for artifacts when emitted.
 Type: String
 Parameter Sets: __AllParameterSets
 Aliases: ArtifactsPath
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -AsciiIsLatin
+Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: __AllParameterSets
+Aliases: None
 Possible values:
 
 Required: False
@@ -270,7 +286,7 @@ DNS server used for queries.
 Type: DnsEndpoint
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: 1
@@ -286,7 +302,7 @@ Optional list of resolver endpoints to use (multi-resolver).
 Type: DnsEndpoint[]
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: named

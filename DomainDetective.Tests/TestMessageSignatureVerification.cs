@@ -250,6 +250,11 @@ public partial class TestMessageSignatureVerification {
         var analysis = await health.AnalyzeMessageAsync(output.ToArray(), sample.Options);
         var arc = Assert.Single(analysis.SignatureVerification, value => value.Method == "ARC");
         Assert.True(arc.Status == (tamper ? MessageSignatureStatus.Invalid : MessageSignatureStatus.Valid), arc.Explanation);
+        Assert.Equal(2, arc.ArcHeaders.Count);
+        Assert.Contains(arc.ArcHeaders, header => header.Header == "ARC-Seal" && header.Instance == "1" && header.ProtocolStatus == "Pass");
+        Assert.Contains(arc.ArcHeaders, header => header.Header == "ARC-Message-Signature" && header.Instance == "1" && header.ProtocolStatus == (tamper ? "Fail" : "Pass"));
+        Assert.Equal(tamper ? "MessageSignatureValidationFailed" : "None", arc.ArcChainErrors);
+        if (tamper) { Assert.False(string.IsNullOrEmpty(arc.FailureReason)); }
         Assert.True(analysis.ArcStructure.ValidChain, string.Join(" ", analysis.ArcStructure.StructureIssues));
         Assert.False(arc.UsedDns);
     }
