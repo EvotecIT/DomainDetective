@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Collections.Concurrent;
 
 namespace DomainDetective.Tests;
 
@@ -82,23 +83,29 @@ public class TestDnsblPerformance {
         var analysis = health.DNSBLAnalysis;
         analysis.ClearDNSBL();
         analysis.AddDNSBL("provider.example.test");
-        analysis.AnalysisTimeout = TimeSpan.FromMilliseconds(500);
+        var discoveredFamilies = new ConcurrentDictionary<DnsRecordType, bool>();
+        int prematureDomainProviders = 0;
         health.DnsConfiguration.QueryDnsResponseOverride = async (owner, type, ct) => {
             if (owner == "example.com") {
                 if (type == DnsRecordType.MX) {
-                    await Task.Delay(10, ct);
+                    await Task.Yield();
                     return emptyMx ? new DnsResponse { Status = DnsResponseCode.NoError } : Answer(type, "10 mail.example.com");
                 }
+                discoveredFamilies.TryAdd(type, true);
                 return Answer(type, type == DnsRecordType.A ? "192.0.2.1" : "2001:db8::1");
             }
             if (owner == "mail.example.com") {
-                await Task.Delay(30, ct);
+                await Task.Yield();
                 return new DnsResponse { Status = DnsResponseCode.NoError };
             }
-            if (owner.StartsWith("example.com.", StringComparison.Ordinal)) { await Task.Delay(Timeout.Infinite, ct); }
+            if (owner.StartsWith("example.com.", StringComparison.Ordinal) &&
+                (!discoveredFamilies.ContainsKey(DnsRecordType.A) || !discoveredFamilies.ContainsKey(DnsRecordType.AAAA))) {
+                Interlocked.Increment(ref prematureDomainProviders);
+            }
             return new DnsResponse { Status = DnsResponseCode.NXDomain };
         };
         await health.Verify("example.com", new[] { HealthCheckType.DNSBL }, executionOptions: new HealthCheckExecutionOptions { DnsParallelism = 1 });
+        Assert.Equal(0, prematureDomainProviders);
         Assert.True(analysis.DiscoverySucceeded);
         Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.ApexA);
         Assert.Contains(analysis.AllResults, record => record.IpSource == DnsblIpSource.ApexAAAA);
