@@ -30,6 +30,9 @@ public partial class TestMessageSignatureVerification {
         var verified = await health.AnalyzeMessageAsync(sample.Bytes, sample.Options);
         var signature = Assert.Single(verified.SignatureVerification);
         Assert.True(expected == signature.Status, signature.Explanation);
+        if (signature.ProtocolStatus == "Pass" && expected == MessageSignatureStatus.Invalid) {
+            Assert.False(string.IsNullOrEmpty(signature.PolicyFailure));
+        }
         var dns = new DkimAnalysis();
         await dns.AnalyzeDkimRecords("s1", new[] { new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = record } }, new InternalLogger());
         Assert.Equal(expected == MessageSignatureStatus.Valid, dns.Assessments.Any(a => a.Code == DkimCodes.SelectorsValid));

@@ -297,6 +297,21 @@ public sealed partial class EmailAddressValidationAnalysis {
         }
 
         var normalized = $"{local}@{asciiDomain}";
+        string? smtpError = null;
+        if (ContainsNonAscii(local) || options.AsciiIsLatin) {
+            var validationOptions = MimeKit.Utils.SmtpUtf8AddressValidationOptions.DecodeIdn |
+                MimeKit.Utils.SmtpUtf8AddressValidationOptions.EnforceLengthLimits;
+            if (options.AsciiIsLatin) validationOptions |= MimeKit.Utils.SmtpUtf8AddressValidationOptions.AsciiIsLatin;
+            if (!MimeKit.Utils.SmtpUtf8AddressValidator.TryValidate(normalized, validationOptions, out var error)) smtpError = error.ToString();
+        } else if (!MimeKit.Utils.SmtpAddressValidator.TryValidate(normalized,
+            MimeKit.Utils.SmtpAddressValidationOptions.EnforceLengthLimits, out var error)) {
+            smtpError = error.ToString();
+        }
+        if (smtpError != null) {
+            result.IsValidSyntax = false;
+            result.Error = "SMTP address validation failed: " + smtpError + ".";
+            return result;
+        }
         result.IsValidSyntax = true;
         result.Address = address;
         result.Username = local;

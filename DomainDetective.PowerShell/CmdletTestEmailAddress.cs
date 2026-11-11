@@ -34,6 +34,10 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter AllowInternational;
 
+    /// <para>Treat ASCII letters as Latin during SMTPUTF8 mixed-script validation. This does not detect every homograph.</para>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter AsciiIsLatin;
+
     /// <summary>Allow top-level-only domains.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter AllowTopLevelDomains;
@@ -177,6 +181,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     protected override async Task ProcessRecordAsync() {
         var options = new EmailAddressValidationOptions {
             AllowInternational = AllowInternational.IsPresent,
+            AsciiIsLatin = AsciiIsLatin.IsPresent,
             AllowTopLevelDomains = AllowTopLevelDomains.IsPresent,
             CheckSmtp = SmtpProbe.IsPresent,
             CheckCatchAll = CheckCatchAll.IsPresent,

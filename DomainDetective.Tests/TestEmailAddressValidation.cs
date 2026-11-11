@@ -5,6 +5,30 @@ using Xunit;
 namespace DomainDetective.Tests;
 
 public sealed class TestEmailAddressValidation {
+    [Theory]
+    [InlineData("paypal@рaypal.com", false, true)]
+    [InlineData("paypal@рaypal.com", true, false)]
+    [InlineData("paypal@xn--aypal-uye.com", true, false)]
+    [InlineData("иван@example.com", true, true)]
+    [InlineData("user@example.com", true, true)]
+    public async Task SmtpUtf8MixedScriptPolicyIsExplicit(string address, bool asciiIsLatin, bool valid) {
+        var options = CreateOptions();
+        options.AllowInternational = true;
+        options.AsciiIsLatin = asciiIsLatin;
+        var analysis = new EmailAddressValidationAnalysis();
+        await analysis.AnalyzeAsync(address, options, new InternalLogger(false));
+        Assert.Equal(valid, analysis.Syntax.IsValidSyntax);
+        if (!valid) Assert.Contains("MixedScripts", analysis.Syntax.Error);
+    }
+
+    [Fact]
+    public async Task SmtpSyntaxEnforcesLocalPartOctetLimit() {
+        var analysis = new EmailAddressValidationAnalysis();
+        await analysis.AnalyzeAsync(new string('a', 65) + "@example.com", CreateOptions(), new InternalLogger(false));
+        Assert.False(analysis.Syntax.IsValidSyntax);
+        Assert.Contains("LocalPartTooLong", analysis.Syntax.Error);
+    }
+
     private static EmailAddressValidationOptions CreateOptions() => new EmailAddressValidationOptions {
         CheckMx = false,
         CheckSmtp = false,

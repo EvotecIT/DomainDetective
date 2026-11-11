@@ -55,32 +55,31 @@ public partial class TestMessageSignatureVerification {
         var analysis = await health.AnalyzeMessageAsync(sample.Bytes, sample.Options);
         var signature = Assert.Single(analysis.SignatureVerification);
         Assert.True(signature.Status == MessageSignatureStatus.Valid, signature.Explanation);
+        Assert.Equal("Pass", signature.ProtocolStatus);
+        Assert.Null(signature.PolicyFailure);
         Assert.False(signature.UsedDns);
         Assert.Null(analysis.DkimResult);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task UnsupportedQueryMethodCannotUseOfflineOrCachedDnsKey(bool cachedDns) {
-        var sample = SignedMessage();
-        var key = sample.Options.PublicKeyRecords.Single().Value;
+    [InlineData(DnsClientX.DnsResponseCode.NoError, DnsQueryStatus.Success)]
+    [InlineData(DnsClientX.DnsResponseCode.NXDomain, DnsQueryStatus.NonExistentDomain)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, DnsQueryStatus.TemporaryFailure)]
+    public async Task DnsResolverPreservesNegativeAndTemporaryOutcomesAndCachesQueries(DnsClientX.DnsResponseCode code, DnsQueryStatus expected) {
         using var health = new DomainHealthCheck();
         var queries = 0;
-        health.DnsConfiguration.QueryDnsOverride = (_, _) => {
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => {
             queries++;
-            return Task.FromResult(new[] { new DnsClientX.DnsAnswer { DataRaw = key, Type = DnsClientX.DnsRecordType.TXT } });
+            return Task.FromResult(new DnsClientX.DnsResponse { Status = code, Answers = Array.Empty<DnsClientX.DnsAnswer>() });
         };
-        if (cachedDns) { sample.Options.PublicKeyRecords.Clear(); sample.Options.AllowDnsLookups = true; }
-        var locator = new MessagePublicKeyLocator(sample.Options, health.DnsConfiguration);
-        if (cachedDns) { await locator.LocatePublicKeyAsync("dns/txt", "example.com", "s1"); }
-        locator.BeginVerification();
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => locator.LocatePublicKeyAsync("unsupported", "example.com", "s1"));
-        Assert.Contains("Only dns/txt", error.Message);
-        Assert.Equal(cachedDns ? 1 : 0, queries);
-        Assert.False(locator.UsedDns);
-        await locator.LocatePublicKeyAsync("dns/txt", "example.com", "s1");
-        Assert.Equal(cachedDns ? 1 : 0, queries);
+        var resolver = new MessageDnsResolver(new MessageVerificationOptions { AllowDnsLookups = true, MaximumDnsQueries = 1 }, health.DnsConfiguration);
+        var first = await resolver.QueryTxtAsync("s1._domainkey.example.com");
+        var second = await resolver.QueryTxtAsync("s1._domainkey.example.com");
+        Assert.Equal(expected, first.Status);
+        Assert.Equal(expected, second.Status);
+        Assert.Empty(first.Records);
+        Assert.Equal(1, queries);
+        Assert.True(resolver.UsedDns);
     }
 
     [Theory]
@@ -100,6 +99,7 @@ public partial class TestMessageSignatureVerification {
         using var health = new DomainHealthCheck();
         var analysis = await health.AnalyzeMessageAsync(sample.Bytes);
         Assert.Equal(MessageSignatureStatus.Inconclusive, Assert.Single(analysis.SignatureVerification).Status);
+        Assert.Equal("TempError", Assert.Single(analysis.SignatureVerification).ProtocolStatus);
     }
 
     [Theory]
@@ -129,7 +129,9 @@ public partial class TestMessageSignatureVerification {
         message.WriteTo(output);
         var analysis = await health.AnalyzeMessageAsync(output.ToArray(), sample.Options);
         Assert.Equal(new[] { "missing._domainkey.example.com", "s1._domainkey.example.com" }, queries);
-        var failure = malformed ? MessageSignatureStatus.Invalid : MessageSignatureStatus.Inconclusive;
+        // Authoritative NODATA and malformed key records are permanent verification
+        // failures. Temporary DNS failures retain their separate inconclusive result.
+        var failure = MessageSignatureStatus.Invalid;
         Assert.Equal(new[] { failure, failure, MessageSignatureStatus.Valid }, analysis.SignatureVerification.Select(value => value.Status));
     }
 

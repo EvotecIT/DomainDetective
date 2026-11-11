@@ -92,6 +92,8 @@ namespace DomainDetective {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             RawHeaders = rawHeaders;
             Headers.Clear();
+            mimeComplianceIssues.Clear();
+            MimeComplianceTruncated = false;
             DuplicateHeaders.Clear();
             ReceivedHops.Clear();
             SpamHeaders.Clear();

@@ -33,6 +33,14 @@ internal sealed class AnalyzeMessageHeaderSettings : CommandSettings {
     [CommandOption("--verify-signatures")]
     public bool VerifySignatures { get; set; }
 
+    /// <summary>Maximum raw bytes in one MIME header during original-message analysis.</summary>
+    [CommandOption("--max-mime-header-bytes <BYTES>")]
+    public int MaximumMimeHeaderBytes { get; set; } = 16 * 1024;
+
+    /// <summary>Maximum retained MIME compliance issues across the entire message.</summary>
+    [CommandOption("--max-mime-compliance-issues <COUNT>")]
+    public int MaximumMimeComplianceIssues { get; set; } = 100;
+
     /// <summary>Explicitly permit public-key TXT lookups.</summary>
     [CommandOption("--allow-dns")]
     public bool AllowDns { get; set; }
@@ -48,6 +56,7 @@ internal sealed class AnalyzeMessageHeaderSettings : CommandSettings {
     /// <inheritdoc/>
     public override ValidationResult Validate() {
         if ((File == null) == string.IsNullOrWhiteSpace(Header)) { return ValidationResult.Error("Supply exactly one of --file or --header."); }
+        if (MaximumMimeHeaderBytes < 1 || MaximumMimeComplianceIssues < 1) { return ValidationResult.Error("MIME limits must be positive."); }
         if (VerifySignatures && File == null) { return ValidationResult.Error("Signature verification requires an original MIME --file."); }
         if (!VerifySignatures && (AllowDns || PublicKeys != null)) { return ValidationResult.Error("--allow-dns and --public-keys require --verify-signatures."); }
         return ValidationResult.Success();
@@ -64,7 +73,9 @@ internal sealed class AnalyzeMessageHeaderCommand : Command<AnalyzeMessageHeader
     public override int Execute(CommandContext context, AnalyzeMessageHeaderSettings settings, CancellationToken cancellationToken) {
         var options = new MessageVerificationOptions {
             HeaderOptions = new MessageHeaderAnalysisOptions { TrustedAuthServIds = settings.TrustedAuthServIds ?? Array.Empty<string>() },
-            AllowDnsLookups = settings.AllowDns
+            AllowDnsLookups = settings.AllowDns,
+            MaximumMimeHeaderBytes = settings.MaximumMimeHeaderBytes,
+            MaximumMimeComplianceIssues = settings.MaximumMimeComplianceIssues
         };
         if (settings.PublicKeys != null) {
             if (settings.PublicKeys.Length > 1024 * 1024) { throw new ArgumentException("Offline public-key file exceeds 1 MiB."); }
