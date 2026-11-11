@@ -9,9 +9,14 @@ schema: 2.0.0
 Parses raw email message headers.
 
 ## SYNTAX
-### __AllParameterSets
+### Text (Default)
 ```powershell
-Get-DDEmailMessageHeaderInfo [-HeaderText] <string> [-ExpectedMx <string[]>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
+Get-DDEmailMessageHeaderInfo [-HeaderText] <string> [-TrustedAuthServId <string[]>] [-VerifySignatures] [-MaximumMimeHeaderBytes <int>] [-MaximumMimeComplianceIssues <int>] [-AllowDnsLookups] [-PublicKeyRecords <hashtable>] [-ExpectedMx <string[]>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
+```
+
+### File
+```powershell
+Get-DDEmailMessageHeaderInfo [-Path] <string[]> [-TrustedAuthServId <string[]>] [-VerifySignatures] [-MaximumMimeHeaderBytes <int>] [-MaximumMimeComplianceIssues <int>] [-AllowDnsLookups] [-PublicKeyRecords <hashtable>] [-ExpectedMx <string[]>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -27,12 +32,28 @@ Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1
 
 ## PARAMETERS
 
+### -AllowDnsLookups
+Allow public-key TXT lookups. Requires VerifySignatures. Message content is never uploaded. DNS is disabled by default.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Text, File
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -ArtifactsDirectory
 Destination directory for artifacts when emitted.
 
 ```yaml
 Type: String
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: ArtifactsPath
 Possible values:
 
@@ -48,7 +69,7 @@ Disable parallel execution for cmdlet-level work.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -64,9 +85,9 @@ Optional list of resolver endpoints to use (multi-resolver).
 
 ```yaml
 Type: DnsEndpoint[]
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: named
@@ -80,7 +101,7 @@ DNS resolver concurrency hint for health checks.
 
 ```yaml
 Type: Int32
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -96,7 +117,7 @@ Expected public MX hosts that should appear in the received path.
 
 ```yaml
 Type: String[]
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -112,7 +133,7 @@ Emit artifacts (scan.json, metrics.json, progress.jsonl).
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: Artifacts
 Possible values:
 
@@ -128,7 +149,7 @@ Desired export format(s). Accepts one or many values.
 
 ```yaml
 Type: ReportFormat[]
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: Report
 Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
 
@@ -144,7 +165,7 @@ Output file path for export.
 
 ```yaml
 Type: String
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -160,7 +181,7 @@ Raw header text.
 
 ```yaml
 Type: String
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text
 Aliases: None
 Possible values:
 
@@ -171,12 +192,44 @@ Accept pipeline input: True (ByValue)
 Accept wildcard characters: False
 ```
 
+### -MaximumMimeComplianceIssues
+Maximum retained MIME compliance issues across the entire message during analysis with VerifySignatures.
+
+```yaml
+Type: Int32
+Parameter Sets: Text, File
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: 100
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaximumMimeHeaderBytes
+Maximum raw bytes in one MIME header during original-message analysis with VerifySignatures.
+
+```yaml
+Type: Int32
+Parameter Sets: Text, File
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: 16384
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -MaxParallelism
 Maximum concurrent health checks within a single domain run.
 
 ```yaml
 Type: Int32
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -192,7 +245,7 @@ Maximum number of resolvers to query in parallel (null = all).
 
 ```yaml
 Type: Int32
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 
@@ -208,7 +261,7 @@ Strategy used when multiple DNS endpoints are provided.
 
 ```yaml
 Type: MultiResolverStrategy
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: None
 Possible values: FirstSuccess, FastestWins, SequentialFallback, RoundRobin, Random
 
@@ -224,8 +277,40 @@ Open export in browser when applicable.
 
 ```yaml
 Type: SwitchParameter
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
 Aliases: OpenReport
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Path
+Local header or original MIME files. FileInfo objects supply FullName through the pipeline.
+
+```yaml
+Type: String[]
+Parameter Sets: File
+Aliases: FullName
+Possible values:
+
+Required: True
+Position: 0
+Default value: None
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -PublicKeyRecords
+Offline public-key TXT records indexed by selector._domainkey.domain. Requires VerifySignatures.
+
+```yaml
+Type: Hashtable
+Parameter Sets: Text, File
+Aliases: None
 Possible values:
 
 Required: False
@@ -240,7 +325,39 @@ Maximum number of concurrent items for cmdlet-level parallel work.
 
 ```yaml
 Type: Int32
-Parameter Sets: __AllParameterSets
+Parameter Sets: Text, File
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -TrustedAuthServId
+Exact authentication service identifiers trusted by the configured, sanitizing receiving gateway.
+
+```yaml
+Type: String[]
+Parameter Sets: Text, File
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -VerifySignatures
+Verify DKIM and ARC with the body. Text input is encoded as UTF-8; use Path to preserve original file bytes.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Text, File
 Aliases: None
 Possible values:
 

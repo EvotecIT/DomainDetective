@@ -30,6 +30,9 @@ public partial class TestMessageSignatureVerification {
         var verified = await health.AnalyzeMessageAsync(sample.Bytes, sample.Options);
         var signature = Assert.Single(verified.SignatureVerification);
         Assert.True(expected == signature.Status, signature.Explanation);
+        if (signature.ProtocolStatus == "Pass" && expected == MessageSignatureStatus.Invalid) {
+            Assert.False(string.IsNullOrEmpty(signature.PolicyFailure));
+        }
         var dns = new DkimAnalysis();
         await dns.AnalyzeDkimRecords("s1", new[] { new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = record } }, new InternalLogger());
         Assert.Equal(expected == MessageSignatureStatus.Valid, dns.Assessments.Any(a => a.Code == DkimCodes.SelectorsValid));
@@ -87,8 +90,10 @@ public partial class TestMessageSignatureVerification {
         Assert.Equal("xn--bcher-kva._domainkey.example.com", Assert.Single(names));
     }
 
-    [Fact]
-    public async Task InternationalizedArcSelectorUsesTheSameDnsNameContract() {
+    [Theory]
+    [InlineData("rsa", MessageSignatureStatus.Valid)]
+    [InlineData("RSA", MessageSignatureStatus.Invalid)]
+    public async Task InternationalizedArcSelectorUsesTheSameDnsNameContract(string keyType, MessageSignatureStatus expected) {
         var sample = SignedMessage();
         using var input = new MemoryStream(sample.Bytes);
         var message = MimeMessage.Load(input);
@@ -96,13 +101,32 @@ public partial class TestMessageSignatureVerification {
         var options = new MessageVerificationOptions();
         string record = sample.Options.PublicKeyRecords.Single().Value;
         options.PublicKeyRecords["s1._domainkey.example.com"] = record;
-        options.PublicKeyRecords["bücher._domainkey.example.com"] = record;
+        options.PublicKeyRecords["bücher._domainkey.example.com"] = record.Replace("k=rsa", "k=" + keyType);
         using var output = new MemoryStream();
         message.WriteTo(output);
         using var health = new DomainHealthCheck();
         var analysis = await health.AnalyzeMessageAsync(output.ToArray(), options);
         var arc = Assert.Single(analysis.SignatureVerification, result => result.Method == "ARC");
-        Assert.True(arc.Status == MessageSignatureStatus.Valid, arc.Explanation);
+        Assert.True(arc.Status == expected, arc.Explanation);
+        Assert.Equal("Pass", arc.ProtocolStatus);
+        if (expected == MessageSignatureStatus.Invalid) { Assert.NotNull(arc.PolicyFailure); }
+    }
+
+    [Fact]
+    public async Task MultipleTxtAnswersCannotBypassMessageKeyPolicy() {
+        var sample = SignedMessage();
+        var record = sample.Options.PublicKeyRecords.Single().Value.Replace("k=rsa", "k=RSA");
+        sample.Options.PublicKeyRecords.Clear();
+        sample.Options.AllowDnsLookups = true;
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (_, _, _) => Task.FromResult(new DnsResponse {
+            Status = DnsResponseCode.NoError,
+            Answers = new[] { record, "unrelated text" }.Select(value => new DnsAnswer { Type = DnsRecordType.TXT, DataRaw = value }).ToArray()
+        });
+        var signature = Assert.Single((await health.AnalyzeMessageAsync(sample.Bytes, sample.Options)).SignatureVerification);
+        Assert.Equal(MessageSignatureStatus.Inconclusive, signature.Status);
+        Assert.Equal("Pass", signature.ProtocolStatus);
+        Assert.NotNull(signature.PolicyFailure);
     }
 
     [Fact]

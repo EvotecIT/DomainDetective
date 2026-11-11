@@ -10,6 +10,8 @@ namespace DomainDetective;
 public sealed class EmailAddressValidationOptions {
     /// <summary>Allow international characters in the local part.</summary>
     public bool AllowInternational { get; set; }
+    /// <summary>Treat ASCII letters as Latin in SMTPUTF8 mixed-script checks. This is not comprehensive homograph detection.</summary>
+    public bool AsciiIsLatin { get; set; }
 
     /// <summary>Allow top-level-only domains (no dot).</summary>
     public bool AllowTopLevelDomains { get; set; }

@@ -17,6 +17,10 @@ public sealed class MessageVerificationOptions {
     public int MaximumDkimSignatures { get; set; } = 50;
     /// <summary>Maximum distinct DNS public-key queries per operation.</summary>
     public int MaximumDnsQueries { get; set; } = 50;
+    /// <summary>Maximum MIME compliance findings retained per message, including all MIME parts.</summary>
+    public int MaximumMimeComplianceIssues { get; set; } = 100;
+    /// <summary>Maximum raw bytes buffered for a single MIME header.</summary>
+    public int MaximumMimeHeaderBytes { get; set; } = 16 * 1024;
     /// <summary>Overall verification timeout, including key acquisition.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 }
@@ -47,4 +51,26 @@ public sealed class MessageSignatureVerification {
     public string Explanation { get; internal set; } = string.Empty;
     /// <summary>Whether this verification used DNS-acquired keys.</summary>
     public bool UsedDns { get; internal set; }
+    /// <summary>Detailed protocol outcome such as Pass, Fail, Policy, TempError or PermError.</summary>
+    public string? ProtocolStatus { get; internal set; }
+    /// <summary>Verifier diagnostic, distinct from the higher-level evidence explanation.</summary>
+    public string? FailureReason { get; internal set; }
+    /// <summary>Additional DomainDetective key-policy failure, separate from the cryptographic protocol result.</summary>
+    public string? PolicyFailure { get; internal set; }
+    /// <summary>ARC structural and validation error flags, including temporary DNS failures.</summary>
+    public string? ArcChainErrors { get; internal set; }
+    /// <summary>Individual ARC message-signature and seal results, without exception objects.</summary>
+    public IReadOnlyList<MessageArcHeaderVerification> ArcHeaders { get; internal set; } = Array.Empty<MessageArcHeaderVerification>();
+}
+
+/// <summary>One verified ARC header's protocol evidence.</summary>
+public sealed class MessageArcHeaderVerification {
+    /// <summary>ARC-Message-Signature or ARC-Seal.</summary>
+    public string Header { get; internal set; } = string.Empty;
+    /// <summary>ARC instance number as supplied by the header.</summary>
+    public string? Instance { get; internal set; }
+    /// <summary>Detailed MimeKit protocol status.</summary>
+    public string ProtocolStatus { get; internal set; } = string.Empty;
+    /// <summary>Verifier diagnostic for this header.</summary>
+    public string? FailureReason { get; internal set; }
 }

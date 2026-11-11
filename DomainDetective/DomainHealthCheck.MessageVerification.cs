@@ -20,7 +20,7 @@ public partial class DomainHealthCheck {
         if (messageBytes == null) { throw new ArgumentNullException(nameof(messageBytes)); }
         options ??= new MessageVerificationOptions();
         if (options.HeaderOptions == null || options.PublicKeyRecords == null) { throw new ArgumentException("HeaderOptions and PublicKeyRecords must not be null.", nameof(options)); }
-        if (options.MaximumMessageBytes < 1 || options.MaximumDkimSignatures < 1 || options.MaximumDnsQueries < 1 || options.Timeout <= TimeSpan.Zero) {
+        if (options.MaximumMessageBytes < 1 || options.MaximumDkimSignatures < 1 || options.MaximumDnsQueries < 1 || options.MaximumMimeComplianceIssues < 1 || options.MaximumMimeHeaderBytes < 1 || options.Timeout <= TimeSpan.Zero) {
             throw new ArgumentOutOfRangeException(nameof(options), "Verification limits must be positive.");
         }
         if (messageBytes.Length > options.MaximumMessageBytes) { throw new ArgumentException("MIME message exceeds MaximumMessageBytes.", nameof(messageBytes)); }
@@ -39,7 +39,12 @@ public partial class DomainHealthCheck {
         using var stream = new MemoryStream(messageBytes, writable: false);
         MimeMessage message;
         try {
-            message = await MimeMessage.LoadAsync(stream, timeout.Token).ConfigureAwait(false);
+            CryptographyModule.Initialize();
+            var parserOptions = ParserOptions.Default.Clone();
+            parserOptions.MaxHeaderLength = options.MaximumMimeHeaderBytes;
+            var parser = new MimeParser(parserOptions, stream) { ComplianceLogger = analysis.CreateComplianceLogger(options.MaximumMimeComplianceIssues) };
+            parser.ComplianceOptions.MaxIssuesPerViolation = options.MaximumMimeComplianceIssues;
+            message = await parser.ParseMessageAsync(timeout.Token).ConfigureAwait(false);
             // Timers have platform-dependent resolution; enforce the elapsed budget too.
             if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
         } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
@@ -59,9 +64,10 @@ public partial class DomainHealthCheck {
             });
             return analysis;
         }
+        using var messageLifetime = message;
         var hasBodyBoundary = boundary >= 0;
         analysis.OriginalMessageInspectedForSignatures = hasBodyBoundary;
-        var locator = new MessagePublicKeyLocator(options, DnsConfiguration);
+        var locator = new MessageDnsResolver(options, DnsConfiguration);
         var dkim = new DkimVerifier(locator);
         var count = 0;
         foreach (var header in message.Headers.Where(header => header.Id == HeaderId.DkimSignature)) {
@@ -81,17 +87,21 @@ public partial class DomainHealthCheck {
                 continue;
             }
             var failures = locator.Failures.Count;
-            var policyFailures = locator.PolicyFailures.Count;
-            locator.BeginVerification(tags);
+            locator.BeginVerification();
             try {
-                var valid = await dkim.VerifyAsync(message, header, timeout.Token).ConfigureAwait(false);
+                var verification = await dkim.VerifyAsync(message, header, timeout.Token).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
-                result.Status = valid ? MessageSignatureStatus.Valid : MessageSignatureStatus.Invalid;
-                result.Explanation = valid ? "Original message verifies using the available public key. This does not establish delivery-time DNS or sender intent." : "Signature did not validate the supplied message.";
-            } catch (DkimKeyPolicyException ex) {
-                result.Status = MessageSignatureStatus.Invalid;
-                result.Explanation = ex.Message;
+                result.ProtocolStatus = verification.Status.ToString();
+                result.FailureReason = verification.Reason;
+                result.Status = verification.Status == DkimSignatureStatus.Pass ? MessageSignatureStatus.Valid :
+                    verification.Status == DkimSignatureStatus.TempError ? MessageSignatureStatus.Inconclusive : MessageSignatureStatus.Invalid;
+                result.Explanation = verification.Status == DkimSignatureStatus.Pass ? "Original message verifies using the available public key. This does not establish delivery-time DNS or sender intent." : "DKIM " + verification.Status + ": " + verification.Reason;
+                if (verification.Status == DkimSignatureStatus.Pass) {
+                    // Domain audits and message verification share the same additional
+                    // key policy; keep its result separate from MimeKit's verdict.
+                    ApplyMessageKeyPolicy(result, locator, header);
+                }
             } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
                 result.Status = MessageSignatureStatus.Inconclusive;
                 result.Explanation = "Verification timeout reached.";
@@ -102,10 +112,6 @@ public partial class DomainHealthCheck {
             if (locator.Failures.Count > failures) {
                 result.Status = MessageSignatureStatus.Inconclusive;
                 result.Explanation = string.Join(" ", locator.Failures.Skip(failures));
-            }
-            if (locator.PolicyFailures.Count > policyFailures) {
-                result.Status = MessageSignatureStatus.Invalid;
-                result.Explanation = string.Join(" ", locator.PolicyFailures.Skip(policyFailures));
             }
             result.UsedDns = locator.UsedDns;
         }
@@ -118,14 +124,27 @@ public partial class DomainHealthCheck {
                 result.Explanation = "Original message body boundary is unavailable; full ARC verification was not performed.";
             } else {
                 var failures = locator.Failures.Count;
-                var policyFailures = locator.PolicyFailures.Count;
-                locator.BeginVerification(null);
+                locator.BeginVerification();
                 try {
                     var arc = await new ArcVerifier(locator).VerifyAsync(message, timeout.Token).ConfigureAwait(false);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (deadline.Elapsed >= options.Timeout) { throw new OperationCanceledException(timeout.Token); }
+                    result.ProtocolStatus = arc.Chain.ToString();
+                    result.ArcChainErrors = arc.ChainErrors.ToString();
+                    var arcHeaders = (arc.Seals ?? Array.Empty<ArcHeaderValidationResult>()).AsEnumerable();
+                    if (arc.MessageSignature != null) { arcHeaders = arcHeaders.Prepend(arc.MessageSignature); }
+                    var inspectedHeaders = arcHeaders.ToArray();
+                    result.ArcHeaders = inspectedHeaders.Select(ArcHeaderEvidence).ToArray();
+                    result.FailureReason = arc.MessageSignature?.Reason ?? arc.Seals?.FirstOrDefault(seal => seal.Reason != null)?.Reason
+                        ?? (arc.ChainErrors != ArcValidationErrors.None ? arc.ChainErrors.ToString() : null);
                     result.Status = arc.Chain == ArcSignatureValidationResult.Pass ? MessageSignatureStatus.Valid : MessageSignatureStatus.Invalid;
                     result.Explanation = "ARC cryptographic chain result: " + arc.Chain + ". A valid chain does not by itself establish trust in the sealers or their claims.";
+                    if (arc.Chain == ArcSignatureValidationResult.Pass) {
+                        foreach (var inspected in inspectedHeaders) {
+                            ApplyMessageKeyPolicy(result, locator, inspected.Header);
+                            if (result.Status != MessageSignatureStatus.Valid) { break; }
+                        }
+                    }
                 } catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
                     result.Status = MessageSignatureStatus.Inconclusive;
                     result.Explanation = "Verification timeout reached.";
@@ -134,12 +153,44 @@ public partial class DomainHealthCheck {
                     result.Explanation = "ARC verification could not complete: " + ex.Message;
                 }
                 if (locator.Failures.Count > failures) { result.Status = MessageSignatureStatus.Inconclusive; result.Explanation = string.Join(" ", locator.Failures.Skip(failures)); }
-                if (locator.PolicyFailures.Count > policyFailures) { result.Status = MessageSignatureStatus.Invalid; result.Explanation = string.Join(" ", locator.PolicyFailures.Skip(policyFailures)); }
                 result.UsedDns = locator.UsedDns;
             }
         }
         cancellationToken.ThrowIfCancellationRequested();
         return analysis;
+    }
+
+    private static void ApplyMessageKeyPolicy(MessageSignatureVerification result, MessageDnsResolver locator, Header header) {
+        DkimTagList.TryParse(MessageHeaderValueParser.UnfoldRawValue(header), out var tags, out _);
+        tags.TryGetValue("d", out var domain);
+        tags.TryGetValue("s", out var selector);
+        var records = locator.CachedRecords(DkimDnsName.Lookup(domain!, selector!));
+        if (records == null || records.Count != 1) {
+            // Preserve the existing evidence boundary instead of guessing which
+            // of several DNS records satisfied the cryptographic verifier.
+            result.Status = MessageSignatureStatus.Inconclusive;
+            result.PolicyFailure = "Exactly one DKIM public-key record is required for " + DkimDnsName.Lookup(domain!, selector!) + ".";
+        } else {
+            try {
+                tags.TryGetValue("a", out var algorithm);
+                tags.TryGetValue("i", out var identity);
+                // ARC i= is an instance number, not a DKIM identity.
+                DkimKeyRecord.Parse(records[0]).ValidateUse(domain!, algorithm, header.Id == HeaderId.DkimSignature ? identity : null);
+                return;
+            } catch (DkimKeyPolicyException ex) {
+                result.Status = MessageSignatureStatus.Invalid;
+                result.PolicyFailure = ex.Message;
+            }
+        }
+        result.Explanation = "DomainDetective key policy: " + result.PolicyFailure;
+    }
+
+    private static MessageArcHeaderVerification ArcHeaderEvidence(ArcHeaderValidationResult result) {
+        DkimTagList.TryParse(MessageHeaderValueParser.UnfoldRawValue(result.Header), out var tags, out _);
+        tags.TryGetValue("i", out var instance);
+        return new MessageArcHeaderVerification {
+            Header = result.Header.Field, Instance = instance, ProtocolStatus = result.Signature.ToString(), FailureReason = result.Reason
+        };
     }
 
     private static int MessageBodyBoundary(byte[] bytes) {

@@ -3,6 +3,7 @@ using DomainDetective.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
+using System.ComponentModel;
 using System.Text.Json;
 
 namespace DomainDetective.CLI;
@@ -86,6 +87,11 @@ internal sealed class ValidateEmailSettings : CommandSettings {
     /// <summary>Allow international local parts.</summary>
     [CommandOption("--allow-international")]
     public bool AllowInternational { get; set; }
+
+    /// <summary>Treat ASCII letters as Latin during SMTPUTF8 mixed-script checks.</summary>
+    [CommandOption("--ascii-is-latin")]
+    [Description("Treat ASCII as Latin in mixed-script checks; use --allow-international for non-ASCII local parts. Not comprehensive homograph detection.")]
+    public bool AsciiIsLatin { get; set; }
 
     /// <summary>Allow top-level-only domains.</summary>
     [CommandOption("--allow-tld")]
@@ -197,6 +203,7 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
         var hc = new DomainHealthCheck(dnsEndpoint);
         var options = new EmailAddressValidationOptions {
             AllowInternational = settings.AllowInternational,
+            AsciiIsLatin = settings.AsciiIsLatin,
             AllowTopLevelDomains = settings.AllowTopLevelDomains,
             CheckSmtp = settings.SmtpProbe,
             CheckCatchAll = settings.CheckCatchAll,

@@ -182,3 +182,7 @@ public class MyType2 {}
 /// <seealso href="https://learn.microsoft.com/..."/>
 /// <seealso href="https://github.com/MatejKafka/XmlDoc2CmdletDoc/">XmlDoc2CmdletDoc repository</seealso>
 ```
+
+## Shared test policy
+
+Before adding or changing tests, open `skills/test-audit/SKILL.md` (the authoring gate) and `skills/contract-focused-tests/SKILL.md` under the local `CODEX_HOME`, or `~/.codex` when it is unset. These are maintainer-local procedures; contributors without them should request the current test-authoring instructions from a maintainer.
