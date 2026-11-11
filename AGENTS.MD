@@ -182,3 +182,8 @@ public class MyType2 {}
 /// <seealso href="https://learn.microsoft.com/..."/>
 /// <seealso href="https://github.com/MatejKafka/XmlDoc2CmdletDoc/">XmlDoc2CmdletDoc repository</seealso>
 ```
+
+## Shared test policy
+
+Before adding or changing tests, read the [test-audit authoring gate](<$CODEX_HOME/skills/test-audit/SKILL.md#authoring-gate>) and [contract-focused proof guidance](<$CODEX_HOME/skills/contract-focused-tests/SKILL.md>). Resolve these machine-local procedures against CODEX_HOME on other hosts.
+
