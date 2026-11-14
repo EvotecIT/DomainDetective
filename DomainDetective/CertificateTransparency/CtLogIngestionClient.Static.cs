@@ -105,6 +105,7 @@ public sealed partial class CtLogIngestionClient {
                             verifiedCertificate,
                             providerCertificateId: $"{submissionUrl}#{entryIndex}",
                             entryTimestampUtc: tileEntry.TimestampUtc,
+                            tbsSha256: tileEntry.PrecertificateTbs == null ? null : CtCertificateRecord.HashTbs(tileEntry.PrecertificateTbs),
                             isPrecertificate: tileEntry.EntryType == CtLogEntryType.Precertificate,
                             detailLevel: certificateDetailLevel)
                     });
@@ -316,6 +317,7 @@ public sealed partial class CtLogIngestionClient {
         DateTimeOffset? TimestampUtc,
         CtLogEntryType EntryType,
         byte[] CertificateDer,
+        byte[]? PrecertificateTbs,
         byte[] LeafInput,
         byte[] IssuerFingerprints,
         ArraySegment<byte> RawData) {

@@ -131,7 +131,8 @@ public sealed partial class CtLogIngestionClient {
         for (int i = 0; i < payloads.Count; i++) {
             cancellationToken.ThrowIfCancellationRequested();
             long entryIndex = start + i;
-            if (!TryDecodeCertificate(payloads[i], out DateTimeOffset? timestampUtc, out CtLogEntryType entryType, out byte[]? certificateDer, out string? diagnostic)) {
+            if (!TryDecodeCertificate(payloads[i], out DateTimeOffset? timestampUtc, out CtLogEntryType entryType, out byte[]? certificateDer,
+                    out byte[]? precertificateTbs, out string? diagnostic)) {
                 if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], diagnostic ?? "Unknown entry encoding.");
                 if (!string.IsNullOrWhiteSpace(diagnostic)) {
                     diagnostics.Add($"Entry {entryIndex}: {diagnostic}");
@@ -161,6 +162,7 @@ public sealed partial class CtLogIngestionClient {
                         verifiedCertificate,
                         providerCertificateId: $"{logUrl}#{entryIndex}",
                         entryTimestampUtc: timestampUtc,
+                        tbsSha256: precertificateTbs == null ? null : CtCertificateRecord.HashTbs(precertificateTbs),
                         isPrecertificate: entryType == CtLogEntryType.Precertificate,
                         detailLevel: certificateDetailLevel)
                 });

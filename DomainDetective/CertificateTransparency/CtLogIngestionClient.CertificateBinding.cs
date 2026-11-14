@@ -42,7 +42,7 @@ public sealed partial class CtLogIngestionClient {
             return null;
         }
         X509Certificate certificate = CtCertificateDer.Parse(certificateDer);
-        if (CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, null), signedCertificate)) return certificate;
+        if (CtMerkleTree.Equal(CtCertificateDer.NormalizePrecertificateTbs(certificate, null), signedCertificate)) return certificate;
 
         // RFC6962 also permits a dedicated precertificate signer. Only this uncommon path needs issuer certificates.
         IReadOnlyList<byte[]> issuers;
@@ -78,40 +78,9 @@ public sealed partial class CtLogIngestionClient {
             throw new InvalidOperationException("CT precertificate signer is not bound to the logged issuer key.");
         signer.Verify(issuerCertificate.GetPublicKey());
         certificate.Verify(signer.GetPublicKey());
-        if (!CtMerkleTree.Equal(NormalizePrecertificateTbs(certificate, signer), signedCertificate))
+        if (!CtMerkleTree.Equal(CtCertificateDer.NormalizePrecertificateTbs(certificate, signer), signedCertificate))
             throw new InvalidOperationException("CT precertificate extra data does not match its signed TBSCertificate.");
         return certificate;
-    }
-
-    private static byte[] NormalizePrecertificateTbs(X509Certificate certificate, X509Certificate? signer) {
-        var poison = new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.3");
-        var sctList = new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2");
-        Asn1Sequence tbs = Asn1Sequence.GetInstance(certificate.CertificateStructure.TbsCertificate.ToAsn1Object());
-        var fields = new Asn1EncodableVector();
-        int issuerIndex = tbs[0] is Asn1TaggedObject ? 3 : 2;
-        for (int i = 0; i < tbs.Count; i++) {
-            if (signer != null && i == issuerIndex) { fields.Add(signer.CertificateStructure.TbsCertificate.Issuer); continue; }
-            if (tbs[i] is Asn1TaggedObject tagged && tagged.TagNo == 3) {
-                Asn1Sequence extensions = Asn1Sequence.GetInstance(tagged, true);
-                var retained = new Asn1EncodableVector();
-                foreach (Asn1Encodable encoded in extensions) {
-                    Asn1Sequence extension = Asn1Sequence.GetInstance(encoded);
-                    DerObjectIdentifier oid = DerObjectIdentifier.GetInstance(extension[0]);
-                    if (oid.Equals(poison) || oid.Equals(sctList)) continue;
-                    if (signer != null && oid.Equals(X509Extensions.AuthorityKeyIdentifier)) {
-                        X509Extension? replacement = signer.CertificateStructure.TbsCertificate.Extensions?.GetExtension(oid);
-                        if (replacement == null) throw new InvalidOperationException("CT precertificate signer is missing Authority Key Identifier.");
-                        var values = new Asn1EncodableVector();
-                        values.Add(oid);
-                        if (replacement.IsCritical) values.Add(DerBoolean.True);
-                        values.Add(replacement.Value);
-                        retained.Add(new DerSequence(values));
-                    } else retained.Add(extension);
-                }
-                if (retained.Count > 0) fields.Add(new DerTaggedObject(true, 3, new DerSequence(retained)));
-            } else fields.Add(tbs[i]);
-        }
-        return new DerSequence(fields).GetDerEncoded();
     }
 
     private static IReadOnlyList<byte[]> ParsePrecertificateIssuers(byte[] extraData) {

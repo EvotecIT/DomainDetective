@@ -46,7 +46,10 @@ public sealed class CtCertificateRecord
     /// <summary>SHA-1 fingerprint of the DER certificate or precertificate.</summary>
     public string? Sha1Fingerprint { get; init; }
 
-    /// <summary>TBS certificate SHA-256 value when supplied by the provider.</summary>
+    /// <summary>
+    /// Uppercase hex SHA-256 of the TBSCertificate without the CT poison and SCT list extensions. A precertificate
+    /// and its final certificate share this value; see <see cref="ComputeTbsSha256(byte[])"/>.
+    /// </summary>
     public string? TbsSha256 { get; init; }
 
     /// <summary>Subject distinguished name.</summary>
@@ -111,7 +114,7 @@ public sealed class CtCertificateRecord
     /// <param name="certificateDer">One complete DER-encoded X.509 certificate, without containers or trailing data.</param>
     /// <param name="providerCertificateId">Optional provider-specific certificate identifier.</param>
     /// <param name="entryTimestampUtc">Optional CT entry timestamp.</param>
-    /// <param name="tbsSha256">Optional provider-supplied TBS certificate SHA-256 value.</param>
+    /// <param name="tbsSha256">Optional provider-supplied <see cref="TbsSha256"/>; computed from the certificate when omitted.</param>
     /// <param name="isPrecertificate">True when the provider reports a precertificate.</param>
     /// <param name="detailLevel">How much certificate metadata to decode.</param>
     /// <exception cref="CryptographicException">The bytes are not one DER certificate or do not match the loaded certificate.</exception>
@@ -162,6 +165,7 @@ public sealed class CtCertificateRecord
         {
             throw new CryptographicException("The loaded CT certificate does not match the supplied DER bytes.");
         }
+        string logicalTbsSha256 = NormalizeHex(tbsSha256) ?? HashTbs(CtCertificateDer.NormalizePrecertificateTbs(parsedCertificate, null));
         if (detailLevel == CtCertificateRecordDetailLevel.NamesOnly)
         {
             byte[] namesOnlySha256Bytes;
@@ -177,7 +181,7 @@ public sealed class CtCertificateRecord
                 DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
                 EntryTimestampUtc = entryTimestampUtc,
                 Sha256Fingerprint = ToHex(namesOnlySha256Bytes),
-                TbsSha256 = NormalizeHex(tbsSha256),
+                TbsSha256 = logicalTbsSha256,
                 DnsNames = ExtractDnsNames(certificate, parsedCertificate.SubjectDN),
                 CertificateDer = rawData,
                 IsPrecertificate = isPrecertificate
@@ -200,7 +204,7 @@ public sealed class CtCertificateRecord
             EntryTimestampUtc = entryTimestampUtc,
             Sha256Fingerprint = ToHex(sha256Bytes),
             Sha1Fingerprint = NormalizeHex(certificate.Thumbprint),
-            TbsSha256 = NormalizeHex(tbsSha256),
+            TbsSha256 = logicalTbsSha256,
             Subject = certificate.Subject,
             Issuer = certificate.Issuer,
             SerialNumber = certificate.SerialNumber,
@@ -220,6 +224,29 @@ public sealed class CtCertificateRecord
             IsPrecertificate = isPrecertificate
         };
     }
+
+    /// <summary>
+    /// Computes <see cref="TbsSha256"/> for one DER certificate, for example a certificate served by a TLS endpoint,
+    /// so it can be matched with the CT entries of the same issuance.
+    /// </summary>
+    /// <remarks>
+    /// For a final certificate, or a precertificate signed by the issuing CA, the value equals the hash of the
+    /// TBSCertificate logged in the precertificate entry. A precertificate signed by a dedicated precertificate
+    /// signing certificate names that signer as its issuer; only the log rewrites the issuer, so such a
+    /// precertificate passed here yields a different value than its CT entry and its final certificate.
+    /// </remarks>
+    /// <exception cref="CryptographicException">The bytes are not one DER-encoded X.509 certificate.</exception>
+    public static string ComputeTbsSha256(byte[] certificateDer)
+    {
+        if (certificateDer == null)
+        {
+            throw new ArgumentNullException(nameof(certificateDer));
+        }
+
+        return HashTbs(CtCertificateDer.NormalizePrecertificateTbs(CtCertificateDer.Parse(certificateDer), null));
+    }
+
+    internal static string HashTbs(byte[] tbsCertificate) => ToHex(CtMerkleTree.Hash(tbsCertificate));
 
     /// <summary>
     /// Hydrates a names-only record into a full certificate record.

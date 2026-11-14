@@ -106,6 +106,38 @@ public sealed class TestCtPrecertificateBinding {
         Assert.NotEmpty(error.Payload.ExtraDataBase64);
     }
 
+    [Fact]
+    public async Task PrecertificateAndFinalCertificateShareTbsSha256() {
+        AsymmetricCipherKeyPair rootKey = Key(), leafKey = Key();
+        var rootName = new X509Name("CN=Identity Root");
+        var subject = new X509Name("CN=identity.example.test");
+        X509Certificate root = Certificate(rootName, rootName, rootKey, rootKey, ca: true);
+        // The logged TBSCertificate is the issuance without poison or SCTs; the final certificate adds an SCT list.
+        X509Certificate unsigned = Certificate(subject, rootName, leafKey, rootKey);
+        X509Certificate pre = Certificate(subject, rootName, leafKey, rootKey, poison: true);
+        X509Certificate final = Certificate(subject, rootName, leafKey, rootKey, sctList: true);
+        byte[] tbs = unsigned.CertificateStructure.TbsCertificate.GetDerEncoded();
+        byte[] precertLeaf = new byte[] {0,0, 0,0,0,0,0,0,0,1, 0,1}
+            .Concat(Hash(root.CertificateStructure.TbsCertificate.SubjectPublicKeyInfo.GetDerEncoded())).Concat(Vector(tbs)).Concat(new byte[] {0,0}).ToArray();
+        byte[] finalLeaf = new byte[] {0,0, 0,0,0,0,0,0,0,2, 0,0}.Concat(Vector(final.GetEncoded())).Concat(new byte[] {0,0}).ToArray();
+        var client = new CtLogIngestionClient {
+            HttpGetOverride = (_, _) => Task.FromResult(JsonSerializer.Serialize(new {
+                entries = new[] {
+                    new {leaf_input = Convert.ToBase64String(precertLeaf), extra_data = Convert.ToBase64String(Vector(pre.GetEncoded()).Concat(Vector(Vector(root.GetEncoded()))).ToArray())},
+                    new {leaf_input = Convert.ToBase64String(finalLeaf), extra_data = Convert.ToBase64String(Vector(Array.Empty<byte>()))}
+                }
+            }))
+        };
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/identity/", StartIndex = 0, BatchSize = 2, KnownTreeSize = 2, RequireCompleteDecoding = true
+        });
+
+        string expected = Hex(Hash(tbs)).ToUpperInvariant();
+        Assert.Equal(new[] { expected, expected }, batch.Entries.Select(entry => entry.Certificate.TbsSha256));
+        Assert.NotEqual(batch.Entries[0].Certificate.Sha256Fingerprint, batch.Entries[1].Certificate.Sha256Fingerprint);
+        Assert.Equal(expected, CtCertificateRecord.ComputeTbsSha256(final.GetEncoded()));
+    }
+
     private static byte[] Pkcs7(X509Certificate certificate) {
         AsymmetricCipherKeyPair key = Key();
         // Keep the logged certificate first even when the CMS certificate SET is DER-sorted.
@@ -185,6 +217,9 @@ public sealed class TestCtPrecertificateBinding {
         Assert.Equal(CtLogEntryType.Precertificate, entry.EntryType);
         Assert.Contains("login.example.test", entry.Certificate.DnsNames);
         Assert.Equal(pre.GetEncoded(), entry.Certificate.CertificateDer);
+        // A dedicated signer's precertificate names the signer, but the logged TBS matches the final certificate.
+        Assert.Equal(Hex(Hash(tbs)).ToUpperInvariant(), entry.Certificate.TbsSha256);
+        Assert.Equal(entry.Certificate.TbsSha256, CtCertificateRecord.ComputeTbsSha256(final.GetEncoded()));
         Assert.Empty(batch.Diagnostics);
 
         // The extra data is outside the Merkle leaf. Altering it must not introduce unrelated names.
@@ -219,7 +254,8 @@ public sealed class TestCtPrecertificateBinding {
     }
 
     private static X509Certificate Certificate(X509Name subject, X509Name issuer, AsymmetricCipherKeyPair key,
-        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1, int paddingBytes = 0) {
+        AsymmetricCipherKeyPair signingKey, bool ca = false, bool ctSigner = false, bool poison = false, byte leafAuthority = 1, int paddingBytes = 0,
+        bool sctList = false) {
         var generator = new X509V3CertificateGenerator();
         generator.SetSerialNumber(BigInteger.One);
         generator.SetIssuerDN(issuer);
@@ -234,6 +270,7 @@ public sealed class TestCtPrecertificateBinding {
         if (ctSigner) generator.AddExtension(X509Extensions.ExtendedKeyUsage, true,
             new DerSequence(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.4")));
         if (poison) generator.AddExtension(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.3"), true, DerNull.Instance);
+        if (sctList) generator.AddExtension(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2"), false, new DerOctetString(new byte[] { 0, 2, 0, 0 }));
         if (paddingBytes > 0) generator.AddExtension(new DerObjectIdentifier("1.2.3.4.5"), false, new DerOctetString(new byte[paddingBytes]));
         return generator.Generate(new Asn1SignatureFactory("SHA256withECDSA", signingKey.Private));
     }
