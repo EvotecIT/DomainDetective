@@ -96,6 +96,31 @@ public class TestEmbeddedSctValidation {
     }
 
     [Theory]
+    [InlineData("usable", CtPolicyCompliance.Compliant)]
+    [InlineData("pending", CtPolicyCompliance.NotCompliant)]
+    [InlineData(null, CtPolicyCompliance.NotCompliant)]
+    public void Chrome_TrustedStaticSctCanEstablishIssuanceWithoutCountingForQuorum(string? issuanceLogState, CtPolicyCompliance shortExpected) {
+        var logs = new Dictionary<string, CtLogDescriptor> {
+            ["static"] = new() { LogId = "static", OperatorName = "A", State = issuanceLogState, ApiKind = CtLogApiKind.StaticCt },
+            ["current"] = new() { LogId = "current", OperatorName = "B", State = "usable" },
+            ["retired"] = new() { LogId = "retired", OperatorName = "C", State = "retired", IsRetired = true,
+                StateTimestampUtc = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero) }
+        };
+        var scts = new[] {
+            new EmbeddedSct { LogId = "static", Timestamp = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), SignatureStatus = SctSignatureStatus.Valid },
+            new EmbeddedSct { LogId = "current", Timestamp = new DateTimeOffset(2026, 1, 5, 0, 0, 0, TimeSpan.Zero), SignatureStatus = SctSignatureStatus.Valid },
+            new EmbeddedSct { LogId = "retired", Timestamp = new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero), SignatureStatus = SctSignatureStatus.Valid }
+        };
+        var notBefore = new DateTime(2026, 1, 1);
+
+        var shortCertificate = EmbeddedSctValidator.EvaluateChrome(scts, logs, notBefore, notBefore.AddDays(90));
+        var longCertificate = EmbeddedSctValidator.EvaluateChrome(scts, logs, notBefore, notBefore.AddDays(181));
+
+        Assert.Equal(shortExpected, shortCertificate.Compliance);
+        Assert.Equal(CtPolicyCompliance.NotCompliant, longCertificate.Compliance);
+    }
+
+    [Theory]
     [InlineData("DigiCert", "Let's Encrypt", CtPolicyCompliance.Compliant)]
     [InlineData("Let's Encrypt", "DigiCert", CtPolicyCompliance.NotCompliant)]
     public async Task Validate_ChromeUsesOperatorAtSctIssuance(string current, string previous, CtPolicyCompliance expected) {

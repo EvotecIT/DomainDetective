@@ -178,12 +178,12 @@ internal static class EmbeddedSctValidator {
         Dictionary<string, CtLogDescriptor> logs, DateTime notBefore, DateTime notAfter) {
         // Chrome CT policy (googlechrome.github.io/CertificateTransparency/ct_policy.html): one SCT from a Qualified/Usable/ReadOnly log;
         // SCTs from 2 (lifetime <= 180 days) or 3 distinct Qualified/Usable/ReadOnly/Retired logs; at least 2 distinct operators;
-        // A retired log's SCT and the earliest candidate SCT from a non-retired log must both predate retirement.
+        // A retired log's SCT and the earliest candidate SCT from a currently approved log must both predate retirement.
+        DateTimeOffset earliest = candidates
+            .Where(sct => logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) && IsCurrentlyApproved(log))
+            .Select(static sct => sct.Timestamp).DefaultIfEmpty(DateTimeOffset.MaxValue).Min();
         candidates = candidates.Where(sct => !logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) ||
             log.ApiKind != CtLogApiKind.StaticCt || sct.HasValidLeafIndex).ToList();
-        DateTimeOffset earliest = candidates
-            .Where(sct => logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) && !log.IsRetired)
-            .Select(static sct => sct.Timestamp).DefaultIfEmpty(DateTimeOffset.MaxValue).Min();
         var counted = candidates
             .Select(sct => (Sct: sct, Log: logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) ? log : null))
             .Where(item => item.Log != null && (IsCurrentlyApproved(item.Log) ||
