@@ -86,7 +86,7 @@ public sealed partial class CtLogIngestionClient {
                     try {
                         verifiedCertificate = await VerifyCertificateBindingAsync(tileEntry.LeafInput, string.Empty,
                             tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken, issuerCache).ConfigureAwait(false);
-                    } catch (System.Security.Cryptography.CryptographicException ex) {
+                    } catch (EntryCertificateParsingException ex) {
                         // Unparseable certificate bytes only; binding mismatches still throw below.
                         AddUndecodable(undecodable, diagnostics, entryIndex, tileEntry.CreateFailurePayload(), tileEntry.RawDataBase64, ex.Message);
                         continue;

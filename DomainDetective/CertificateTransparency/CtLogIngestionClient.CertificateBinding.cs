@@ -41,7 +41,16 @@ public sealed partial class CtLogIngestionClient {
             if (!CtMerkleTree.Equal(certificateDer, signedCertificate)) throw new InvalidOperationException("CT X509 certificate does not match its signed leaf.");
             return null;
         }
-        X509Certificate certificate = CtCertificateDer.Parse(certificateDer);
+        X509Certificate certificate;
+        try {
+            certificate = CtCertificateDer.Parse(certificateDer);
+        } catch (System.Security.Cryptography.CryptographicException) {
+            try {
+                certificate = CtCertificateDer.ParseLenient(certificateDer);
+            } catch (System.Security.Cryptography.CryptographicException ex) {
+                throw new EntryCertificateParsingException(ex);
+            }
+        }
         if (CtMerkleTree.Equal(CtCertificateDer.NormalizePrecertificateTbs(certificate, null), signedCertificate)) return certificate;
 
         // RFC6962 also permits a dedicated precertificate signer. Only this uncommon path needs issuer certificates.
@@ -81,6 +90,11 @@ public sealed partial class CtLogIngestionClient {
         if (!CtMerkleTree.Equal(CtCertificateDer.NormalizePrecertificateTbs(certificate, signer), signedCertificate))
             throw new InvalidOperationException("CT precertificate extra data does not match its signed TBSCertificate.");
         return certificate;
+    }
+
+    // Only an unreadable entry certificate can be quarantined. An unreadable issuer prevents binding verification.
+    private sealed class EntryCertificateParsingException : System.Security.Cryptography.CryptographicException {
+        internal EntryCertificateParsingException(Exception inner) : base("CT entry certificate could not be parsed.", inner) { }
     }
 
     private static IReadOnlyList<byte[]> ParsePrecertificateIssuers(byte[] extraData) {

@@ -142,9 +142,8 @@ public sealed partial class CtLogIngestionClient {
             if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
                 try {
                     verifiedCertificate = await VerifyCertificateBindingAsync(payloads[i], certificateDer!, null, null, timeout, cancellationToken).ConfigureAwait(false);
-                } catch (System.Security.Cryptography.CryptographicException ex) {
-                    // Binding raises this only for unparseable certificate bytes. A parsed certificate
-                    // that disagrees with its signed leaf is an integrity failure and still throws below.
+                } catch (EntryCertificateParsingException ex) {
+                    // Issuer parsing and signed-TBS mismatches remain binding failures.
                     AddUndecodable(undecodable, diagnostics, entryIndex, payloads[i], null, ex.Message);
                     continue;
                 } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {

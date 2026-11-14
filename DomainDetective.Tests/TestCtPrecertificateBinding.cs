@@ -101,6 +101,10 @@ public sealed class TestCtPrecertificateBinding {
             };
         }
 
+        if (issuerContainer) {
+            await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
+            return;
+        }
         CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
         Assert.Empty(batch.Entries);
         CtUndecodableEntry rejected = Assert.Single(batch.UndecodableEntries);
@@ -223,6 +227,12 @@ public sealed class TestCtPrecertificateBinding {
         Assert.Equal(Hex(Hash(tbs)).ToUpperInvariant(), entry.Certificate.TbsSha256);
         Assert.Equal(entry.Certificate.TbsSha256, CtCertificateRecord.ComputeTbsSha256(final.GetEncoded()));
         Assert.Empty(batch.Diagnostics);
+
+        byte[] trailingDer = pre.GetEncoded().Concat(new byte[] { 0 }).ToArray();
+        CtLogIngestionEntry recovered = Assert.Single((await SelectedClient(trailingDer).ReadBatchAsync(request)).Entries);
+        Assert.True(recovered.Certificate.IsLenientlyParsed);
+        Assert.Contains("login.example.test", recovered.Certificate.DnsNames);
+        Assert.Equal(entry.Certificate.TbsSha256, recovered.Certificate.TbsSha256);
 
         // The extra data is outside the Merkle leaf. Altering it must not introduce unrelated names.
         X509Certificate altered = Certificate(new X509Name("CN=unrelated.example.test"), dedicatedSigner ? signerName : rootName,
