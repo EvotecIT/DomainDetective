@@ -12,7 +12,10 @@ using Org.BouncyCastle.Security;
 namespace DomainDetective;
 
 public sealed partial class CtLogIngestionClient {
-    /// <summary>Verifies a tree head against its catalog key and proves growth from the last durable tree.</summary>
+    /// <summary>
+    /// Verifies a tree head against its catalog key and proves growth from the last durable tree. When the log serves
+    /// an older signed head, proves that head is a prefix of <paramref name="previousTreeHead"/> and returns the latter.
+    /// </summary>
     public async Task<CtSignedTreeHead> GetVerifiedSignedTreeHeadAsync(CtLogDescriptor log, CtSignedTreeHead? previousTreeHead,
         TimeSpan timeout, CancellationToken cancellationToken = default) {
         if (log == null) throw new ArgumentNullException(nameof(log));
@@ -42,26 +45,33 @@ public sealed partial class CtLogIngestionClient {
             }
             CacheSignedTreeHead(cacheKey, head);
         }
-        if (previousTreeHead != null) {
-            byte[] previousRoot = DecodeRequiredBase64(previousTreeHead.RootHashBase64, "previous verified root");
-            byte[] currentRoot = DecodeRequiredBase64(head.RootHashBase64, "verified root");
-            IReadOnlyList<byte[]> proof = Array.Empty<byte[]>();
-            if (previousTreeHead.TreeSize > 0 && previousTreeHead.TreeSize < head.TreeSize) {
-                if (log.ApiKind == CtLogApiKind.StaticCt) {
-                    var tiles = new Dictionary<string, byte[]>();
-                    var generated = new List<byte[]>();
-                    await BuildStaticConsistencyProofAsync(monitoringUrl, previousTreeHead.TreeSize, head.TreeSize,
-                        0, true, head.TreeSize, generated, tiles, timeout, cancellationToken).ConfigureAwait(false);
-                    proof = generated;
-                } else {
-                    string json = await FetchJsonAsync(CombineLogUrl(logUrl, $"ct/v1/get-sth-consistency?first={previousTreeHead.TreeSize}&second={head.TreeSize}"), timeout, cancellationToken).ConfigureAwait(false);
-                    using var document = JsonDocument.Parse(json);
-                    proof = ParseProof(document.RootElement, "consistency");
-                }
-            }
-            CtMerkleTree.VerifyConsistency(previousTreeHead.TreeSize, head.TreeSize, previousRoot, currentRoot, proof);
+        if (previousTreeHead == null) return head;
+        // Logs served through CDNs or several frontends can return an older head than one already verified.
+        // A smaller head is accepted only when it is proven to be a prefix of the larger one, which is kept.
+        bool stale = head.TreeSize < previousTreeHead.TreeSize;
+        CtSignedTreeHead first = stale ? head : previousTreeHead;
+        CtSignedTreeHead second = stale ? previousTreeHead : head;
+        byte[] firstRoot = DecodeRequiredBase64(first.RootHashBase64, stale ? "verified root" : "previous verified root");
+        byte[] secondRoot = DecodeRequiredBase64(second.RootHashBase64, stale ? "previous verified root" : "verified root");
+        IReadOnlyList<byte[]> proof = first.TreeSize > 0 && first.TreeSize < second.TreeSize
+            ? await GetConsistencyProofAsync(log.ApiKind, logUrl, monitoringUrl, first.TreeSize, second.TreeSize, timeout, cancellationToken).ConfigureAwait(false)
+            : Array.Empty<byte[]>();
+        CtMerkleTree.VerifyConsistency(first.TreeSize, second.TreeSize, firstRoot, secondRoot, proof);
+        return second;
+    }
+
+    private async Task<IReadOnlyList<byte[]>> GetConsistencyProofAsync(CtLogApiKind apiKind, string logUrl, string monitoringUrl,
+        long firstSize, long secondSize, TimeSpan timeout, CancellationToken cancellationToken) {
+        if (apiKind == CtLogApiKind.StaticCt) {
+            var tiles = new Dictionary<string, byte[]>();
+            var generated = new List<byte[]>();
+            await BuildStaticConsistencyProofAsync(monitoringUrl, firstSize, secondSize,
+                0, true, secondSize, generated, tiles, timeout, cancellationToken).ConfigureAwait(false);
+            return generated;
         }
-        return head;
+        string json = await FetchJsonAsync(CombineLogUrl(logUrl, $"ct/v1/get-sth-consistency?first={firstSize}&second={secondSize}"), timeout, cancellationToken).ConfigureAwait(false);
+        using var document = JsonDocument.Parse(json);
+        return ParseProof(document.RootElement, "consistency");
     }
 
     private static CtSignedTreeHead VerifyTreeHead(long size, long timestamp, string? rootBase64, string? signatureBase64, byte[] publicKey) {

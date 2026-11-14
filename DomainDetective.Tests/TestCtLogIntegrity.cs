@@ -58,7 +58,7 @@ public sealed class TestCtLogIntegrity {
     }
 
     [Fact]
-    public async Task RfcTree_RejectsKeyMismatchInvalidSignatureAndRollback() {
+    public async Task RfcTree_RejectsKeyMismatchInvalidSignatureAndChangedRoot() {
         var fixture = new LogFixture(false);
         var client = fixture.Client();
         var wrongKey = new CtLogDescriptor { Url = fixture.Log.Url, PublicKey = fixture.Log.PublicKey, LogId = Convert.ToBase64String(new byte[32]) };
@@ -68,8 +68,6 @@ public sealed class TestCtLogIntegrity {
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetVerifiedSignedTreeHeadAsync(fixture.Log, null, TimeSpan.FromSeconds(5)));
         fixture.BadSignature = false;
         CtSignedTreeHead verified = await client.GetVerifiedSignedTreeHeadAsync(fixture.Log, null, TimeSpan.FromSeconds(5));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetVerifiedSignedTreeHeadAsync(fixture.Log,
-            verified with { TreeSize = 8 }, TimeSpan.FromSeconds(5)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetVerifiedSignedTreeHeadAsync(fixture.Log,
             verified with { RootHashBase64 = Convert.ToBase64String(new byte[32]) }, TimeSpan.FromSeconds(5)));
     }
@@ -112,6 +110,19 @@ public sealed class TestCtLogIntegrity {
         Assert.Equal(Convert.ToBase64String(fixture.Leaves[1]), error.Payload.LeafInputBase64);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OlderSignedHead_IsProvenAsPrefixAndTheLargerVerifiedHeadIsKept(bool isStatic) {
+        var fixture = new LogFixture(false, isStatic) { HeadSize = 3 };
+        var previous = new CtSignedTreeHead(7, DateTimeOffset.UtcNow) { RootHashBase64 = Convert.ToBase64String(fixture.Root(0, 7)) };
+        CtSignedTreeHead head = await fixture.Client().GetVerifiedSignedTreeHeadAsync(fixture.Log, previous, TimeSpan.FromSeconds(5));
+        Assert.Same(previous, head);
+
+        var forked = previous with { RootHashBase64 = Convert.ToBase64String(new byte[32]) };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Client().GetVerifiedSignedTreeHeadAsync(fixture.Log, forked, TimeSpan.FromSeconds(5)));
+    }
+
     [Fact]
     public async Task RfcMalformedEntries_KeepTheirPositionsInsteadOfShiftingLaterIndices() {
         var client = new CtLogIngestionClient { HttpGetOverride = (_, _) => Task.FromResult("{\"entries\":[null,{}, {\"leaf_input\":\"AQ==\",\"extra_data\":\"\"}]}") };
@@ -144,6 +155,7 @@ public sealed class TestCtLogIntegrity {
         public int TamperLeafIndex { get; set; } = 2;
         public bool BadSignature { get; set; }
         public bool BadConsistency { get; set; }
+        public int? HeadSize { get; set; }
         public int AuditCalls { get; private set; }
         public int HeadCalls { get; private set; }
         public int HashTileCalls { get; private set; }
@@ -182,7 +194,7 @@ public sealed class TestCtLogIntegrity {
 
         private HttpResponseMessage Respond(Uri uri) {
             string path = uri.AbsolutePath;
-            if (path.EndsWith("get-sth")) { HeadCalls++; return Json(new { tree_size = 7, timestamp = 123L, sha256_root_hash = Convert.ToBase64String(Root(0, 7)), tree_head_signature = Convert.ToBase64String(Signature()) }); }
+            if (path.EndsWith("get-sth")) { HeadCalls++; return Json(new { tree_size = Size, timestamp = 123L, sha256_root_hash = Convert.ToBase64String(Root(0, Size)), tree_head_signature = Convert.ToBase64String(Signature()) }); }
             if (path.EndsWith("get-entries")) {
                 var leaves = Leaves.Skip(1).Take(3).Select(leaf => (byte[])leaf.Clone()).ToArray();
                 if (TamperMiddleLeaf) leaves[1][9] ^= 1;
@@ -194,7 +206,8 @@ public sealed class TestCtLogIntegrity {
                 return Json(new { leaf_input = Convert.ToBase64String(Leaves[index]), extra_data = "", audit_path = Audit(index, 0, 7).Select(Convert.ToBase64String) });
             }
             if (path.EndsWith("get-sth-consistency")) {
-                var proof = Consistency(3, 7).ToArray();
+                int[] sizes = uri.Query.TrimStart('?').Split('&').Select(part => int.Parse(part.Split('=')[1])).ToArray();
+                var proof = Consistency(sizes[0], sizes[1]).ToArray();
                 if (BadConsistency) proof[0] = new byte[32];
                 return Json(new { consistency = proof.Select(Convert.ToBase64String) });
             }
@@ -203,7 +216,7 @@ public sealed class TestCtLogIntegrity {
                 string origin = "ct.example.test/log";
                 byte[] keyIdentity = Encoding.UTF8.GetBytes(origin + "\n").Concat(new byte[] {5}).Concat(Convert.FromBase64String(Log.LogId!)).ToArray();
                 byte[] signature = Sha(keyIdentity).Take(4).Concat(UInt64(123)).Concat(Signature()).ToArray();
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{origin}\n{Leaves.Length}\n{Convert.ToBase64String(Root(0,Leaves.Length))}\n\n\u2014 {origin} {Convert.ToBase64String(signature)}\n") };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($"{origin}\n{Size}\n{Convert.ToBase64String(Root(0,Size))}\n\n\u2014 {origin} {Convert.ToBase64String(signature)}\n") };
             }
             if (path.Contains("tile/data/")) {
                 byte[][] leaves = Leaves.Select(leaf => (byte[])leaf.Clone()).ToArray();
@@ -226,7 +239,7 @@ public sealed class TestCtLogIntegrity {
         }
 
         private byte[] Signature() {
-            byte[] message = new byte[] {0,1}.Concat(UInt64(123)).Concat(UInt64((ulong)Leaves.Length)).Concat(Root(0,Leaves.Length)).ToArray();
+            byte[] message = new byte[] {0,1}.Concat(UInt64(123)).Concat(UInt64((ulong)Size)).Concat(Root(0,Size)).ToArray();
             var signer = SignerUtilities.GetSigner(_rsa ? "SHA256withRSA" : "SHA256withECDSA");
             signer.Init(true, _keys.Private);
             signer.BlockUpdate(message, 0, message.Length);
@@ -234,6 +247,8 @@ public sealed class TestCtLogIntegrity {
             if (BadSignature) signature[signature.Length - 1] ^= 1;
             return new byte[] {4, (byte)(_rsa ? 1 : 3), (byte)(signature.Length >> 8), (byte)signature.Length}.Concat(signature).ToArray();
         }
+
+        private int Size => HeadSize ?? Leaves.Length;
 
         public byte[] Root(int start, int size) {
             if (size == 1) return HashLeaf(Leaves[start]);
