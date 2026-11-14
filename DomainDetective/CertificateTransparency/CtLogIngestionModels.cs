@@ -144,8 +144,27 @@ public sealed class CtLogIngestionBatch {
     public long EndIndex { get; init; }
     /// <summary>Decoded certificate entries.</summary>
     public IReadOnlyList<CtLogIngestionEntry> Entries { get; init; } = Array.Empty<CtLogIngestionEntry>();
+    /// <summary>
+    /// Entries in the returned range whose certificate could not be decoded. When the batch is integrity verified,
+    /// their Merkle leaves are proven, so callers can record the raw evidence and advance past them.
+    /// </summary>
+    public IReadOnlyList<CtUndecodableEntry> UndecodableEntries { get; init; } = Array.Empty<CtUndecodableEntry>();
     /// <summary>Diagnostics for skipped or undecodable CT entries.</summary>
     public IReadOnlyList<string> Diagnostics { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// A logged entry whose certificate could not be decoded, with the original bytes needed to retry or audit it.
+/// </summary>
+public sealed class CtUndecodableEntry {
+    /// <summary>Entry index in the CT log.</summary>
+    public long EntryIndex { get; init; }
+    /// <summary>Original Merkle leaf and extra data. Static CT entries carry their reconstructed equivalent.</summary>
+    public RawCtEntryPayload Payload { get; init; } = new(string.Empty, string.Empty);
+    /// <summary>Original Static CT TileLeaf, when the entry came from a Static CT reader.</summary>
+    public string? StaticTileEntryBase64 { get; init; }
+    /// <summary>Why the entry could not be decoded.</summary>
+    public string Reason { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -162,7 +181,11 @@ public sealed class CtLogIngestionBatchRequest {
     public bool RequireIntegrityVerification { get; init; }
     /// <summary>Last durable verified tree head for this log, used to reject rollback or inconsistent growth.</summary>
     public CtSignedTreeHead? PreviousTreeHead { get; init; }
-    /// <summary>Throws on any undecodable entry so callers cannot advance past a missing certificate.</summary>
+    /// <summary>
+    /// Verifies that every precertificate in extra data matches its signed TBSCertificate and throws
+    /// <see cref="CtEntryDecodingException"/> when it does not. Entries whose certificate cannot be parsed are
+    /// returned in <see cref="CtLogIngestionBatch.UndecodableEntries"/> instead of stopping the range.
+    /// </summary>
     public bool RequireCompleteDecoding { get; init; }
     /// <summary>Base CT log URL.</summary>
     public string LogUrl { get; init; } = string.Empty;

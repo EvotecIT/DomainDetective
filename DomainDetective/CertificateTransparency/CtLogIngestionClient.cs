@@ -127,16 +127,14 @@ public sealed partial class CtLogIngestionClient {
         if (verifiedHead != null) await VerifyRfcRangeAsync(logUrl, start, payloads, verifiedHead, timeout, cancellationToken).ConfigureAwait(false);
         long actualEnd = payloads.Count > 0 ? start + payloads.Count - 1 : start - 1;
         var entries = new List<CtLogIngestionEntry>(payloads.Count);
+        var undecodable = new List<CtUndecodableEntry>();
         var diagnostics = new List<string>();
         for (int i = 0; i < payloads.Count; i++) {
             cancellationToken.ThrowIfCancellationRequested();
             long entryIndex = start + i;
-            if (!TryDecodeCertificate(payloads[i], out DateTimeOffset? timestampUtc, out CtLogEntryType entryType, out byte[]? certificateDer, out string? diagnostic)) {
-                if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], diagnostic ?? "Unknown entry encoding.");
-                if (!string.IsNullOrWhiteSpace(diagnostic)) {
-                    diagnostics.Add($"Entry {entryIndex}: {diagnostic}");
-                }
-
+            if (!TryDecodeCertificate(payloads[i], out DateTimeOffset? timestampUtc, out CtLogEntryType entryType, out byte[]? certificateDer,
+                    out byte[]? precertificateTbs, out string? diagnostic)) {
+                AddUndecodable(undecodable, diagnostics, entryIndex, payloads[i], null, diagnostic ?? "Unknown entry encoding.");
                 continue;
             }
 
@@ -144,6 +142,10 @@ public sealed partial class CtLogIngestionClient {
             if (request.RequireIntegrityVerification || request.RequireCompleteDecoding) {
                 try {
                     verifiedCertificate = await VerifyCertificateBindingAsync(payloads[i], certificateDer!, null, null, timeout, cancellationToken).ConfigureAwait(false);
+                } catch (EntryCertificateParsingException ex) {
+                    // Issuer parsing and signed-TBS mismatches remain binding failures.
+                    AddUndecodable(undecodable, diagnostics, entryIndex, payloads[i], null, ex.Message);
+                    continue;
                 } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                     throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], ex.Message, ex);
                 }
@@ -155,18 +157,18 @@ public sealed partial class CtLogIngestionClient {
                     TreeSize = treeSize,
                     EntryTimestampUtc = timestampUtc,
                     EntryType = entryType,
-                    Certificate = CtCertificateRecord.FromVerifiedDer(
+                    Certificate = CtCertificateRecord.FromLoggedDer(
                         CtProviderProfiles.NativeCtProviderId,
                         certificateDer!,
                         verifiedCertificate,
-                        providerCertificateId: $"{logUrl}#{entryIndex}",
-                        entryTimestampUtc: timestampUtc,
-                        isPrecertificate: entryType == CtLogEntryType.Precertificate,
-                        detailLevel: certificateDetailLevel)
+                        $"{logUrl}#{entryIndex}",
+                        timestampUtc,
+                        precertificateTbs == null ? null : CtCertificateRecord.HashTbs(precertificateTbs),
+                        entryType == CtLogEntryType.Precertificate,
+                        certificateDetailLevel)
                 });
             } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
-                if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(logUrl, entryIndex, payloads[i], ex.Message, ex);
-                diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
+                AddUndecodable(undecodable, diagnostics, entryIndex, payloads[i], null, "certificate decode failed: " + ex.Message);
             }
         }
 
@@ -177,6 +179,7 @@ public sealed partial class CtLogIngestionClient {
             StartIndex = start,
             EndIndex = actualEnd,
             Entries = entries,
+            UndecodableEntries = undecodable,
             Diagnostics = diagnostics
         };
     }
@@ -674,6 +677,14 @@ public sealed partial class CtLogIngestionClient {
             ? element.TryGetInt64(out value)
             : element.ValueKind == JsonValueKind.String &&
               long.TryParse(element.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static void AddUndecodable(List<CtUndecodableEntry> undecodable, List<string> diagnostics, long entryIndex,
+        RawCtEntryPayload payload, string? staticTileEntryBase64, string reason) {
+        undecodable.Add(new CtUndecodableEntry {
+            EntryIndex = entryIndex, Payload = payload, StaticTileEntryBase64 = staticTileEntryBase64, Reason = reason
+        });
+        diagnostics.Add($"Entry {entryIndex}: {reason}");
     }
 
     private sealed record CachedSignedTreeHead(CtSignedTreeHead Value, DateTimeOffset ExpiresAtUtc);

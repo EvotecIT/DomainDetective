@@ -22,10 +22,12 @@ public sealed partial class CtLogIngestionClient {
         out DateTimeOffset? timestampUtc,
         out CtLogEntryType entryType,
         out byte[]? certificateDer,
+        out byte[]? precertificateTbs,
         out string? diagnostic) {
         timestampUtc = null;
         entryType = CtLogEntryType.Unknown;
         certificateDer = null;
+        precertificateTbs = null;
         diagnostic = null;
 
         byte[] leafBytes;
@@ -36,7 +38,7 @@ public sealed partial class CtLogIngestionClient {
             return false;
         }
 
-        if (!TryParseLeaf(leafBytes, out timestampUtc, out int rawEntryType, out byte[]? x509Leaf)) {
+        if (!TryParseLeaf(leafBytes, out timestampUtc, out int rawEntryType, out byte[]? signedEntry)) {
             diagnostic = "leaf_input could not be parsed.";
             return false;
         }
@@ -48,8 +50,9 @@ public sealed partial class CtLogIngestionClient {
         };
 
         if (rawEntryType == X509EntryType) {
-            certificateDer = x509Leaf;
+            certificateDer = signedEntry;
         } else if (rawEntryType == PrecertEntryType) {
+            precertificateTbs = signedEntry;
             if (string.IsNullOrWhiteSpace(payload.ExtraDataBase64)) {
                 diagnostic = "precertificate extra_data was empty.";
                 return false;
@@ -119,6 +122,7 @@ public sealed partial class CtLogIngestionClient {
         }
 
         byte[]? certificateDer = null;
+        byte[]? precertificateTbs = null;
         CtLogEntryType entryType = rawEntryType switch {
             X509EntryType => CtLogEntryType.X509,
             PrecertEntryType => CtLogEntryType.Precertificate,
@@ -137,7 +141,7 @@ public sealed partial class CtLogIngestionClient {
             }
 
             offset += 32;
-            if (!TrySkipVector24(data, ref offset)) {
+            if (!TryReadVector24(data, ref offset, out precertificateTbs)) {
                 offset = startOffset;
                 return false;
             }
@@ -175,14 +179,14 @@ public sealed partial class CtLogIngestionClient {
         // The fetched tile stays owned by this batch. Retain its slice for failure diagnostics
         // rather than copying every successful entry or constructing unused recovery payloads.
         var rawData = new ArraySegment<byte>(data, startOffset, offset - startOffset);
-        entry = new StaticCtTileEntry(timestampUtc, entryType, certificateDer, leafInput, certificateChain, rawData);
+        entry = new StaticCtTileEntry(timestampUtc, entryType, certificateDer, precertificateTbs, leafInput, certificateChain, rawData);
         return true;
     }
 
-    private static bool TryParseLeaf(byte[] leafBytes, out DateTimeOffset? timestampUtc, out int entryType, out byte[]? x509LeafCertificate) {
+    private static bool TryParseLeaf(byte[] leafBytes, out DateTimeOffset? timestampUtc, out int entryType, out byte[]? signedEntry) {
         timestampUtc = null;
         entryType = -1;
-        x509LeafCertificate = null;
+        signedEntry = null;
         if (leafBytes == null || leafBytes.Length < 12) {
             return false;
         }
@@ -200,7 +204,7 @@ public sealed partial class CtLogIngestionClient {
         }
 
         if (entryType == X509EntryType) {
-            return TryReadVector24(leafBytes, ref offset, out x509LeafCertificate);
+            return TryReadVector24(leafBytes, ref offset, out signedEntry);
         }
 
         if (entryType == PrecertEntryType) {
@@ -209,7 +213,7 @@ public sealed partial class CtLogIngestionClient {
             }
 
             offset += 32;
-            return TryReadVector24(leafBytes, ref offset, out _);
+            return TryReadVector24(leafBytes, ref offset, out signedEntry);
         }
 
         return false;
@@ -253,15 +257,6 @@ public sealed partial class CtLogIngestionClient {
 
         bytes = new byte[length];
         Buffer.BlockCopy(data, offset, bytes, 0, length);
-        offset += length;
-        return true;
-    }
-
-    private static bool TrySkipVector24(byte[] data, ref int offset) {
-        if (!TryReadUInt24(data, ref offset, out int length) || length > data.Length - offset) {
-            return false;
-        }
-
         offset += length;
         return true;
     }

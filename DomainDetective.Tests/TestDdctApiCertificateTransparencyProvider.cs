@@ -11,6 +11,10 @@ namespace DomainDetective.Tests;
 
 public class TestDdctApiCertificateTransparencyProvider
 {
+    // DDCT reports the issuance's logical identity. It differs from a hash of the served precertificate DER when a
+    // dedicated precertificate signer was used, so the provider value must win over recomputation.
+    private const string ProviderTbsSha256 = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
+
     [Fact]
     public async Task QueryAsyncHydratesLatestCertificateFromDerEndpoint()
     {
@@ -30,7 +34,9 @@ public class TestDdctApiCertificateTransparencyProvider
                         firstCtObservedAtUtc = "2026-04-12T10:00:00Z",
                         ctObservedAtUtc = "2026-04-12T12:00:00Z",
                         lastCtObservedAtUtc = "2026-04-12T12:00:00Z",
-                        notAfterUtc = "2027-04-12T12:00:00Z"
+                        notAfterUtc = "2027-04-12T12:00:00Z",
+                        isPrecertificate = true,
+                        tbsSha256 = ProviderTbsSha256
                     }
                 });
             }
@@ -66,6 +72,8 @@ public class TestDdctApiCertificateTransparencyProvider
         Assert.Equal(CtProviderProfiles.DdctApiProviderId, record.ProviderId);
         Assert.Equal("www.example.test", Assert.Single(result.DiscoveredNames));
         Assert.Equal("abc123", record.ProviderCertificateId);
+        Assert.Equal(ProviderTbsSha256, record.TbsSha256);
+        Assert.True(record.IsPrecertificate);
         Assert.False(result.HasMore);
     }
 
@@ -318,7 +326,9 @@ public class TestDdctApiCertificateTransparencyProvider
                             sha256Fingerprint = "wildcard-123",
                             matchedName = "*.example.test",
                             ctObservedAtUtc = "2026-04-12T12:00:00Z",
-                            notAfterUtc = "2027-04-12T12:00:00Z"
+                            notAfterUtc = "2027-04-12T12:00:00Z",
+                            isPrecertificate = true,
+                            tbsSha256 = ProviderTbsSha256
                         }
                     },
                     limit = 100,
@@ -351,6 +361,8 @@ public class TestDdctApiCertificateTransparencyProvider
 
         CtCertificateRecord record = Assert.Single(result.Certificates);
         Assert.Equal("wildcard-123", record.ProviderCertificateId);
+        Assert.Equal(ProviderTbsSha256, record.TbsSha256);
+        Assert.True(record.IsPrecertificate);
         Assert.Contains("*.example.test", result.DiscoveredNames);
         Assert.Equal(1, searchCalls);
         Assert.Equal(1, observationPageCalls);

@@ -46,7 +46,10 @@ public sealed class CtCertificateRecord
     /// <summary>SHA-1 fingerprint of the DER certificate or precertificate.</summary>
     public string? Sha1Fingerprint { get; init; }
 
-    /// <summary>TBS certificate SHA-256 value when supplied by the provider.</summary>
+    /// <summary>
+    /// Uppercase hex SHA-256 of the TBSCertificate without the CT poison and SCT list extensions. A precertificate
+    /// and its final certificate share this value; see <see cref="ComputeTbsSha256(byte[])"/>.
+    /// </summary>
     public string? TbsSha256 { get; init; }
 
     /// <summary>Subject distinguished name.</summary>
@@ -97,6 +100,12 @@ public sealed class CtCertificateRecord
     /// <summary>True when the record is known to represent a precertificate.</summary>
     public bool? IsPrecertificate { get; init; }
 
+    /// <summary>
+    /// True when the logged bytes were rejected by the strict DER parser or the platform certificate loader, so only
+    /// names, the SHA-256 fingerprint and <see cref="TbsSha256"/> were read through a tolerant parse.
+    /// </summary>
+    public bool IsLenientlyParsed { get; init; }
+
     /// <summary>Non-fatal provider diagnostics captured while normalizing the CT certificate record.</summary>
     public IReadOnlyList<string> Diagnostics { get; init; } = Array.Empty<string>();
 
@@ -111,7 +120,7 @@ public sealed class CtCertificateRecord
     /// <param name="certificateDer">One complete DER-encoded X.509 certificate, without containers or trailing data.</param>
     /// <param name="providerCertificateId">Optional provider-specific certificate identifier.</param>
     /// <param name="entryTimestampUtc">Optional CT entry timestamp.</param>
-    /// <param name="tbsSha256">Optional provider-supplied TBS certificate SHA-256 value.</param>
+    /// <param name="tbsSha256">Optional provider-supplied <see cref="TbsSha256"/>; computed from the certificate when omitted.</param>
     /// <param name="isPrecertificate">True when the provider reports a precertificate.</param>
     /// <param name="detailLevel">How much certificate metadata to decode.</param>
     /// <exception cref="CryptographicException">The bytes are not one DER certificate or do not match the loaded certificate.</exception>
@@ -162,6 +171,7 @@ public sealed class CtCertificateRecord
         {
             throw new CryptographicException("The loaded CT certificate does not match the supplied DER bytes.");
         }
+        string logicalTbsSha256 = NormalizeHex(tbsSha256) ?? HashTbs(CtCertificateDer.NormalizePrecertificateTbs(parsedCertificate, null));
         if (detailLevel == CtCertificateRecordDetailLevel.NamesOnly)
         {
             byte[] namesOnlySha256Bytes;
@@ -177,7 +187,7 @@ public sealed class CtCertificateRecord
                 DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
                 EntryTimestampUtc = entryTimestampUtc,
                 Sha256Fingerprint = ToHex(namesOnlySha256Bytes),
-                TbsSha256 = NormalizeHex(tbsSha256),
+                TbsSha256 = logicalTbsSha256,
                 DnsNames = ExtractDnsNames(certificate, parsedCertificate.SubjectDN),
                 CertificateDer = rawData,
                 IsPrecertificate = isPrecertificate
@@ -200,7 +210,7 @@ public sealed class CtCertificateRecord
             EntryTimestampUtc = entryTimestampUtc,
             Sha256Fingerprint = ToHex(sha256Bytes),
             Sha1Fingerprint = NormalizeHex(certificate.Thumbprint),
-            TbsSha256 = NormalizeHex(tbsSha256),
+            TbsSha256 = logicalTbsSha256,
             Subject = certificate.Subject,
             Issuer = certificate.Issuer,
             SerialNumber = certificate.SerialNumber,
@@ -222,11 +232,99 @@ public sealed class CtCertificateRecord
     }
 
     /// <summary>
-    /// Hydrates a names-only record into a full certificate record.
+    /// Computes <see cref="TbsSha256"/> for one DER certificate, for example a certificate served by a TLS endpoint,
+    /// so it can be matched with the CT entries of the same issuance.
+    /// </summary>
+    /// <remarks>
+    /// For a final certificate, or a precertificate signed by the issuing CA, the value equals the hash of the
+    /// TBSCertificate logged in the precertificate entry. A precertificate signed by a dedicated precertificate
+    /// signing certificate names that signer as its issuer; only the log rewrites the issuer, so such a
+    /// precertificate passed here yields a different value than its CT entry and its final certificate.
+    /// </remarks>
+    /// <exception cref="CryptographicException">The bytes are not one DER-encoded X.509 certificate.</exception>
+    public static string ComputeTbsSha256(byte[] certificateDer)
+    {
+        if (certificateDer == null)
+        {
+            throw new ArgumentNullException(nameof(certificateDer));
+        }
+
+        return HashTbs(CtCertificateDer.NormalizePrecertificateTbs(CtCertificateDer.Parse(certificateDer), null));
+    }
+
+    internal static string HashTbs(byte[] tbsCertificate) => ToHex(CtMerkleTree.Hash(tbsCertificate));
+
+    /// <summary>
+    /// Creates a record from certificate bytes taken from a CT entry. Logs accept certificates that the strict parser
+    /// or the platform loader reject; those keep their names through a tolerant parse instead of stopping ingestion.
+    /// </summary>
+    internal static CtCertificateRecord FromLoggedDer(
+        string providerId,
+        byte[] certificateDer,
+        Org.BouncyCastle.X509.X509Certificate? verifiedCertificate,
+        string providerCertificateId,
+        DateTimeOffset? entryTimestampUtc,
+        string? tbsSha256,
+        bool isPrecertificate,
+        CtCertificateRecordDetailLevel detailLevel)
+    {
+        try
+        {
+            return FromVerifiedDer(providerId, certificateDer, verifiedCertificate, providerCertificateId, entryTimestampUtc,
+                tbsSha256, isPrecertificate, detailLevel);
+        }
+        catch (Exception strictFailure) when (!ExceptionHelper.IsFatal(strictFailure))
+        {
+            byte[] rawData = certificateDer.ToArray();
+            Org.BouncyCastle.X509.X509Certificate lenient;
+            try
+            {
+                lenient = CtCertificateDer.ParseLenient(rawData);
+            }
+            catch (CryptographicException)
+            {
+                // No certificate structure at all: report the strict failure.
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(strictFailure).Throw();
+                throw;
+            }
+
+            string? logicalTbsSha256 = NormalizeHex(tbsSha256);
+            if (logicalTbsSha256 == null)
+            {
+                try
+                {
+                    logicalTbsSha256 = HashTbs(CtCertificateDer.NormalizePrecertificateTbs(lenient, null));
+                }
+                catch (Exception tbsFailure) when (!ExceptionHelper.IsFatal(tbsFailure))
+                {
+                    // The names remain useful without a logical identity.
+                }
+            }
+
+            return new CtCertificateRecord
+            {
+                ProviderId = providerId ?? string.Empty,
+                ProviderCertificateId = providerCertificateId,
+                DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
+                EntryTimestampUtc = entryTimestampUtc,
+                Sha256Fingerprint = ToHex(CtMerkleTree.Hash(rawData)),
+                TbsSha256 = logicalTbsSha256,
+                DnsNames = ExtractLenientDnsNames(lenient),
+                CertificateDer = rawData,
+                IsPrecertificate = isPrecertificate,
+                IsLenientlyParsed = true,
+                Diagnostics = new[] { "Strict certificate parsing failed: " + strictFailure.Message }
+            };
+        }
+    }
+
+    /// <summary>
+    /// Hydrates a names-only record into a full certificate record. Leniently parsed records are returned unchanged
+    /// because their remaining metadata cannot be read.
     /// </summary>
     public CtCertificateRecord EnsureFullDetails()
     {
-        if (DetailLevel == CtCertificateRecordDetailLevel.Full)
+        if (DetailLevel == CtCertificateRecordDetailLevel.Full || IsLenientlyParsed)
         {
             return this;
         }
@@ -293,6 +391,40 @@ public sealed class CtCertificateRecord
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
             // Keep certificate parsing resilient; callers still receive core certificate fields.
+        }
+
+        return names
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> ExtractLenientDnsNames(Org.BouncyCastle.X509.X509Certificate certificate)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string commonName in certificate.SubjectDN.GetValueList(X509Name.CN))
+        {
+            AddDnsNameIfCandidate(names, commonName);
+        }
+
+        try
+        {
+            Org.BouncyCastle.Asn1.X509.X509Extension? san = certificate.CertificateStructure.TbsCertificate.Extensions?
+                .GetExtension(Org.BouncyCastle.Asn1.X509.X509Extensions.SubjectAlternativeName);
+            if (san != null)
+            {
+                using var stream = new Org.BouncyCastle.Asn1.Asn1InputStream(san.Value.GetOctets());
+                foreach (var name in Org.BouncyCastle.Asn1.X509.GeneralNames.GetInstance(stream.ReadObject()).GetNames())
+                {
+                    if (name.TagNo == Org.BouncyCastle.Asn1.X509.GeneralName.DnsName)
+                    {
+                        AddDnsNameIfCandidate(names, Org.BouncyCastle.Asn1.DerIA5String.GetInstance(name.Name).GetString());
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
+        {
+            // Subject names remain usable when the SAN extension itself is malformed.
         }
 
         return names
