@@ -83,8 +83,8 @@ namespace DomainDetective.PowerShell {
 
                 if (IsExportRequested()) {
                     var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
-                    var hasUnsupportedFormats = formats.Any(f => f != DomainDetective.Reports.ReportFormat.Word && f != DomainDetective.Reports.ReportFormat.Html);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html);
+                    var hasUnsupportedFormats = formats.Any(f => f != DomainDetective.Reports.ReportFormat.Word && f != DomainDetective.Reports.ReportFormat.Pdf && f != DomainDetective.Reports.ReportFormat.Html);
 
                     if (wantsComposition) {
                         lock (_exportLock) {
@@ -105,11 +105,11 @@ namespace DomainDetective.PowerShell {
             await ForEachAsync(DomainName, ProcessDomainAsync);
         }
 
-        /// <summary>Composes DKIM sections into one document for Word/HTML export.</summary>
+        /// <summary>Composes DKIM sections into one document for Word/PDF/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
             var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
-                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                 .ToArray();
             if (formats.Length == 0) return Task.CompletedTask;
 
@@ -126,15 +126,18 @@ namespace DomainDetective.PowerShell {
                     formats,
                     ExportPath,
                     label,
-                    DomainDetective.Reports.ReportScope.Detailed,
+                    DomainDetective.Reports.ReportScope.Normal,
                     $"DKIM Report — {label}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (_hadUnsupportedFormats || hadUnsupportedFormats) {
                     return ExportNotImplementedAsync("Test-DDEmailDkimRecord");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"DKIM export failed: {ex.Message}");
             }

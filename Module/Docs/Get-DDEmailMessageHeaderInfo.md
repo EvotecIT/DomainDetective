@@ -30,6 +30,13 @@ Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1
 ```
 
 
+### EXAMPLE 2
+```powershell
+PS> Get-DDEmailMessageHeaderInfo -Path './message.eml' -ExportFormat Word,Pdf,Html -ExportPath './Reports'
+```
+
+Header analysis is offline by default. The requested reports share the same parsed messages and Word/PDF paper document.
+
 ## PARAMETERS
 
 ### -AllowDnsLookups
@@ -145,13 +152,13 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-Desired export format(s). Accepts one or many values.
+Combine formats in one request, for example -ExportFormat Word,Pdf,Html. Word and PDF share the same paper report.
 
 ```yaml
 Type: ReportFormat[]
 Parameter Sets: Text, File
 Aliases: Report
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named

@@ -179,6 +179,7 @@ public static class DomainAssessmentBuilder {
                 if (string.IsNullOrWhiteSpace(assessment.Message)) continue;
                 check.Findings.Add(new CheckFinding {
                     Severity = assessment.Severity,
+                    IsEvidenceGap = DomainAssessmentViewReader.IsEvidenceGap(view, assessment),
                     Code = assessment.Code,
                     Message = assessment.Message.Trim(),
                     Target = assessment.Target
@@ -223,23 +224,24 @@ public static class DomainAssessmentBuilder {
 
         // The same finding is often raised once per target and once without one; show it once with its targets.
         check.Findings = check.Findings
-            .GroupBy(static f => (f.Severity, f.Code, f.Message))
+            .GroupBy(static f => (f.Severity, f.Code, f.Message, f.IsEvidenceGap))
             .Select(static g => new CheckFinding {
                 Severity = g.Key.Severity,
+                IsEvidenceGap = g.Key.IsEvidenceGap,
                 Code = g.Key.Code,
                 Message = g.Key.Message,
                 Target = JoinTargets(g.Select(static f => f.Target))
             })
             .OrderByDescending(static f => f.Severity)
             .ToList();
-        check.ErrorCount = check.Findings.Count(static f => f.Severity == AssessmentSeverity.Error);
-        check.WarningCount = check.Findings.Count(static f => f.Severity == AssessmentSeverity.Warning);
+        check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
+        check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
         // Some views report counts without the individual assessments; the outcome must still reflect them.
         if (check.ErrorCount == 0 && check.WarningCount == 0) {
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
-                check.ErrorCount += reader.ErrorCount(view);
-                check.WarningCount += reader.WarningCount(view);
+                check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
+                check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
             }
         }
         check.Outcome = check.ErrorCount > 0 ? CheckOutcome.Error

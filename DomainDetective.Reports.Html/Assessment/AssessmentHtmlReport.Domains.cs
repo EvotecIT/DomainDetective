@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using DomainDetective.Reports;
+using static DomainDetective.Reports.AssessmentReportWording;
 using HtmlForgeX;
 using Severity = HtmlForgeX.AssessmentSeverity;
 
@@ -14,7 +15,8 @@ public static partial class AssessmentHtmlReport {
         section.Key(ids.Domain(domain))
             .NavigationIcon(TablerIconType.World)
             .NavigationDetail(domain.Score.HasValue ? $"{domain.Grade} · {domain.Score}" : null)
-            .Count(attention, domain.ErrorChecks > 0 ? Severity.High : attention > 0 ? Severity.Elevated : Severity.Good, "checks need attention");
+            .Count(attention, domain.ErrorChecks > 0 ? Severity.High : domain.WarningChecks > 0 ? Severity.Elevated
+                : attention > 0 ? Severity.Skipped : Severity.Good, "checks need attention");
 
         // Stable marker for scripts and tests that locate a domain in the report.
         section.Add(new HtmlTag("span").Attribute("data-dd-domain", domain.Domain).Attribute("hidden", "hidden"));
@@ -94,7 +96,7 @@ public static partial class AssessmentHtmlReport {
             row.AssessmentAssertions(assertions => {
                 assertions.Settings(s => s.Labels("Findings", "No findings", "{0} things done well", observed: "Where"));
                 foreach (CheckFinding finding in findings) {
-                    assertions.Assertion(finding.Message, FindingSeverity(finding.Severity), false, a => {
+                    assertions.Assertion(finding.Message, finding.IsEvidenceGap ? Severity.Skipped : FindingSeverity(finding.Severity), false, a => {
                         if (!string.IsNullOrWhiteSpace(finding.Target) && !string.Equals(finding.Target, domain.Domain, StringComparison.OrdinalIgnoreCase)) a.Observed(finding.Target);
                         if (!string.IsNullOrWhiteSpace(finding.Code)) a.SeverityLabel(finding.Code);
                     });

@@ -56,11 +56,14 @@ namespace DomainDetective.PowerShell {
                             $"MX Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Test-DDDnsMxRecord");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (System.Exception ex) {
                         WriteWarning($"MX export failed: {ex.Message}");
                     }
@@ -71,4 +74,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

@@ -13,7 +13,7 @@ namespace DomainDetective.Tests;
 public class TestWordComposition
 {
     [Fact]
-    public void BasicHeadingsAndReferencesArePresent_AndAllFindingTargetsRemainVisible()
+    public void AssessmentWordRetainsEveryAffectedFindingTarget()
     {
         // Build a minimal SPF view with RFC reference and many targets for a single warning code
         var assessments = new List<Assessment>();
@@ -44,32 +44,17 @@ public class TestWordComposition
         var tmp = Path.Combine(Path.GetTempPath(), $"dd-word-{Guid.NewGuid():N}.docx");
         try
         {
-            WordCompositionReport.Generate(
-                tmp,
-                new List<object> { spfView },
-                ReportScope.Minimal,
-                showInfoFindings: false,
-                narrativePlacement: NarrativePlacement.Auto,
-                titleOverride: "Unit Test Report");
+            AssessmentWordReport.Generate(tmp, DomainAssessmentBuilder.Build(new object[] { spfView },
+                new DomainAssessmentOptions { Title = "Unit Test Report" }));
 
             Assert.True(File.Exists(tmp));
             Assert.True(new FileInfo(tmp).Length > 0);
 
-            using var zip = ZipFile.OpenRead(tmp);
-            var docEntry = zip.Entries.First(e => e.FullName.Equals("word/document.xml", StringComparison.OrdinalIgnoreCase));
-            using var stream = docEntry.Open();
-            using var reader = new StreamReader(stream);
-            var xml = reader.ReadToEnd();
+            var xml = DomainDetective.Tests.Reports.ReportArtifactText.Read(tmp);
+            Assert.Contains("SPF DNS query failed", xml);
+            Assert.Contains(SpfCodes.QueryFailed, xml);
 
-            // Headings
-            Assert.Contains("Executive Summary", xml);
-            Assert.Contains("Overview", xml);
-            Assert.Contains("All References", xml);
-            Assert.Contains("1 domain", xml);
-            Assert.DoesNotContain("Mail Providers", xml);
-            Assert.DoesNotContain("Legend: Confidence", xml);
-
-            // The complete findings appendix retains every affected target.
+            // Grouping duplicate findings must retain every affected target.
             for (int i = 1; i <= 8; i++) { Assert.Contains($"d{i}.example.com", xml); }
             Assert.DoesNotContain("[Company name]", xml);
             Assert.DoesNotContain("No table of contents entries found.", xml);
@@ -80,46 +65,4 @@ public class TestWordComposition
         }
     }
 
-    [Fact]
-    public void FooterText_Is_Written_To_Word_Composition_Output()
-    {
-        var spfView = new SpfRecordInfo
-        {
-            Check = HealthCheckType.SPF,
-            Area = AnalysisArea.Mail,
-            Subject = "example.com",
-            SpfRecord = "v=spf1 -all",
-            Assessments = Array.Empty<Assessment>(),
-            Recommendations = Array.Empty<RecommendationAdvice>(),
-            Positives = Array.Empty<RecommendationAdvice>()
-        };
-
-        var tmp = Path.Combine(Path.GetTempPath(), $"dd-word-footer-{Guid.NewGuid():N}.docx");
-        try
-        {
-            WordCompositionReport.Generate(
-                tmp,
-                new List<object> { spfView },
-                ReportScope.Minimal,
-                showInfoFindings: false,
-                footerText: "Footer from test");
-
-            using var zip = ZipFile.OpenRead(tmp);
-            var footerText = string.Join(" ",
-                zip.Entries
-                    .Where(e => e.FullName.StartsWith("word/footer", StringComparison.OrdinalIgnoreCase))
-                    .Select(entry =>
-                    {
-                        using var stream = entry.Open();
-                        using var reader = new StreamReader(stream);
-                        return reader.ReadToEnd();
-                    }));
-
-            Assert.Contains("Footer from test", footerText);
-        }
-        finally
-        {
-            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
-        }
-    }
 }

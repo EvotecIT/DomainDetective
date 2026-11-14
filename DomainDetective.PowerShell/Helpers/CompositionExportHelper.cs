@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Html;
 using DomainDetective.Reports.Markdown;
@@ -19,25 +20,50 @@ internal static class CompositionExportHelper
         string defaultTitle,
         bool openInBrowser,
         Action<string?>? openReport,
-        out bool hadUnsupportedFormats)
+        out bool hadUnsupportedFormats, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var generatedPaths = new List<string>();
         hadUnsupportedFormats = false;
         var messages = items.OfType<MessageHeaderAnalysis>().ToArray();
         if (messages.Length > 0 && messages.Length != items.Count) { throw new ArgumentException("Message evidence reports cannot be mixed with domain report items.", nameof(items)); }
 
+        var settings = ExportDefaults.CreateReportRequest();
+        settings.Scope = scope;
+        settings.Formats = formats;
+        AssessmentExportSettings.Validate(settings);
+
+        DomainAssessmentReport? report = messages.Length == 0
+            ? DomainAssessmentBuilder.Build(items, new DomainAssessmentOptions {
+                Title = string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? defaultTitle : ExportDefaults.NarrativeTitle
+            }) : null;
+
+        formats = formats.Distinct().ToArray();
+        var paths = formats.ToDictionary(format => format, format => ReportPathHelper.ResolveOutputPathForFormat(
+            explicitPath, ExportDefaults.OutputDirectory, label, format, formats));
+        Dictionary<ReportFormat, ReportResult>? paperResults = null;
         foreach (var format in formats)
         {
-            var outputPath = ReportPathHelper.ResolveOutputPathForFormat(
-                explicitPath,
-                ExportDefaults.OutputDirectory,
-                label,
-                format,
-                formats);
+            cancellationToken.ThrowIfCancellationRequested();
+            var outputPath = paths[format];
+            if (format is ReportFormat.Word or ReportFormat.Pdf) {
+                if (paperResults == null) {
+                    var paperPaths = paths.Where(pair => pair.Key is ReportFormat.Word or ReportFormat.Pdf)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value);
+                    paperResults = (messages.Length > 0
+                        ? MessageHeaderOfficeReport.GenerateReports(paperPaths, messages, cancellationToken)
+                        : AssessmentWordReport.GenerateReports(paperPaths, report!, new AssessmentWordOptions { ShowInfoFindings = true }, cancellationToken))
+                        .ToDictionary(result => result.Format);
+                }
+                ReportResult paper = paperResults[format];
+                if (!paper.Success) { throw new InvalidOperationException(paper.ErrorMessage); }
+                generatedPaths.Add(paper.FilePath);
+                if (openInBrowser) { openReport?.Invoke(paper.FilePath); }
+                continue;
+            }
 
             if (messages.Length > 0) {
                 switch (format) {
-                    case ReportFormat.Word: MessageHeaderOfficeReport.GenerateWord(outputPath, messages); break;
                     case ReportFormat.Excel: MessageHeaderOfficeReport.GenerateExcel(outputPath, messages); break;
                     case ReportFormat.Html: MessageHeaderHtmlReport.Generate(outputPath, messages); break;
                     case ReportFormat.Markdown: MessageHeaderMarkdownReport.Generate(outputPath, messages); break;
@@ -49,88 +75,27 @@ internal static class CompositionExportHelper
                 continue;
             }
 
-            if (format == ReportFormat.Word)
-            {
-                WordCompositionReport.Generate(
-                    outputPath,
-                    items,
-                    scope,
-                    showInfoFindings: true,
-                    narrativePlacement: ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? defaultTitle : ExportDefaults.NarrativeTitle,
-                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
-                    companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
-                    companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
-                    logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                    headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                    footerText: string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
-                    watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-
-                if (openInBrowser)
-                {
-                    openReport?.Invoke(outputPath);
-                }
-
-                generatedPaths.Add(outputPath);
-                continue;
+            switch (format) {
+                case ReportFormat.Excel:
+                    AssessmentExcelReport.Generate(outputPath, report!, new AssessmentExcelOptions { ShowInfoFindings = true });
+                    break;
+                case ReportFormat.Html:
+                    AssessmentHtmlReport.Generate(outputPath, report!, new AssessmentHtmlOptions(), openInBrowser);
+                    break;
+                case ReportFormat.Markdown:
+                    AssessmentMarkdownReport.Generate(outputPath, report!, new AssessmentMarkdownOptions { ShowInfoFindings = true });
+                    break;
+                case ReportFormat.MarkdownHtml:
+                    MarkdownHtmlReportGenerator.Generate(outputPath, report!, new AssessmentMarkdownOptions { ShowInfoFindings = true });
+                    break;
+                default:
+                    hadUnsupportedFormats = true;
+                    continue;
             }
-
-            if (format == ReportFormat.Html)
-            {
-                HtmlCompositionReport.Generate(
-                    outputPath,
-                    items,
-                    scope,
-                    openInBrowser,
-                    ExportDefaults.NarrativePlacement,
-                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? defaultTitle : ExportDefaults.NarrativeTitle,
-                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                    profile: ExportDefaults.HtmlProfile);
-
-                generatedPaths.Add(outputPath);
-                continue;
+            generatedPaths.Add(outputPath);
+            if (openInBrowser && format != ReportFormat.Html && format != ReportFormat.Markdown) {
+                openReport?.Invoke(outputPath);
             }
-
-            if (format == ReportFormat.Excel)
-            {
-                ExcelCompositionReport.Generate(outputPath, items, scope);
-                if (openInBrowser)
-                {
-                    openReport?.Invoke(outputPath);
-                }
-
-                generatedPaths.Add(outputPath);
-                continue;
-            }
-
-            if (format == ReportFormat.Markdown)
-            {
-                MarkdownCompositionReport.Generate(outputPath, items, scope);
-                generatedPaths.Add(outputPath);
-                continue;
-            }
-
-            if (format == ReportFormat.MarkdownHtml)
-            {
-                MarkdownCompositionReport.GenerateMarkdownHtml(outputPath, items, scope);
-                if (openInBrowser)
-                {
-                    openReport?.Invoke(outputPath);
-                }
-
-                generatedPaths.Add(outputPath);
-                continue;
-            }
-
-            hadUnsupportedFormats = true;
         }
 
         return generatedPaths;

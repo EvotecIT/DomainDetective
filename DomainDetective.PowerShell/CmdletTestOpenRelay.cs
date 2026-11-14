@@ -34,7 +34,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
@@ -58,11 +58,14 @@ namespace DomainDetective.PowerShell {
                         $"Open Relay Report - {HostName}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailOpenRelay");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"Open relay export failed: {ex.Message}");
                 }
@@ -70,4 +73,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

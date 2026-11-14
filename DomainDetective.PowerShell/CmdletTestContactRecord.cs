@@ -59,11 +59,14 @@ namespace DomainDetective.PowerShell {
                             $"Contact Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"Contact export failed: {ex.Message}");
                     }
@@ -74,5 +77,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

@@ -11,6 +11,7 @@ public static class HealthCheckCompositionReport {
     public static async Task<ReportResult> GenerateAsync(DomainHealthCheck health, ReportOptions options) {
         if (health == null) { throw new ArgumentNullException(nameof(health)); }
         if (options == null) { throw new ArgumentNullException(nameof(options)); }
+        AssessmentExportSettings.Validate(options);
         var subject = options.CustomProperties?.TryGetValue("Domain", out var domain) == true ? domain?.ToString() ?? "unknown" : "unknown";
         var path = string.IsNullOrWhiteSpace(options.OutputPath)
             ? ReportPathHelper.GenerateDefaultPath(subject, options.Format, null) : options.OutputPath;
@@ -27,9 +28,9 @@ public static class HealthCheckCompositionReport {
             && bool.TryParse(openValue?.ToString(), out var requestedOpen) && requestedOpen;
         var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
             Items = items, Formats = new[] { options.Format }, ExportPath = path,
-            Scope = options.IncludeTechnicalDetails ? ReportScope.Detailed : ReportScope.Minimal,
+            Scope = ReportScope.Normal,
             ShowInfoFindings = options.ShowInfoFindings, Title = options.Title,
-            Subject = subject, AutoCollectTtl = false, OpenInBrowser = open
+            GeneratedAtUtc = new DateTimeOffset(options.GeneratedAt.ToUniversalTime()), AutoCollectTtl = false, OpenInBrowser = open
         }).ConfigureAwait(false);
         var report = result.Reports.Single();
         if (errors.Count > 0) {

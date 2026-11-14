@@ -107,7 +107,7 @@ public class TestAgentReadinessReportSmoke
         var tmpMd = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".md");
 
         HtmlCompositionReport.Generate(tmpHtml, items, ReportScope.Detailed);
-        MarkdownCompositionReport.Generate(tmpMd, items, ReportScope.Detailed);
+        AssessmentMarkdownReport.Generate(tmpMd, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
 
         var html = File.ReadAllText(tmpHtml);
         var markdown = File.ReadAllText(tmpMd);
@@ -179,7 +179,7 @@ public class TestAgentReadinessReportSmoke
         var tmpMd = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".md");
 
         HtmlCompositionReport.Generate(tmpHtml, items, ReportScope.Detailed);
-        MarkdownCompositionReport.Generate(tmpMd, items, ReportScope.Detailed);
+        AssessmentMarkdownReport.Generate(tmpMd, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
 
         var html = File.ReadAllText(tmpHtml);
         var markdown = File.ReadAllText(tmpMd);

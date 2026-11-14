@@ -11,7 +11,7 @@ Validates sitemap XML and sitemap-listed URLs.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Test-DDSitemap [-Subject] <string[]> [-TimeoutSeconds <int>] [-MaxSitemapDocuments <int>] [-MaxEntries <int>] [-MaxUrlProbes <int>] [-MaxRedirects <int>] [-NoUrlProbe] [-NoCanonicalCheck] [-NoHttpFallback] [-UserAgent <string>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
+Test-DDSitemap [-Subject] <string[]> [-TimeoutSeconds <int>] [-AnalysisTimeoutSeconds <int>] [-MaxUrlProbeParallelism <int>] [-MaxSitemapDocuments <int>] [-MaxEntries <int>] [-MaxUrlProbes <int>] [-MaxRedirects <int>] [-NoUrlProbe] [-NoCanonicalCheck] [-NoHttpFallback] [-UserAgent <string>] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -32,6 +32,22 @@ PS> Test-DDSitemap -Subject https://example.com/sitemap.xml -MaxUrlProbes 1000
 
 
 ## PARAMETERS
+
+### -AnalysisTimeoutSeconds
+Total time budget in seconds for sitemap discovery, parsing, and URL probes. Exhaustion returns partial results with AnalysisComplete set to false.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -ArtifactsDirectory
 Destination directory for artifacts when emitted.
@@ -72,7 +88,7 @@ Optional list of resolver endpoints to use (multi-resolver).
 Type: DnsEndpoint[]
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: named
@@ -114,13 +130,13 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-Desired export format(s). Accepts one or many values.
+Combine formats in one request, for example -ExportFormat Word,Pdf,Html. Word and PDF share the same paper report.
 
 ```yaml
 Type: ReportFormat[]
 Parameter Sets: __AllParameterSets
 Aliases: Report
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named
@@ -195,6 +211,22 @@ Accept wildcard characters: False
 
 ### -MaxSitemapDocuments
 Maximum sitemap XML documents to fetch, including nested sitemapindex entries.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaxUrlProbeParallelism
+Maximum number of sitemap URL probes to run concurrently.
 
 ```yaml
 Type: Int32

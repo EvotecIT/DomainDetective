@@ -11,7 +11,7 @@ Cmdlet to parse DMARC aggregate reports and summarize failures.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Test-DDDmarcAggregate [-Path] <string> [-SummarizeBy <DmarcAggregateSummarizeBy>] [-Deduplicate] [-Json] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
+Test-DDDmarcAggregate [-Path] <string> [-MaxUncompressedMb <int>] [-SummarizeBy <DmarcAggregateSummarizeBy>] [-Deduplicate] [-Json] [-ExportFormat <ReportFormat[]>] [-ExportPath <string>] [-OpenInBrowser] [-ExportArtifacts] [-ArtifactsDirectory <string>] [-DisableParallel] [-ThrottleLimit <Int32>] [-MaxParallelism <Int32>] [-DnsParallelism <Int32>] [-DnsEndpoints <DnsEndpoint[]>] [-MultiResolverStrategy <MultiResolverStrategy>] [-MultiResolverMaxParallelism <Int32>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -82,7 +82,7 @@ Optional list of resolver endpoints to use (multi-resolver).
 Type: DnsEndpoint[]
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: named
@@ -124,13 +124,13 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-Desired export format(s). Accepts one or many values.
+Combine formats in one request, for example -ExportFormat Word,Pdf,Html. Word and PDF share the same paper report.
 
 ```yaml
 Type: ReportFormat[]
 Parameter Sets: __AllParameterSets
 Aliases: Report
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named
@@ -173,6 +173,22 @@ Accept wildcard characters: False
 
 ### -MaxParallelism
 Maximum concurrent health checks within a single domain run.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaxUncompressedMb
+Maximum expanded report size in MiB. The default is 50; 0 means unlimited.
 
 ```yaml
 Type: Int32

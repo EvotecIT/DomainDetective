@@ -329,6 +329,28 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
+        public void MailTls_SaysWhereTlsVersionsCouldNotAllBeTried() {
+            var view = new MailTlsInfo {
+                Check = HealthCheckType.IMAPTLS,
+                Subject = "example.test",
+                Servers = new[] {
+                    new MailTlsServerInfo { Key = "mx1.example.test:993", HostName = "mx1.example.test", Port = 993, Protocol = "Tls13", CertificateValid = true, ChainValid = true, HostnameMatch = true, ProtocolSupportComplete = true, LegacyProtocolSupportComplete = true, DaysToExpire = 90 },
+                    new MailTlsServerInfo { Key = "mx2.example.test:993", HostName = "mx2.example.test", Port = 993, Protocol = "Tls12", CertificateValid = true, ChainValid = true, HostnameMatch = true, ProtocolSupportComplete = false, LegacyProtocolSupportComplete = true, DaysToExpire = 90 }
+                },
+                Assessments = Array.Empty<Assessment>()
+            };
+
+            CheckAssessment check = DomainAssessmentBuilder.Build(new object[] { view }).Domains.Single().Checks.Single();
+
+            CheckMetric tested = Assert.Single(check.Metrics, static m => m.Label == "TLS versions tested");
+            Assert.Equal("1 of 2", tested.Value);
+            Assert.Equal(MetricState.Warning, tested.State);
+            CheckEvidence servers = Assert.Single(check.Evidence, static e => e.Kind == CheckEvidenceKind.Table && e.Title == "Servers");
+            int column = servers.Columns.IndexOf("Versions tested");
+            Assert.Equal(new[] { "all", "partly (legacy tested)" }, servers.Rows.Select(r => r[column]).ToArray());
+        }
+
+        [Fact]
         public void Facts_ReadUnobservedCountsAndHeuristicsForWhatTheyAre() {
             var views = new List<object> {
                 new HttpInfo { Check = HealthCheckType.HTTP, Subject = "example.org", MixedContentDetected = true, BodyLength = null, BodyTruncated = false },

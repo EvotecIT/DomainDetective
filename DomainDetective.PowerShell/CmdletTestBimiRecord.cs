@@ -58,11 +58,14 @@ namespace DomainDetective.PowerShell {
                             $"BIMI Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"BIMI export failed: {ex.Message}");
                     }
@@ -73,5 +76,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

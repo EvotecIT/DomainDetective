@@ -69,10 +69,11 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
             // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
             if (IsExportRequested()) {
                 var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html);
                 var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                 var hasUnsupportedFormats = formats.Any(f =>
                     f != DomainDetective.Reports.ReportFormat.Word
+                    && f != DomainDetective.Reports.ReportFormat.Pdf
                     && f != DomainDetective.Reports.ReportFormat.Html
                     && f != DomainDetective.Reports.ReportFormat.Json);
 
@@ -133,7 +134,7 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     protected override Task EndProcessingAsync() {
         if (_items.Count == 0) return Task.CompletedTask;
         var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
-            .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+            .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
             .ToArray();
         if (formats.Length == 0) return Task.CompletedTask;
 
@@ -154,11 +155,14 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
                 $"Mail Classification — {label}",
                 OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                 TryOpenReport,
-                out hadUnsupportedFormats);
+                out hadUnsupportedFormats,
+                CancelToken);
 
             if (_hadUnsupportedFormats || hadUnsupportedFormats) {
                 return ExportNotImplementedAsync("Test-DDMailDomainClassification");
             }
+        } catch (System.OperationCanceledException) {
+            throw;
         } catch (System.Exception ex) {
             WriteWarning($"Mail classification export failed: {ex.Message}");
         }

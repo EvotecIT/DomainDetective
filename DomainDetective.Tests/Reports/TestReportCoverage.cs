@@ -85,8 +85,10 @@ public class TestReportCoverage {
             var result = await new ReportDispatcher().GenerateAsync(health, new ReportOptions { Format = ReportFormat.Markdown, OutputPath = path }, "example.org");
             Assert.True(result.Success, result.ErrorMessage);
             var text = File.ReadAllText(result.FilePath);
-            Assert.Contains("| Status | 🔴 Error |", text);
-            Assert.Contains("| Errors | 1 |", text);
+            Assert.Contains("Only certificate error", text);
+            Assert.Contains("CERT.TEST", text);
+            var domain = Assert.Single(DomainAssessmentBuilder.Build(HealthCheckReportItems.BuildItems(health, "example.org", null, false, new List<string>())).Domains);
+            Assert.Contains(domain.Checks, check => check.Outcome == CheckOutcome.Error && check.Findings.Any(f => f.Code == "CERT.TEST"));
         } finally { File.Delete(path); }
     }
 
@@ -102,40 +104,78 @@ public class TestReportCoverage {
         };
         var path = Path.Combine(Path.GetTempPath(), "dd-discovery-report-" + Guid.NewGuid().ToString("N") + ".md");
         try {
-            MarkdownCompositionReport.Generate(path, items, ReportScope.Detailed);
+            AssessmentMarkdownReport.Generate(path, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
             var text = File.ReadAllText(path);
             foreach (var subject in new[] { "http.example", "ct.example", "inventory.example", "trace.example", "ip.example" }) {
-                Assert.Contains("# Assessment findings — " + subject, text);
+                Assert.Contains(subject, text);
             }
-            foreach (var section in text.Split(new[] { "# Assessment findings — " }, StringSplitOptions.None).Skip(1).Take(5)) { Assert.Contains("Retained sibling finding", section); Assert.Contains("COVERAGE.TEST", section); }
+            var model = DomainAssessmentBuilder.Build(items);
+            Assert.All(model.Domains, domain => Assert.Contains(domain.Checks.SelectMany(check => check.Findings), finding => finding.Code == "COVERAGE.TEST" && finding.Message == "Retained sibling finding"));
+            Assert.Contains("Retained sibling finding", text);
         } finally { File.Delete(path); }
     }
 
     [Fact]
-    public void ExcelActionPlanRetainsAdviceFromEverySuppliedView() {
-        var advice = new[] { new RecommendationAdvice { Code = "CUSTOM.TEST", Title = "Supplied corrective action", Why = "Distinct reason", How = "Distinct corrective procedure", Verify = "Distinct verification procedure" } };
+    public void ExcelActionPlanRetainsFindingsFromEverySuppliedView() {
+        var finding = new[] { new Assessment { Code = "CUSTOM.TEST", Severity = AssessmentSeverity.Warning, Message = "Distinct corrective action" } };
         var items = new object[] {
             new AssessmentEvidenceInfo("certificate.example", new[] { new Assessment { Code = "CERT.TEST", Severity = AssessmentSeverity.Error, Message = "Certificate corrective action" } }),
-            new AgentReadinessInfo { Subject = "agent.example", Recommendations = advice },
-            new SitemapInfo { Subject = "sitemap.example", Recommendations = advice },
-            new TlsRptReportsTimeSeriesInfo { Subject = "history.example", Recommendations = advice }
+            new AgentReadinessInfo { Subject = "agent.example", Assessments = finding },
+            new SitemapInfo { Subject = "sitemap.example", Assessments = finding },
+            new TlsRptReportsTimeSeriesInfo { Subject = "history.example", Assessments = finding }
         };
         var path = Path.Combine(Path.GetTempPath(), "dd-advice-report-" + Guid.NewGuid().ToString("N") + ".xlsx");
         try {
-            ExcelCompositionReport.Generate(path, items, ReportScope.Detailed);
-            using var archive = ZipFile.OpenRead(path);
-            XNamespace main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-            XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-            using var bookStream = archive.GetEntry("xl/workbook.xml")!.Open();
-            var sheet = XDocument.Load(bookStream).Descendants(main + "sheet").Single(s => s.Attribute("name")!.Value == "Recommendations");
-            using var relationStream = archive.GetEntry("xl/_rels/workbook.xml.rels")!.Open();
-            var target = XDocument.Load(relationStream).Root!.Elements().Single(r => r.Attribute("Id")!.Value == sheet.Attribute(rel + "id")!.Value).Attribute("Target")!.Value;
-            using var sheetStream = archive.GetEntry(target.StartsWith("/") ? target.TrimStart('/') : "xl/" + target)!.Open();
-            using var stringsStream = archive.GetEntry("xl/sharedStrings.xml")!.Open();
-            var strings = XDocument.Load(stringsStream).Root!.Elements().Select(s => s.Value).ToArray();
-            var text = string.Join(" ", XDocument.Load(sheetStream).Descendants(main + "c").Where(c => c.Attribute("t")?.Value == "s").Select(c => strings[int.Parse(c.Element(main + "v")!.Value)]));
-            foreach (var required in new[] { "Certificate corrective action", "agent.example", "sitemap.example", "history.example", "Distinct reason", "Distinct corrective procedure", "Distinct verification procedure" }) { Assert.Contains(required, text); }
-            Assert.DoesNotContain("No actionable recommendations", text);
+            AssessmentExcelReport.Generate(path, DomainAssessmentBuilder.Build(items));
+            var text = ReportArtifactText.Read(path);
+            foreach (var marker in new[] { "Certificate corrective action", "agent.example", "sitemap.example", "history.example", "Distinct corrective action", "CUSTOM.TEST", "CERT.TEST" }) {
+                Assert.Contains(marker, text);
+            }
         } finally { File.Delete(path); }
+    }
+}
+
+/// <summary>Reads user-visible artifact text while ignoring identifier break opportunities.</summary>
+internal static class ReportArtifactText {
+    internal static string Normalize(string text) => text.Replace("\u200B", string.Empty).Replace("\u00AD", string.Empty);
+
+    internal static string Read(string path) {
+        if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)) {
+            var document = OfficeIMO.Pdf.PdfReadDocument.Open(File.ReadAllBytes(path));
+            return Normalize(System.Text.RegularExpressions.Regex.Replace(string.Join(" ", document.Pages.Select(page => page.ExtractText())), @"\s+", " "));
+        }
+        if (Path.GetExtension(path).Equals(".docx", StringComparison.OrdinalIgnoreCase)) {
+            using var archive = ZipFile.OpenRead(path);
+            using var stream = archive.GetEntry("word/document.xml")!.Open();
+            XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+            return Normalize(string.Join(" ", XDocument.Load(stream).Descendants(w + "t").Select(t => t.Value)));
+        }
+        if (Path.GetExtension(path).Equals(".xlsx", StringComparison.OrdinalIgnoreCase)) {
+            using var archive = ZipFile.OpenRead(path);
+            XNamespace x = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+            var strings = Array.Empty<string>();
+            var entry = archive.GetEntry("xl/sharedStrings.xml");
+            if (entry != null) {
+                using var stream = entry.Open();
+                strings = XDocument.Load(stream).Descendants(x + "si").Select(t => t.Value).ToArray();
+            }
+            var values = new List<string>();
+            foreach (var sheet in archive.Entries.Where(e => e.FullName.StartsWith("xl/worksheets/sheet", StringComparison.Ordinal) && e.FullName.EndsWith(".xml", StringComparison.Ordinal))) {
+                using var stream = sheet.Open();
+                foreach (var cell in XDocument.Load(stream).Descendants(x + "c")) {
+                    var value = cell.Element(x + "v")?.Value ?? cell.Element(x + "is")?.Value ?? string.Empty;
+                    if ((string?)cell.Attribute("t") == "s") { value = strings[int.Parse(value)]; }
+                    values.Add(value);
+                }
+            }
+            return Normalize(string.Join(" ", values));
+        }
+        string text = File.ReadAllText(path);
+        if (Path.GetExtension(path).Equals(".md", StringComparison.OrdinalIgnoreCase)) {
+            // Compare rendered text, including the exporter's numeric character references and Markdown escapes.
+            text = System.Net.WebUtility.HtmlDecode(text);
+            text = System.Text.RegularExpressions.Regex.Replace(text, @"\\([\\`*_{}\[\]()#+.!|>~-])", "$1");
+        }
+        return Normalize(text);
     }
 }

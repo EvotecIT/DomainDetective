@@ -376,13 +376,13 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-Desired export format(s). Accepts one or many values.
+Combine formats in one request, for example -ExportFormat Word,Pdf,Html. Word and PDF share the same paper report.
 
 ```yaml
 Type: ReportFormat[]
 Parameter Sets: __AllParameterSets
 Aliases: Report
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named

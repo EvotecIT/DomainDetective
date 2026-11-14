@@ -57,11 +57,14 @@ public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet {
                         $"FCrDNS Report — {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDnsForwardReverse");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"FCrDNS export failed: {ex.Message}");
                 }

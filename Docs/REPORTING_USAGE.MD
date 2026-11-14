@@ -26,8 +26,11 @@ ddcli report example.com
 # Choose the format and output path; HTML uses the assessment layout
 ddcli report example.com --format html --output assessment_report.html
 
-# Generate without opening browser
-ddcli report example.com --no-open
+# Export Word and PDF from the same document build
+ddcli report example.com --format word,pdf --output ./Reports/assessment.docx
+
+# Repeated format flags; the explicit theme applies to HTML
+ddcli report example.com --format html --format pdf --theme dark --output ./Reports/assessment.html
 
 # Include discovery add-ons (can be slow)
 ddcli report example.com --dns-trace --dns-propagation
@@ -36,8 +39,8 @@ ddcli report example.com --dns-trace --dns-propagation
 ddcli RunsList --subject example.com --count 5
 ddcli RunsOpen --subject example.com
 
-# Batch processing
-ddcli report example.com,test.com,demo.com --format html
+# Each report command analyzes one domain; combine report formats in that run
+ddcli report example.com --format html,word,pdf
 ```
 
 ### PowerShell Usage
@@ -68,8 +71,8 @@ $null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html 
 # Export to different formats
 # JSON (implemented)
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/Markdown via composition (Excel requires .NET 8.0+ or net472 on Windows)
-Export-DDSecurityReport -ExportFormat Word -ExportPath "report.docx" {
+# Word/PDF/Excel/Markdown from the assessment model
+Export-DDSecurityReport -ExportFormat Word,Pdf -ExportPath "report.docx" {
     Test-DDEmailSpfRecord -DomainName "example.com"
     Test-DDEmailDmarcRecord -DomainName "example.com"
 }
@@ -78,50 +81,44 @@ Export-DDSecurityReport -ExportFormat Excel -ExportPath "report.xlsx" {
     Test-DDEmailDmarcRecord -DomainName "example.com"
 }
 
-# Excel dashboard profile (single overview + dashboard sheet)
-Export-DDSecurityReport -ExportFormat Excel -ExcelProfile Dashboard -ExportPath "dashboard.xlsx" {
-    Test-DDDomainOverallHealth -DomainName "example.com"
-}
-
 Export-DDSecurityReport -ExportFormat Markdown -ExportPath "report.md" {
     Test-DDEmailSpfRecord -DomainName "example.com"
     Test-DDEmailDmarcRecord -DomainName "example.com"
 }
-# PDF (planned)
+# PDF as the only requested format
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Pdf
 
-# Protocol-specific exports (TODO)
-# You can request export on specific tests; dedicated reports will be added.
-Test-DDEmailSpfRecord -DomainName "example.com" -ExportFormat Html   # TODO: report not yet implemented
-Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: report not yet implemented
 ```
 
 ## Report Types
 
-### 1. HTML Reports (Available)
-- Interactive dashboard with charts
-- Responsive design for mobile/desktop
-- Export capabilities (PDF, Excel from browser)
-- Real-time score calculations
+### 1. HTML reports
+- Assessment verdict, priorities, coverage and per-domain checks
+- Offline styles and scripts, with system/light/dark themes
 
-### 2. Word Reports (Available)
-- Professional document format
-- Executive summary and per-domain sections
-- Print-ready formatting
+### 2. Word and PDF reports
+- The same paper assessment document: cover, verdict, priorities, area table and per-domain chapters
+- An appendix with all checks, scoring notes and raw records
+- PDF conversion through OfficeIMO, including table-of-contents page numbers
+- Combined Word/PDF exports build the document once
 
-### 3. Excel Reports (Available)
-- Overview + per-domain sheets (composition-based)
-- Pivot table ready data grid
-- Multiple worksheets for categories (where applicable)
-### 4. Markdown Reports (Available)
-- Document-style layout mirroring Word
-- Executive summary + per-domain sections
+### 3. Excel reports
+- Summary, Do these first, Checks and Findings sheets
+- One evidence sheet per check type with table evidence
+- Outcome colours use text rather than fills; no merged cells
 
-### 5. PDF Reports (Planned)
-- Print-optimized layout
-- Compliance documentation
-- Digital signatures support
-- Archive-ready format
+### 4. Markdown and MarkdownHtml reports
+- Verdict, numbered priorities, area table and per-domain checks
+- Markdown includes collapsible details; MarkdownHtml also writes the Markdown sidecar
+
+With combined output, a supplied file path provides the base name and each format receives its own extension.
+Use `--format word,pdf` or repeated `--format` flags in the CLI, and `-ExportFormat Word,Pdf` in PowerShell.
+There is no standalone PDF switch. A failed member does not remove successful reports; the CLI returns failure
+if any requested report fails.
+In a multi-format batch, MarkdownHtml uses `<base>.markdown.html` with a `<base>.markdown.md` sidecar,
+leaving `<base>.html` and `<base>.md` for HTML and Markdown. Single-format filenames are unchanged.
+For example, `--format html,pdf,markdown,markdownhtml --output ./Reports/assessment.html` writes
+`assessment.html`, `assessment.pdf`, `assessment.md`, `assessment.markdown.html` and `assessment.markdown.md`.
 
 ## Artifacts
 
@@ -139,7 +136,7 @@ Use `RunsList` and `RunsOpen` to discover and open recent runs from the index.
 Every HTML report uses the assessment layout: summary, coverage matrix, filterable checks and domain sections.
 The report follows the viewer's light or dark theme by default.
 
-The CLI accepts `--template` for compatibility; it does not select another HTML layout. PowerShell's
+The CLI accepts only `--template default`; other templates are rejected before analysis. PowerShell's
 `-HtmlProfile Document` and `-HtmlProfile Dashboard` values are also accepted for compatibility and render the
 assessment report with the same default theme behavior.
 
@@ -229,8 +226,8 @@ and scoring rules.
    - Verify domain accessibility
 
 3. **Styling issues**
-   - Reports require internet for CDN resources
-   - Use offline mode for air-gapped environments
+   - HTML assessment reports embed their assets for offline viewing
+   - Check browser console errors if an exported file does not render
 
 ### Debug Mode
 

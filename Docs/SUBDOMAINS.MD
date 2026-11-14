@@ -37,7 +37,7 @@ DNS verification uses `DomainDetective.DnsConfiguration` and supports overriding
 ## Output surfaces
 
 - HTML report: renders a “Subdomains (Discovery)” section with summary, findings, evidence tables, and references.
-- Word report: renders a “Subdomains” section (summary + findings + evidence).
+- Word/PDF report: renders a “Subdomains” section (summary + findings + evidence).
 - Excel report (net8.0): renders a “Subdomains (Discovery)” block (summary + issuer/subdomain tables).
 
 ## Notes and limitations

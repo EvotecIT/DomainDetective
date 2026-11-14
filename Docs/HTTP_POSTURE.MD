@@ -52,7 +52,7 @@ await hc.VerifyWebsiteHttps("example.com", opts, captureBody: false);
 
 - View: `DomainDetective.Views.HttpInfo` (includes `.Raw` for deep data)
 - HTML report: “HTTP” section (summary + findings + evidence tables)
-- Word report: “HTTP” section (summary + evidence tables + findings)
+- Word/PDF report: “HTTP” section (summary + evidence tables + findings)
 - Excel report (net8.0): “HTTP” block (summary + tables)
 
 ## Dashboards

@@ -69,11 +69,14 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet {
                         $"SMTP AUTH Report - {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailSmtpAuth");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"SMTP AUTH export failed: {ex.Message}");
                 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using DomainDetective.Reports;
+using static DomainDetective.Reports.AssessmentReportWording;
 using HtmlForgeX;
 using Severity = HtmlForgeX.AssessmentSeverity;
 
@@ -116,17 +117,10 @@ public static partial class AssessmentHtmlReport {
     private static Severity OutcomeSeverity(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => Severity.High,
         CheckOutcome.Warning => Severity.Elevated,
-        CheckOutcome.Incomplete => Severity.Elevated,
+        // An evidence gap reads as neutral, not as a warning.
+        CheckOutcome.Incomplete => Severity.Skipped,
         CheckOutcome.Pass => Severity.Good,
         _ => Severity.Informational
-    };
-
-    private static string OutcomeLabel(CheckOutcome outcome) => outcome switch {
-        CheckOutcome.Error => "Error",
-        CheckOutcome.Warning => "Warning",
-        CheckOutcome.Incomplete => "Incomplete",
-        CheckOutcome.Pass => "Pass",
-        _ => "Info"
     };
 
     private static Severity FindingSeverity(AssessmentSeverity severity) => severity switch {
@@ -143,12 +137,6 @@ public static partial class AssessmentHtmlReport {
         _ => Severity.High
     };
 
-    private static string AreaLabel(AnalysisArea area) => area switch {
-        AnalysisArea.DNS => "DNS",
-        AnalysisArea.General => "Other",
-        _ => area.ToString()
-    };
-
     private static int AreaIndex(AnalysisArea area) {
         for (int i = 0; i < DomainAssessmentCatalog.AreaOrder.Count; i++) {
             if (DomainAssessmentCatalog.AreaOrder[i] == area) return i;
@@ -156,8 +144,5 @@ public static partial class AssessmentHtmlReport {
         return int.MaxValue;
     }
 
-    private static string Plural(int count, string noun)
-        => $"{count.ToString("N0", CultureInfo.InvariantCulture)} {noun}{(count == 1 ? string.Empty : "s")}";
 
-    private static string FormatTime(DateTimeOffset value) => value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);
 }

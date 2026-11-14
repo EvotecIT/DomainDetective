@@ -60,11 +60,14 @@ namespace DomainDetective.PowerShell {
                             $"RDAP Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Get-DDRdap");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"RDAP export failed: {ex.Message}");
                     }

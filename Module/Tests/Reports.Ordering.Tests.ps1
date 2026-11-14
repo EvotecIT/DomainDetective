@@ -70,7 +70,7 @@ Describe 'Report ordering and composition (Pester)' {
                 $textNodes = $n.SelectNodes('.//w:t', $ns)
                 $text = ''
                 foreach ($t in $textNodes) {
-                    $text += $t.InnerText
+                    $text += ($t.InnerText -replace [char]0x200B, '')
                 }
                 $list.Add([pscustomobject]@{ Style = $style; Text = $text })
             }
@@ -85,17 +85,23 @@ Describe 'Report ordering and composition (Pester)' {
         Remove-Item -Path Function:global:Get-WordHeadings -ErrorAction SilentlyContinue
     }
 
-    It 'respects domain and section order in Word composition' {
+    It 'respects input domain order in Word assessment' {
         $reportPath = Join-Path $TestDrive 'ordering-word.docx'
-        $items = @()
-        $items += New-TestViews -Domain 'b.example'
-        $items += New-TestViews -Domain 'a.example'
+        $items = @(
+            New-TestViews -Domain 'b.example'
+            New-TestViews -Domain 'a.example'
+        )
 
-        $items | Export-DDSecurityReport -ExportFormat Word -ExportPath $reportPath -DomainOrder Input -SectionOrderMode Custom -SectionOrder DMARC,SPF -OpenReport:$false | Out-Null
+        $items | Export-DDSecurityReport -ExportFormat Word -ExportPath $reportPath -DomainOrder Input -OpenReport:$false | Out-Null
 
         Test-Path -Path $reportPath | Should -BeTrue
 
         $headings = Get-WordHeadings -Path $reportPath
+        foreach ($heading in $headings) {
+            if ($heading.Style -eq 'Heading1') {
+                $heading.Text = ($heading.Text -split '\s+', 2)[0]
+            }
+        }
         $domainHeadings = $headings | Where-Object { $_.Style -eq 'Heading1' -and $_.Text -in @('b.example', 'a.example') } | ForEach-Object { $_.Text }
         $domainHeadings | Should -Be @('b.example', 'a.example')
 
@@ -114,16 +120,6 @@ Describe 'Report ordering and composition (Pester)' {
         $indexB | Should -BeGreaterThan -1
         $indexA | Should -BeGreaterThan $indexB
 
-        $sectionsB = @()
-        for ($i = $indexB + 1; $i -lt $indexA; $i++) {
-            if ($headings[$i].Style -eq 'Heading2') {
-                $sectionsB += $headings[$i].Text
-            }
-        }
-        $sectionsB | Should -Be @('DMARC', 'SPF')
-
-        $xmlText = Get-WordXml -Path $reportPath
-        ([regex]::Matches($xmlText, 'b.example').Count) | Should -BeGreaterThan 1
     }
 
     It 'flattens piped arrays for HTML composition' {

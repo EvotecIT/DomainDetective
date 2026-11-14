@@ -56,11 +56,14 @@ namespace DomainDetective.PowerShell {
                             $"NS Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Test-DDDnsNsRecord");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (System.Exception ex) {
                         WriteWarning($"NS export failed: {ex.Message}");
                     }
@@ -71,5 +74,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

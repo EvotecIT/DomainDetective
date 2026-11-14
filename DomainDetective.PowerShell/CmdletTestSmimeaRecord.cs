@@ -30,7 +30,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var psLogger = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
             psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
@@ -54,11 +54,14 @@ namespace DomainDetective.PowerShell {
                         $"SMIMEA Report - {EmailAddress}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDnsSmimeaRecord");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"SMIMEA export failed: {ex.Message}");
                 }
@@ -66,4 +69,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

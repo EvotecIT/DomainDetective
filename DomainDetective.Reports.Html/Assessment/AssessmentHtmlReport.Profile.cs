@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using DomainDetective.Reports;
+using static DomainDetective.Reports.AssessmentReportWording;
 using HtmlForgeX;
 using Severity = HtmlForgeX.AssessmentSeverity;
 
@@ -127,7 +128,7 @@ public static partial class AssessmentHtmlReport {
                         string[] wildcard = ListItems(caa, "Can issue wildcard certificates for domain").ToArray();
                         panel.AssessmentChips(chips => {
                             chips.Label("Captured certificate authority policy (CAA)");
-                            if (!caa.EvidenceComplete) chips.Chip("Policy lookup incomplete", Severity.Elevated, Link(caa));
+                            if (!caa.EvidenceComplete) chips.Chip("Policy lookup incomplete", Severity.Skipped, Link(caa));
                             foreach (string issuer in allowed) chips.Chip(issuer + " · general issuance", null, Link(caa));
                             foreach (string issuer in wildcard) chips.Chip(issuer + " · wildcard issuance", null, Link(caa));
                             if (allowed.Length == 0 && wildcard.Length == 0) chips.Chip("No issuer names captured; inspect the CAA evidence", null, Link(caa));
@@ -185,56 +186,11 @@ public static partial class AssessmentHtmlReport {
                 .Subtitle("The domain and every address behind its mail servers, checked against blocklists.")
                 .Settings(s => s.Flush())
                 .AssessmentStats(stats => stats
-                    .Stat(!complete ? "Incomplete" : listed == "0" ? "No listings observed" : listed + " listed", "Blocklist result", !complete ? Severity.Elevated : listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
+                    .Stat(!complete ? "Incomplete" : listed == "0" ? "No listings observed" : listed + " listed", "Blocklist result", !complete ? Severity.Skipped : listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
                     .Stat(Fact(dnsbl, "Providers checked") ?? "-", "Blocklists checked")
                     .Stat(Fact(dnsbl, "Hosts checked") ?? "-", "Hosts and addresses checked")));
         }
     }
-
-    /// <summary>
-    /// One sentence on what holds and what to fix first, for the top of a domain page.
-    /// </summary>
-    private static string DomainVerdict(DomainAssessment domain) {
-        string? strengths = DomainStrengths(domain);
-        string[] fixes = FixOrder(domain.Checks)
-            .Take(3)
-            .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
-            .ToArray();
-        string first = strengths == null ? string.Empty : strengths + " ";
-        string second = fixes.Length == 0 ? domain.Checks.Any(c => !c.EvidenceComplete)
-            ? "Some checks have incomplete evidence." : "Every scored check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
-        return first + second;
-    }
-
-    /// <summary>What the domain's mail and DNS controls achieve, as one sentence, or null when nothing is known.</summary>
-    private static string? DomainStrengths(DomainAssessment domain) {
-        var strengths = new List<string>();
-        CheckAssessment? dmarc = domain.Checks.FirstOrDefault(c => c.Key == "dmarc");
-        CheckAssessment? spf = domain.Checks.FirstOrDefault(c => c.Key == "spf");
-        string? policy = dmarc == null ? null : Metric(dmarc, "Policy");
-        if (string.Equals(policy, "reject", StringComparison.OrdinalIgnoreCase)) strengths.Add("spoofed mail is rejected (DMARC reject)");
-        else if (string.Equals(policy, "quarantine", StringComparison.OrdinalIgnoreCase)) strengths.Add("spoofed mail is quarantined (DMARC quarantine)");
-        else if (dmarc != null && string.Equals(Metric(dmarc, "Record"), "Unknown", StringComparison.OrdinalIgnoreCase)) strengths.Add("the DMARC policy could not be read (DNS lookup failed)");
-        else if (dmarc != null) strengths.Add("DMARC does not stop spoofed mail yet");
-        if (spf != null && (Metric(spf, "Ends with") ?? string.Empty).StartsWith("-all", StringComparison.Ordinal)) strengths.Add("SPF hard-fails unknown senders");
-        if (domain.Checks.FirstOrDefault(c => c.Key == "dnssec") is { Outcome: CheckOutcome.Pass, EvidenceComplete: true } dnssec
-            && string.Equals(Fact(dnssec, "Validation status"), "Secure", StringComparison.OrdinalIgnoreCase)) strengths.Add("DNSSEC is valid");
-        return strengths.Count == 0 ? null : Capitalize(string.Join(", ", strengths)) + ".";
-    }
-
-    /// <summary>
-    /// Checks that need attention, in the order to fix them: security exposure first (see
-    /// <see cref="DomainAssessmentCatalog.SecurityPriority"/>), then errors before warnings, then by what costs the score
-    /// most (points lost times the check's weight).
-    /// </summary>
-    private static bool NeedsAttention(CheckAssessment check) => !check.EvidenceComplete
-        || check.Outcome is CheckOutcome.Error or CheckOutcome.Warning or CheckOutcome.Incomplete;
-
-    private static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
-        .Where(NeedsAttention)
-        .OrderBy(static c => DomainAssessmentCatalog.SecurityPriority(c.Check))
-        .ThenByDescending(static c => c.Outcome)
-        .ThenByDescending(static c => (100 - c.Score) * Math.Max(1, c.Weight));
 
     private static void ProtocolChip(AssessmentChipList chips, CheckAssessment cert, string factLabel, string text, bool legacy, string? link) {
         string? value = Fact(cert, factLabel);
@@ -259,12 +215,6 @@ public static partial class AssessmentHtmlReport {
         _ => OutcomeSeverity(outcome)
     };
 
-    private static string? Metric(CheckAssessment check, string label)
-        => check.Metrics.FirstOrDefault(m => string.Equals(m.Label, label, StringComparison.OrdinalIgnoreCase))?.Value is { Length: > 0 } value ? value : null;
-
-    private static string? Fact(CheckAssessment check, string label)
-        => check.Facts.FirstOrDefault(f => string.Equals(f.Label, label, StringComparison.OrdinalIgnoreCase))?.Value is { Length: > 0 } value ? value : null;
-
     private static IEnumerable<string> ListItems(CheckAssessment check, string title)
         => check.Evidence.FirstOrDefault(e => string.Equals(e.Title, title, StringComparison.OrdinalIgnoreCase))?.Items ?? Enumerable.Empty<string>();
 
@@ -272,9 +222,6 @@ public static partial class AssessmentHtmlReport {
         => check.Evidence.FirstOrDefault(e => string.Equals(e.Title, title, StringComparison.OrdinalIgnoreCase))?.Rows ?? new List<List<string>>();
 
     private static string Cell(List<string> row, int index) => index < row.Count ? row[index] ?? string.Empty : string.Empty;
-
-    private static string? TopFinding(CheckAssessment check)
-        => check.Findings.FirstOrDefault(static f => f.Severity != AssessmentSeverity.Info)?.Message;
 
     private static string? JoinText(params string?[] parts) {
         string joined = string.Join(" · ", parts.Where(static p => !string.IsNullOrWhiteSpace(p)));
@@ -292,12 +239,6 @@ public static partial class AssessmentHtmlReport {
     }
 
     private static string? Prefix(string prefix, string? value) => string.IsNullOrWhiteSpace(value) ? null : prefix + " " + value;
-
-    private static string Shorten(string text, int max) => text.Length <= max ? text : text.Substring(0, max - 1).TrimEnd() + "…";
-
-    private static bool Has(string? text, string value) => text != null && text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
-
-    private static string Capitalize(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
 
     private static DateTimeOffset? ParseUtc(string? text) {
         if (string.IsNullOrWhiteSpace(text)) return null;

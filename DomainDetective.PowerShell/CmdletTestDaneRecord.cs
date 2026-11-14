@@ -68,11 +68,14 @@ namespace DomainDetective.PowerShell {
                             $"DANE Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"DANE export failed: {ex.Message}");
                     }
@@ -83,4 +86,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

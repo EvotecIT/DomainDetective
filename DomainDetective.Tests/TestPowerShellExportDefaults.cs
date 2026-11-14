@@ -73,12 +73,22 @@ public class TestPowerShellExportDefaults
     }
 
     [Fact]
-    public void SetExportOptionsRejectsPdfDefaultFormat()
+    public void SetExportOptionsAcceptsPdfDefaultFormat()
     {
-        var ex = Assert.Throws<ArgumentException>(
-            () => CmdletSetExportOptions.ValidateDefaultFormat(ReportFormat.Pdf));
+        // PdfExports.Tests.ps1 owns real PowerShell binding; reference assemblies do not implement attribute getters.
+        var error = Record.Exception(() => CmdletSetExportOptions.ValidateDefaultFormat(ReportFormat.Pdf));
+        Assert.Null(error);
+    }
 
-        Assert.Contains("PDF report generation is not currently shipped", ex.Message, StringComparison.Ordinal);
+    [Fact]
+    public void SetExportOptionsRejectsUnknownDefaultFormatWithoutChangingDefaults()
+    {
+        var previous = ExportDefaults.Format;
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => CmdletSetExportOptions.ValidateDefaultFormat((ReportFormat)int.MaxValue));
+
+        Assert.Equal("DefaultFormat", ex.ParamName);
+        Assert.Equal(previous, ExportDefaults.Format);
     }
 
     private static ExportDefaultsSnapshot CaptureExportDefaults()

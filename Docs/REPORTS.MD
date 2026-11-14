@@ -1,90 +1,40 @@
-# Reporting Architecture and Style Guide
+# Reporting architecture and exports
 
-## Goals
-- Reusable, format-agnostic report structure for specific areas (SPF, DMARC, DKIM, MX, DNSSEC, TLS, MTA-STS, DANE, HTTP, DNSBL) and aggregate (single- and multi-domain) reports.
-- Consistent content: Summary, Findings (assessments), Actions (recommendations), Evidence (tables, samples), with numbering (1, 1.1, 1.1.1).
-- Word and HTML as primary targets; PDF to follow, Excel combines a reader-oriented overview and action plan with filterable evidence worksheets.
+Domain assessment reports read `DomainAssessmentReport`. HTML, Word/PDF, Excel and Markdown use the shared `AssessmentReportWording` for verdicts, priority actions, area lines and outcome labels. Exporting completed evidence does not rerun checks. Incomplete evidence remains neutral and unscored.
 
-## Reader-oriented exports
+## Public formats
 
-General Word, Excel, Markdown and MarkdownHtml generators compose the completed health-check views rather than rerunning mail classification. The overview states the scope and warning/error totals. Recommendations explain why to act, what to change and how to verify. Completed checks without dedicated technical sections retain their assessment findings and catalog advice. An empty analysis does not produce an apparently healthy document.
+PowerShell uses its existing `-ExportFormat` array. PDF is available wherever Word is offered, including individual checks, overall domain reports and message-header reports. Formats can be combined:
 
-Excel includes a compact overview, navigation, an action plan, a complete findings sheet and control/domain evidence. Long text continues in ordered rows, with explicit text-part labels. Worksheets print one page wide with unrestricted vertical continuation. Evidence remains filterable, while the opening sheet explains what the reader should review first.
+```powershell
+$views | Export-DDSecurityReport -ExportFormat Html,Word,Pdf -ExportPath ./Reports/assessment.html
+Test-DDDomainOverallHealth -DomainName example.test -ExportFormat Word,Pdf -ExportPath ./Reports/assessment.docx
+Set-DDExportOptions -DefaultFormat Pdf
+```
 
-Message reports use the same brief across formats. Receiver authentication claims, identity alignment, route declarations and local cryptographic verification remain separate. Original fields and signature observations belong in the evidence appendix.
+The CLI accepts repeated or comma-separated format values:
 
-## Structure
-- Cover: title, logo (optional), generated at, author.
-- TOC: auto-generated from headings.
-- Sections: top-level per domain; within each domain, per-area sections.
-- Numbering: H1 → 1, H2 → 1.1, H3 → 1.1.1.
+```sh
+DomainDetective.CLI report example.test --format html,word,pdf --output ./Reports/assessment.html
+DomainDetective.CLI GenerateReport example.test --format word --format pdf --output ./Reports/assessment.docx
+DomainDetective.CLI DesiredState example.test --desired-state ./desired-state.json --format word,pdf --output ./Reports/desired-state.docx
+```
 
-## Area Template
-For each area (e.g., SPF):
-1. Area Title (e.g., "SPF Assessment for <domain>")
-1.1 Summary: KPIs, grade, key facts.
-1.2 Findings: table of coded assessments (Severity, Code, Target, Message, Timestamp).
-1.3 Actions: prioritized recommendations (Title, Why, How, Effort, Verify).
-1.4 Evidence: records, configuration details, resolved data, samples.
+Combined file outputs share the supplied base name and use their format extensions. In a batch, Markdown HTML uses `.markdown.html` and its sidecar uses `.markdown.md`, keeping both distinct from the assessment HTML and standalone Markdown. A Word/PDF request builds one Word document and converts that same document through OfficeIMO's Word-to-PDF engine. PDF has no separate layout. PDF TOC numbers use the converter's final pagination.
 
-### SPF – Required Sections (detailed)
-- Introduction: what SPF is and its role in anti‑spoofing.
-- Why it matters: business context and risk framing.
-- Summary: record present, starts with v=spf1, all= qualifier, DNS lookups used, unknown mechanisms.
-- Findings: all assessments (Info/Warning/Error), not only warnings.
-- Mechanisms: table listing qualifier, type (a/mx/ip4/…), value, inferred provider.
-- DNS Lookups: distinct domains looked up during evaluation.
-- Flattened IP Analysis:
-  - Unique IPs count; Duplicate IPs count; Tokens resolved count.
-  - Token→IPs counts table; sample of unique IPs (first N).
-  - Flattened SPF tree (optional appendix).
-- Policy Checks: CycleDetected, CyclePath, Advisory string.
-- Recommendations: table with Code, Title, How (plus Why/Effort if space allows).
-- References: RFC 7208 and vendor best practices.
+## Assessment layout and ownership
 
-We will mirror this pattern for DMARC and DKIM (with policy semantics, alignment, selectors, keys, reports) and for other providers, capturing both technical evidence and management-level context.
+The maintained layout is specified in [REPORT_EXPORTS.MD](REPORT_EXPORTS.MD), sections 0–3. Word/PDF contains the cover and verdict, metrics, priority actions, area table, multi-domain controls, one chapter per domain and an appendix. Identifiers use invisible break opportunities at separators, never inserted visible spaces.
 
-## Visuals
-- Word: headings, tables, optional charts, callouts; header/footer branding; optional watermark.
-- HTML: Tabler-based layout, infocards, Chart.js, anchor-based TOC; dashboard and document templates.
+Excel provides Summary, Do these first, Checks, Findings and per-check-type table-evidence sheets. Outcome tone uses text colour without fills or merged cells. Markdown provides the verdict, numbered actions, area table, attention checks and collapsible complete checks.
 
-## Configuration
-- Template: Executive, Technical, Compliance, Dashboard.
-- Theme: Light, Dark, Professional.
-- Branding: LogoPath, HeaderText, FooterText, WatermarkText.
+`DomainDetective.Reports` owns the assessment model and wording. `DomainDetective.Reports.Office` owns paper/workbook rendering and the shared Word/PDF batch. `DomainDetective.Reports.Markdown` owns Markdown. HTML uses the same model through `DomainDetective.Reports.Html`. Format entry points stay thin and acquire evidence once.
 
-## Narrative metadata contract
+The assessment layout supports title, domain ordering and informational-finding visibility. Nondefault retired scope, branding, narrative-placement and section-order overrides fail before output; they are not silently applied. See the generated [Export-DDSecurityReport help](../Module/Docs/Export-DDSecurityReport.md).
 
-Composition-based reports accept a consistent set of narrative metadata fields and a narrative placement flag.
-PowerShell can set defaults via `Set-DDExportOptions`. CLI or SDK calls can pass overrides where supported.
+## Message evidence
 
-Metadata fields:
-
-| Field | Description | Notes |
-|---|---|---|
-| Title | Report title override | Used for document title and HTML title. |
-| Subject | Report subject/description | Used in document properties and HTML description. |
-| Category | Report category | Stored as document metadata. |
-| Keywords | Report keywords | Comma-separated list for document metadata. |
-| Creator | Report author/creator | Used in document properties and headers where supported. |
-
-Narrative placement (`NarrativePlacement`):
-
-- `Auto`: Use a global background section for multi-domain reports, otherwise embed narratives per domain.
-- `Global`: Render a single background section with narratives and omit per-domain narratives.
-- `PerDomain`: Render narrative sub-sections inside each per-domain section.
-- `None`: Disable narrative sub-sections entirely.
-
-## Implementation Plan
-1. Build a thin internal IR (Document, Section, Paragraph, Table, Chart) and a numbering helper.
-2. Implement SPF report (Word + HTML) using area builder and renderers.
-3. Extend to DMARC + DKIM; create aggregate report that composes area outputs.
-4. Add multi-domain aggregation (portfolio summary matrix + per-domain sections).
-5. Mirror in HTML (document + dashboard templates). Add PDF through OfficeIMO once the dependency-free package path is available.
-
-## Notes
-- Reports should be consumable artifacts, not live UI only; dashboards provide interactive view.
-- Keep JSON artifacts as the canonical data source; reports summarize and narrate.
+Message reports keep receiver authentication claims, identity alignment, route declarations and local cryptographic verification separate. Word and PDF share one message-evidence document; the PDF is its OfficeIMO conversion. Original fields and signature observations remain in the evidence appendix. Message reports do not fetch unsubscribe links or execute header-supplied markup.
 
 ## Mail Classification Scoring
 

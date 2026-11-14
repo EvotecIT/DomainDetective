@@ -162,7 +162,8 @@ public class TestAssessmentEvidenceCompletion {
         object view = failed
             ? new CheckFailureInfo(HealthCheckType.DNSBL, new Assessment { Severity = AssessmentSeverity.Error, Category = "DNSBL", Target = "example.test", Code = "Verification.Check.Failed", Message = "Provider unavailable." })
             : new DnsblInfo { Check = HealthCheckType.DNSBL, Subject = "example.test", Status = "Incomplete" };
-        Assert.DoesNotContain("Clean", Render(view));
+        // The whole word: embedded grid scripts contain identifiers such as stateCleanup.
+        Assert.DoesNotMatch(@"\bClean\b", Render(view));
     }
 
     [Theory]

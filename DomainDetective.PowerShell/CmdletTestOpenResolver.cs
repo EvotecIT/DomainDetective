@@ -31,7 +31,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _hc = new DomainHealthCheck(DnsEndpoint, _logger);
+            _hc = new DomainHealthCheck(DnsEndpoint, _logger);
             ApplyExecutionOptions(_hc);
             return Task.CompletedTask;
         }
@@ -54,11 +54,14 @@ namespace DomainDetective.PowerShell {
                         $"Open Resolver Report - {Server}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDnsOpenResolver");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"Open resolver export failed: {ex.Message}");
                 }
@@ -66,4 +69,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

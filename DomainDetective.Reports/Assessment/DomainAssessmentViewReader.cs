@@ -86,10 +86,21 @@ internal sealed class DomainAssessmentViewReader {
 
     public bool EvidenceComplete(object view) {
         if (view is DomainDetective.Views.CheckFailureInfo) return false;
+        // A failed initial policy lookup cannot establish absence or a score; ancillary lookups after a
+        // record was found do not erase the observed policy.
+        if (view is DomainDetective.Views.SpfRecordInfo { DnsQueryFailed: true, SpfRecordExists: false }) return false;
+        if (view is DomainDetective.Views.DmarcRecordInfo { DnsQueryFailed: true, DmarcRecordExists: false }) return false;
         if (_status != null && string.Equals(Get(_status, view)?.ToString(), "Incomplete", StringComparison.OrdinalIgnoreCase)) return false;
         if (view is DomainDetective.Views.DnssecStatusInfo dnssec && dnssec.ValidationStatus == DnssecValidationStatus.Indeterminate) return false;
         return true;
     }
+
+    /// <summary>Recognizes failed initial policy acquisition without suppressing observed policy defects or ancillary failures.</summary>
+    public static bool IsEvidenceGap(object view, Assessment assessment) => view switch {
+        DomainDetective.Views.SpfRecordInfo { DnsQueryFailed: true, SpfRecordExists: false } => assessment.Code == "SPF.Query.Failed",
+        DomainDetective.Views.DmarcRecordInfo { DnsQueryFailed: true, DmarcRecordExists: false } => assessment.Code == "DMARC.Query.Failed",
+        _ => false
+    };
 
     /// <summary>
     /// Scalar members as facts, record-like strings and long text as code, and collections as lists or tables.

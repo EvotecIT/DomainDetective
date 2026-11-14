@@ -128,14 +128,17 @@ public sealed class CmdletTestTyposquatting : ExportableAsyncPSCmdlet
                         $"Typosquatting — {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats)
                     {
                         await ExportNotImplementedAsync("Test-DDDomainTyposquatting");
                     }
                 }
-                catch (System.Exception ex)
+                catch (System.OperationCanceledException) {
+                    throw;
+                } catch (System.Exception ex)
                 {
                     WriteWarning($"Typosquatting export failed: {ex.Message}");
                 }

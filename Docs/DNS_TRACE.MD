@@ -34,7 +34,7 @@ DNS queries use `DomainDetective.DnsConfiguration` and can be influenced via:
 ## Output surfaces
 
 - HTML report: “DNS Trace” section with summary, trace results, and a capped step log table.
-- Word report: “DNS Trace” section with summary, trace results, and a capped step log table.
+- Word/PDF report: “DNS Trace” section with summary, trace results, and a capped step log table.
 - Excel report (net8.0): “DNS Trace” block with summary, trace results, and a capped step log table.
 
 ## Notes and limitations

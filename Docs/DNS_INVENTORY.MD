@@ -49,7 +49,7 @@ DNS queries use `DomainDetective.DnsConfiguration` and can be influenced via:
 ## Output surfaces
 
 - HTML report: “DNS Inventory” section with summary, inference evidence, query results, and captured record sample table.
-- Word report: “DNS Inventory” section with summary, inference evidence, query results, and captured record sample table.
+- Word/PDF report: “DNS Inventory” section with summary, inference evidence, query results, and captured record sample table.
 - Excel report (net8.0): “DNS Inventory” block with summary, inference evidence, query results, and record sample table.
 
 ## Notes and limitations

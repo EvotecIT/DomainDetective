@@ -161,11 +161,12 @@ namespace DomainDetective.PowerShell {
                 if (IsExportRequested()) {
                     var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
                     var compositionFormats = formats
-                        .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                        .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                         .ToArray();
                     var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                     var hadUnsupportedFormats = formats.Any(f =>
                         f != DomainDetective.Reports.ReportFormat.Word
+                        && f != DomainDetective.Reports.ReportFormat.Pdf
                         && f != DomainDetective.Reports.ReportFormat.Html
                         && f != DomainDetective.Reports.ReportFormat.Json);
                     var generated = false;
@@ -183,9 +184,12 @@ namespace DomainDetective.PowerShell {
                                 $"DNS Propagation Report - {domain} ({RecordType})",
                                 OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                                 TryOpenReport,
-                                out compositionUnsupportedFormats);
+                                out compositionUnsupportedFormats,
+                                CancelToken);
                             generated = true;
                             hadUnsupportedFormats |= compositionUnsupportedFormats;
+                        } catch (System.OperationCanceledException) {
+                            throw;
                         } catch (Exception ex) {
                             WriteWarning($"DNS propagation export failed: {ex.Message}");
                         }
@@ -221,4 +225,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

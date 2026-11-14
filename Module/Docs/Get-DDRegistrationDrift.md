@@ -15,7 +15,7 @@ Get-DDRegistrationDrift [-DomainName] <string> -StorePath <string> [-SinceUtc <D
 ```
 
 ## DESCRIPTION
-Loads stored snapshots for a domain and produces a drift view suitable for Word/HTML composition reports.
+Loads stored snapshots for a domain and produces a drift view suitable for Word/PDF/HTML composition reports.
 
 ## EXAMPLES
 

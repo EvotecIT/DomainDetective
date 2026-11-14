@@ -56,11 +56,14 @@ namespace DomainDetective.PowerShell {
                             $"Delegation Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Test-DDDnsDelegation");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (System.Exception ex) {
                         WriteWarning($"Delegation export failed: {ex.Message}");
                     }

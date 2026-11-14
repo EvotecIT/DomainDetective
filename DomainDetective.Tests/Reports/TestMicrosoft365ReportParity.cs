@@ -151,217 +151,25 @@ public class TestMicrosoft365ReportParity
             References = new[] { "https://learn.microsoft.com/en-us/entra/" }
         };
 
-        var items = new List<object> { view };
-        var tmpHtml = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".html");
-        var tmpMd = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".md");
-        var tmpDocx = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".docx");
-        var tmpXlsx = string.Concat(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".xlsx");
-
-        HtmlCompositionReport.Generate(tmpHtml, items, ReportScope.Detailed);
-        MarkdownCompositionReport.Generate(tmpMd, items, ReportScope.Detailed);
-        WordCompositionReport.Generate(tmpDocx, items, ReportScope.Detailed, showInfoFindings: false);
-        ExcelCompositionReport.Generate(tmpXlsx, items, ReportScope.Detailed, profile: ExcelProfile.Workbook);
-
-        var html = File.ReadAllText(tmpHtml);
-        var markdown = File.ReadAllText(tmpMd);
-        var wordXml = ReadZipText(tmpDocx);
-        var excelRows = ReadExcelRows(tmpXlsx);
-
-        Assert.Contains("Microsoft 365", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant ID", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Company", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Contoso", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Microsoft 365 Workloads", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Detected Workloads", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Strong", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Observed via", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Mail/Protocol", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Domains", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Domain Evidence", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Primary 1 (Strong), DKIM-derived 1 (Moderate), Namespace-derived 1 (Strong)", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("groups.contoso.com", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Custom Domain", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DKIM signing domain", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant Namespace Domain", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("contosotenant.onmicrosoft.com", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No Throttling", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Global/Commercial", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(tenantId, html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Exchange Online", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Defender", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Not Detected", html, StringComparison.OrdinalIgnoreCase);
-
-        Assert.Contains("Microsoft 365", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant ID", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Company", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Contoso", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M365 Workloads", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Strong 1 \\[Mail/Protocol 1\\]", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Domains", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Domain Evidence", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Primary 1 (Strong), DKIM-derived 1 (Moderate), Namespace-derived 1 (Strong)", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("groups.contoso.com", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Custom Domain", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DKIM signing domain", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant Namespace Domain", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("contosotenant.onmicrosoft.com", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No Throttling", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Global/Commercial", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(tenantId, markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Exchange Online", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Defender", markdown, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Not Detected", markdown, StringComparison.OrdinalIgnoreCase);
-
-        Assert.Contains("Microsoft 365", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant ID", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Company", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Contoso", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Domains", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Domain Evidence", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Primary 1 (Strong), DKIM-derived 1 (Moderate), Namespace-derived 1 (Strong)", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("groups.contoso.com", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Accepted Custom Domain", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DKIM signing domain", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Tenant Namespace Domain", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("contosotenant.onmicrosoft.com", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No Throttling", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Global/Commercial", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(tenantId, wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Exchange Online", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Defender", wordXml, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Not Detected", wordXml, StringComparison.OrdinalIgnoreCase);
-
-        AssertContainsText(excelRows, "Microsoft 365");
-        AssertContainsText(excelRows, "Strong 1");
-        AssertContainsText(excelRows, "Mail/Protocol");
-        AssertContainsLabelAndValue(excelRows, "Tenant ID", tenantId);
-        AssertContainsLabelAndValue(excelRows, "Company", "Contoso");
-        AssertContainsLabelAndValue(excelRows, "Accepted Domains", "contoso.com, groups.contoso.com");
-        AssertContainsLabelAndValue(excelRows, "Domain Evidence", "Primary 1 (Strong), DKIM-derived 1 (Moderate), Namespace-derived 1 (Strong)");
-        AssertContainsLabelAndValue(excelRows, "Tenant Namespace Domain", "contosotenant.onmicrosoft.com");
-        AssertContainsLabelAndValue(excelRows, "Throttling", "No Throttling");
-        AssertContainsLabelAndValue(excelRows, "Cloud Instance", "Global/Commercial");
-        AssertContainsText(excelRows, "Exchange Online");
-        AssertContainsText(excelRows, "Defender");
-        AssertContainsText(excelRows, "Not Detected");
-        AssertContainsText(excelRows, "groups.contoso.com");
-        AssertContainsText(excelRows, "Accepted Custom Domain");
-        AssertContainsText(excelRows, "DKIM signing domain");
-    }
-
-    private static string ReadZipText(string path)
-    {
-        var sb = new StringBuilder();
-        using var archive = ZipFile.OpenRead(path);
-        foreach (var entry in archive.Entries.Where(static item => item.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
-        {
-            using var reader = new StreamReader(entry.Open());
-            var xml = reader.ReadToEnd();
-            var text = Regex.Replace(xml, "<[^>]+>", " ");
-            text = Regex.Replace(text, "\\s+", " ").Trim();
-            if (text.Length > 0)
-            {
-                sb.Append(' ').Append(text);
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private static List<string> ReadExcelRows(string path)
-    {
-        using var archive = ZipFile.OpenRead(path);
-        var sharedStrings = ReadSharedStrings(archive);
-        var rows = new List<string>();
-        foreach (var entry in archive.Entries.Where(static item =>
-                     item.FullName.StartsWith("xl/worksheets/sheet", StringComparison.OrdinalIgnoreCase) &&
-                     item.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
-        {
-            using var stream = entry.Open();
-            var doc = XDocument.Load(stream);
-            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-            foreach (var row in doc.Descendants(ns + "row"))
-            {
-                var values = new List<string>();
-                foreach (var cell in row.Elements(ns + "c"))
-                {
-                    var text = ExtractCellText(cell, ns, sharedStrings);
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        values.Add(text!);
-                    }
-                }
-
-                if (values.Count > 0)
-                {
-                    rows.Add(string.Join(" | ", values));
+        var report = DomainAssessmentBuilder.Build(new object[] { view });
+        var tenant = Assert.Single(Assert.Single(report.Domains).Checks);
+        Assert.Contains(tenant.Facts, fact => fact.Label == "Tenant ID" && fact.Value == tenantId);
+        Assert.Contains(tenant.Facts, fact => fact.Label == "Company" && fact.Value == "Contoso");
+        var directory = Path.Combine(Path.GetTempPath(), "dd-m365-export-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            var paths = new[] { Path.Combine(directory, "report.html"), Path.Combine(directory, "report.md"), Path.Combine(directory, "report.docx"), Path.Combine(directory, "report.xlsx") };
+            AssessmentHtmlReport.Generate(paths[0], report);
+            AssessmentMarkdownReport.Generate(paths[1], report);
+            AssessmentWordReport.Generate(paths[2], report);
+            AssessmentExcelReport.Generate(paths[3], report);
+            foreach (var path in paths) {
+                string text = ReportArtifactText.Read(path);
+                Assert.Contains(tenantId, text);
+                foreach (string marker in new[] { "groups.contoso.com", "contosotenant.onmicrosoft.com", "Exchange Online", "Defender", "Not Detected", "User enumeration is exposed.", "OpenID configuration" }) {
+                    Assert.Contains(marker, text, StringComparison.OrdinalIgnoreCase);
                 }
             }
-        }
-
-        return rows;
-    }
-
-    private static List<string> ReadSharedStrings(ZipArchive archive)
-    {
-        var entry = archive.Entries.FirstOrDefault(e => e.FullName.Equals("xl/sharedStrings.xml", StringComparison.OrdinalIgnoreCase));
-        if (entry == null)
-        {
-            return new List<string>();
-        }
-
-        using var stream = entry.Open();
-        var doc = XDocument.Load(stream);
-        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-        return doc.Descendants(ns + "si").Select(si => string.Concat(si.Descendants(ns + "t").Select(t => t.Value))).ToList();
-    }
-
-    private static string? ExtractCellText(XElement cell, XNamespace ns, List<string> sharedStrings)
-    {
-        var type = (string?)cell.Attribute("t");
-        if (string.Equals(type, "inlineStr", StringComparison.OrdinalIgnoreCase))
-        {
-            return cell.Element(ns + "is")?.Element(ns + "t")?.Value;
-        }
-
-        var value = cell.Element(ns + "v")?.Value;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (string.Equals(type, "s", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(value, out var index) &&
-            index >= 0 &&
-            index < sharedStrings.Count)
-        {
-            return sharedStrings[index];
-        }
-
-        return value;
-    }
-
-    private static void AssertContainsLabelAndValue(IEnumerable<string> rows, string label, string value)
-    {
-        foreach (var row in rows)
-        {
-            if (row.IndexOf(label, StringComparison.OrdinalIgnoreCase) >= 0 &&
-                row.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return;
-            }
-        }
-
-        Assert.Fail($"Expected '{label}' with value '{value}' in the same Excel row.");
-    }
-
-    private static void AssertContainsText(IEnumerable<string> rows, string value)
-    {
-        if (rows.Any(row => row.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0))
-        {
-            return;
-        }
-
-        Assert.Fail($"Expected '{value}' in Excel rows.");
+        } finally { Directory.Delete(directory, true); }
     }
 }

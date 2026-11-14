@@ -33,7 +33,7 @@ ddcli report example.com --dns-propagation
 ## Output surfaces
 
 - HTML (Document profile): world map + rollups per record type.
-- Word: per-record-type tables (summary, answer sets, country rollup, resolvers).
+- Word/PDF: per-record-type tables (summary, answer sets, country rollup, resolvers).
 - Excel: per-record-type tables suitable for filtering and pivoting.
 
 ## Key knobs (DomainHealthCheck)

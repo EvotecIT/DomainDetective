@@ -60,7 +60,7 @@ public class TestPowerShellCompositionExportHelper
     }
 
     [Fact]
-    public void WriteReports_Generates_Word_And_Html_For_Requested_Formats()
+    public void WriteReports_Generates_Word_Pdf_And_Html_For_Requested_Formats()
     {
         var snapshot = ExportDefaultsSnapshot.Capture();
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"dd-export-helper-{Guid.NewGuid():N}");
@@ -86,7 +86,7 @@ public class TestPowerShellCompositionExportHelper
             var hadUnsupportedFormats = false;
             var generatedPaths = CompositionExportHelper.WriteReports(
                 new List<object> { CreateSpfView() },
-                new[] { ReportFormat.Word, ReportFormat.Html },
+                new[] { ReportFormat.Word, ReportFormat.Pdf, ReportFormat.Html },
                 explicitPath: null,
                 label: "example.com",
                 scope: ReportScope.Normal,
@@ -96,10 +96,16 @@ public class TestPowerShellCompositionExportHelper
                 out hadUnsupportedFormats);
 
             Assert.False(hadUnsupportedFormats);
-            Assert.Equal(2, generatedPaths.Count);
+            Assert.Equal(3, generatedPaths.Count);
             Assert.Contains(generatedPaths, path => path.EndsWith(".docx", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(generatedPaths, path => path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(generatedPaths, path => path.EndsWith(".html", StringComparison.OrdinalIgnoreCase));
             Assert.All(generatedPaths, path => Assert.True(File.Exists(path), $"Expected export file to exist: {path}"));
+            foreach (var path in generatedPaths) {
+                string text = Reports.ReportArtifactText.Read(path);
+                Assert.Contains("example.test", text);
+                Assert.Contains("SPF", text);
+            }
         }
         finally
         {
@@ -144,7 +150,7 @@ public class TestPowerShellCompositionExportHelper
             var hadUnsupportedFormats = false;
             var generatedPaths = CompositionExportHelper.WriteReports(
                 new List<object> { CreateSpfView() },
-                new[] { ReportFormat.Html, ReportFormat.Pdf },
+                new[] { ReportFormat.Html, (ReportFormat)int.MaxValue },
                 explicitPath: null,
                 label: "example.com",
                 scope: ReportScope.Normal,
@@ -174,13 +180,37 @@ public class TestPowerShellCompositionExportHelper
         }
     }
 
+    [Fact]
+    public void WriteReports_PdfOnlyUsesExplicitPathWithoutCreatingWord()
+    {
+        var snapshot = ExportDefaultsSnapshot.Capture();
+        var directory = Path.Combine(Path.GetTempPath(), "dd-export-pdf-selection-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(directory, "selected.pdf");
+        try {
+            ExportDefaults.NarrativeTitle = string.Empty;
+            ExportDefaults.NarrativeSubject = string.Empty;
+            ExportDefaults.NarrativeCategory = string.Empty;
+            ExportDefaults.NarrativeKeywords = string.Empty;
+            ExportDefaults.NarrativeCreator = string.Empty;
+            var paths = CompositionExportHelper.WriteReports(new object[] { CreateSpfView() }, new[] { ReportFormat.Pdf },
+                path, "example.test", ReportScope.Normal, "PDF selection", false, null, out var unsupported);
+            Assert.False(unsupported);
+            Assert.Equal(path, Assert.Single(paths));
+            Assert.Equal(path, Assert.Single(Directory.GetFiles(directory)));
+            Assert.Contains("example.test", Reports.ReportArtifactText.Read(path));
+        } finally {
+            snapshot.Restore();
+            if (Directory.Exists(directory)) { Directory.Delete(directory, true); }
+        }
+    }
+
     private static SpfRecordInfo CreateSpfView()
     {
         return new SpfRecordInfo
         {
             Check = HealthCheckType.SPF,
             Area = AnalysisArea.Mail,
-            Subject = "example.com",
+            Subject = "example.test",
             SpfRecord = "v=spf1 -all",
             Assessments = Array.Empty<Assessment>(),
             Recommendations = Array.Empty<RecommendationAdvice>(),

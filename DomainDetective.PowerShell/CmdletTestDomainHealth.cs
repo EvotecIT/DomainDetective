@@ -15,6 +15,12 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Perform a full health test.</summary>
     ///   <code>Test-DDDomainOverallHealth -DomainName example.com -Verbose</code>
     /// </example>
+    /// <example>
+    ///   <summary>Assess a domain once and save Word, PDF and HTML reports.</summary>
+    ///   <prefix>PS&gt; </prefix>
+    ///   <code>Test-DDDomainOverallHealth -DomainName example.com -ExportFormat Word,Pdf,Html -ExportPath './Reports'</code>
+    ///   <para>PDF uses the same paper layout as Word. The checks run once for all requested formats.</para>
+    /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainOverallHealth", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DomainHealth")]
     [OutputType(typeof(DomainDetective.Views.DomainOverallInfo))]
@@ -55,6 +61,9 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
+            if (IsExportRequested()) {
+                AssessmentExportSettings.Validate(ExportDefaults.CreateReportRequest());
+            }
             async Task ProcessDomainAsync(string domain) {
                 var logger = new InternalLogger(false);
                 var internalLoggerPowerShell = new InternalLoggerPowerShell(
@@ -77,7 +86,7 @@ namespace DomainDetective.PowerShell {
                 // rather than retrying them while converting its results.
                 var requestedChecks = HealthCheckType;
                 if ((requestedChecks == null || requestedChecks.Length == 0) && IsExportRequested()
-                    && GetRequestedFormatsOrDefault(ExportDefaults.Format).Any(format => format is ReportFormat.Word or ReportFormat.Html)) {
+                    && GetRequestedFormatsOrDefault(ExportDefaults.Format).Any(format => format is ReportFormat.Word or ReportFormat.Pdf or ReportFormat.Html)) {
                     requestedChecks = DomainHealthCheck.DefaultChecks.Concat(new[] {
                         DomainDetective.HealthCheckType.MTASTS, DomainDetective.HealthCheckType.TLSRPT
                     }).Distinct().ToArray();
@@ -109,10 +118,10 @@ namespace DomainDetective.PowerShell {
                         .ToArray();
                     var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
                     var compositionFormats = formats
-                        .Where(f => f == ReportFormat.Word || f == ReportFormat.Html)
+                        .Where(f => f == ReportFormat.Word || f == ReportFormat.Pdf || f == ReportFormat.Html)
                         .ToArray();
                     var dispatcherFormats = formats
-                        .Where(f => f != ReportFormat.Word && f != ReportFormat.Html)
+                        .Where(f => f != ReportFormat.Word && f != ReportFormat.Pdf && f != ReportFormat.Html)
                         .ToList();
 
                     if (wantArtifacts) {
@@ -134,7 +143,7 @@ namespace DomainDetective.PowerShell {
                     }
 
                     // If specific HealthCheckType selection is provided and we support writers for it,
-                    // use the composition aggregators for Word/HTML to ensure identical section rendering.
+                    // use one assessment export batch for Word/PDF/HTML.
                     if (compositionFormats.Length > 0) {
                         // Conversion retains existing execution evidence and never reruns failed checks.
                         var conversionErrors = new System.Collections.Generic.List<string>();
@@ -154,10 +163,18 @@ namespace DomainDetective.PowerShell {
                                 $"Security Report — {domain}",
                                 OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                                 TryOpen,
-                                out hadUnsupportedFormats);
+                                out hadUnsupportedFormats,
+                                CancelToken);
+                        } catch (System.NotSupportedException) {
+                            throw;
+                        } catch (System.ArgumentException) {
+                            throw;
+                        } catch (System.OperationCanceledException) {
+                            throw;
                         } catch (System.Exception ex) {
-                            WriteWarning($"Composition export failed, falling back to default: {ex.Message}");
-                            dispatcherFormats.InsertRange(0, compositionFormats);
+                            // These formats already use the assessment owner. Retrying them through
+                            // the dispatcher would rebuild paper output and overwrite partial success.
+                            WriteWarning($"Assessment report export failed: {ex.Message}");
                         }
                     }
 

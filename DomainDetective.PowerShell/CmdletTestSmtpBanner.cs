@@ -86,11 +86,14 @@ namespace DomainDetective.PowerShell {
                                 $"SMTP Banner Report - {domain}",
                                 OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                                 TryOpenReport,
-                                out hadUnsupportedFormats);
+                                out hadUnsupportedFormats,
+                                CancelToken);
 
                             if (hadUnsupportedFormats) {
                                 await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
                             }
+                        } catch (System.OperationCanceledException) {
+                            throw;
                         } catch (System.Exception ex) {
                             WriteWarning($"SMTP banner export failed: {ex.Message}");
                         }
@@ -132,11 +135,14 @@ namespace DomainDetective.PowerShell {
                         $"SMTP Banner Report - {HostName}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailSmtpBanner");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"SMTP banner export failed: {ex.Message}");
                 }

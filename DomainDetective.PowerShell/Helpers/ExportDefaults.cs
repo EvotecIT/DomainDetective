@@ -5,7 +5,7 @@ namespace DomainDetective.PowerShell {
     /// Global export defaults configurable via Set-DDExportOptions.
     /// </summary>
     public static class ExportDefaults {
-        /// <summary>Default report format.</summary>
+        /// <summary>Default report format, including PDF. Explicit command ExportFormat arrays override it.</summary>
         public static ReportFormat Format { get; set; } = ReportFormat.Html;
         /// <summary>Open generated reports in the browser.</summary>
         public static bool OpenInBrowser { get; set; } = true;
@@ -55,6 +55,16 @@ namespace DomainDetective.PowerShell {
         public static string CompanyAddress { get; set; } = string.Empty;
         /// <summary>Company year.</summary>
         public static string CompanyYear { get; set; } = string.Empty;
+        /// <summary>Projects global defaults for validation and rendering by every assessment export caller.</summary>
+        internal static CompositionExportRequest CreateReportRequest() => new CompositionExportRequest {
+            DefaultOutputDirectory = OutputDirectory, Title = NarrativeTitle, Subject = NarrativeSubject,
+            Category = NarrativeCategory, Keywords = NarrativeKeywords, Creator = NarrativeCreator,
+            NarrativePlacement = NarrativePlacement, CompanyName = CompanyName, CompanyAddress = CompanyAddress,
+            CompanyYear = CompanyYear, LogoPath = LogoPath, HeaderText = HeaderText, FooterText = FooterText,
+            WatermarkText = WatermarkText, HeaderLogoSizePx = HeaderLogoSizePx, FooterLogoSizePx = FooterLogoSizePx,
+            SummaryColumnCap = SummaryColumnCap, HtmlProfile = HtmlProfile.ToString()
+        };
+
         // Reserved for future: Theme, Template, etc.
     }
 }

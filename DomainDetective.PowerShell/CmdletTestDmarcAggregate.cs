@@ -173,11 +173,12 @@ namespace DomainDetective.PowerShell {
             var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
             var label = $"dmarc-aggregate-{SummarizeBy.ToString().ToLowerInvariant()}";
             var supportedCompositionFormats = formats
-                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                 .ToArray();
             var generated = false;
             var hadUnsupportedFormats = formats.Any(f =>
                 f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Pdf
                 && f != DomainDetective.Reports.ReportFormat.Html
                 && f != DomainDetective.Reports.ReportFormat.Json);
 
@@ -193,9 +194,12 @@ namespace DomainDetective.PowerShell {
                         $"DMARC Aggregate Report - {SummarizeBy}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out compositionUnsupportedFormats);
+                        out compositionUnsupportedFormats,
+                        CancelToken);
                     generated = true;
                     hadUnsupportedFormats |= compositionUnsupportedFormats;
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (Exception ex) {
                     WriteWarning($"DMARC aggregate export failed: {ex.Message}");
                 }

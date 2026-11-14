@@ -70,15 +70,25 @@ public class TestTlsRptRecovery {
             using var source = new MemoryStream(Encoding.UTF8.GetBytes(Report));
             var snapshot = TlsRptSnapshotBuilder.Build(TlsRptReportParser.Parse(source), "example.com", "File", null);
             string path = Path.Combine(root, "report.docx");
-            WordCompositionReport.Generate(path, new object[] { Converters.Convert(new[] { snapshot }) }, ReportScope.Detailed, showInfoFindings: true);
+            DomainDetective.Reports.Office.AssessmentWordReport.Generate(path, DomainAssessmentBuilder.Build(new object[] { Converters.Convert(new[] { snapshot }) }), new DomainDetective.Reports.Office.AssessmentWordOptions { ShowInfoFindings = true });
             using var zip = ZipFile.OpenRead(path);
             using var xml = zip.GetEntry("word/document.xml")!.Open();
             var document = XDocument.Load(xml);
             XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-            var row = Assert.Single(document.Descendants(w + "tr"), r => r.Elements(w + "tc").FirstOrDefault()?.Value == "mx.actual.example");
-            var cells = row.Elements(w + "tc").ToArray();
-            Assert.Equal("Not attributed", cells[1].Value);
-            Assert.Equal("3", cells[2].Value);
+            string CellText(XElement cell) => DomainDetective.Tests.Reports.ReportArtifactText.Normalize(cell.Value).Trim();
+            var table = document.Descendants(w + "tbl").First(t => t.Descendants(w + "tc").Any(c => CellText(c) == "mx.actual.example"));
+            var rows = table.Elements(w + "tr").Select(r => r.Elements(w + "tc").Select(CellText).ToArray()).ToArray();
+            var headers = rows[0];
+            int successColumn = Array.FindIndex(headers, label => label.Equals("Successful Sessions", StringComparison.OrdinalIgnoreCase));
+            int failureColumn = Array.FindIndex(headers, label => label.Equals("Failed Sessions", StringComparison.OrdinalIgnoreCase));
+            int domainColumn = Array.FindIndex(headers, label => label == "Domain");
+            Assert.InRange(successColumn, 0, headers.Length - 1);
+            Assert.InRange(failureColumn, 0, headers.Length - 1);
+            Assert.InRange(domainColumn, 0, headers.Length - 1);
+            var receivingHost = Assert.Single(rows.Skip(1), cells => cells.Contains("mx.actual.example"));
+            Assert.Equal("example.com", receivingHost[domainColumn]);
+            Assert.Equal("Not attributed", receivingHost[successColumn]);
+            Assert.Equal("3", receivingHost[failureColumn]);
         } finally { Directory.Delete(root, recursive: true); }
     }
 

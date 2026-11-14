@@ -57,11 +57,14 @@ namespace DomainDetective.PowerShell {
                             $"Zone Transfer — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Test-DDDnsZoneTransfer");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (System.Exception ex) {
                         WriteWarning($"Zone Transfer export failed: {ex.Message}");
                     }
@@ -72,5 +75,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

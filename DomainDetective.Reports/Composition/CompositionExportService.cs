@@ -21,9 +21,11 @@ public static class CompositionExportService
             throw new ArgumentNullException(nameof(request));
         }
 
-        var formats = (request.Formats != null && request.Formats.Count > 0)
-            ? request.Formats
-            : new[] { ReportFormat.Html };
+        AssessmentExportSettings.Validate(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IReadOnlyList<ReportFormat> formats = ((request.Formats != null && request.Formats.Count > 0)
+            ? request.Formats : new[] { ReportFormat.Html }).Distinct().ToArray();
 
         var flat = CompositionUtilities.Flatten(request.Items ?? Array.Empty<object>());
         if (flat.Count == 0)
@@ -50,17 +52,34 @@ public static class CompositionExportService
             LogSectionOrder(flat, request.Ordering, logger);
         }
 
+        var report = DomainAssessmentBuilder.Build(flat, new DomainAssessmentOptions {
+            Title = request.Title, DomainOrder = request.Ordering?.DomainOrder ?? DomainOrder.Alphabetical,
+            GeneratedAtUtc = request.GeneratedAtUtc
+        });
+        var paths = formats.ToDictionary(format => format, format => ReportPathHelper.ResolveOutputPathForFormat(
+            request.ExportPath, request.DefaultOutputDirectory, label, format, formats));
+        Dictionary<ReportFormat, ReportResult>? paperResults = null;
         var results = new List<ReportResult>();
         foreach (var format in formats)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var outPath = ReportPathHelper.ResolveOutputPathForFormat(request.ExportPath, request.DefaultOutputDirectory, label, format, formats);
+            var outPath = paths[format];
             var sw = Stopwatch.StartNew();
             logger?.WriteVerbose("Export-DDSecurityReport: generating {0} report to {1} (items: {2}, domains: {3}).", format, outPath, flat.Count, subjects.Count);
 
             try
             {
-                if (!CompositionReportDispatcher.TryGenerate(format, request, flat, outPath, out var error))
+                if (format is ReportFormat.Word or ReportFormat.Pdf) {
+                    paperResults ??= CompositionReportDispatcher.GeneratePaperReports(request, report,
+                        paths.Where(pair => pair.Key is ReportFormat.Word or ReportFormat.Pdf).ToDictionary(pair => pair.Key, pair => pair.Value), cancellationToken)
+                        .ToDictionary(result => result.Format);
+                    ReportResult paper = paperResults[format];
+                    results.Add(paper);
+                    if (paper.Success && request.OpenInBrowser) { ReportOpenHelper.TryOpen(paper.FilePath); }
+                    if (!paper.Success) { logger?.WriteWarning("Export failed: {0}", paper.ErrorMessage); }
+                    continue;
+                }
+                if (!CompositionReportDispatcher.TryGenerate(format, request, report, outPath, out var error))
                 {
                     var message = string.IsNullOrWhiteSpace(error) ? $"{format} composition not supported." : error!;
                     logger?.WriteWarning("Export failed: {0}", message);

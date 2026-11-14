@@ -56,11 +56,14 @@ namespace DomainDetective.PowerShell {
                             $"DNS TTL Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"DNS TTL export failed: {ex.Message}");
                     }
@@ -71,5 +74,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

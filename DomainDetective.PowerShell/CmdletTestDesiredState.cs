@@ -160,23 +160,12 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
         bool openInBrowserRequested,
         bool defaultOpenInBrowser)
     {
-        return new DomainDetective.Reports.CompositionExportRequest {
-            Items = items ?? Array.Empty<object>(),
-            Formats = formats ?? Array.Empty<DomainDetective.Reports.ReportFormat>(),
-            ExportPath = exportPath,
-            DefaultOutputDirectory = ExportDefaults.OutputDirectory,
-            OpenInBrowser = openInBrowserRequested || defaultOpenInBrowser,
-            NarrativePlacement = ExportDefaults.NarrativePlacement,
-            CompanyName = string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
-            CompanyAddress = string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
-            CompanyYear = string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
-            LogoPath = string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-            HeaderText = string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-            FooterText = string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
-            WatermarkText = string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-            HeaderLogoSizePx = ExportDefaults.HeaderLogoSizePx,
-            FooterLogoSizePx = ExportDefaults.FooterLogoSizePx,
-            AutoCollectTtl = true
-        };
+        var request = ExportDefaults.CreateReportRequest();
+        request.Items = items ?? Array.Empty<object>();
+        request.Formats = formats ?? Array.Empty<DomainDetective.Reports.ReportFormat>();
+        request.ExportPath = exportPath;
+        request.OpenInBrowser = openInBrowserRequested || defaultOpenInBrowser;
+        request.AutoCollectTtl = true;
+        return request;
     }
 }

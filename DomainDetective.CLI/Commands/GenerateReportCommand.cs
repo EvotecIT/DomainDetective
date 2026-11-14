@@ -1,19 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Artifacts;
-using DomainDetective.Reports.Html;
-using DomainDetective.Reports.Office;
 using DomainDetective.TimeSeries.DmarcAggregate;
 using DomainDetective.TimeSeries.Registration;
 using DomainDetective.TimeSeries.TlsRpt;
-using HtmlForgeX;
 using DnsClientX;
 
 namespace DomainDetective.CLI.Commands;
@@ -27,36 +23,35 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Report output (html, json, word, excel, markdown, markdownhtml). PDF is not currently shipped.")]
+        [Description("Report formats: html, json, word, pdf, excel, markdown, markdownhtml. Repeat the flag or separate formats with commas.")]
         [CommandOption("-f|--format|--report <FORMAT>")]
-        [DefaultValue("html")]
-        public string Format { get; set; } = "html";
+        public string[] Formats { get; set; } = Array.Empty<string>();
         
         [Description("Output file path")]
         [CommandOption("-o|--output <PATH>")]
         public string? OutputPath { get; set; }
         
-        [Description("Kept for compatibility: every HTML report uses the assessment layout (document and executive were retired).")]
+        [Description("Assessment template. Only default is supported; document and executive are retired.")]
         [CommandOption("-t|--template <TEMPLATE>")]
         [DefaultValue("default")]
         public string Template { get; set; } = "default";
         
-        [Description("Report theme (system, light, dark). The assessment report follows the viewer's system theme by default.")]
+        [Description("HTML theme (system, light, dark). Include HTML to use light or dark in a combined export.")]
         [CommandOption("--theme <THEME>")]
         [DefaultValue("system")]
         public string Theme { get; set; } = "system";
         
-        [Description("Open report in browser after generation")]
+        [Description("Open generated reports in their associated application")]
         [CommandOption("--open")]
         [DefaultValue(true)]
         public bool OpenInBrowser { get; set; } = true;
         
-        [Description("Include technical details")]
+        [Description("Assessment reports include technical details; false is unsupported.")]
         [CommandOption("--technical")]
         [DefaultValue(true)]
         public bool IncludeTechnical { get; set; } = true;
         
-        [Description("Include recommendations")]
+        [Description("Assessment reports include recommendations; false is unsupported.")]
         [CommandOption("--recommendations")]
         [DefaultValue(true)]
         public bool IncludeRecommendations { get; set; } = true;
@@ -96,7 +91,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
     
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
         try {
-            var formatEnum = ResolveReportFormat(settings.Format);
+            var formats = ValidatePresentation(settings);
 
             // Show progress
             await AnsiConsole.Progress()
@@ -170,68 +165,19 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     cancellationToken.ThrowIfCancellationRequested();
                     var generateTask = ctx.AddTask("[yellow]Generating report + artifacts[/]");
                     
-                    // Determine output path
-                    var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);
-                    
-                    // Always emit JSON artifacts for the run.
+                    // Capture the run artifacts once, then send all report formats through one export batch.
                     var runDir = coord.End(healthCheck);
-
-	                    // HTML/Word: use composition generators for parity with PowerShell export.
-	                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
-	                    {
-	                        var conversionErrors = new List<string>();
-	                        var items = HealthCheckReportItems.BuildItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
-	
-	                        if (formatEnum == ReportFormat.Word)
-	                        {
-	                            WordCompositionReport.Generate(
-	                                outputPath,
-                                items,
-                                ReportScope.Normal,
-                                showInfoFindings: true,
-                                narrativePlacement: NarrativePlacement.Auto,
-                                titleOverride: $"Security Report — {settings.Domain}");
-
-                            if (settings.OpenInBrowser)
-                            {
-                                TryOpenWithShell(outputPath);
-                            }
+                    var conversionErrors = new List<string>();
+                    var items = HealthCheckReportItems.BuildItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
+                    var exports = await ExportReportsAsync(settings, items, cancellationToken, healthCheck);
+                    if (conversionErrors.Count > 0) {
+                        AnsiConsole.MarkupLine("[yellow]Some report sections could not be converted and were skipped:[/]");
+                        foreach (var error in conversionErrors.Distinct(StringComparer.OrdinalIgnoreCase).Take(25)) {
+                            AnsiConsole.MarkupLine($"[yellow]- {Markup.Escape(error)}[/]");
                         }
-                        else
-                        {
-                            AssessmentHtmlReport.Generate(
-                                outputPath,
-                                items,
-                                new DomainAssessmentOptions { Title = $"Security Report — {settings.Domain}" },
-                                new AssessmentHtmlOptions { Theme = ResolveTheme(settings.Theme, ThemeMode.System) },
-                                settings.OpenInBrowser);
+                        if (conversionErrors.Count > 25) {
+                            AnsiConsole.MarkupLine($"[yellow]... and {conversionErrors.Count - 25} more.[/]");
                         }
-	                        if (conversionErrors.Count > 0)
-	                        {
-	                            AnsiConsole.MarkupLine("[yellow]Some report sections could not be converted and were skipped:[/]");
-	                            foreach (var error in conversionErrors.Distinct(StringComparer.OrdinalIgnoreCase).Take(25))
-	                            {
-	                                AnsiConsole.MarkupLine($"[yellow]- {Markup.Escape(error)}[/]");
-	                            }
-	                            if (conversionErrors.Count > 25)
-	                            {
-	                                AnsiConsole.MarkupLine($"[yellow]... and {conversionErrors.Count - 25} more.[/]");
-	                            }
-	                        }
-	                    }
-                    else
-                    {
-                        // Fallback: use the IReportGenerator adapter (may be minimal depending on the format).
-                        var dispatcher = new ReportDispatcher();
-                        var options = new ReportOptions
-                        {
-                            Format = formatEnum,
-                            OutputPath = outputPath
-                        };
-                        options.CustomProperties["Domain"] = settings.Domain;
-                        options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
-                        var result = await dispatcher.GenerateAsync(healthCheck, options, settings.Domain, settings.OpenInBrowser);
-                        EnsureReportSucceeded(result);
                     }
 
                     generateTask.Value = 100;
@@ -241,8 +187,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     var panel = new Panel(
                         $"[green]✓[/] Report generated successfully!\n" +
                         $"[blue]Domain:[/] {settings.Domain}\n" +
-                        $"[blue]Format:[/] {settings.Format}\n" +
-                        $"[blue]Output:[/] {outputPath}\n" +
+                        $"[blue]Formats:[/] {string.Join(", ", formats)}\n" +
+                        $"[blue]Outputs:[/] {string.Join(", ", exports.Reports.Select(report => report.FilePath))}\n" +
                         $"[blue]Artifacts:[/] {runDir}\n" +
                         $"[blue]Template:[/] {settings.Template}\n" +
                         $"[blue]Theme:[/] {settings.Theme}"
@@ -261,20 +207,63 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         }
     }
 
-    internal static ReportFormat ResolveReportFormat(string? format)
-    {
-        var fmt = format?.ToLowerInvariant() ?? "html";
-        return fmt switch
-        {
-            "html" => ReportFormat.Html,
-            "json" => ReportFormat.Json,
-            "word" => ReportFormat.Word,
-            "excel" => ReportFormat.Excel,
-            "pdf" => throw new InvalidOperationException("PDF report generation is not currently shipped in DomainDetective. Generate Word output and convert it with OfficeIMO PDF support when that package path is available."),
-            "markdown" => ReportFormat.Markdown,
-            "markdownhtml" => ReportFormat.MarkdownHtml,
-            _ => ReportFormat.Html
-        };
+    /// <summary>Validates CLI presentation options before progress, analysis or report writes begin.</summary>
+    internal static IReadOnlyList<ReportFormat> ValidatePresentation(Settings settings) {
+        if (settings == null) { throw new ArgumentNullException(nameof(settings)); }
+        var requested = ReportFormatParser.Parse(settings.Formats);
+        IReadOnlyList<ReportFormat> formats = requested.Count > 0 ? requested : new[] { ReportFormat.Html };
+        if (!string.Equals(settings.Template?.Trim(), "default", StringComparison.OrdinalIgnoreCase)) {
+            throw new InvalidOperationException("Assessment reports support only --template default. Remove the template override.");
+        }
+        if (!settings.IncludeTechnical) {
+            throw new InvalidOperationException("Assessment reports include technical details; --technical=false is not supported.");
+        }
+        if (!settings.IncludeRecommendations) {
+            throw new InvalidOperationException("Assessment reports include recommendations; --recommendations=false is not supported.");
+        }
+        string theme = (settings.Theme ?? string.Empty).Trim().ToLowerInvariant();
+        if (formats.Contains(ReportFormat.Html)) {
+            if (theme != "system" && theme != "light" && theme != "dark") {
+                throw new InvalidOperationException("HTML reports support --theme system, light or dark.");
+            }
+        } else if (theme != "system") {
+            throw new InvalidOperationException("--theme light and --theme dark apply only to HTML reports. Use --theme system for other formats.");
+        }
+        return formats;
+    }
+
+    /// <summary>Exports already-collected views through the same production path used after a CLI scan.</summary>
+    internal static async Task<CompositionExportResult> ExportReportsAsync(Settings settings, IReadOnlyList<object> items,
+        CancellationToken cancellationToken = default, DomainHealthCheck? healthCheck = null) {
+        var formats = ValidatePresentation(settings);
+        bool includeJson = formats.Contains(ReportFormat.Json);
+        if (includeJson && healthCheck == null) {
+            throw new ArgumentNullException(nameof(healthCheck), "The JSON report requires the collected health-check results.");
+        }
+        var assessmentFormats = formats.Where(format => format != ReportFormat.Json).ToArray();
+        string? assessmentPath = includeJson && assessmentFormats.Length == 1 && assessmentFormats[0] == ReportFormat.MarkdownHtml
+            ? ReportPathHelper.ResolveOutputPathForFormat(settings.OutputPath, null, settings.Domain, ReportFormat.MarkdownHtml, formats)
+            : settings.OutputPath;
+        var result = assessmentFormats.Length == 0 ? new CompositionExportResult {
+            Items = items, Subjects = new[] { settings.Domain }, SubjectLabel = settings.Domain
+        } : await CompositionExportService.ExportAsync(new CompositionExportRequest {
+            Items = items, Formats = assessmentFormats, ExportPath = assessmentPath,
+            Title = $"Security Report - {settings.Domain}", HtmlTheme = settings.Theme.Trim().ToLowerInvariant(),
+            AutoCollectTtl = false, OpenInBrowser = settings.OpenInBrowser
+        }, null, cancellationToken).ConfigureAwait(false);
+        if (includeJson) {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Keep the existing raw-analysis JSON contract; assessment JSON belongs to the composition API.
+            string path = ReportPathHelper.ResolveOutputPathForFormat(settings.OutputPath, null,
+                settings.Domain, ReportFormat.Json, formats);
+            var json = await new ReportDispatcher().GenerateAsync(healthCheck!, new ReportOptions {
+                Format = ReportFormat.Json, OutputPath = path
+            }, settings.Domain).ConfigureAwait(false);
+            result.Reports = result.Reports.Concat(new[] { json }).OrderBy(report => formats.ToList().IndexOf(report.Format)).ToArray();
+        }
+        if (result.Reports.Count == 0) { throw new InvalidOperationException("No completed report inputs are available to export."); }
+        foreach (var report in result.Reports) { EnsureReportSucceeded(report); }
+        return result;
     }
 
     internal static void EnsureReportSucceeded(ReportResult result)
@@ -292,24 +281,4 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         }
     }
 
-    internal static ThemeMode ResolveTheme(string? theme, ThemeMode fallback) => (theme ?? string.Empty).Trim().ToLowerInvariant() switch {
-        "dark" => ThemeMode.Dark,
-        "light" => ThemeMode.Light,
-        "system" or "auto" => ThemeMode.System,
-        _ => fallback
-    };
-
-    private static void TryOpenWithShell(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
-        }
-        catch { }
-    }
 }

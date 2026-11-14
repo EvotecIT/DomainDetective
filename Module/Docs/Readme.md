@@ -17,7 +17,7 @@ Adds a DNSBL provider entry to an analysis object.
 Removes all DNSBL providers from an analysis object.
 
 ### [Export-DDSecurityReport](Export-DDSecurityReport.md)
-Composes a security report (Word/HTML) from pipeline view objects (SPF/DKIM/DMARC).
+Exports an assessment as Word, PDF, HTML, Excel, JSON or Markdown from pipeline view objects.
 
 ### [Get-DDApexAddressInfo](Get-DDApexAddressInfo.md)
 Gets apex A/AAAA analysis including PTR, FCrDNS, ASN and RPKI details.

@@ -234,11 +234,14 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
                     $"Email Address Report - {EmailAddress}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (hadUnsupportedFormats) {
                     await ExportNotImplementedAsync("Test-DDEmailAddress");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"Email address export failed: {ex.Message}");
             }
