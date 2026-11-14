@@ -125,7 +125,7 @@
         <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -Type A `
   -ResolverEndpoint 'udp@1.1.1.1:53','doh@https://dns.google/dns-query' `
   -ResolverStrategy FirstSuccess</code></pre>
-        <p class="dx-providers__note"><span class="dx-status dx-status--next">Next release</span> Keep a profile's filtering and TLS identity and choose how to reach it: UDP, TCP, DoT, DoH or DoQ, wherever the provider publishes it.</p>
+        <p class="dx-providers__note">Keep a profile's filtering and TLS identity and choose how to reach it: UDP, TCP, DoT, DoH or DoQ, wherever the provider publishes it.</p>
         <pre class="dx-providers__code"><code class="language-powershell">Resolve-Dns -Name evotec.pl -DnsProvider ControlDAds `
   -ProviderTransport DnsOverQuic</code></pre>
         <p class="dx-note"><a href="/docs/dnsclientx/transports/#choose-a-profiles-transport">See which transports each profile publishes &rarr;</a></p>

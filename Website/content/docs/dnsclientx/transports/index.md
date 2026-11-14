@@ -38,11 +38,11 @@ var response = await quad9.Resolve("evotec.pl", DnsRecordType.MX);
 
 Profiles include filtering variants (`CloudflareFamily`, `OpenDNSFamily`, `AdGuardFamily`), wire-format and HTTP/3 variants, `Quad9ECS` for client-subnet answers and `RootServer` for iterative resolution from the root.
 
-The next release adds CleanBrowsing (`CleanBrowsingSecurity`, `CleanBrowsingAdult`, `CleanBrowsingFamily`), Control D (`ControlD`, `ControlDMalware`, `ControlDAds`, `ControlDFamily`), `ComodoSecureDns` and `DnsWatch`. Comodo and DNS.WATCH are plain UDP with the usual TCP fallback, so their queries are not encrypted.
+DnsClientX 2.2.0 added CleanBrowsing (`CleanBrowsingSecurity`, `CleanBrowsingAdult`, `CleanBrowsingFamily`), Control D (`ControlD`, `ControlDMalware`, `ControlDAds`, `ControlDFamily`), `ComodoSecureDns` and `DnsWatch`. Comodo and DNS.WATCH are plain UDP with the usual TCP fallback, so their queries are not encrypted.
 
 ### Choose a profile's transport
 
-From the next release, a profile keeps its filtering policy and TLS identity while you choose how to reach it. Each provider publishes its own set of UDP, TCP, DoT, DoH and DoQ endpoints, and a combination the provider does not publish fails with an explicit error instead of silently switching.
+Since DnsClientX 2.2.0, a profile keeps its filtering policy and TLS identity while you choose how to reach it. Each provider publishes its own set of UDP, TCP, DoT, DoH and DoQ endpoints, and a combination the provider does not publish fails with an explicit error instead of silently switching.
 
 ```powershell
 Resolve-Dns -Name evotec.pl -DnsProvider AdGuardFamily -ProviderTransport DnsOverQuic
