@@ -41,6 +41,72 @@ public class TestEmbeddedSctValidation {
         Assert.Contains("truncated", error.Message);
     }
 
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("constructed")]
+    [InlineData("nonminimal")]
+    public void Parse_RejectsNonDerExtensionWrappers(string encoding) {
+        byte[] list = Load("sct-www.google.com.pem").GetExtensionValue(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2")).GetOctets();
+        byte[] contents = Asn1OctetString.GetInstance(Asn1Object.FromByteArray(list)).GetOctets();
+        byte[] invalid = encoding switch {
+            "empty" => Array.Empty<byte>(),
+            "constructed" => new byte[] { 0x24, 0x80 }.Concat(list).Concat(new byte[] { 0, 0 }).ToArray(),
+            _ => new byte[] { 0x04, 0x83, 0, (byte)(contents.Length >> 8), (byte)contents.Length }.Concat(contents).ToArray()
+        };
+
+        Assert.Throws<FormatException>(() => EmbeddedSctValidator.Parse(invalid));
+    }
+
+    [Fact]
+    public async Task Validate_FutureSctsCannotMakeUnverifiedSignaturesCompliant() {
+        var leaf = Load("sct-www.google.com.pem");
+        byte[] der = leaf.GetEncoded();
+        var parsed = EmbeddedSctValidator.Parse(leaf.GetExtensionValue(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2")).GetOctets());
+        foreach (var sct in parsed) {
+            byte[] timestamp = Enumerable.Range(0, 8).Select(i => (byte)(sct.TimestampMilliseconds >> ((7 - i) * 8))).ToArray();
+            int offset = Enumerable.Range(0, der.Length - timestamp.Length + 1).Single(i => der.Skip(i).Take(8).SequenceEqual(timestamp));
+            ulong future = 253402300799999UL;
+            for (int i = 0; i < 8; i++) der[offset + i] = (byte)(future >> ((7 - i) * 8));
+        }
+        var logs = await LoadLogs(LogList());
+
+        var result = EmbeddedSctValidator.Validate(new X509CertificateParser().ReadCertificate(der), null, logs, logs)!;
+
+        Assert.Equal(CtPolicyCompliance.NotCompliant, result.Chrome.Compliance);
+        Assert.Equal(CtPolicyCompliance.NotCompliant, result.Apple.Compliance);
+    }
+
+    [Theory]
+    [InlineData(3, 5)] // SCT from the retired log itself postdates retirement.
+    [InlineData(5, 3)] // A retired log cannot establish an earlier issuance time.
+    public void Chrome_RetiredLogRequiresBothIssuanceAndItsOwnSctBeforeRetirement(int approvedDay, int retiredDay) {
+        var (_, originalLogs) = TwoValidSctsFromTwoOperators();
+        var logs = new Dictionary<string, CtLogDescriptor>(originalLogs) {
+            ["b"] = new() { LogId = "b", OperatorName = "Operator B", State = "retired", IsRetired = true,
+                StateTimestampUtc = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero) }
+        };
+        var scts = new[] {
+            new EmbeddedSct { LogId = "a", Timestamp = new DateTimeOffset(2026, 1, approvedDay, 0, 0, 0, TimeSpan.Zero), SignatureStatus = SctSignatureStatus.Valid },
+            new EmbeddedSct { LogId = "b", Timestamp = new DateTimeOffset(2026, 1, retiredDay, 0, 0, 0, TimeSpan.Zero), SignatureStatus = SctSignatureStatus.Valid }
+        };
+
+        var result = EmbeddedSctValidator.EvaluateChrome(scts, logs, new DateTime(2026, 1, 1), new DateTime(2026, 2, 1));
+
+        Assert.Equal(CtPolicyCompliance.NotCompliant, result.Compliance);
+    }
+
+    [Theory]
+    [InlineData("DigiCert", "Let's Encrypt", CtPolicyCompliance.Compliant)]
+    [InlineData("Let's Encrypt", "DigiCert", CtPolicyCompliance.NotCompliant)]
+    public async Task Validate_ChromeUsesOperatorAtSctIssuance(string current, string previous, CtPolicyCompliance expected) {
+        string history = $$""" "previous_operators": [{ "name": "{{previous}}", "end_time": "2026-11-04T00:00:00Z" }],""";
+        var logs = await LoadLogs(LogList(willowOperator: current, willowHistory: history));
+
+        var result = EmbeddedSctValidator.Validate(Load("sct-www.google.com.pem"), Load("sct-www.google.com-issuer.pem"), logs, logs)!;
+
+        Assert.Equal(expected, result.Chrome.Compliance);
+    }
+
     [Fact]
     public void Parse_RejectsTimestampOutsideDateTimeRange() {
         byte[] serialized = new byte[47];
@@ -118,7 +184,8 @@ public class TestEmbeddedSctValidation {
 
         var result = EmbeddedSctValidator.Validate(Load("sct-www.google.com.pem"), Load("sct-www.google.com-issuer.pem"), logs, logs)!;
 
-        Assert.Equal(CtPolicyCompliance.Compliant, result.Chrome.Compliance);
+        // Wyvern has no leaf-index SCT extension; Apple accepts it, Chrome cannot count it as a static log.
+        Assert.Equal(CtPolicyCompliance.NotCompliant, result.Chrome.Compliance);
         Assert.Equal(CtPolicyCompliance.Compliant, result.Apple.Compliance);
     }
 
@@ -129,7 +196,7 @@ public class TestEmbeddedSctValidation {
         var (scts, logs) = TwoValidSctsFromTwoOperators();
         var notBefore = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var result = EmbeddedSctValidator.EvaluateChrome(scts, scts, logs, notBefore, notBefore.AddSeconds(lifetimeSeconds));
+        var result = EmbeddedSctValidator.EvaluateChrome(scts, logs, notBefore, notBefore.AddSeconds(lifetimeSeconds));
 
         Assert.Equal(expected, result.Compliance);
     }
@@ -167,7 +234,7 @@ public class TestEmbeddedSctValidation {
             .GetLogsAsync("https://logs.example.test/list.json", includePending: true);
 
     private static string LogList(string willowOperator = "Let's Encrypt", string willowState = """{ "usable": { "timestamp": "2025-11-27T03:00:00Z" } }""",
-        bool wyvernTiled = false) {
+        bool wyvernTiled = false, string willowHistory = "") {
         string wyvern = $$"""
             {
               "description": "DigiCert Wyvern2027h1",
@@ -185,6 +252,7 @@ public class TestEmbeddedSctValidation {
               "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzsMKtojO0BVB4t59lVyAhxtqObVA+wId5BpJGA8pZrw5GTjzuhpvLu/heQGi0hHCeislkDe34N/2D0SwEUBE0w==",
               "submission_url": "https://log.willow.ct.letsencrypt.org/2027h1/",
               "monitoring_url": "https://mon.willow.ct.letsencrypt.org/2027h1/",
+              {{willowHistory}}
               "state": {{willowState}}
             }
             """;

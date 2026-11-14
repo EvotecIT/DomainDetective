@@ -83,6 +83,9 @@ public sealed class CtLogDescriptor {
     public string? SubmissionUrl { get; init; }
     /// <summary>Human-readable CT log operator name when supplied by the log list.</summary>
     public string? OperatorName { get; init; }
+    // Ordered by end time for SCT policy evaluation; this metadata is not part of the ingestion API.
+    internal IReadOnlyList<(string Name, DateTimeOffset EndTimeUtc)> PreviousOperators { get; init; }
+        = Array.Empty<(string, DateTimeOffset)>();
     /// <summary>Human-readable log description when available.</summary>
     public string? Description { get; init; }
     /// <summary>Policy state supplied by the log list, for example usable, qualified, pending, retired, or rejected.</summary>

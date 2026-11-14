@@ -38,6 +38,7 @@ public sealed class EmbeddedSct {
     public string LogId { get; init; } = string.Empty;
     /// <summary>Time the log issued the SCT.</summary>
     public DateTimeOffset Timestamp { get; init; }
+    internal bool HasValidLeafIndex { get; init; }
     /// <summary>True when the log ID appears in the Chrome or Apple log list.</summary>
     public bool LogKnown { get; init; }
     /// <summary>Log description from the log list.</summary>

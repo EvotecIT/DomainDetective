@@ -71,6 +71,7 @@ internal static class EmbeddedSctValidator {
             scts.Add(new EmbeddedSct {
                 LogId = logId,
                 Timestamp = sct.Timestamp,
+                HasValidLeafIndex = HasValidLeafIndex(sct.Extensions),
                 LogKnown = log != null,
                 LogDescription = log?.Description,
                 LogOperator = log?.OperatorName,
@@ -83,7 +84,7 @@ internal static class EmbeddedSctValidator {
         DateTime notBefore = leaf.NotBefore.ToUniversalTime(), notAfter = leaf.NotAfter.ToUniversalTime();
         return new EmbeddedSctValidation {
             Scts = scts,
-            Chrome = Evaluate(scts, chromeLogs == null ? null : chrome, "Chrome", (candidates, logs) => EvaluateChrome(candidates, scts, logs, notBefore, notAfter)),
+            Chrome = Evaluate(scts, chromeLogs == null ? null : chrome, "Chrome", (candidates, logs) => EvaluateChrome(candidates, logs, notBefore, notAfter)),
             Apple = Evaluate(scts, appleLogs == null ? null : apple, "Apple", (candidates, logs) => EvaluateApple(candidates, logs, notBefore, notAfter))
         };
     }
@@ -92,7 +93,11 @@ internal static class EmbeddedSctValidator {
     internal static IReadOnlyList<ParsedSct> Parse(byte[] extensionValue) {
         byte[] list;
         try {
-            list = Asn1OctetString.GetInstance(Asn1Object.FromByteArray(extensionValue)).GetOctets();
+            Asn1OctetString? wrapper = Asn1OctetString.GetInstance(Asn1Object.FromByteArray(extensionValue));
+            if (wrapper == null || !extensionValue.SequenceEqual(wrapper.GetDerEncoded())) {
+                throw new FormatException("SCT list extension is not a DER OCTET STRING.");
+            }
+            list = wrapper.GetOctets();
         } catch (Exception ex) when (ex is IOException or ArgumentException or InvalidCastException) {
             throw new FormatException("SCT list extension is not a DER OCTET STRING.", ex);
         }
@@ -159,30 +164,36 @@ internal static class EmbeddedSctValidator {
     private static CtPolicyEvaluation Evaluate(IReadOnlyList<EmbeddedSct> scts, Dictionary<string, CtLogDescriptor>? logs, string browser,
         Func<IReadOnlyList<EmbeddedSct>, Dictionary<string, CtLogDescriptor>, CtPolicyEvaluation> policy) {
         if (logs == null) return new CtPolicyEvaluation { Reason = $"The {browser} CT log list was unavailable." };
-        CtPolicyEvaluation strict = policy(scts.Where(static sct => sct.SignatureStatus == SctSignatureStatus.Valid).ToList(), logs);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var eligible = scts.Where(sct => sct.Timestamp <= now).ToList();
+        CtPolicyEvaluation strict = policy(eligible.Where(static sct => sct.SignatureStatus == SctSignatureStatus.Valid).ToList(), logs);
         if (strict.Compliance == CtPolicyCompliance.Compliant) return strict;
-        CtPolicyEvaluation optimistic = policy(scts.Where(static sct => sct.SignatureStatus != SctSignatureStatus.Invalid).ToList(), logs);
+        CtPolicyEvaluation optimistic = policy(eligible.Where(static sct => sct.SignatureStatus != SctSignatureStatus.Invalid).ToList(), logs);
         return optimistic.Compliance == CtPolicyCompliance.Compliant
             ? new CtPolicyEvaluation { Reason = "Compliance depends on SCT signatures that could not be verified." }
             : optimistic;
     }
 
-    internal static CtPolicyEvaluation EvaluateChrome(IReadOnlyList<EmbeddedSct> candidates, IReadOnlyList<EmbeddedSct> presented,
+    internal static CtPolicyEvaluation EvaluateChrome(IReadOnlyList<EmbeddedSct> candidates,
         Dictionary<string, CtLogDescriptor> logs, DateTime notBefore, DateTime notAfter) {
         // Chrome CT policy (googlechrome.github.io/CertificateTransparency/ct_policy.html): one SCT from a Qualified/Usable/ReadOnly log;
         // SCTs from 2 (lifetime <= 180 days) or 3 distinct Qualified/Usable/ReadOnly/Retired logs; at least 2 distinct operators;
-        // a Retired log counts only when the earliest presented SCT predates its Retired timestamp.
-        DateTimeOffset earliest = presented.Min(static sct => sct.Timestamp);
+        // A retired log's SCT and the earliest candidate SCT from a non-retired log must both predate retirement.
+        candidates = candidates.Where(sct => !logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) ||
+            log.ApiKind != CtLogApiKind.StaticCt || sct.HasValidLeafIndex).ToList();
+        DateTimeOffset earliest = candidates
+            .Where(sct => logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) && !log.IsRetired)
+            .Select(static sct => sct.Timestamp).DefaultIfEmpty(DateTimeOffset.MaxValue).Min();
         var counted = candidates
-            .Select(sct => logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) ? log : null)
-            .Where(log => log != null && (IsCurrentlyApproved(log) || (log.IsRetired && earliest < log.StateTimestampUtc)))
-            .Select(static log => log!)
+            .Select(sct => (Sct: sct, Log: logs.TryGetValue(sct.LogId, out CtLogDescriptor? log) ? log : null))
+            .Where(item => item.Log != null && (IsCurrentlyApproved(item.Log) ||
+                (item.Log.IsRetired && earliest < item.Log.StateTimestampUtc && item.Sct.Timestamp < item.Log.StateTimestampUtc)))
             .ToList();
-        if (!counted.Any(IsCurrentlyApproved)) return NotCompliant("No embedded SCT comes from a qualified, usable or read-only log.");
+        if (!counted.Any(static item => IsCurrentlyApproved(item.Log!))) return NotCompliant("No embedded SCT comes from a qualified, usable or read-only log.");
         int required = notAfter - notBefore <= TimeSpan.FromDays(180) ? 2 : 3;
-        int distinctLogs = counted.Select(static log => log.LogId).Distinct(StringComparer.Ordinal).Count();
+        int distinctLogs = counted.Select(static item => item.Log!.LogId).Distinct(StringComparer.Ordinal).Count();
         if (distinctLogs < required) return NotCompliant($"Embedded SCTs come from {distinctLogs} eligible distinct logs; {required} are required.");
-        int operators = counted.Select(static log => log.OperatorName).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        int operators = counted.Select(static item => OperatorAt(item.Log!, item.Sct.Timestamp)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
         if (operators < 2) return NotCompliant("Eligible embedded SCTs come from fewer than 2 distinct log operators.");
         return new CtPolicyEvaluation {
             Compliance = CtPolicyCompliance.Compliant,
@@ -217,6 +228,29 @@ internal static class EmbeddedSctValidator {
             Compliance = CtPolicyCompliance.Compliant,
             Reason = $"Embedded SCTs count for {counted.Count} distinct logs; {required} required for a {lifetimeDays}-day certificate."
         };
+    }
+
+    private static bool HasValidLeafIndex(byte[] extensions) {
+        bool found = false;
+        for (int offset = 0; offset < extensions.Length;) {
+            if (extensions.Length - offset < 3) return false;
+            byte type = extensions[offset++];
+            int length = (extensions[offset++] << 8) | extensions[offset++];
+            if (length > extensions.Length - offset) return false;
+            if (type == 0) {
+                if (found || length < 5) return false;
+                found = true;
+            }
+            offset += length;
+        }
+        return found;
+    }
+
+    private static string? OperatorAt(CtLogDescriptor log, DateTimeOffset timestamp) {
+        foreach (var previous in log.PreviousOperators) {
+            if (timestamp < previous.EndTimeUtc) return previous.Name;
+        }
+        return log.OperatorName;
     }
 
     private static bool IsCurrentlyApproved(CtLogDescriptor log) => log.IsQualified || log.IsUsable || log.IsReadOnly;
