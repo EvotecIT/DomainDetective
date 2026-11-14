@@ -45,6 +45,9 @@ public static partial class Converters {
             CipherSuite = analysis.CipherSuite,
             DhKeyBits = analysis.DhKeyBits,
             SctCount = analysis.SctCount,
+            ValidSctCount = analysis.SctValidation?.ValidCount ?? 0,
+            ChromeCtPolicy = analysis.SctValidation?.Chrome.Compliance,
+            AppleCtPolicy = analysis.SctValidation?.Apple.Compliance,
             OcspMustStaple = analysis.OcspMustStaple,
             OcspStaplingPresent = analysis.OcspStaplingPresent,
             OcspUrls = analysis.OcspUrls.ToArray(),
@@ -160,8 +163,14 @@ public class CertificateInfo {
     public string CipherSuite { get; set; } = string.Empty;
     /// <summary>Gets or sets the dh key bits value.</summary>
     public int DhKeyBits { get; set; }
-    /// <summary>Gets or sets the sct count value.</summary>
+    /// <summary>Gets or sets the number of embedded SCTs.</summary>
     public int SctCount { get; set; }
+    /// <summary>Gets or sets the number of embedded SCTs whose signature verified.</summary>
+    public int ValidSctCount { get; set; }
+    /// <summary>Gets or sets the Chrome CT policy result for embedded SCTs; null when the certificate has no SCT list.</summary>
+    public CtPolicyCompliance? ChromeCtPolicy { get; set; }
+    /// <summary>Gets or sets the Apple CT policy result for embedded SCTs; null when the certificate has no SCT list.</summary>
+    public CtPolicyCompliance? AppleCtPolicy { get; set; }
     /// <summary>Gets or sets the ocsp must staple value.</summary>
     public bool OcspMustStaple { get; set; }
     /// <summary>Gets or sets the ocsp stapling present value.</summary>

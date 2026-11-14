@@ -239,8 +239,11 @@ namespace DomainDetective {
         public bool SupportsTls12 { get; private set; }
         /// <summary>Indicates if server supports TLS 1.3 during handshake probe.</summary>
         public bool SupportsTls13 { get; private set; }
-        /// <summary>Count of embedded SCTs in the certificate.</summary>
-        public int SctCount { get; private set; }
+        /// <summary>Number of SCTs parsed from the certificate's embedded SCT list; zero when the extension is absent or malformed.</summary>
+        public int SctCount => SctValidation?.Scts.Count ?? 0;
+        /// <summary>Embedded SCT signatures, log states and Chrome/Apple CT policy results; null when the certificate has no SCT list.</summary>
+        /// <remarks>SCTs delivered through the TLS extension or stapled OCSP responses are not observed.</remarks>
+        public EmbeddedSctValidation? SctValidation { get; private set; }
         /// <summary>Indicates whether the certificate includes TLS Feature (OCSP Must-Staple).</summary>
         public bool OcspMustStaple { get; private set; }
         /// <summary>Indicates whether the server stapled an OCSP response during handshake (best-effort, via OpenSSL probe).</summary>

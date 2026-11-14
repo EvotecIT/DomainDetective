@@ -4,6 +4,8 @@ internal static class TlsCodes {
     public const string LegacyEnabled = "TLS.LegacyEnabled";
     public const string LegacyOffered = "TLS.LegacyOffered";
     public const string SctMissing = "TLS.CT.SctMissing";
+    public const string SctInvalid = "TLS.CT.SctInvalid";
+    public const string CtPolicyNotCompliant = "TLS.CT.PolicyNotCompliant";
     public const string OcspMustStapleMissing = "TLS.OCSP.MustStapleMissing";
     public const string WeakCipherNegotiated = "TLS.Cipher.WeakNegotiated";
     public const string WeakKeyExchange = "TLS.Kex.Weak";

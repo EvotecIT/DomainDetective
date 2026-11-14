@@ -547,9 +547,11 @@ public sealed partial class CtLogIngestionClient {
                 MonitoringUrl = monitoringUrl,
                 SubmissionUrl = submissionUrl,
                 OperatorName = operatorName,
+                PreviousOperators = GetPreviousOperators(log),
                 Description = GetString(log, "description"),
                 State = GetLogState(log),
                 IsRetired = IsRetiredLog(log),
+                StateTimestampUtc = GetLogStateTimestamp(log),
                 TemporalStartUtc = startUtc,
                 TemporalEndUtc = endUtc
             };
@@ -621,6 +623,23 @@ public sealed partial class CtLogIngestionClient {
 
         return state.EnumerateObject().FirstOrDefault().Name;
     }
+
+    private static IReadOnlyList<(string Name, DateTimeOffset EndTimeUtc)> GetPreviousOperators(JsonElement log) {
+        var history = new List<(string Name, DateTimeOffset EndTimeUtc)>();
+        if (log.TryGetProperty("previous_operators", out JsonElement previous) && previous.ValueKind == JsonValueKind.Array) {
+            foreach (JsonElement item in previous.EnumerateArray()) {
+                string? name = GetString(item, "name");
+                DateTimeOffset? end = ParseTimestamp(GetString(item, "end_time"));
+                if (!string.IsNullOrWhiteSpace(name) && end.HasValue) history.Add((name!, end.Value));
+            }
+        }
+        return history.OrderBy(static item => item.EndTimeUtc).ToArray();
+    }
+
+    private static DateTimeOffset? GetLogStateTimestamp(JsonElement log) =>
+        TryGetLogStateElement(log, out JsonElement state) && state.ValueKind == JsonValueKind.Object
+            ? state.EnumerateObject().Select(static entry => ParseTimestamp(GetString(entry.Value, "timestamp"))).FirstOrDefault()
+            : null;
 
     private static bool TryGetLogStateElement(JsonElement log, out JsonElement state)
         => log.TryGetProperty("state", out state) &&

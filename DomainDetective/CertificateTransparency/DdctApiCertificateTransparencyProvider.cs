@@ -126,13 +126,15 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         {
             ProviderId = ProviderId,
             Certificates = [
-                CtCertificateRecord.FromDer(
+                CtCertificateRecord.FromLoggedDer(
                     ProviderId,
                     der,
+                    verifiedCertificate: null,
                     providerCertificateId: latest.Sha256Fingerprint,
                     entryTimestampUtc: latest.LastCtObservedAtUtc ?? latest.FirstCtObservedAtUtc,
                     tbsSha256: latest.TbsSha256,
-                    isPrecertificate: latest.IsPrecertificate)
+                    isPrecertificate: latest.IsPrecertificate,
+                    detailLevel: CtCertificateRecordDetailLevel.Full)
             ],
             DiscoveredNames = certificates
                 .Select(static item => CertificateTransparencyNameUtility.Normalize(item.MatchedName))
@@ -230,13 +232,15 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         {
             ProviderId = ProviderId,
             Certificates = [
-                CtCertificateRecord.FromDer(
+                CtCertificateRecord.FromLoggedDer(
                     ProviderId,
                     der,
+                    verifiedCertificate: null,
                     providerCertificateId: latestMatch.Sha256Fingerprint,
                     entryTimestampUtc: latestMatch.CtObservedAtUtc,
                     tbsSha256: latestMatch.TbsSha256,
-                    isPrecertificate: latestMatch.IsPrecertificate)
+                    isPrecertificate: latestMatch.IsPrecertificate,
+                    detailLevel: CtCertificateRecordDetailLevel.Full)
             ],
             DiscoveredNames = matchingNames
                 .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
@@ -349,13 +353,15 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         foreach (DdctCertificateSearchDto item in selectedCertificates)
         {
             byte[] der = await DownloadCertificateDerAsync(item.Sha256Fingerprint, cancellationToken).ConfigureAwait(false);
-            certificates.Add(CtCertificateRecord.FromDer(
+            certificates.Add(CtCertificateRecord.FromLoggedDer(
                 ProviderId,
                 der,
+                verifiedCertificate: null,
                 providerCertificateId: item.Sha256Fingerprint,
                 entryTimestampUtc: item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc,
                 tbsSha256: item.TbsSha256,
-                isPrecertificate: item.IsPrecertificate));
+                isPrecertificate: item.IsPrecertificate,
+                detailLevel: CtCertificateRecordDetailLevel.Full));
         }
 
         return new CtCertificateQueryResult

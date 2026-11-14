@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -15,10 +16,13 @@ public class TestDdctApiCertificateTransparencyProvider
     // dedicated precertificate signer was used, so the provider value must win over recomputation.
     private const string ProviderTbsSha256 = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
 
-    [Fact]
-    public async Task QueryAsyncHydratesLatestCertificateFromDerEndpoint()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QueryAsyncHydratesLatestCertificateFromDerEndpoint(bool trailingBytes)
     {
         byte[] der = LoadPemCertificateDer("multi.pem");
+        if (trailingBytes) der = der.Concat(new byte[] { 0 }).ToArray();
         var handler = new HttpStubMessageHandler((request, _) =>
         {
             string pathAndQuery = request.RequestUri!.PathAndQuery;
@@ -74,6 +78,14 @@ public class TestDdctApiCertificateTransparencyProvider
         Assert.Equal("abc123", record.ProviderCertificateId);
         Assert.Equal(ProviderTbsSha256, record.TbsSha256);
         Assert.True(record.IsPrecertificate);
+        Assert.Equal(der, record.CertificateDer);
+        Assert.Equal(trailingBytes, record.IsLenientlyParsed);
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+            Assert.Equal(BitConverter.ToString(sha.ComputeHash(der)).Replace("-", string.Empty), record.Sha256Fingerprint);
+        if (trailingBytes) {
+            Assert.Null(record.Subject);
+            Assert.Null(record.NotBeforeUtc);
+        }
         Assert.False(result.HasMore);
     }
 

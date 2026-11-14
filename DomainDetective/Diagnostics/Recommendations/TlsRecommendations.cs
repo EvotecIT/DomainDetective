@@ -33,14 +33,40 @@ internal sealed class TlsRecommendations : IRecommendationProvider {
         map[TlsCodes.SctMissing] = new RecommendationAdvice {
             Code = TlsCodes.SctMissing,
             Title = "No embedded SCTs in certificate",
-            Why = "Embedded Signed Certificate Timestamps (SCTs) provide immediate CT transparency without relying on Expect-CT.",
-            How = "Obtain certificates from CAs that embed SCTs or use TLS extension SCT delivery.",
-            Links = new [] { "https://www.rfc-editor.org/rfc/rfc6962" },
+            Why = "Chrome and Apple platforms reject publicly trusted certificates without enough SCTs. SCTs delivered through the TLS extension or OCSP stapling were not observed by this check.",
+            How = "Obtain certificates from a CA that embeds SCTs, or confirm that the server delivers SCTs through the TLS extension.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc6962", "https://googlechrome.github.io/CertificateTransparency/ct_policy.html", "https://support.apple.com/en-us/103214" },
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "ct", "sct" },
-            Impact = "CT-monitoring relies on external validation; some clients prefer embedded SCTs.",
+            Impact = "Expected for private CAs; a publicly trusted certificate without SCTs fails in Chrome and Safari unless SCTs arrive another way.",
             Effort = RecommendationEffort.Low,
             Verify = "Inspect certificate extension 1.3.6.1.4.1.11129.2.4.2 to contain SCT list."
+        };
+
+        map[TlsCodes.SctInvalid] = new RecommendationAdvice {
+            Code = TlsCodes.SctInvalid,
+            Title = "Embedded SCTs are malformed or do not verify",
+            Why = "Browsers ignore SCTs whose list cannot be parsed or whose signature does not verify against the CT log key.",
+            How = "Reissue the certificate from the CA and report the faulty SCTs to it.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc6962#section-3.2" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "ct", "sct" },
+            Impact = "Invalid SCTs do not count toward browser CT policies and can cause connection failures.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Every embedded SCT signature verifies against its log key."
+        };
+
+        map[TlsCodes.CtPolicyNotCompliant] = new RecommendationAdvice {
+            Code = TlsCodes.CtPolicyNotCompliant,
+            Title = "Embedded SCTs do not meet a browser CT policy",
+            Why = "Chrome and Apple require SCTs from enough distinct, approved CT logs and operators for the certificate lifetime.",
+            How = "Reissue the certificate from a CA that embeds SCTs meeting current policy, or deliver compliant SCTs through the TLS extension.",
+            Links = new [] { "https://googlechrome.github.io/CertificateTransparency/ct_policy.html", "https://support.apple.com/en-us/103214" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "ct", "sct" },
+            Impact = "Unless SCTs arrive through the TLS extension, the affected browser rejects the certificate.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Embedded SCT policy results report Compliant for Chrome and Apple."
         };
 
         map[TlsCodes.OcspMustStapleMissing] = new RecommendationAdvice {

@@ -61,7 +61,7 @@ public partial class CertificateAnalysis {
         GradeLevel = GradeLevel.Unknown;
         LegacyEnabled = SupportsTls10 = SupportsTls11 = SupportsTls12 = SupportsTls13 = false;
         AnalysisComplete = ProtocolSupportComplete = LegacyProtocolSupportComplete = false;
-        SctCount = 0;
+        SctValidation = null;
         OcspMustStaple = false;
         OcspStaplingPresent = null;
     }

@@ -27,7 +27,8 @@ namespace DomainDetective {
                 phases.Add(MeasureAsync("revocation", () => QueryRevocationEndpoints(cancellationToken)));
             }
             if (CaptureExtendedMetadata) {
-                PopulateSctAndTlsFeature(logger);
+                PopulateTlsFeature(logger);
+                phases.Add(MeasureAsync("embedded SCTs", () => ValidateEmbeddedScts(logger, cancellationToken)));
                 phases.Add(MeasureAsync("protocol versions", () => ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken)));
                 phases.Add(MeasureAsync("stapling", () => ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken)));
             }

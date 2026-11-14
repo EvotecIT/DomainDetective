@@ -204,36 +204,54 @@ namespace DomainDetective {
             DhKeyBits = tlsInfo.DhKeyBits;
         }
 
-        private void PopulateSctAndTlsFeature(InternalLogger logger)
+        private async Task ValidateEmbeddedScts(InternalLogger logger, CancellationToken token)
         {
-            SctCount = 0;
+            SctValidation = null;
+            if (Certificate == null) return;
+            var parser = new Org.BouncyCastle.X509.X509CertificateParser();
+            Org.BouncyCastle.X509.X509Certificate leaf;
+            try { leaf = parser.ReadCertificate(Certificate.RawData); }
+            catch (Exception) { return; }
+            if (leaf.GetExtensionValue(new DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2")) == null)
+            {
+                logger?.WriteInformationCode(TlsCodes.SctMissing, "Certificate has no embedded SCTs; SCTs delivered via the TLS extension or OCSP stapling are not observed");
+                return;
+            }
+            var issuerCertificate = Chain.Skip(1).FirstOrDefault(candidate => candidate.SubjectName.RawData.SequenceEqual(Certificate.IssuerName.RawData));
+            Org.BouncyCastle.X509.X509Certificate? issuer = null;
+            try { if (issuerCertificate != null) issuer = parser.ReadCertificate(issuerCertificate.RawData); }
+            catch (Exception) { }
+            var chromeLogs = EmbeddedSctValidator.GetLogListAsync(EmbeddedSctValidator.ChromeLogListUrl, Timeout, token);
+            var appleLogs = EmbeddedSctValidator.GetLogListAsync(EmbeddedSctValidator.AppleLogListUrl, Timeout, token);
+            await Task.WhenAll(chromeLogs, appleLogs).ConfigureAwait(false);
+            var result = EmbeddedSctValidator.Validate(leaf, issuer, await chromeLogs.ConfigureAwait(false), await appleLogs.ConfigureAwait(false))!;
+            SctValidation = result;
+            if (result.ParseError != null)
+            {
+                logger?.WriteWarningCode(TlsCodes.SctInvalid, "Embedded SCT list is malformed: {0}", result.ParseError);
+                return;
+            }
+            int invalid = result.Scts.Count(sct => sct.SignatureStatus == SctSignatureStatus.Invalid);
+            if (invalid > 0)
+            {
+                logger?.WriteWarningCode(TlsCodes.SctInvalid, "{0} of {1} embedded SCT signatures do not verify", invalid, result.Scts.Count);
+            }
+            foreach (var (browser, evaluation) in new[] { ("Chrome", result.Chrome), ("Apple", result.Apple) })
+            {
+                if (evaluation.Compliance == CtPolicyCompliance.NotCompliant)
+                {
+                    logger?.WriteWarningCode(TlsCodes.CtPolicyNotCompliant, "Embedded SCTs do not meet the {0} CT policy: {1}", browser, evaluation.Reason);
+                }
+            }
+        }
+
+        private void PopulateTlsFeature(InternalLogger logger)
+        {
             OcspMustStaple = false;
             try {
                 if (Certificate == null) return;
                 var parser = new Org.BouncyCastle.X509.X509CertificateParser();
                 var bcCert = parser.ReadCertificate(Certificate.RawData);
-                // SCT list extension: 1.3.6.1.4.1.11129.2.4.2
-                var sctExt = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2"));
-                if (sctExt != null)
-                {
-                    try
-                    {
-                        // Very coarse approximation: count plausible SCT markers
-                        var bytes = sctExt.GetOctets();
-                        int count = 0;
-                        for (int i = 0; i < bytes.Length - 33; i++)
-                        {
-                            if (bytes[i] == 0x00) count++;
-                        }
-                        SctCount = System.Math.Max(0, count / 32);
-                    }
-                    catch { SctCount = 1; }
-                }
-                if (SctCount == 0)
-                {
-                    logger?.WriteInformationCode(TlsCodes.SctMissing, "No embedded SCTs found in certificate");
-                }
-
                 // TLS Feature extension (OCSP Must-Staple): 1.3.6.1.5.5.7.1.24 with status_request (5)
                 var tlsFeat = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.1.24"));
                 if (tlsFeat != null)
