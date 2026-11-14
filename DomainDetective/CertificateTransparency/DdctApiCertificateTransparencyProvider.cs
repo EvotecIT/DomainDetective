@@ -130,7 +130,9 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                     ProviderId,
                     der,
                     providerCertificateId: latest.Sha256Fingerprint,
-                    entryTimestampUtc: latest.LastCtObservedAtUtc ?? latest.FirstCtObservedAtUtc)
+                    entryTimestampUtc: latest.LastCtObservedAtUtc ?? latest.FirstCtObservedAtUtc,
+                    tbsSha256: latest.TbsSha256,
+                    isPrecertificate: latest.IsPrecertificate)
             ],
             DiscoveredNames = certificates
                 .Select(static item => CertificateTransparencyNameUtility.Normalize(item.MatchedName))
@@ -232,7 +234,9 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                     ProviderId,
                     der,
                     providerCertificateId: latestMatch.Sha256Fingerprint,
-                    entryTimestampUtc: latestMatch.CtObservedAtUtc)
+                    entryTimestampUtc: latestMatch.CtObservedAtUtc,
+                    tbsSha256: latestMatch.TbsSha256,
+                    isPrecertificate: latestMatch.IsPrecertificate)
             ],
             DiscoveredNames = matchingNames
                 .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
@@ -349,7 +353,9 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                 ProviderId,
                 der,
                 providerCertificateId: item.Sha256Fingerprint,
-                entryTimestampUtc: item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc));
+                entryTimestampUtc: item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc,
+                tbsSha256: item.TbsSha256,
+                isPrecertificate: item.IsPrecertificate));
         }
 
         return new CtCertificateQueryResult
@@ -651,6 +657,8 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         public DateTimeOffset? LastCtObservedAtUtc { get; init; }
         public DateTimeOffset? LastIngestedByDdctAtUtc { get; init; }
         public string MatchedName { get; init; } = string.Empty;
+        public bool? IsPrecertificate { get; init; }
+        public string? TbsSha256 { get; init; }
     }
 
     private sealed class DdctObservationDto
@@ -669,6 +677,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         public string LogUrl { get; init; } = string.Empty;
         public long EntryIndex { get; init; }
         public string EntryType { get; init; } = string.Empty;
-        public bool IsPrecertificate { get; init; }
+        public bool? IsPrecertificate { get; init; }
+        public string? TbsSha256 { get; init; }
     }
 }
