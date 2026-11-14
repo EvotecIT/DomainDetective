@@ -550,6 +550,7 @@ public sealed partial class CtLogIngestionClient {
                 Description = GetString(log, "description"),
                 State = GetLogState(log),
                 IsRetired = IsRetiredLog(log),
+                StateTimestampUtc = GetLogStateTimestamp(log),
                 TemporalStartUtc = startUtc,
                 TemporalEndUtc = endUtc
             };
@@ -621,6 +622,11 @@ public sealed partial class CtLogIngestionClient {
 
         return state.EnumerateObject().FirstOrDefault().Name;
     }
+
+    private static DateTimeOffset? GetLogStateTimestamp(JsonElement log) =>
+        TryGetLogStateElement(log, out JsonElement state) && state.ValueKind == JsonValueKind.Object
+            ? state.EnumerateObject().Select(static entry => ParseTimestamp(GetString(entry.Value, "timestamp"))).FirstOrDefault()
+            : null;
 
     private static bool TryGetLogStateElement(JsonElement log, out JsonElement state)
         => log.TryGetProperty("state", out state) &&

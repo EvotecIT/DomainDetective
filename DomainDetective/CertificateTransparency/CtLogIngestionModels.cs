@@ -89,6 +89,8 @@ public sealed class CtLogDescriptor {
     public string? State { get; init; }
     /// <summary>True when the log list marks this log as retired.</summary>
     public bool IsRetired { get; init; }
+    /// <summary>Time the log entered <see cref="State"/>, when the log list supplies it. For a retired log this is the retirement time.</summary>
+    public DateTimeOffset? StateTimestampUtc { get; init; }
     /// <summary>Inclusive lower bound of certificate expiration dates accepted by the shard.</summary>
     public DateTimeOffset? TemporalStartUtc { get; init; }
     /// <summary>Exclusive upper bound of certificate expiration dates accepted by the shard.</summary>
