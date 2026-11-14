@@ -265,7 +265,7 @@ public sealed class CtCertificateRecord
         string providerCertificateId,
         DateTimeOffset? entryTimestampUtc,
         string? tbsSha256,
-        bool isPrecertificate,
+        bool? isPrecertificate,
         CtCertificateRecordDetailLevel detailLevel)
     {
         try
