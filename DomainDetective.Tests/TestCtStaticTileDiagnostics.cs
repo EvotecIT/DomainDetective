@@ -31,7 +31,9 @@ public sealed class TestCtStaticTileDiagnostics {
             ApiKind = CtLogApiKind.StaticCt, KnownTreeSize = 2, StartIndex = 1, BatchSize = 1,
             RequireCompleteDecoding = true
         };
-        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
+        Assert.Empty(batch.Entries);
+        CtUndecodableEntry error = Assert.Single(batch.UndecodableEntries);
 
         Assert.Equal(1, error.EntryIndex);
         Assert.Equal(Convert.ToBase64String(leaf), error.Payload.LeafInputBase64);

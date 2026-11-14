@@ -49,6 +49,7 @@ public sealed partial class CtLogIngestionClient {
 
         long end = Math.Min(treeSize - 1, start + batchSize - 1);
         var entries = new List<CtLogIngestionEntry>();
+        var undecodable = new List<CtUndecodableEntry>();
         var diagnostics = new List<string>();
         var issuerCache = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         IReadOnlyList<StaticCtDataTile> tiles = await GetStaticDataTilesAsync(
@@ -85,6 +86,10 @@ public sealed partial class CtLogIngestionClient {
                     try {
                         verifiedCertificate = await VerifyCertificateBindingAsync(tileEntry.LeafInput, string.Empty,
                             tileEntry.CertificateDer, monitoringUrl, tileEntry.IssuerFingerprints, timeout, cancellationToken, issuerCache).ConfigureAwait(false);
+                    } catch (System.Security.Cryptography.CryptographicException ex) {
+                        // Unparseable certificate bytes only; binding mismatches still throw below.
+                        AddUndecodable(undecodable, diagnostics, entryIndex, tileEntry.CreateFailurePayload(), tileEntry.RawDataBase64, ex.Message);
+                        continue;
                     } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
                         throw new CtEntryDecodingException(submissionUrl, entryIndex,
                             tileEntry.CreateFailurePayload(), ex.Message, ex) {
@@ -99,22 +104,19 @@ public sealed partial class CtLogIngestionClient {
                         TreeSize = treeSize,
                         EntryTimestampUtc = tileEntry.TimestampUtc,
                         EntryType = tileEntry.EntryType,
-                        Certificate = CtCertificateRecord.FromVerifiedDer(
+                        Certificate = CtCertificateRecord.FromLoggedDer(
                             CtProviderProfiles.NativeCtProviderId,
                             tileEntry.CertificateDer,
                             verifiedCertificate,
-                            providerCertificateId: $"{submissionUrl}#{entryIndex}",
-                            entryTimestampUtc: tileEntry.TimestampUtc,
-                            tbsSha256: tileEntry.PrecertificateTbs == null ? null : CtCertificateRecord.HashTbs(tileEntry.PrecertificateTbs),
-                            isPrecertificate: tileEntry.EntryType == CtLogEntryType.Precertificate,
-                            detailLevel: certificateDetailLevel)
+                            $"{submissionUrl}#{entryIndex}",
+                            tileEntry.TimestampUtc,
+                            tileEntry.PrecertificateTbs == null ? null : CtCertificateRecord.HashTbs(tileEntry.PrecertificateTbs),
+                            tileEntry.EntryType == CtLogEntryType.Precertificate,
+                            certificateDetailLevel)
                     });
                 } catch (Exception ex) when (ex is not OperationCanceledException && !ExceptionHelper.IsFatal(ex)) {
-                    if (request.RequireCompleteDecoding) throw new CtEntryDecodingException(submissionUrl, entryIndex,
-                        tileEntry.CreateFailurePayload(), ex.Message, ex) {
-                        StaticTileEntryBase64 = tileEntry.RawDataBase64
-                    };
-                    diagnostics.Add($"Entry {entryIndex}: certificate decode failed: {ex.Message}");
+                    AddUndecodable(undecodable, diagnostics, entryIndex, tileEntry.CreateFailurePayload(), tileEntry.RawDataBase64,
+                        "certificate decode failed: " + ex.Message);
                 }
             }
         }
@@ -126,6 +128,7 @@ public sealed partial class CtLogIngestionClient {
             StartIndex = start,
             EndIndex = end,
             Entries = entries,
+            UndecodableEntries = undecodable,
             Diagnostics = diagnostics
         };
     }

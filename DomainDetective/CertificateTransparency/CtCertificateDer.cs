@@ -25,6 +25,19 @@ internal static class CtCertificateDer {
         return certificate;
     }
 
+    /// <summary>
+    /// Reads the first certificate structure from BER or DER bytes and ignores trailing data. Only for
+    /// extracting names from logged certificates that the strict parser or the platform loader reject.
+    /// </summary>
+    internal static X509Certificate ParseLenient(byte[] bytes) {
+        try {
+            using var stream = new Asn1InputStream(bytes);
+            return new X509Certificate(X509CertificateStructure.GetInstance(stream.ReadObject()));
+        } catch (Exception ex) when (!ExceptionHelper.IsFatal(ex)) {
+            throw new CryptographicException("CT certificate bytes do not contain an X.509 certificate structure.", ex);
+        }
+    }
+
     /// <summary>Checks that a previously parsed certificate still represents exactly the supplied DER.</summary>
     internal static void ValidateEncoding(byte[] der, X509Certificate certificate) {
         if (!CtMerkleTree.Equal(der, certificate.GetEncoded())) {

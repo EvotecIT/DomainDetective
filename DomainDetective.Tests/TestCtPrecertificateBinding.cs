@@ -101,9 +101,11 @@ public sealed class TestCtPrecertificateBinding {
             };
         }
 
-        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => client.ReadBatchAsync(request));
-        Assert.Equal(0, error.EntryIndex);
-        Assert.NotEmpty(error.Payload.ExtraDataBase64);
+        CtLogIngestionBatch batch = await client.ReadBatchAsync(request);
+        Assert.Empty(batch.Entries);
+        CtUndecodableEntry rejected = Assert.Single(batch.UndecodableEntries);
+        Assert.Equal(0, rejected.EntryIndex);
+        Assert.NotEmpty(rejected.Payload.ExtraDataBase64);
     }
 
     [Fact]

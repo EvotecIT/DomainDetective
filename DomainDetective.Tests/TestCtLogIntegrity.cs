@@ -102,12 +102,18 @@ public sealed class TestCtLogIntegrity {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CompleteDecoding_RetainsExactFailedIndexAndOriginalRawPayload(bool isStatic) {
+    public async Task CompleteDecoding_ReturnsProvenUnparseableEntriesWithTheirRawPayload(bool isStatic) {
         var fixture = new LogFixture(false, isStatic);
-        CtEntryDecodingException error = await Assert.ThrowsAsync<CtEntryDecodingException>(() => fixture.Client().ReadBatchAsync(fixture.Request(complete: true)));
-        Assert.Equal(1, error.EntryIndex);
-        Assert.Equal(fixture.Log.Url, error.LogUrl);
-        Assert.Equal(Convert.ToBase64String(fixture.Leaves[1]), error.Payload.LeafInputBase64);
+        CtLogIngestionBatch batch = await fixture.Client().ReadBatchAsync(fixture.Request(complete: true));
+        Assert.Empty(batch.Entries);
+        Assert.Equal(new long[] { 1, 2, 3 }, batch.UndecodableEntries.Select(entry => entry.EntryIndex));
+        Assert.Equal(3, batch.EndIndex);
+        Assert.Equal(Convert.ToBase64String(fixture.Leaves[1]), batch.UndecodableEntries[0].Payload.LeafInputBase64);
+        Assert.Equal(isStatic, batch.UndecodableEntries[0].StaticTileEntryBase64 != null);
+        Assert.NotEmpty(batch.UndecodableEntries[0].Reason);
+
+        fixture.TamperMiddleLeaf = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Client().ReadBatchAsync(fixture.Request(complete: true)));
     }
 
     [Theory]
@@ -122,6 +128,33 @@ public sealed class TestCtLogIntegrity {
         var forked = previous with { RootHashBase64 = Convert.ToBase64String(new byte[32]) };
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Client().GetVerifiedSignedTreeHeadAsync(fixture.Log, forked, TimeSpan.FromSeconds(5)));
     }
+
+    [Fact]
+    public async Task LoggedCertificatesRejectedByStrictParsers_KeepTheirNamesAndAdvance() {
+        // GoDaddy Aquamarine2026h2 #23760025 (notBefore in year 1, rejected by the Windows loader) and Sectigo
+        // Elephant2027h2 #3554 (BER BOOLEAN in the outer signature algorithm) each stalled verified ingestion.
+        byte[] godaddyEntry = Convert.FromBase64String(GoDaddyStaticEntry);
+        var staticClient = new CtLogIngestionClient { SendOverride = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(godaddyEntry) }) };
+        CtLogIngestionBatch staticBatch = await staticClient.ReadBatchAsync(new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/godaddy/", MonitoringUrl = "https://ct.example.test/godaddy/", ApiKind = CtLogApiKind.StaticCt,
+            StartIndex = 0, BatchSize = 1, KnownTreeSize = 1, RequireCompleteDecoding = true
+        });
+        CtCertificateRecord godaddy = Assert.Single(staticBatch.Entries).Certificate;
+        Assert.Equal(new[] { "7ac2e92b4653cc4ab1879a60.Shelikhoo.kkdev.org.invalid" }, godaddy.DnsNames);
+
+        var rfcClient = new CtLogIngestionClient { HttpGetOverride = (_, _) => Task.FromResult(JsonSerializer.Serialize(new {
+            entries = new[] { new { leaf_input = SectigoLeaf, extra_data = "" } } })) };
+        CtLogIngestionBatch rfcBatch = await rfcClient.ReadBatchAsync(new CtLogIngestionBatchRequest {
+            LogUrl = "https://ct.example.test/sectigo/", StartIndex = 0, BatchSize = 1, KnownTreeSize = 1, RequireCompleteDecoding = true
+        });
+        CtCertificateRecord sectigo = Assert.Single(rfcBatch.Entries).Certificate;
+        Assert.True(sectigo.IsLenientlyParsed);
+        Assert.Same(sectigo, sectigo.EnsureFullDetails());
+        Assert.Empty(rfcBatch.UndecodableEntries);
+    }
+
+    private const string GoDaddyStaticEntry = "AAABoWCS/PUAAAACXjCCAlowggHgoAMCAQICFHiJNzd8C9fcD3GSpPl57ho+0dIqMAoGCCqGSM49BAMDMD8xCzAJBgNVBAYTAk5MMRMwEQYDVQQKDAplTXVkaHJhIEJWMRswGQYDVQQDDBJFTSBEViBUTFMgQ0EgLSBHM0IwIBgPMDAwMTAxMDEwMDAwMDBaFw0yNjEyMzEyMzU5NTlaMD8xPTA7BgNVBAMMNDdhYzJlOTJiNDY1M2NjNGFiMTg3OWE2MC5TaGVsaWtob28ua2tkZXYub3JnLmludmFsaWQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQTTqHz9/zr87hROZmWIAoFa9o3enH7oNnnZTkAhC5aWKTFmYCpgpjm26mOgpl+u2fUX/V3BlacgOSvRuThsGqIo4G3MIG0MAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsGAQUFBwMBMD8GA1UdEQQ4MDaCNDdhYzJlOTJiNDY1M2NjNGFiMTg3OWE2MC5TaGVsaWtob28ua2tkZXYub3JnLmludmFsaWQwHQYDVR0OBBYEFGzNi/sOh5DQeg3H1yjbleVox5JpMB8GA1UdIwQYMBaAFOIeL+ccGTkOVUtiwSAkVzUkiiUUMAoGCCqGSM49BAMDA2gAMGUCMHEOlmDi4YHxUiK+pp+ZvGp+IuNC6V+fSm/7o3sWmpZhW9/XWT5LGV/Nxp2+XZUcLwIxALIs/SBWCF7BFkUSqPZ64QVI5miaC/ZKF+iGEMuSa0q8rJ4Y6yi8uQFs1G7UQtp99QAIAAAFAAFqjJkAYELErM0SxPWVl5JeGginqQECYIVDgJMI1Q7EJ+EYuhSTMJQCV5IDmmivblU2hkEL2rfA1KNrkITLpkIC411uu92Goey6CJxKjTu+JzTGEro0HYE+BDz56KhizVxXo2u+aw==";
+    private const string SectigoLeaf = "AAAAAAGXUCMW2QAAAASzMIIErzCCA5agAwIBAgIQBYAmfwbylVM0jhwYWl7uLjANBgkqhkiG9w0BAQsFADBhMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBDQTAeFw0xNzEyMDgxMjI4MjZaFw0yNzEyMDgxMjI4MjZaMHIxCzAJBgNVBAYTAkNOMSUwIwYDVQQKExxUcnVzdEFzaWEgVGVjaG5vbG9naWVzLCBJbmMuMR0wGwYDVQQLExREb21haW4gVmFsaWRhdGVkIFNTTDEdMBsGA1UEAxMUVHJ1c3RBc2lhIFRMUyBSU0EgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCgWa9X+ph+wAm8Yh1Fk1MjKbQ5QwBOOKVaZR/OfCh+F6f93u7vZHGcUU/lvVGgUQnbzJhR1UV2epJae+m7cxnXIKdD0/VS9btAgwJszGFvwoqXeaCqFoP71wPmXjjUwLT70+qvX4hdyYfOJcjeTz5QKtg8zQwxaK9x4JT9CoOmoVdVhEBAiD3DwR5fFgOHDwwGxdJWVBvktnoAzjdTLXDdbSVC5jZ0u8oq9BiTDv7jAlsB5F8aZgvSZDOQeFrwaOTbKWSEInEhnchKZTD1dz6aBlk1xGEI5PZWAnVAba/ofH33ktymaTDsE6xRDnW97pDkimCRak6CEbfe3dXw6OV5AgMBAAGjggFPMIIBSzAdBgNVHQ4EFgQUf9OZ86BHDjEAVlYijrfMnt3KAYowHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjASBgNVHRMBAf8ECDAGAQH/AgEAMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RDQS5jcmwwTAYDVR0gBEUwQzA3BglghkgBhv1sAQIwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzAIBgZngQwBAgEwDgYJKoZIhvcNAQELAQGwA4IBAQCt3VTo+XZb+DMytott95Q2L8id7JRWNl9hyk2BrXvJ2yuouf37AyJjGIoQJKelWjWP3p/FmeanK0D1S7iayQ0l09ODZzHmTkA1KI/zRwJnXwgQf4dW2eThiukn9YeWMf+cEeH901KD4BpZ1OxLjyEizXTEYg6157XCJgwIkb5IeRibh+GAlROlxJ7amjSIBpEcMSkoJ1NyHd4rhW1vRVEPUKrW9Rl/dQCe4uNed04pBoGAncGJAVEQ/IElXvDgHKOiH2TmLf0xMIotSL4tQqp7lJVqbBdS3UDSHX21t00ntAYUGu4n21SH7z1h2Drt65INWXjKOl0VPQeJ+VciWEZhAAA=";
 
     [Fact]
     public async Task RfcMalformedEntries_KeepTheirPositionsInsteadOfShiftingLaterIndices() {

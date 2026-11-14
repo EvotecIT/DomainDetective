@@ -100,6 +100,12 @@ public sealed class CtCertificateRecord
     /// <summary>True when the record is known to represent a precertificate.</summary>
     public bool? IsPrecertificate { get; init; }
 
+    /// <summary>
+    /// True when the logged bytes were rejected by the strict DER parser or the platform certificate loader, so only
+    /// names, the SHA-256 fingerprint and <see cref="TbsSha256"/> were read through a tolerant parse.
+    /// </summary>
+    public bool IsLenientlyParsed { get; init; }
+
     /// <summary>Non-fatal provider diagnostics captured while normalizing the CT certificate record.</summary>
     public IReadOnlyList<string> Diagnostics { get; init; } = Array.Empty<string>();
 
@@ -249,11 +255,76 @@ public sealed class CtCertificateRecord
     internal static string HashTbs(byte[] tbsCertificate) => ToHex(CtMerkleTree.Hash(tbsCertificate));
 
     /// <summary>
-    /// Hydrates a names-only record into a full certificate record.
+    /// Creates a record from certificate bytes taken from a CT entry. Logs accept certificates that the strict parser
+    /// or the platform loader reject; those keep their names through a tolerant parse instead of stopping ingestion.
+    /// </summary>
+    internal static CtCertificateRecord FromLoggedDer(
+        string providerId,
+        byte[] certificateDer,
+        Org.BouncyCastle.X509.X509Certificate? verifiedCertificate,
+        string providerCertificateId,
+        DateTimeOffset? entryTimestampUtc,
+        string? tbsSha256,
+        bool isPrecertificate,
+        CtCertificateRecordDetailLevel detailLevel)
+    {
+        try
+        {
+            return FromVerifiedDer(providerId, certificateDer, verifiedCertificate, providerCertificateId, entryTimestampUtc,
+                tbsSha256, isPrecertificate, detailLevel);
+        }
+        catch (Exception strictFailure) when (!ExceptionHelper.IsFatal(strictFailure))
+        {
+            byte[] rawData = certificateDer.ToArray();
+            Org.BouncyCastle.X509.X509Certificate lenient;
+            try
+            {
+                lenient = CtCertificateDer.ParseLenient(rawData);
+            }
+            catch (CryptographicException)
+            {
+                // No certificate structure at all: report the strict failure.
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(strictFailure).Throw();
+                throw;
+            }
+
+            string? logicalTbsSha256 = NormalizeHex(tbsSha256);
+            if (logicalTbsSha256 == null)
+            {
+                try
+                {
+                    logicalTbsSha256 = HashTbs(CtCertificateDer.NormalizePrecertificateTbs(lenient, null));
+                }
+                catch (Exception tbsFailure) when (!ExceptionHelper.IsFatal(tbsFailure))
+                {
+                    // The names remain useful without a logical identity.
+                }
+            }
+
+            return new CtCertificateRecord
+            {
+                ProviderId = providerId ?? string.Empty,
+                ProviderCertificateId = providerCertificateId,
+                DetailLevel = CtCertificateRecordDetailLevel.NamesOnly,
+                EntryTimestampUtc = entryTimestampUtc,
+                Sha256Fingerprint = ToHex(CtMerkleTree.Hash(rawData)),
+                TbsSha256 = logicalTbsSha256,
+                DnsNames = ExtractLenientDnsNames(lenient),
+                CertificateDer = rawData,
+                IsPrecertificate = isPrecertificate,
+                IsLenientlyParsed = true,
+                Diagnostics = new[] { "Strict certificate parsing failed: " + strictFailure.Message }
+            };
+        }
+    }
+
+    /// <summary>
+    /// Hydrates a names-only record into a full certificate record. Leniently parsed records are returned unchanged
+    /// because their remaining metadata cannot be read.
     /// </summary>
     public CtCertificateRecord EnsureFullDetails()
     {
-        if (DetailLevel == CtCertificateRecordDetailLevel.Full)
+        if (DetailLevel == CtCertificateRecordDetailLevel.Full || IsLenientlyParsed)
         {
             return this;
         }
@@ -320,6 +391,40 @@ public sealed class CtCertificateRecord
         catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
             // Keep certificate parsing resilient; callers still receive core certificate fields.
+        }
+
+        return names
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> ExtractLenientDnsNames(Org.BouncyCastle.X509.X509Certificate certificate)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string commonName in certificate.SubjectDN.GetValueList(X509Name.CN))
+        {
+            AddDnsNameIfCandidate(names, commonName);
+        }
+
+        try
+        {
+            Org.BouncyCastle.Asn1.X509.X509Extension? san = certificate.CertificateStructure.TbsCertificate.Extensions?
+                .GetExtension(Org.BouncyCastle.Asn1.X509.X509Extensions.SubjectAlternativeName);
+            if (san != null)
+            {
+                using var stream = new Org.BouncyCastle.Asn1.Asn1InputStream(san.Value.GetOctets());
+                foreach (var name in Org.BouncyCastle.Asn1.X509.GeneralNames.GetInstance(stream.ReadObject()).GetNames())
+                {
+                    if (name.TagNo == Org.BouncyCastle.Asn1.X509.GeneralName.DnsName)
+                    {
+                        AddDnsNameIfCandidate(names, Org.BouncyCastle.Asn1.DerIA5String.GetInstance(name.Name).GetString());
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
+        {
+            // Subject names remain usable when the SAN extension itself is malformed.
         }
 
         return names
