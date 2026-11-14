@@ -42,6 +42,19 @@ public class TestEmbeddedSctValidation {
     }
 
     [Fact]
+    public void Parse_RejectsTimestampOutsideDateTimeRange() {
+        byte[] serialized = new byte[47];
+        // v1, 32-byte log ID, timestamp one millisecond beyond DateTimeOffset.MaxValue, empty extensions/signature.
+        ulong timestamp = 253402300800000;
+        for (int i = 0; i < 8; i++) serialized[33 + i] = (byte)(timestamp >> ((7 - i) * 8));
+        byte[] list = new byte[] { 0, 49, 0, 47 }.Concat(serialized).ToArray();
+
+        var error = Assert.Throws<FormatException>(() => EmbeddedSctValidator.Parse(new DerOctetString(list).GetDerEncoded()));
+
+        Assert.Contains("timestamp", error.Message);
+    }
+
+    [Fact]
     public async Task Validate_VerifiesSignaturesAgainstPresentedIssuer() {
         var logs = await LoadLogs(LogList());
 
@@ -100,13 +113,13 @@ public class TestEmbeddedSctValidation {
     }
 
     [Fact]
-    public async Task Validate_AppleRequiresAnRfc6962Log() {
+    public async Task Validate_AppleAcceptsStaticLogsUnderNovember2026Policy() {
         var logs = await LoadLogs(LogList(wyvernTiled: true));
 
         var result = EmbeddedSctValidator.Validate(Load("sct-www.google.com.pem"), Load("sct-www.google.com-issuer.pem"), logs, logs)!;
 
         Assert.Equal(CtPolicyCompliance.Compliant, result.Chrome.Compliance);
-        Assert.Equal(CtPolicyCompliance.NotCompliant, result.Apple.Compliance);
+        Assert.Equal(CtPolicyCompliance.Compliant, result.Apple.Compliance);
     }
 
     [Theory]

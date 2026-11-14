@@ -112,7 +112,7 @@ internal static class EmbeddedSctValidator {
             byte[] logId = ReadBytes(serialized, ref cursor, 32, "SCT log ID");
             ulong timestamp = 0;
             foreach (byte b in ReadBytes(serialized, ref cursor, 8, "SCT timestamp")) timestamp = (timestamp << 8) | b;
-            if (timestamp > long.MaxValue) throw new FormatException("SCT timestamp is out of range.");
+            if (timestamp > 253402300799999UL) throw new FormatException("SCT timestamp is out of range.");
             byte[] extensions = ReadVector(serialized, ref cursor, 2, "SCT extensions");
             byte[] algorithms = ReadBytes(serialized, ref cursor, 2, "SCT signature algorithm");
             byte[] signature = ReadVector(serialized, ref cursor, 2, "SCT signature");
@@ -192,10 +192,9 @@ internal static class EmbeddedSctValidator {
 
     internal static CtPolicyEvaluation EvaluateApple(IReadOnlyList<EmbeddedSct> candidates, Dictionary<string, CtLogDescriptor> logs,
         DateTime notBefore, DateTime notAfter) {
-        // Apple CT policy (support.apple.com/en-us/103214, 2025-04-21): lifetime counts notBefore..notAfter inclusive in 86,400-second days;
+        // Apple CT policy v1.1 (apple/apple-root-program, 2026-11-05): lifetime counts notBefore..notAfter inclusive in 86,400-second days;
         // <= 180 days needs SCTs from 2 distinct logs with at most 1 per operator counted, 181-398 days needs 3 with at most 2 per operator;
-        // one SCT from a currently approved (qualified/usable/readonly) log; others may come from a log retired after the SCT;
-        // at least one SCT from an RFC 6962 log.
+        // one SCT from a currently approved (qualified/usable/readonly) log; others may come from a log retired after the SCT.
         long lifetimeDays = (long)Math.Ceiling(((notAfter - notBefore).TotalSeconds + 1) / 86400d);
         if (lifetimeDays > 398) return NotCompliant($"Certificate lifetime of {lifetimeDays} days exceeds Apple's 398-day limit.");
         (int required, int perOperator) = lifetimeDays <= 180 ? (2, 1) : (3, 2);
@@ -208,14 +207,12 @@ internal static class EmbeddedSctValidator {
             .GroupBy(static log => log.OperatorName, StringComparer.OrdinalIgnoreCase)
             .SelectMany(group => group
                 .OrderByDescending(IsCurrentlyApproved)
-                .ThenByDescending(static log => log.ApiKind == CtLogApiKind.Rfc6962)
                 .Take(perOperator))
             .ToList();
         if (!counted.Any(IsCurrentlyApproved)) return NotCompliant("No embedded SCT comes from a currently approved log.");
         if (counted.Count < required) {
             return NotCompliant($"Embedded SCTs count for {counted.Count} distinct logs after the per-operator limit of {perOperator}; {required} are required.");
         }
-        if (!counted.Any(static log => log.ApiKind == CtLogApiKind.Rfc6962)) return NotCompliant("No counted SCT comes from an RFC 6962 log.");
         return new CtPolicyEvaluation {
             Compliance = CtPolicyCompliance.Compliant,
             Reason = $"Embedded SCTs count for {counted.Count} distinct logs; {required} required for a {lifetimeDays}-day certificate."
