@@ -167,7 +167,9 @@ if (`$null -eq `$coreAssembly) {
         }
 
         Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
-        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+        $markdown = Get-Content -LiteralPath $markdownPath -Raw
+        $markdown | Should -Match 'example\.org'
+        $markdown | Should -Match 'SPF'
     }
 
     It 'generates OfficeIMO reports through the packaged Windows PowerShell module' {
@@ -260,6 +262,8 @@ if (`$null -eq `$coreAssembly) {
         }
 
         Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
-        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+        $markdown = Get-Content -LiteralPath $markdownPath -Raw
+        $markdown | Should -Match 'example\.org'
+        $markdown | Should -Match 'SPF'
     }
 }
