@@ -47,12 +47,12 @@ public static partial class AssessmentWordReport {
             document.Settings.FontFamily = style.FontFamily;
             AddChrome(document, style, report);
             WriteCover(document, style, report);
-            // A single domain has one chapter and the appendix; a contents page would only cost a sheet.
+            // Keep the opening summary, contents and actions in normal page flow.
             if (options.IncludeTableOfContents && report.Domains.Count > 1) {
                 // OfficeIMO resolves TOC destinations against final PDF pagination.
                 WordTableOfContent contents = document.AddTableOfContent(minLevel: 1, maxLevel: 1);
                 contents.Text = "Contents";
-                StyleHeading(contents.TitleParagraph!, style, 2, newPage: true);
+                StyleHeading(contents.TitleParagraph!, style, 2);
             }
             WriteActions(document, style, report, options);
             WriteAreas(document, style, report);
@@ -105,8 +105,7 @@ public static partial class AssessmentWordReport {
     private static string ScoreTone(int? score) => score switch {
         null => Neutral,
         >= 90 => Good,
-        >= 70 => "4D7C0F",
-        >= 60 => Elevated,
+        >= 75 => Elevated,
         _ => High
     };
 

@@ -34,19 +34,21 @@ Order:
      - Checks needing attention (elevated or high tone);
      - Errors (high when > 0, muted at 0);
      - Incomplete evidence (neutral).
-2. **Contents (page 2).**
-   - For several domains, a dedicated page immediately after the cover, headed "Contents" in the H2 style. A single-domain report skips this page.
+2. **Contents (several domains).**
+   - Immediately after the summary tiles, headed "Contents" in the H2 style, without a forced page break. A single-domain report skips the contents list.
    - Entries point to the domain chapters and appendix, with final PDF page numbers.
 3. **Do these first.**
-   - Up to `FixFirstCount` (default 10) items, in the same order as the HTML.
-   - Each item: bold check title, one muted metadata line (`example.test · Mail · and 3 more findings`), then the top finding message. Keep the status word in its tone in the left column, with about 6 pt between items. Only identifiers use monospace.
+   - Identical check/finding pairs are grouped across domains, ordered by severity and then affected-domain count. Up to `FixFirstCount` (default 10) grouped items appear, in the same order as the HTML.
+   - Each item: bold check title, one muted metadata line with the affected domains (`All 24 domains · Mail` or a count and list), then the top finding message. Keep the status word in its tone in the left column, with about 6 pt between items. Only identifiers use monospace.
    - Rendered as a two-column table: status in a narrow left column, text on the right. No cards.
 4. **Area by area.**
    - One table row per area: Area, Status, Score (or "Not scored"), Checks, Passing, Needs attention.
+   - Passing counts include only scored checks with a Pass outcome. Informational checks remain in Checks and their evidence stays available.
    - Then the area line (shared wording) as a muted row below each area.
 5. **Controls** (multi-domain only).
-   - A matrix table: domains as rows, controls as columns (DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT, BIMI, DNSSEC, CAA).
-   - Cells "pass", "warn", "error", "–" with tone text, not fills (paper prints in grey too).
+   - A matrix table: domains as rows, controls as columns (DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT, BIMI, DNSSEC, CAA, plus every scored Web and Security check present, including Certificate).
+   - At most six controls per table, repeating the domain column to keep full status words readable on portrait pages.
+   - Cells "Pass", "Warning", "Error", "–" with tone text, not fills (paper prints in grey too).
 6. **One chapter per domain** (a page break before each).
    - Chapter heading: domain, grade, score.
    - A metric strip with the domain's per-area scores ("Not scored" muted where incomplete).
@@ -57,12 +59,12 @@ Order:
      - the evidence as a `AddKeyValueTable` (the same facts the HTML drawer shows), keeping the presentation map and "Not attributed" rules.
    - Passing checks get no block, only their row.
 7. **Appendix.**
-   - "All checks": one table, every domain × check, the Explore columns except the redundant "Key numbers" column (retained in Excel).
+   - "All checks": one table, every domain × check, ordered by Mail, DNS, Web, Security and Other within each domain; the Explore columns except the redundant "Key numbers" column (retained in Excel).
    - "How scoring works": the same facts as the HTML About section.
    - Raw records (SPF/DMARC/MTA-STS text) in monospace key-value tables.
    - Captured facts and lists from checks without a detailed block, including informational and passing checks. Hiding informational findings does not hide their evidence.
 
-Do these first, Area by area and Controls flow together after the contents page. Break before each domain chapter and the appendix; the appendix subsections flow. The cover ends at the metric strip; its score note appears only in How scoring works. Paper-table sizing reserves each header's longest unbreakable word plus padding. Key numbers use the body font.
+The opening summary, Contents, Do these first, Area by area and Controls flow together. A one-domain report starts Do these first on page 1. Break before each domain chapter and the appendix; the appendix subsections flow. The score note appears only in How scoring works. Paper-table sizing reserves each header's longest unbreakable word plus padding. Key numbers use the body font.
 
 ## 2. DD Excel
 
@@ -75,7 +77,7 @@ One workbook, OfficeIMO.Excel, paper-like formatting:
 Sheets:
 
 1. **Summary**: verdict and detail as two text rows, then the area table from §1.4.
-2. **Do these first**: the same rows as §1.3.
+2. **Do these first**: one row per domain and check for filtering, retaining the shared action wording.
 3. **Checks**: one row per domain × check, the same columns as the HTML Explore "Checks" dataset (Domain, Area, Check, Outcome, Key number, Score, Errors, Warnings, Top finding, Key numbers, Summary). It reads from the same dataset definition if possible.
 4. **Findings**: the same columns as the Explore "Findings" dataset.
 5. **Evidence**: captured facts, raw records and list items, attributed to their domain and check. Collection-time omissions remain explicit.
@@ -86,7 +88,7 @@ Sheets:
 For pasting into tickets and wikis:
 - `# Domain assessment: <domain(s)>`;
 - the verdict sentence;
-- "Do these first" as a numbered list with one line per item (`1. **Check** (domain, area, error): finding`); additional finding counts remain in the same line;
+- "Do these first" as a numbered list with one line per grouped check/finding, ordered by severity and affected-domain count (`1. **Check** (All 24 domains, area, error): finding`); additional finding counts remain in the same line;
 - the area table;
 - per domain, a table of checks that need attention, then a collapsible `<details>` with all checks.
 

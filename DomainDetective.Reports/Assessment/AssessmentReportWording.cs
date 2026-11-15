@@ -79,6 +79,16 @@ public static class AssessmentReportWording {
         ("mtasts", "Mode"), ("tlsrpt", "Report addresses"), ("bimi", "Logo"), ("dnssec", string.Empty), ("caa", string.Empty)
     });
 
+    /// <summary>The familiar mail/DNS controls plus every scored Web/Security check present in this report.</summary>
+    public static IEnumerable<CheckAssessment> ControlChecks(DomainAssessmentReport report) {
+        var checks = report.Domains.SelectMany(domain => domain.Checks).ToList();
+        return Controls.Select(control => checks.FirstOrDefault(check => check.Key == control.Key))
+            .Where(check => check != null).Select(check => check!)
+            .Concat(checks.Where(check => check.Scored && check.Area is AnalysisArea.Web or AnalysisArea.Security)
+                .OrderBy(check => check.Area == AnalysisArea.Web ? 0 : 1))
+            .GroupBy(check => check.Key, StringComparer.OrdinalIgnoreCase).Select(group => group.First());
+    }
+
 
     /// <summary>Explains the overall score when all scored evidence is complete.</summary>
     public static string ScoreNote(int? score, int errors, int warnings) {
@@ -228,6 +238,27 @@ public static class AssessmentReportWording {
         .OrderBy(x => DomainAssessmentCatalog.SecurityPriority(x.Check.Check))
         .ThenByDescending(x => x.Check.Outcome)
         .ThenByDescending(x => (100 - x.Check.Score) * Math.Max(1, x.Check.Weight));
+
+    /// <summary>Groups identical check/action messages across domains, ordered by severity then affected-domain count.</summary>
+    public static IEnumerable<(DomainAssessment Domain, CheckAssessment Check, string AffectedDomains)> DoFirstGroups(DomainAssessmentReport report)
+        => DoFirst(report).GroupBy(action => (action.Check.Key, Message: DoFirstMessage(action.Check)))
+            .Select(group => new {
+                Action = group.OrderByDescending(action => ActionSeverity(action.Check)).First(),
+                Domains = group.Select(action => action.Domain.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            })
+            .OrderByDescending(group => ActionSeverity(group.Action.Check))
+            .ThenByDescending(group => group.Domains.Count)
+            .ThenBy(group => DomainAssessmentCatalog.SecurityPriority(group.Action.Check.Check))
+            .Select(group => (group.Action.Domain, group.Action.Check, group.Domains.Count == 1 ? group.Domains[0]
+                : group.Domains.Count == report.Domains.Count ? "All " + Plural(group.Domains.Count, "domain")
+                : Plural(group.Domains.Count, "domain") + ": " + string.Join(", ", group.Domains)));
+
+    private static int ActionSeverity(CheckAssessment check) => check.Outcome switch {
+        CheckOutcome.Error => 3,
+        CheckOutcome.Warning => 2,
+        CheckOutcome.Incomplete => 1,
+        _ => check.EvidenceComplete ? 0 : 1
+    };
 
     /// <summary>The top action message, including the shared fallback for incomplete checks.</summary>
     public static string DoFirstMessage(CheckAssessment check) => TopFinding(check) ?? check.Summary ?? (!check.EvidenceComplete

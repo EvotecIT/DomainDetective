@@ -59,13 +59,13 @@ public static partial class AssessmentExcelReport {
             string status = errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete ? "Incomplete"
                 : score.HasValue ? "Passing" : "Informational";
             WriteRow(sheet, ++row, Wording.AreaLabel(area), status, (object?)score ?? "Not scored", checks.Count,
-                checks.Count(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info), checks.Count(Wording.NeedsAttention),
+                checks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass), checks.Count(Wording.NeedsAttention),
                 Wording.AreaNote(report, checks));
             sheet.CellFontColor(row, 2, errors > 0 ? High : warnings > 0 ? Elevated : incomplete ? Muted : score.HasValue ? Good : Informational);
             if (!score.HasValue || score == 0) { sheet.CellFontColor(row, 3, Muted); }
             for (int column = 4; column <= 6; column++) {
                 // Counts use ordinary ink; zero never implies a green outcome.
-                if ((column == 5 && !checks.Any(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info))
+                if ((column == 5 && !checks.Any(static c => c.Scored && c.Outcome == CheckOutcome.Pass))
                     || (column == 6 && !checks.Any(Wording.NeedsAttention))) { sheet.CellFontColor(row, column, Muted); }
             }
             sheet.CellFontColor(row, 7, Muted);

@@ -13,17 +13,17 @@ public class TestPowerShellExportBatchRecovery {
     public void FailedDestinationDoesNotPreventOtherFormats(string blockedExtension) {
         string directory = Path.Combine(Path.GetTempPath(), "dd-export-recovery-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        using var blocked = new FileStream(Path.Combine(directory, "report." + blockedExtension), FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        Directory.CreateDirectory(Path.Combine(directory, "report." + blockedExtension));
         try {
             var failure = Record.Exception(() => CompositionExportHelper.WriteReports(
                 new object[] { new SpfRecordInfo { Subject = "example.test", SpfRecord = "v=spf1 -all" } },
-                new[] { ReportFormat.Word, ReportFormat.Pdf, ReportFormat.Html }, Path.Combine(directory, "report.docx"),
+                new[] { ReportFormat.Word, ReportFormat.Pdf, ReportFormat.Html }, Path.Combine(directory, "report.output"),
                 "example.test", ReportScope.Normal, "Batch recovery", false, null, out _));
             foreach (string extension in new[] { "docx", "pdf", "html" }.Where(extension => extension != blockedExtension)) {
                 Assert.Contains("example.test", ReportArtifactText.Read(Path.Combine(directory, "report." + extension)));
             }
             Assert.IsType<AggregateException>(failure);
-        } finally { blocked.Dispose(); Directory.Delete(directory, true); }
+        } finally { Directory.Delete(directory, true); }
     }
 
     [Theory]
@@ -44,7 +44,7 @@ public class TestPowerShellExportBatchRecovery {
             Assert.Contains("Preserved ARC structural finding", text);
             Assert.Contains(view.ChainState, text);
             Assert.Contains("ARC-Seal count", text);
-            Assert.Matches(@"ARC-Authentication-Results(?:\s+1)?\s+count", text);
+            Assert.Matches(@"ARC-Authentication-(?:\s+1)?\s*Results(?:\s+1)?\s+count", text);
             Assert.Contains("relay.example.test", text);
             Assert.Contains("not performed", text, StringComparison.OrdinalIgnoreCase);
         } finally { if (Directory.Exists(directory)) { Directory.Delete(directory, true); } }

@@ -44,9 +44,8 @@ public static partial class AssessmentWordReport {
     }
 
     private static void WriteActions(WordDocument document, WordPaperStyle style, DomainAssessmentReport report, AssessmentWordOptions options) {
-        // Start the overview after the dedicated contents page (or after the cover when disabled).
-        Heading(document, style, "Do these first", 2, newPage: true);
-        var all = Wording.DoFirst(report).ToList();
+        Heading(document, style, "Do these first", 2);
+        var all = Wording.DoFirstGroups(report).ToList();
         var actions = all.Take(options.FixFirstCount).ToList();
         if (actions.Count == 0) {
             Body(document, style, all.Count == 0 ? "No checks need attention." : "Prioritized actions are in the domain chapters.");
@@ -60,7 +59,7 @@ public static partial class AssessmentWordReport {
             // Keep the same message and source strings as HTML. The domain is a separate identifier run.
             style.SetCellText(cell, action.Check.Title);
             cell.Paragraphs[0].Bold = true;
-            cell.AddParagraph(Identifier(action.Domain.Domain));
+            cell.AddParagraph(Identifier(action.AffectedDomains));
             cell.AddParagraph(Wording.DoFirstMessage(action.Check));
         }
         style.ApplyTable(table, hasHeader: false, allowRowSplit: false, alignNumericColumns: false);
@@ -71,7 +70,7 @@ public static partial class AssessmentWordReport {
             foreach (WordParagraph paragraph in text.Paragraphs) { paragraph.FontSizePoints = 10.5; }
             WordParagraph meta = text.Paragraphs[1];
             WordParagraph message = text.Paragraphs[2];
-            meta.FontFamily = Mono;
+            meta.FontFamily = report.Domains.Count == 1 ? Mono : style.FontFamily;
             meta.ColorHex = style.Muted;
             WordParagraph source = meta.AddText(" · " + Wording.DoFirstSource(actions[index].Check));
             source.FontFamily = style.FontFamily;
@@ -100,7 +99,7 @@ public static partial class AssessmentWordReport {
             int? score = AreaScore(report, group.Key, checks);
             rows.Add(new[] {
                 Wording.AreaLabel(group.Key), AreaStatus(checks), Score(score), Number(checks.Count),
-                Number(checks.Count(c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info)), Number(checks.Count(Wording.NeedsAttention))
+                Number(checks.Count(c => c.Scored && c.Outcome == CheckOutcome.Pass)), Number(checks.Count(Wording.NeedsAttention))
             });
             rows.Add(new[] { Wording.AreaNote(report, checks), "", "", "", "", "" });
         }
@@ -142,20 +141,23 @@ public static partial class AssessmentWordReport {
 
     private static void WriteControls(WordDocument document, WordPaperStyle style, DomainAssessmentReport report) {
         Heading(document, style, "Controls", 2);
-        var controls = Wording.Controls.ToList();
-        string[] labels = new[] { "Domain" }.Concat(controls.Select(c => report.Domains.SelectMany(d => d.Checks)
-            .FirstOrDefault(check => check.Key == c.Key)?.Title ?? (c.Key switch { "mtasts" => "MTA-STS", "tlsrpt" => "TLS-RPT", _ => c.Key.ToUpperInvariant() }))).ToArray();
-        var rows = report.Domains.Select(domain => new[] { Identifier(domain.Domain) }.Concat(controls.Select(control => {
-            CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == control.Key);
-            return check?.Outcome switch { CheckOutcome.Pass => "pass", CheckOutcome.Warning => "warn", CheckOutcome.Error => "error", _ => "–" };
-        })).ToArray());
-        WordTable table = Table(document, style, labels, rows, new[] { 28 }.Concat(controls.Select(c => 8)).ToArray());
-        for (int index = 0; index < report.Domains.Count; index++) {
-            WordTableRow row = table.Rows[index + 1];
-            MonoCell(row.Cells[0]);
-            for (int column = 0; column < controls.Count; column++) {
-                CheckAssessment? check = report.Domains[index].Checks.FirstOrDefault(c => c.Key == controls[column].Key);
-                style.ApplyCellTone(row.Cells[column + 1], check == null ? Neutral : OutcomeTone(check.Outcome));
+        var controls = Wording.ControlChecks(report).ToList();
+        // Repeat domains in bounded column groups so full outcome words remain readable on portrait paper.
+        for (int offset = 0; offset < controls.Count; offset += 6) {
+            var columns = controls.Skip(offset).Take(6).ToList();
+            string[] labels = new[] { "Domain" }.Concat(columns.Select(check => check.Title)).ToArray();
+            var rows = report.Domains.Select(domain => new[] { Identifier(domain.Domain) }.Concat(columns.Select(control => {
+                CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == control.Key);
+                return check?.Outcome is CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error ? Wording.OutcomeLabel(check.Outcome) : "–";
+            })).ToArray());
+            WordTable table = Table(document, style, labels, rows, new[] { 28 }.Concat(columns.Select(c => 12)).ToArray());
+            for (int index = 0; index < report.Domains.Count; index++) {
+                WordTableRow row = table.Rows[index + 1];
+                MonoCell(row.Cells[0]);
+                for (int column = 0; column < columns.Count; column++) {
+                    CheckAssessment? check = report.Domains[index].Checks.FirstOrDefault(c => c.Key == columns[column].Key);
+                    style.ApplyCellTone(row.Cells[column + 1], check == null ? Neutral : OutcomeTone(check.Outcome));
+                }
             }
         }
         style.AddNote(document, "A dash means the control is informational, incomplete or was not assessed. Status is carried by the text, not a cell fill.");

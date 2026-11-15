@@ -175,24 +175,22 @@ public static partial class AssessmentHtmlReport {
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
         });
 
-        // The same order as the verdict's "Fix first": security exposure first, then errors before warnings, then what
-        // costs the score most.
-        var attention = DoFirst(report).ToList();
+        var attention = DoFirstGroups(report).ToList();
 
         section.ReportPanel(panel => {
-            panel.Title("Do these first").Subtitle("What can be abused today first (certificates, spoofing, open services), then missing protection, then hygiene.").Settings(s => s.Flush());
+            panel.Title("Do these first").Subtitle("Shared findings across domains, ordered by severity and how many domains are affected.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
                 return;
             }
             panel.AssessmentFindings(list => {
                 list.Settings(s => s.InitialCount(Math.Max(1, options.FixFirstCount)));
-                foreach (var (domain, check) in attention) {
+                foreach (var (domain, check, affectedDomains) in attention) {
                     list.Finding(check.Title, OutcomeSeverity(check.Outcome), finding => {
                         finding.Message(DoFirstMessage(check))
                             .SeverityLabel(OutcomeLabel(check.Outcome))
-                            .Scope(domain.Domain, null, ids.Domain(domain))
-                            .Link("Open check", ids.Check(domain, check));
+                            .Scope(affectedDomains)
+                            .Link(report.Domains.Count == 1 ? "Open check" : "Open example check", ids.Check(domain, check));
                         // Part of the source line in the body font; the impact slot is monospace and meant for figures.
                         finding.Source(DoFirstSource(check));
                     });
@@ -227,7 +225,8 @@ public static partial class AssessmentHtmlReport {
                     int errors = areaChecks.Count(static c => c.Outcome == CheckOutcome.Error);
                     int warnings = areaChecks.Count(static c => c.Outcome == CheckOutcome.Warning);
                     int incomplete = areaChecks.Count(static c => !c.EvidenceComplete);
-                    int passed = areaChecks.Count(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
+                    int passed = areaChecks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass);
+                    int informational = areaChecks.Count(static c => c.Outcome == CheckOutcome.Info);
                     Severity tone = errors > 0 ? Severity.High : warnings > 0 ? Severity.Elevated : incomplete > 0 ? Severity.Skipped : score.HasValue ? Severity.Good : Severity.Informational;
                     list.Scope(AreaLabel(area), tone, item => {
                         item.Status(errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete > 0 ? "Incomplete" : score.HasValue ? "Passing" : "Informational");
@@ -235,6 +234,7 @@ public static partial class AssessmentHtmlReport {
                         bool unscored = !score.HasValue && areaChecks.Any(static c => c.Scored && !c.EvidenceComplete);
                         item.Metric("Score", score?.ToString(CultureInfo.InvariantCulture) ?? "Not scored", score.HasValue ? GradeSeverity(score) : Severity.Skipped);
                         item.Metric("Checks", areaChecks.Count.ToString(CultureInfo.InvariantCulture));
+                        if (informational > 0) item.Metric("Informational", informational.ToString(CultureInfo.InvariantCulture), Severity.Informational);
                         item.Progress(passed, errors + warnings + areaChecks.Count(static c => c.Outcome == CheckOutcome.Incomplete));
                         item.Note(AreaNote(report, areaChecks));
                         if (report.Domains.Count == 1) item.Link("Open checks", ids.Domain(report.Domains[0]));
@@ -248,14 +248,15 @@ public static partial class AssessmentHtmlReport {
     /// several it shows how many domains pass.
     /// </summary>
     private static void RenderControls(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
-        var present = Controls.Where(c => report.Domains.Any(d => d.Checks.Any(check => check.Key == c.Key))).ToList();
+        var present = ControlChecks(report).ToList();
         if (present.Count == 0) return;
         section.ReportPanel(panel => panel
             .Title("Controls")
             .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
             .Settings(s => s.Flush())
             .AssessmentStats(stats => {
-                foreach (var (key, _) in present) {
+                foreach (var control in present) {
+                    string key = control.Key;
                     if (report.Domains.Count == 1) {
                         DomainAssessment domain = report.Domains[0];
                         CheckAssessment check = domain.Checks.First(c => c.Key == key);
@@ -263,7 +264,7 @@ public static partial class AssessmentHtmlReport {
                         stats.Stat(value, check.Title, OutcomeSeverity(check.Outcome), ids.Check(domain, check));
                     } else {
                         var results = report.Domains.Select(d => d.Checks.FirstOrDefault(c => c.Key == key)).Where(static c => c != null).ToList();
-                        int passing = results.Count(static c => c!.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
+                        int passing = results.Count(static c => c!.Scored && c.Outcome == CheckOutcome.Pass);
                         string title = results[0]!.Title;
                         // No domain passing is worse than some: high when none pass, amber when some do, neutral when only
                         // incomplete evidence stands between the control and a pass.

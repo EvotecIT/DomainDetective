@@ -132,9 +132,9 @@ public static partial class AssessmentHtmlReport {
     private static Severity GradeSeverity(int? score) => score switch {
         null => Severity.Skipped,
         >= 90 => Severity.Good,
-        >= 70 => Severity.Low,
-        >= 60 => Severity.Elevated,
-        _ => Severity.High
+        >= 75 => Severity.Elevated,
+        >= 50 => Severity.High,
+        _ => Severity.Severe
     };
 
     private static int AreaIndex(AnalysisArea area) {

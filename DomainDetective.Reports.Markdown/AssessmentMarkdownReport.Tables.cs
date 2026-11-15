@@ -27,7 +27,7 @@ public static partial class AssessmentMarkdownReport {
                 errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete ? "Incomplete" : score.HasValue ? "Passing" : "Informational",
                 score?.ToString(CultureInfo.InvariantCulture) ?? "Not scored",
                 checks.Count.ToString(CultureInfo.InvariantCulture),
-                checks.Count(static c => c.Outcome is CheckOutcome.Pass or CheckOutcome.Info).ToString(CultureInfo.InvariantCulture),
+                checks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass).ToString(CultureInfo.InvariantCulture),
                 checks.Count(Wording.NeedsAttention).ToString(CultureInfo.InvariantCulture),
                 Wording.AreaNote(report, checks)
             });

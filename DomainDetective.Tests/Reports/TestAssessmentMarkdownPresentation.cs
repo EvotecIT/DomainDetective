@@ -8,6 +8,30 @@ namespace DomainDetective.Tests.Reports;
 
 public class TestAssessmentMarkdownPresentation {
     [Fact]
+    public void SharedActionsGroupDomainsAndOrderSeverityBeforeReach() {
+        var report = AssessmentExportFixture.Create(3);
+        var spf = report.Domains[0].Checks.Single(check => check.Key == "spf");
+        spf.Outcome = CheckOutcome.Error;
+        spf.Findings.Add(new CheckFinding { Severity = AssessmentSeverity.Error, Message = "SPF action" });
+        var otherSpf = report.Domains[1].Checks.Single(check => check.Key == "spf");
+        otherSpf.Outcome = CheckOutcome.Warning;
+        otherSpf.Findings.Add(new CheckFinding { Severity = AssessmentSeverity.Warning, Message = "A different SPF action" });
+        foreach (var domain in report.Domains.Take(2)) {
+            var dnsbl = domain.Checks.Single(check => check.Key == "dnsbl");
+            dnsbl.Outcome = CheckOutcome.Warning;
+            dnsbl.Findings.Add(new CheckFinding { Severity = AssessmentSeverity.Warning, Message = "DNSBL action" });
+        }
+        string[] lines = ActionLines(AssessmentMarkdownReport.Render(report));
+        Assert.Equal(5, lines.Length);
+        Assert.StartsWith("1. **DMARC** (All 3 domains,", lines[0]);
+        Assert.StartsWith("2. **SPF** (example01.example.test,", lines[1]);
+        Assert.StartsWith("3. **Certificate** (All 3 domains,", lines[2]);
+        Assert.StartsWith("4. **DNSBL** (2 domains: example01.example.test, example02.example.test,", lines[3]);
+        Assert.StartsWith("5. **SPF** (example02.example.test,", lines[4]);
+        Assert.EndsWith("A different SPF action", lines[4]);
+    }
+
+    [Fact]
     public void PriorityActionsHaveExactlyOneLineEachWithLowercaseOutcomes() {
         string markdown = AssessmentMarkdownReport.Render(AssessmentExportFixture.Create());
         Assert.Equal(new[] {

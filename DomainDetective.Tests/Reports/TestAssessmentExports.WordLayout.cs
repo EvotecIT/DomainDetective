@@ -19,8 +19,7 @@ public partial class TestAssessmentExports {
             Assert.True(text.IndexOf("Contents", StringComparison.Ordinal) < text.IndexOf("Do these first", StringComparison.Ordinal));
             XElement contents = Paragraph(document, "Contents");
             Assert.Equal("Heading2", (string?)contents.Element(Word + "pPr")?.Element(Word + "pStyle")?.Attribute(Word + "val"));
-            Assert.NotNull(contents.Element(Word + "pPr")?.Element(Word + "pageBreakBefore"));
-            foreach (string title in new[] { "Area by area", "Controls" }) {
+            foreach (string title in new[] { "Contents", "Do these first", "Area by area", "Controls" }) {
                 XElement heading = Paragraph(document, title);
                 Assert.DoesNotContain(heading.Element(Word + "pPr")!.Elements(Word + "pageBreakBefore"),
                     element => (string?)element.Attribute(Word + "val") is not ("false" or "0"));
@@ -28,6 +27,37 @@ public partial class TestAssessmentExports {
             string cover = text.Substring(0, text.IndexOf("Contents", StringComparison.Ordinal));
             Assert.DoesNotContain(Wording.ScoreNote(report), cover);
             Assert.Contains(Wording.ScoreNote(report), text.Substring(text.IndexOf("How scoring works", StringComparison.Ordinal)));
+        });
+    }
+
+    [Fact]
+    public void WordSummaryCoversCertificatesAndKeepsInformationalCountsAndAreaOrder() {
+        InDirectory(directory => {
+            string path = Path.Combine(directory, "assessment.docx");
+            var report = AssessmentExportFixture.Create(3);
+            AssessmentWordReport.Generate(path, report);
+            using var archive = ZipFile.OpenRead(path);
+            XDocument document = Load(archive, "word/document.xml");
+            var tables = document.Descendants(Word + "tbl").ToArray();
+            var controls = tables.Single(table => table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).Contains("Domain") && table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).Contains("Certificate"));
+            string[] headings = controls.Elements(Word + "tr").First().Elements(Word + "tc").Select(ParagraphText).ToArray();
+            int certificate = Array.IndexOf(headings, "Certificate");
+            Assert.True(certificate >= 0, "Controls must include Certificate.");
+            Assert.All(controls.Elements(Word + "tr").Skip(1), row =>
+                Assert.Equal("Warning", ParagraphText(row.Elements(Word + "tc").ElementAt(certificate))));
+            var areas = tables.Single(table => table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).SequenceEqual(new[] { "Area", "Status", "Score", "Checks", "Passing", "Needs attention" }));
+            var other = areas.Elements(Word + "tr").Single(row => row.Elements(Word + "tc").Count() == 6
+                && ParagraphText(row.Elements(Word + "tc").First()) == "Other");
+            Assert.Equal("0", ParagraphText(other.Elements(Word + "tc").ElementAt(4)));
+            var appendix = tables.Single(table => table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).Take(3).SequenceEqual(new[] { "Domain", "Area", "Check" }));
+            var areaOrder = appendix.Elements(Word + "tr").Skip(1)
+                .Where(row => ParagraphText(row.Elements(Word + "tc").First()) == report.Domains[0].Domain)
+                .Select(row => ParagraphText(row.Elements(Word + "tc").ElementAt(1))).Distinct();
+            Assert.Equal(new[] { "Mail", "DNS", "Web", "Security", "Other" }, areaOrder);
         });
     }
 

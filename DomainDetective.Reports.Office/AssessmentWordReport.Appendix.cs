@@ -13,7 +13,8 @@ public static partial class AssessmentWordReport {
         allChecks.DifferentFirstPage = false;
         Heading(document, style, "Appendix", 1);
         Heading(document, style, "All checks", 2);
-        var checks = report.Domains.SelectMany(domain => domain.Checks.Select(check => (Domain: domain, Check: check))).ToList();
+        var checks = report.Domains.SelectMany(domain => domain.Checks.OrderBy(check => AreaIndex(check.Area))
+            .Select(check => (Domain: domain, Check: check))).ToList();
         if (checks.Count == 0) { Body(document, style, "No checks ran."); }
         else {
             WordTable table = Table(document, style, new[] {

@@ -8,6 +8,18 @@ using Wording = DomainDetective.Reports.AssessmentReportWording;
 namespace DomainDetective.Tests.Reports;
 
 public class TestAssessmentReportWording {
+    [Fact]
+    public void InformationalAreaHasNeutralProgressAndScoredAreasUsePostureTones() {
+        var document = new HtmlParser().ParseDocument(AssessmentHtmlReport.Render(AssessmentExportFixture.Create()));
+        var scopes = document.QuerySelectorAll(".hfx-as-scope");
+        var other = scopes.Single(scope => scope.QuerySelector(".hfx-as-scope-title")?.TextContent == "Other");
+        Assert.Equal("info", other.GetAttribute("data-sev"));
+        Assert.Contains("is-empty", other.QuerySelector(".hfx-as-progress")!.ClassList);
+        Assert.Null(other.QuerySelector(".hfx-as-progress .is-pass"));
+        var web = scopes.Single(scope => scope.QuerySelector(".hfx-as-scope-title")?.TextContent == "Web");
+        Assert.Equal("elevated", web.QuerySelectorAll("[data-tone]").Single(value => value.TextContent == "85").GetAttribute("data-tone"));
+    }
+
     [Theory]
     [InlineData(1, "The 1 check passes.")]
     [InlineData(2, "All 2 checks pass.")]

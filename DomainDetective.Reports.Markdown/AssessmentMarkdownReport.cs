@@ -65,7 +65,7 @@ public static partial class AssessmentMarkdownReport {
 
     private static void WriteActions(MarkdownDoc document, DomainAssessmentReport report, AssessmentMarkdownOptions options) {
         document.H2("Do these first");
-        var actions = Wording.DoFirst(report).ToList();
+        var actions = Wording.DoFirstGroups(report).ToList();
         if (actions.Count == 0) {
             document.P("Nothing needs attention.");
             return;
@@ -74,7 +74,7 @@ public static partial class AssessmentMarkdownReport {
         foreach (var action in actions.Take(options.FixFirstCount)) {
             CheckAssessment check = action.Check;
             var content = new InlineSequence().Bold(InlineText(check.Title))
-                .Text(InlineText("(" + action.Domain.Domain + ", " + Wording.DoFirstSource(check) + ", "
+                .Text(InlineText("(" + action.AffectedDomains + ", " + Wording.DoFirstSource(check) + ", "
                     + Wording.OutcomeLabel(check.Outcome).ToLowerInvariant() + "): " + Wording.DoFirstMessage(check)));
             list.Items.Add(new ListItem(content));
         }
