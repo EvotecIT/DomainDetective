@@ -9,7 +9,7 @@ using Wording = DomainDetective.Reports.AssessmentReportWording;
 namespace DomainDetective.Reports.Markdown;
 
 public static partial class AssessmentMarkdownReport {
-    private static void WriteAreas(MarkdownDoc document, DomainAssessmentReport report) {
+    private static void WriteAreas(MarkdownDocument document, DomainAssessmentReport report) {
         document.H2("Area by area");
         var rows = new List<string[]>();
         foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
@@ -35,7 +35,7 @@ public static partial class AssessmentMarkdownReport {
         AddTable(document, new[] { "Area", "Status", "Score", "Checks", "Passing", "Needs attention", "Notes" }, rows);
     }
 
-    private static void WriteChecks(MarkdownDoc document, IEnumerable<CheckAssessment> checks) {
+    private static void WriteChecks(MarkdownDocument document, IEnumerable<CheckAssessment> checks) {
         AddTable(document, new[] { "Check", "Outcome", "Key number", "Score", "Errors", "Warnings", "Top finding" }, checks.Select(static check => {
             CheckMetric? headline = Wording.Headline(check);
             return new[] {
@@ -48,7 +48,7 @@ public static partial class AssessmentMarkdownReport {
     }
 
     /// <summary>Uses the native table model without the fluent builder's row limit: every captured row is retained.</summary>
-    private static void AddTable(MarkdownDoc document, IEnumerable<string> headers, IEnumerable<IEnumerable<string>> rows) {
+    private static void AddTable(MarkdownDocument document, IEnumerable<string> headers, IEnumerable<IEnumerable<string>> rows) {
         var table = new TableBlock();
         table.Headers.AddRange(headers.Select(InlineText));
         foreach (IEnumerable<string> row in rows) { table.Rows.Add(row.Select(InlineText).ToArray()); }

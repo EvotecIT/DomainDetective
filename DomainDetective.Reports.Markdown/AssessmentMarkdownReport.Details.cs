@@ -8,7 +8,7 @@ using Wording = DomainDetective.Reports.AssessmentReportWording;
 namespace DomainDetective.Reports.Markdown;
 
 public static partial class AssessmentMarkdownReport {
-    private static void WriteCheckDetails(MarkdownDoc document, CheckAssessment check, AssessmentMarkdownOptions options) {
+    private static void WriteCheckDetails(MarkdownDocument document, CheckAssessment check, AssessmentMarkdownOptions options) {
         document.H4(InlineText(check.Title + " · " + Wording.OutcomeLabel(check.Outcome)));
         document.P(InlineText(Wording.AreaLabel(check.Area) + " · "
             + (check.Scored && check.EvidenceComplete && check.Score.HasValue
@@ -36,7 +36,7 @@ public static partial class AssessmentMarkdownReport {
         WriteEvidence(document, check);
     }
 
-    private static void WriteGuidance(MarkdownDoc document, CheckAssessment check) {
+    private static void WriteGuidance(MarkdownDocument document, CheckAssessment check) {
         string? why = check.Narrative?.WhyItMatters;
         if (!string.IsNullOrWhiteSpace(why)) {
             document.H5("Why it matters");
@@ -65,7 +65,7 @@ public static partial class AssessmentMarkdownReport {
         }
     }
 
-    private static void WriteEvidence(MarkdownDoc document, CheckAssessment check) {
+    private static void WriteEvidence(MarkdownDocument document, CheckAssessment check) {
         if (check.Highlights.Count == 0 && check.Facts.Count == 0 && check.Evidence.Count == 0) { return; }
         document.H5("Evidence");
         AddBullets(document, check.Highlights);
@@ -94,7 +94,7 @@ public static partial class AssessmentMarkdownReport {
         }
     }
 
-    private static void AddBullets(MarkdownDoc document, IEnumerable<string> values) {
+    private static void AddBullets(MarkdownDocument document, IEnumerable<string> values) {
         string[] items = values.Select(InlineText).ToArray();
         if (items.Length > 0) { document.Ul(list => list.Items(items)); }
     }

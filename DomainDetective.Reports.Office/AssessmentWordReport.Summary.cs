@@ -14,8 +14,8 @@ public static partial class AssessmentWordReport {
             + " in " + Wording.Plural(checks.Select(c => c.Area).Distinct().Count(), "area"));
         WordParagraph rule = document.Paragraphs.Last();
         rule.Borders.BottomStyle = WordBorderStyle.Single;
-        rule.Borders.BottomColorHex = style.Accent;
-        rule.Borders.BottomSize = 24;
+        rule.Borders.BottomColor = OfficeColor.Parse(style.Accent);
+        rule.Borders.BottomSize = OfficeLength.Points(3);
         Body(document, style, Wording.ReportVerdict(report), true);
         Body(document, style, Wording.ReportVerdictDetail(report));
         int attention = checks.Count(Wording.NeedsAttention);
@@ -39,7 +39,7 @@ public static partial class AssessmentWordReport {
             var card = cards[index];
             WordTableCell cell = table.Rows[0].Cells[index];
             style.ApplyValueCard(cell, card.Label, card.Value, card.Tone, style.Surface);
-            cell.Paragraphs.Last().ColorHex = card.Tone;
+            cell.Paragraphs.Last().Color = OfficeColor.Parse(card.Tone);
         }
     }
 
@@ -67,20 +67,20 @@ public static partial class AssessmentWordReport {
         for (int index = 0; index < actions.Count; index++) {
             WordTableCell text = table.Rows[index].Cells[1];
             text.Paragraphs[0].Bold = true;
-            foreach (WordParagraph paragraph in text.Paragraphs) { paragraph.FontSizePoints = 10.5; }
+            foreach (WordParagraph paragraph in text.Paragraphs) { paragraph.FontSize = OfficeLength.Points(10.5); }
             WordParagraph meta = text.Paragraphs[1];
             WordParagraph message = text.Paragraphs[2];
             meta.FontFamily = report.Domains.Count == 1 ? Mono : style.FontFamily;
-            meta.ColorHex = style.Muted;
+            meta.Color = OfficeColor.Parse(style.Muted);
             WordParagraph source = meta.AddText(" · " + Wording.DoFirstSource(actions[index].Check));
             source.FontFamily = style.FontFamily;
-            source.FontSizePoints = 10.5;
-            source.ColorHex = style.Muted;
+            source.FontSize = OfficeLength.Points(10.5);
+            source.Color = OfficeColor.Parse(style.Muted);
             text.Paragraphs[0].KeepWithNext = true;
             meta.KeepWithNext = true;
-            message.LineSpacingAfterPoints = 6;
+            message.LineSpacingAfter = OfficeLength.Points(6);
             style.ApplyCellTone(table.Rows[index].Cells[0], OutcomeTone(actions[index].Check.Outcome));
-            table.Rows[index].Cells[0].Paragraphs[0].FontSizePoints = 10.5;
+            table.Rows[index].Cells[0].Paragraphs[0].FontSize = OfficeLength.Points(10.5);
         }
         if (all.Count > actions.Count) {
             style.AddNote(document, "First " + Number(actions.Count) + " of " + Number(all.Count)
@@ -142,15 +142,19 @@ public static partial class AssessmentWordReport {
     private static void WriteControls(WordDocument document, WordPaperStyle style, DomainAssessmentReport report) {
         Heading(document, style, "Controls", 2);
         var controls = Wording.ControlChecks(report).ToList();
+        bool hasDash = report.Domains.Any(domain => controls.Any(control => domain.Checks.FirstOrDefault(check => check.Key == control.Key)?.Outcome
+            is not (CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error)));
         // Repeat domains in bounded column groups so full outcome words remain readable on portrait paper.
         for (int offset = 0; offset < controls.Count; offset += 6) {
             var columns = controls.Skip(offset).Take(6).ToList();
-            string[] labels = new[] { "Domain" }.Concat(columns.Select(check => check.Title)).ToArray();
+            string[] labels = new[] { "Domain" }.Concat(columns.Select(check => check.Title)).Concat(Enumerable.Repeat(string.Empty, 6 - columns.Count)).ToArray();
             var rows = report.Domains.Select(domain => new[] { Identifier(domain.Domain) }.Concat(columns.Select(control => {
                 CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == control.Key);
                 return check?.Outcome is CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error ? Wording.OutcomeLabel(check.Outcome) : "–";
             })).ToArray());
-            WordTable table = Table(document, style, labels, rows, new[] { 28 }.Concat(columns.Select(c => 12)).ToArray());
+            int[] widths = new[] { 28 }.Concat(Enumerable.Repeat(12, 6)).ToArray();
+            WordTable table = Table(document, style, labels, rows, widths);
+            table.SetColumnWidthsPercentage(widths);
             for (int index = 0; index < report.Domains.Count; index++) {
                 WordTableRow row = table.Rows[index + 1];
                 MonoCell(row.Cells[0]);
@@ -160,6 +164,8 @@ public static partial class AssessmentWordReport {
                 }
             }
         }
-        style.AddNote(document, "A dash means the control is informational, incomplete or was not assessed. Status is carried by the text, not a cell fill.");
+        if (hasDash) {
+            style.AddNote(document, "A dash means the control is informational, incomplete or was not assessed. Status is carried by the text, not a cell fill.");
+        }
     }
 }

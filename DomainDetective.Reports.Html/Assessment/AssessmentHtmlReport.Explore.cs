@@ -83,6 +83,14 @@ public static partial class AssessmentHtmlReport {
                     .AddView("By check", v => v.OrderBy("check").OrderBy("domain"))
                     .QuickFilters("outcome", "area")
                     .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv));
+                var actions = DoFirstGroups(report).ToList();
+                for (int index = 0; index < actions.Count; index++) {
+                    var action = actions[index];
+                    if (action.Members.Count < 2) { continue; }
+                    string[] targets = action.Members.Select(member => ids.Check(member.Domain, member.Check)).ToArray();
+                    explorer.AddShortcut("priority-" + index.ToString(CultureInfo.InvariantCulture), shortcut => shortcut
+                        .View("All checks").Where("target", ReportFilterOperator.In, targets));
+                }
             }));
             views.View("explore-findings", "Findings", view => view.DataExplorer(findingData, explorer => {
                 explorer.Key(FindingsExplorer).Title("Findings")

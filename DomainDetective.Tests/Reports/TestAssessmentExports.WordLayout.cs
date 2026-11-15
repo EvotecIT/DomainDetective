@@ -19,7 +19,10 @@ public partial class TestAssessmentExports {
             Assert.True(text.IndexOf("Contents", StringComparison.Ordinal) < text.IndexOf("Do these first", StringComparison.Ordinal));
             XElement contents = Paragraph(document, "Contents");
             Assert.Equal("Heading2", (string?)contents.Element(Word + "pPr")?.Element(Word + "pStyle")?.Attribute(Word + "val"));
-            foreach (string title in new[] { "Contents", "Do these first", "Area by area", "Controls" }) {
+            var toc = document.Descendants(Word + "sdt").Single(block => block.Descendants(Word + "docPartGallery")
+                .Any(gallery => (string?)gallery.Attribute(Word + "val") == "Table of Contents"));
+            Assert.Contains("Summary", WordText(new XDocument(new XElement(toc))));
+            foreach (string title in new[] { "Contents", "Summary", "Do these first", "Area by area", "Controls" }) {
                 XElement heading = Paragraph(document, title);
                 Assert.DoesNotContain(heading.Element(Word + "pPr")!.Elements(Word + "pageBreakBefore"),
                     element => (string?)element.Attribute(Word + "val") is not ("false" or "0"));
@@ -39,6 +42,15 @@ public partial class TestAssessmentExports {
             using var archive = ZipFile.OpenRead(path);
             XDocument document = Load(archive, "word/document.xml");
             var tables = document.Descendants(Word + "tbl").ToArray();
+            var controlTables = tables.Where(table => table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).FirstOrDefault() == "Domain" && table.Elements(Word + "tr").First().Elements(Word + "tc")
+                .Select(ParagraphText).Any(label => label is "DMARC" or "Certificate")).ToArray();
+            Assert.Equal(2, controlTables.Length);
+            string[] grid = controlTables[0].Element(Word + "tblGrid")!.Elements(Word + "gridCol")
+                .Select(column => (string)column.Attribute(Word + "w")!).ToArray();
+            Assert.All(controlTables, table => Assert.Equal(grid, table.Element(Word + "tblGrid")!.Elements(Word + "gridCol")
+                .Select(column => (string)column.Attribute(Word + "w")!).ToArray()));
+            Assert.DoesNotContain("A dash means", WordText(document));
             var controls = tables.Single(table => table.Elements(Word + "tr").First().Elements(Word + "tc")
                 .Select(ParagraphText).Contains("Domain") && table.Elements(Word + "tr").First().Elements(Word + "tc")
                 .Select(ParagraphText).Contains("Certificate"));
@@ -58,6 +70,19 @@ public partial class TestAssessmentExports {
                 .Where(row => ParagraphText(row.Elements(Word + "tc").First()) == report.Domains[0].Domain)
                 .Select(row => ParagraphText(row.Elements(Word + "tc").ElementAt(1))).Distinct();
             Assert.Equal(new[] { "Mail", "DNS", "Web", "Security", "Other" }, areaOrder);
+        });
+    }
+
+    [Fact]
+    public void WordControlsExplainsADashWhenAControlWasNotAssessed() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create(2);
+            report.Domains[1].Checks.RemoveAll(check => check.Key == "spf");
+            string path = Path.Combine(directory, "assessment.docx");
+            AssessmentWordReport.Generate(path, report);
+            using var archive = ZipFile.OpenRead(path);
+            XDocument document = Load(archive, "word/document.xml");
+            Assert.Contains("A dash means the control is informational, incomplete or was not assessed.", WordText(document));
         });
     }
 
@@ -95,7 +120,7 @@ public partial class TestAssessmentExports {
     }
 
     private static XElement Paragraph(XDocument document, string text) => document.Descendants(Word + "p")
-        .Single(paragraph => ParagraphText(paragraph) == text);
+        .Single(paragraph => ParagraphText(paragraph) == text && (string?)paragraph.Element(Word + "pPr")?.Element(Word + "pStyle")?.Attribute(Word + "val") is "Heading1" or "Heading2");
 
     private static string ParagraphText(XElement element) => string.Concat(element.Descendants(Word + "t").Select(t => t.Value)).Replace("\u200B", "");
 }

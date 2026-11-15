@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using OfficeIMO.Word;
 using OfficeIMO.Excel;
-using OfficeIMO.Excel.Fluent;
 
 namespace DomainDetective.Reports.Office;
 
@@ -42,8 +41,8 @@ public static partial class MessageHeaderOfficeReport {
             WordReportCommon.AddHeader(document, "DomainDetective", "Email Message Analysis");
             WordReportCommon.AddFooter(document, "Authentication claims and verification are separate evidence");
             document.Settings.UpdateFieldsOnOpen = true;
-            document.AddParagraph("Email Message Analysis").SetBold().SetFontSize(24);
-            document.AddParagraph($"{messages.Count} message(s) · Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC").SetFontSize(11);
+            document.AddParagraph("Email Message Analysis").SetBold().SetFontSize(OfficeLength.Points(24));
+            document.AddParagraph($"{messages.Count} message(s) · Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC").SetFontSize(OfficeLength.Points(11));
             var headings = document.AddTableOfContentList(WordListStyle.Headings111);
             headings.AddItem("Executive brief");
             document.AddParagraph("Start with the conclusions and next steps below. The evidence appendix preserves receiver claims, route records and original header fields for investigation.");
@@ -79,7 +78,7 @@ public static partial class MessageHeaderOfficeReport {
                         : section.Rows.Select(row => (IReadOnlyList<IReadOnlyList<string>>)section.Columns.Select((label, index) => (IReadOnlyList<string>)new[] { label, row[index] }).ToArray()).ToArray();
                     var recordIndex = 0;
                     foreach (var rows in records) {
-                        if (records.Length > 1) { document.AddParagraph("Record " + (++recordIndex)).SetBold().SetFontSize(11); }
+                        if (records.Length > 1) { document.AddParagraph("Record " + (++recordIndex)).SetBold().SetFontSize(OfficeLength.Points(11)); }
                         var table = document.AddTable(rows.Count + 1, 2, WordTableStyle.TableGrid);
                         table.SetWidthPercentage(100);
                         table.SetColumnWidthsPercentage(30, 70);
@@ -87,16 +86,16 @@ public static partial class MessageHeaderOfficeReport {
                         table.AllowRowToBreakAcrossPages = true;
                         for (var column = 0; column < 2; column++) {
                             var cell = table.Rows[0].Cells[column];
-                            cell.ShadingFillColorHex = "E6EDF5";
+                            cell.ShadingFillColor = OfficeColor.Parse("E6EDF5");
                             cell.Paragraphs[0].Text = column == 0 ? "Field" : "Evidence";
                             cell.Paragraphs[0].Bold = true;
                         }
                         for (var row = 0; row < rows.Count; row++) {
                             for (var column = 0; column < 2; column++) {
                                 var cell = table.Rows[row + 1].Cells[column];
-                                cell.ShadingFillColorHex = row % 2 == 0 ? "F4F7FA" : "FFFFFF";
+                                cell.ShadingFillColor = OfficeColor.Parse(row % 2 == 0 ? "F4F7FA" : "FFFFFF");
                                 cell.Paragraphs[0].Text = rows[row][column];
-                                cell.Paragraphs[0].FontSize = 10;
+                                cell.Paragraphs[0].FontSize = OfficeLength.Points(10);
                                 cell.Paragraphs[0].Bold = column == 0;
                             }
                         }
@@ -137,8 +136,8 @@ public static partial class MessageHeaderOfficeReport {
         }
         document.AddTableOfContents(sheetName: "Navigation", placeFirst: false);
         var navigation = document.Sheets.First(sheet => sheet.Name == "Navigation");
-        navigation.Freeze(topRows: 3);
-        navigation.SetGridlinesVisible(false);
+        navigation.View.Freeze(topRows: 3);
+        navigation.View.ShowGridlines = false;
         document.Save();
     }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using DomainDetective.Visual;
+using OfficeIMO;
 using OfficeIMO.Drawing;
 using Xunit;
 

@@ -18,11 +18,11 @@ public static partial class AssessmentExcelReport {
                     check.Scored && check.EvidenceComplete ? (object?)check.Score ?? "Not scored" : "Not scored",
                     check.ErrorCount, check.WarningCount, Wording.TopFinding(check),
                     string.Join(" · ", check.Metrics.Select(static m => m.Label + ": " + m.Value)), check.Summary ?? check.Description);
-                sheet.CellFontName(row, 1, "Consolas");
-                sheet.CellFontColor(row, 4, OutcomeColor(check.Outcome));
-                if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue || check.Score == 0) { sheet.CellFontColor(row, 6, Muted); }
-                sheet.CellFontColor(row, 7, check.ErrorCount == 0 ? Muted : High);
-                sheet.CellFontColor(row, 8, check.WarningCount == 0 ? Muted : Elevated);
+                sheet.Cell(row, 1).SetFontFamily("Consolas");
+                sheet.Cell(row, 4).SetColor(OfficeColor.Parse(OutcomeColor(check.Outcome)));
+                if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue || check.Score == 0) { sheet.Cell(row, 6).SetColor(OfficeColor.Parse(Muted)); }
+                sheet.Cell(row, 7).SetColor(OfficeColor.Parse(check.ErrorCount == 0 ? Muted : High));
+                sheet.Cell(row, 8).SetColor(OfficeColor.Parse(check.WarningCount == 0 ? Muted : Elevated));
             }
         }
         FinishSheet(sheet, 1, row, 11, (1, 32), (9, 50), (10, 50), (11, 50));
@@ -39,11 +39,11 @@ public static partial class AssessmentExcelReport {
                     WriteRow(sheet, ++row, severity, domain.Domain, check.Title, finding.Message,
                         string.Equals(finding.Target, domain.Domain, StringComparison.OrdinalIgnoreCase) ? string.Empty : finding.Target,
                         finding.Code, Wording.AreaLabel(check.Area));
-                    sheet.CellFontColor(row, 1, finding.IsEvidenceGap ? Muted : finding.Severity == AssessmentSeverity.Error ? High
-                        : finding.Severity == AssessmentSeverity.Warning ? Elevated : Informational);
-                    sheet.CellFontName(row, 2, "Consolas");
-                    sheet.CellFontName(row, 5, "Consolas");
-                    sheet.CellFontName(row, 6, "Consolas");
+                    sheet.Cell(row, 1).SetColor(OfficeColor.Parse(finding.IsEvidenceGap ? Muted : finding.Severity == AssessmentSeverity.Error ? High
+                        : finding.Severity == AssessmentSeverity.Warning ? Elevated : Informational));
+                    sheet.Cell(row, 2).SetFontFamily("Consolas");
+                    sheet.Cell(row, 5).SetFontFamily("Consolas");
+                    sheet.Cell(row, 6).SetFontFamily("Consolas");
                 }
             }
         }

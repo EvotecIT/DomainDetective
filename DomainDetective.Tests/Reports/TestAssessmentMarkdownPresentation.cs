@@ -75,7 +75,8 @@ public class TestAssessmentMarkdownPresentation {
         Assert.DoesNotContain("\\(", markdown);
         Assert.DoesNotContain("&#40;", markdown);
         Assert.DoesNotContain("&#41;", markdown);
-        string html = MarkdownReader.Parse(markdown).ToHtmlFragment();
+        using var markdownDocument = MarkdownDocument.Parse(markdown);
+        string html = markdownDocument.ToHtml(new MarkdownHtmlExportOptions { Kind = MarkdownHtmlKind.Fragment });
         var document = new HtmlParser().ParseDocument(html);
         Assert.Empty(document.QuerySelectorAll("script, img, a[href='https://example.test']"));
         Assert.Contains("Review (owner) A & B <script>alert('x')</script> &lt; &#60; &#x3c; [link](https://example.test) *bold* _value_ `code` | \\ $5 ^2!", document.Body!.TextContent);
@@ -105,7 +106,8 @@ public class TestAssessmentMarkdownPresentation {
         string markdown = AssessmentMarkdownReport.Render(report);
         Assert.Equal("1. **" + escaped + "** (example.test, Mail, error): The published policy permits spoofed mail.", ActionLines(markdown)[0]);
         Assert.Contains("#### " + escaped + " · Error", markdown);
-        string html = MarkdownReader.Parse(markdown).ToHtmlFragment();
+        using var markdownDocument = MarkdownDocument.Parse(markdown);
+        string html = markdownDocument.ToHtml(new MarkdownHtmlExportOptions { Kind = MarkdownHtmlKind.Fragment });
         var document = new HtmlParser().ParseDocument(html);
         Assert.Empty(document.QuerySelectorAll("img"));
         Assert.Contains(title, document.Body!.TextContent);

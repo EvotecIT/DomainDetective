@@ -157,7 +157,7 @@ public partial class TestAssessmentExports {
             byte[] bytes = File.ReadAllBytes(pdf);
             Assert.True(bytes.Length > 1000);
             Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(bytes, 0, 5));
-            var parsed = OfficeIMO.Pdf.PdfReadDocument.Open(bytes);
+            using var parsed = OfficeIMO.Pdf.PdfDocument.Load(new MemoryStream(bytes));
             // A single domain has no contents page: cover, overview, its chapter and the appendix.
             Assert.InRange(parsed.Pages.Count, 4, 6);
             Assert.DoesNotContain(parsed.Pages, p => p.ExtractText().Contains("Contents"));
@@ -173,7 +173,7 @@ public partial class TestAssessmentExports {
                 [ReportFormat.Word] = path, [ReportFormat.Pdf] = pdf
             }, report);
             Assert.All(results, result => Assert.True(result.Success, result.ErrorMessage));
-            var parsed = OfficeIMO.Pdf.PdfReadDocument.Open(File.ReadAllBytes(pdf));
+            using var parsed = OfficeIMO.Pdf.PdfDocument.Load(pdf);
             string[] pages = parsed.Pages.Select(p => p.ExtractText().Replace("\u200B", "")).ToArray();
             DomainAssessment first = report.Domains[0];
             string chapterTitle = first.Domain + " · " + first.Grade + " · " + first.Score;

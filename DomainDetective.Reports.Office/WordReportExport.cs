@@ -12,7 +12,7 @@ namespace DomainDetective.Reports.Office;
 /// <summary>Writes the selected paper artifacts from one owned Word document.</summary>
 internal static class WordReportExport {
     internal static IReadOnlyList<ReportResult> Generate(IReadOnlyDictionary<ReportFormat, string> outputs,
-        Func<WordDocument> build, WordToPdfOptions? pdfOptions = null, CancellationToken cancellationToken = default) {
+        Func<WordDocument> build, WordPdfExportOptions? pdfOptions = null, CancellationToken cancellationToken = default) {
         cancellationToken.ThrowIfCancellationRequested();
         if (outputs == null) { throw new ArgumentNullException(nameof(outputs)); }
         if (outputs.Keys.Any(format => format is not (ReportFormat.Word or ReportFormat.Pdf))) {

@@ -37,13 +37,13 @@ public static partial class AssessmentWordReport {
         if (findings.Count == 0) { Body(document, style, Wording.DoFirstMessage(check)); }
         foreach (CheckFinding finding in findings) {
             WordParagraph message = Body(document, style, finding.Message);
-            message.ColorHex = finding.IsEvidenceGap ? Neutral : finding.Severity == AssessmentSeverity.Error ? High : finding.Severity == AssessmentSeverity.Warning ? Elevated : Neutral;
+            message.Color = OfficeColor.Parse(finding.IsEvidenceGap ? Neutral : finding.Severity == AssessmentSeverity.Error ? High : finding.Severity == AssessmentSeverity.Warning ? Elevated : Neutral);
             if (!string.IsNullOrWhiteSpace(finding.Target) || !string.IsNullOrWhiteSpace(finding.Code)) {
                 WordParagraph location = style.AddNote(document, string.Join(" · ", new[] { finding.Target, finding.Code }
                     .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => Identifier(s!))));
                 location.FontFamily = Mono;
-                location.LineSpacingBeforePoints = 0;
-                location.LineSpacingAfterPoints = 4;
+                location.LineSpacingBefore = OfficeLength.Points(0);
+                location.LineSpacingAfter = OfficeLength.Points(4);
             }
         }
         WriteRecommendations(document, style, check);

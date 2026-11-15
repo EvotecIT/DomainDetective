@@ -26,7 +26,7 @@ public static partial class AssessmentExcelReport {
                     if (evidence.Kind != CheckEvidenceKind.Table && evidence.Omitted > 0) {
                         WriteRow(sheet, ++row, domain.Domain, Wording.AreaLabel(check.Area), check.Title, evidence.Title, null, null,
                             evidence.Omitted.ToString(CultureInfo.InvariantCulture) + " items omitted from the assessment model; not available in this export.");
-                        sheet.CellFontColor(row, 7, Muted);
+                        sheet.Cell(row, 7).SetColor(OfficeColor.Parse(Muted));
                     }
                 }
             }

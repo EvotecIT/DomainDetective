@@ -87,6 +87,8 @@ public static partial class AssessmentHtmlReport {
         document.Head.Title = report.Title;
         document.Head.Author = options.Brand;
         document.Head.Revised = report.GeneratedAtUtc.UtcDateTime;
+        document.Head.AddCssInline(TrustedCss.FromTrustedSource(
+            "#dd-summary-controls .hfx-as-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr))}"));
 
         var ids = new CheckIds(report);
         document.Body.AssessmentReport(shell => {
@@ -185,12 +187,16 @@ public static partial class AssessmentHtmlReport {
             }
             panel.AssessmentFindings(list => {
                 list.Settings(s => s.InitialCount(Math.Max(1, options.FixFirstCount)));
-                foreach (var (domain, check, affectedDomains) in attention) {
+                for (int index = 0; index < attention.Count; index++) {
+                    var action = attention[index];
+                    var check = action.Check;
+                    int count = action.Members.Count;
                     list.Finding(check.Title, OutcomeSeverity(check.Outcome), finding => {
                         finding.Message(DoFirstMessage(check))
                             .SeverityLabel(OutcomeLabel(check.Outcome))
-                            .Scope(affectedDomains)
-                            .Link(report.Domains.Count == 1 ? "Open check" : "Open example check", ids.Check(domain, check));
+                            .Scope(action.AffectedDomains)
+                            .Link(count == 1 ? "Open check" : "Show " + (count == report.Domains.Count ? "all " : string.Empty) + Plural(count, "domain"),
+                                count == 1 ? ids.Check(action.Domain, check) : DataExplorer.ShortcutTargetId(ChecksExplorer, "priority-" + index.ToString(CultureInfo.InvariantCulture)));
                         // Part of the source line in the body font; the impact slot is monospace and meant for figures.
                         finding.Source(DoFirstSource(check));
                     });
@@ -252,6 +258,7 @@ public static partial class AssessmentHtmlReport {
         if (present.Count == 0) return;
         section.ReportPanel(panel => panel
             .Title("Controls")
+            .Anchor("dd-summary-controls")
             .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
             .Settings(s => s.Flush())
             .AssessmentStats(stats => {
@@ -266,13 +273,10 @@ public static partial class AssessmentHtmlReport {
                         var results = report.Domains.Select(d => d.Checks.FirstOrDefault(c => c.Key == key)).Where(static c => c != null).ToList();
                         int passing = results.Count(static c => c!.Scored && c.Outcome == CheckOutcome.Pass);
                         string title = results[0]!.Title;
-                        // No domain passing is worse than some: high when none pass, amber when some do, neutral when only
-                        // incomplete evidence stands between the control and a pass.
-                        bool onlyGaps = results.All(static c => c!.Outcome is CheckOutcome.Pass or CheckOutcome.Info or CheckOutcome.Incomplete);
-                        Severity tone = passing == results.Count ? Severity.Good
-                            : onlyGaps ? Severity.Skipped
-                            : passing == 0 || results.Any(static c => c!.Outcome == CheckOutcome.Error) ? Severity.High
-                            : Severity.Elevated;
+                        Severity tone = results.Any(static c => c!.Outcome == CheckOutcome.Error) ? Severity.High
+                            : results.Any(static c => c!.Outcome == CheckOutcome.Warning) ? Severity.Elevated
+                            : results.Any(static c => !c!.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete) ? Severity.Skipped
+                            : passing == results.Count ? Severity.Good : Severity.Informational;
                         stats.Stat($"{passing.ToString(CultureInfo.InvariantCulture)} / {results.Count.ToString(CultureInfo.InvariantCulture)}", title, tone);
                     }
                 }

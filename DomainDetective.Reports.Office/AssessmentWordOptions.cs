@@ -18,5 +18,5 @@ public sealed class AssessmentWordOptions {
     public bool IncludeTableOfContents { get; set; } = true;
 
     /// <summary>Optional first-party OfficeIMO PDF settings, including font resources.</summary>
-    public WordToPdfOptions? PdfOptions { get; set; }
+    public WordPdfExportOptions? PdfOptions { get; set; }
 }

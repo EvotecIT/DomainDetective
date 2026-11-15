@@ -240,18 +240,20 @@ public static class AssessmentReportWording {
         .ThenByDescending(x => (100 - x.Check.Score) * Math.Max(1, x.Check.Weight));
 
     /// <summary>Groups identical check/action messages across domains, ordered by severity then affected-domain count.</summary>
-    public static IEnumerable<(DomainAssessment Domain, CheckAssessment Check, string AffectedDomains)> DoFirstGroups(DomainAssessmentReport report)
+    public static IEnumerable<(DomainAssessment Domain, CheckAssessment Check, string AffectedDomains,
+        IReadOnlyList<(DomainAssessment Domain, CheckAssessment Check)> Members)> DoFirstGroups(DomainAssessmentReport report)
         => DoFirst(report).GroupBy(action => (action.Check.Key, Message: DoFirstMessage(action.Check)))
             .Select(group => new {
                 Action = group.OrderByDescending(action => ActionSeverity(action.Check)).First(),
-                Domains = group.Select(action => action.Domain.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                Domains = group.Select(action => action.Domain.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                Members = (IReadOnlyList<(DomainAssessment Domain, CheckAssessment Check)>)group.ToList()
             })
             .OrderByDescending(group => ActionSeverity(group.Action.Check))
             .ThenByDescending(group => group.Domains.Count)
             .ThenBy(group => DomainAssessmentCatalog.SecurityPriority(group.Action.Check.Check))
             .Select(group => (group.Action.Domain, group.Action.Check, group.Domains.Count == 1 ? group.Domains[0]
                 : group.Domains.Count == report.Domains.Count ? "All " + Plural(group.Domains.Count, "domain")
-                : Plural(group.Domains.Count, "domain") + ": " + string.Join(", ", group.Domains)));
+                : Plural(group.Domains.Count, "domain") + ": " + string.Join(", ", group.Domains), group.Members));
 
     private static int ActionSeverity(CheckAssessment check) => check.Outcome switch {
         CheckOutcome.Error => 3,

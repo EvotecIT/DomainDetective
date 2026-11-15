@@ -19,10 +19,11 @@ public sealed class MarkdownHtmlReportGenerator : IReportGenerator {
     public static void Generate(string path, DomainAssessmentReport report, AssessmentMarkdownOptions? options = null) {
         string markdownPath = Path.ChangeExtension(path, ".md");
         AssessmentMarkdownReport.Generate(markdownPath, report, options);
-        MarkdownReader.Parse(File.ReadAllText(markdownPath)).SaveAsHtml(path, new HtmlOptions {
-            Kind = HtmlKind.Document,
-            Style = HtmlStyle.GithubAuto,
-            CssDelivery = CssDelivery.Inline,
+        using var document = MarkdownDocument.Parse(File.ReadAllText(markdownPath));
+        document.SaveAsHtml(path, new MarkdownHtmlExportOptions {
+            Kind = MarkdownHtmlKind.Document,
+            Style = MarkdownHtmlStyle.GithubAuto,
+            CssDelivery = MarkdownCssDelivery.Inline,
             IncludeAnchorLinks = false,
             ShowAnchorIcons = true,
             CopyHeadingLinkOnClick = true,

@@ -103,8 +103,8 @@ public class TestPublicPdfReportExports {
             var report = AssessmentExportFixture.Create();
             report.Domains[0].Checks[0].Findings[0].Message = new string('x', 512);
             var options = new AssessmentWordOptions {
-                PdfOptions = new OfficeIMO.Word.Pdf.WordToPdfOptions {
-                    PdfOptions = new OfficeIMO.Pdf.PdfOptions {
+                PdfOptions = new OfficeIMO.Word.Pdf.WordPdfExportOptions {
+                    PdfOptions = new OfficeIMO.Pdf.PdfCreateOptions {
                         TextLineBreakCallback = _ => {
                             callbacks++;
                             cancellation.Cancel();

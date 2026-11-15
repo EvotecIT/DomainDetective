@@ -18,7 +18,7 @@ public static class MessageHeaderMarkdownReport {
     /// <summary>Writes projected message or standalone ARC evidence as Markdown or HTML.</summary>
     public static void GenerateEvidence(string path, IReadOnlyList<MessageEvidenceReport> messages, bool html = false) {
         if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
-        var document = MarkdownDoc.Create().H1("Email Message Analysis");
+        using var document = MarkdownDocument.Create().H1("Email Message Analysis");
         for (var i = 0; i < messages.Count; i++) {
             document.H2("Message " + (i + 1));
             var brief = messages[i].Brief;
@@ -40,7 +40,7 @@ public static class MessageHeaderMarkdownReport {
         }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
         if (html) {
-            document.SaveAsHtml(path, new HtmlOptions { Kind = HtmlKind.Document, Style = HtmlStyle.GithubAuto, CssDelivery = CssDelivery.Inline, ThemeToggle = true });
+            document.SaveAsHtml(path, new MarkdownHtmlExportOptions { Kind = MarkdownHtmlKind.Document, Style = MarkdownHtmlStyle.GithubAuto, CssDelivery = MarkdownCssDelivery.Inline, ThemeToggle = true });
         } else { File.WriteAllText(path, document.ToMarkdown(), Encoding.UTF8); }
     }
 

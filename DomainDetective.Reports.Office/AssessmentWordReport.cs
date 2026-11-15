@@ -32,18 +32,18 @@ public static partial class AssessmentWordReport {
         options ??= new AssessmentWordOptions();
         if (options.FixFirstCount < 0) { throw new ArgumentOutOfRangeException(nameof(options.FixFirstCount)); }
         var style = new WordPaperStyle {
-            Accent = "0F766E", TableFontSizePoints = 9,
-            TableCellVerticalPadding = 15, TableCellHorizontalPadding = 70, TableParagraphSpacingPoints = 0,
-            TableLineSpacingPoints = 11
+            Accent = "0F766E", TableFontSize = OfficeLength.Points(9),
+            TableCellVerticalPadding = OfficeLength.Points(0.75), TableCellHorizontalPadding = OfficeLength.Points(3.5), TableParagraphSpacing = OfficeLength.Points(0),
+            TableLineSpacing = OfficeLength.Points(11)
         };
         WordDocument document = WordDocument.Create();
         try {
-            document.PageSettings.PageSize = options.PageSize;
-            document.PageOrientation = OfficePageOrientation.Portrait;
-            document.Margins.TopCentimeters = 1.8;
-            document.Margins.BottomCentimeters = 1.8;
-            document.Margins.LeftCentimeters = 1.8;
-            document.Margins.RightCentimeters = 1.8;
+            document.PageSetup.Size.PageSize = options.PageSize;
+            document.PageSetup.Orientation = OfficePageOrientation.Portrait;
+            document.PageSetup.Margins.Top = OfficeLength.Centimeters(1.8);
+            document.PageSetup.Margins.Bottom = OfficeLength.Centimeters(1.8);
+            document.PageSetup.Margins.Left = OfficeLength.Centimeters(1.8);
+            document.PageSetup.Margins.Right = OfficeLength.Centimeters(1.8);
             document.Settings.FontFamily = style.FontFamily;
             AddChrome(document, style, report);
             WriteCover(document, style, report);
@@ -54,6 +54,7 @@ public static partial class AssessmentWordReport {
                 contents.Text = "Contents";
                 StyleHeading(contents.TitleParagraph!, style, 2);
             }
+            if (report.Domains.Count > 1) { Heading(document, style, "Summary", 1); }
             WriteActions(document, style, report, options);
             WriteAreas(document, style, report);
             if (report.Domains.Count > 1) { WriteControls(document, style, report); }
@@ -112,11 +113,11 @@ public static partial class AssessmentWordReport {
     private static WordParagraph Body(WordDocument document, WordPaperStyle style, string text, bool bold = false) {
         WordParagraph paragraph = document.AddParagraph(text);
         paragraph.FontFamily = style.FontFamily;
-        paragraph.FontSizePoints = 10.5;
-        paragraph.ColorHex = style.Ink;
+        paragraph.FontSize = OfficeLength.Points(10.5);
+        paragraph.Color = OfficeColor.Parse(style.Ink);
         paragraph.Bold = bold;
-        paragraph.LineSpacingBeforePoints = 0;
-        paragraph.LineSpacingAfterPoints = 4;
+        paragraph.LineSpacingBefore = OfficeLength.Points(0);
+        paragraph.LineSpacingAfter = OfficeLength.Points(4);
         return paragraph;
     }
 
@@ -128,14 +129,14 @@ public static partial class AssessmentWordReport {
 
     private static void StyleHeading(WordParagraph paragraph, WordPaperStyle style, int level, bool newPage = false) {
         paragraph.Bold = true;
-        paragraph.ColorHex = style.Ink;
+        paragraph.Color = OfficeColor.Parse(style.Ink);
         paragraph.Style = level == 1 ? WordParagraphStyles.Heading1 : level == 2 ? WordParagraphStyles.Heading2 : WordParagraphStyles.Heading3;
         paragraph.FontFamily = style.DisplayFontFamily;
-        paragraph.FontSize = level == 1 ? 18 : level == 2 ? 12 : 11;
+        paragraph.FontSize = OfficeLength.Points(level == 1 ? 18 : level == 2 ? 12 : 11);
         paragraph.KeepWithNext = true;
         paragraph.PageBreakBefore = newPage;
-        paragraph.LineSpacingBeforePoints = level == 1 ? 10 : 6;
-        paragraph.LineSpacingAfterPoints = 4;
+        paragraph.LineSpacingBefore = OfficeLength.Points(level == 1 ? 10 : 6);
+        paragraph.LineSpacingAfter = OfficeLength.Points(4);
     }
 
     private static WordTable Table(WordDocument document, WordPaperStyle style, string[] headers, IEnumerable<string[]> values, params int[] widths) {
@@ -158,7 +159,7 @@ public static partial class AssessmentWordReport {
     private static void SizeTable(WordTable table) {
         foreach (WordTableRow row in table.Rows) {
             foreach (WordTableCell cell in row.Cells) {
-                foreach (WordParagraph paragraph in cell.Paragraphs) { paragraph.FontSize = 9; }
+                foreach (WordParagraph paragraph in cell.Paragraphs) { paragraph.FontSize = OfficeLength.Points(9); }
             }
         }
     }
@@ -190,25 +191,25 @@ public static partial class AssessmentWordReport {
 
     private static WordParagraph Note(WordDocument document, WordPaperStyle style, string text) {
         WordParagraph paragraph = style.AddNote(document, text);
-        paragraph.LineSpacingBeforePoints = 2;
-        paragraph.LineSpacingAfterPoints = 2;
+        paragraph.LineSpacingBefore = OfficeLength.Points(2);
+        paragraph.LineSpacingAfter = OfficeLength.Points(2);
         return paragraph;
     }
 
     private static void AddChrome(WordDocument document, WordPaperStyle style, DomainAssessmentReport report) {
-        document.AddHeadersAndFooters();
-        document.DifferentFirstPage = true;
-        document.HeaderFirstOrCreate.AddParagraph(string.Empty);
-        WordParagraph header = document.HeaderDefaultOrCreate.AddParagraph(Identifier(Scope(report)) + " · " + Wording.FormatTime(report.GeneratedAtUtc));
+
+        document.PageSetup.DifferentFirstPage = true;
+        document.PageSetup.FirstPageHeader.AddParagraph(string.Empty);
+        WordParagraph header = document.PageSetup.Header.AddParagraph(Identifier(Scope(report)) + " · " + Wording.FormatTime(report.GeneratedAtUtc));
         header.FontFamily = style.FontFamily;
-        header.FontSize = 8;
-        header.ColorHex = style.Muted;
-        foreach (WordFooter footer in new[] { document.FooterDefaultOrCreate, document.FooterFirstOrCreate }) {
+        header.FontSize = OfficeLength.Points(8);
+        header.Color = OfficeColor.Parse(style.Muted);
+        foreach (WordFooter footer in new[] { document.PageSetup.Footer, document.PageSetup.FirstPageFooter }) {
             WordParagraph paragraph = footer.AddParagraph("DomainDetective · " + report.Title + " · Page ");
             paragraph.AddPageNumber(includeTotalPages: true, separator: " of ");
             paragraph.FontFamily = style.FontFamily;
-            paragraph.FontSize = 8;
-            paragraph.ColorHex = style.Muted;
+            paragraph.FontSize = OfficeLength.Points(8);
+            paragraph.Color = OfficeColor.Parse(style.Muted);
             paragraph.ParagraphAlignment = WordParagraphAlignment.Center;
         }
     }

@@ -35,7 +35,7 @@ public static partial class AssessmentMarkdownReport {
             1 => report.Domains[0].Domain,
             _ => report.Domains.Count.ToString(CultureInfo.InvariantCulture) + " domains"
         };
-        MarkdownDoc document = MarkdownDoc.Create().H1(InlineText("Domain assessment: " + domains));
+        using MarkdownDocument document = MarkdownDocument.Create().H1(InlineText("Domain assessment: " + domains));
         document.P(InlineText(Wording.ReportVerdict(report)));
         document.P(InlineText(Wording.ReportVerdictDetail(report)));
         document.P(InlineText("Generated " + Wording.FormatTime(report.GeneratedAtUtc) + " · "
@@ -60,10 +60,10 @@ public static partial class AssessmentMarkdownReport {
         }
         document.H2("How scoring works");
         AddTable(document, new[] { "Measure", "How it works" }, Wording.ScoringFacts.Select(static fact => new[] { fact.Key, fact.Value }));
-        return document.ToMarkdown(new MarkdownWriteOptions { TextEscapingMode = MarkdownTextEscapingMode.LiteralBackslash });
+        return document.ToMarkdown(new MarkdownSaveOptions { TextEscapingMode = MarkdownTextEscapingMode.LiteralBackslash });
     }
 
-    private static void WriteActions(MarkdownDoc document, DomainAssessmentReport report, AssessmentMarkdownOptions options) {
+    private static void WriteActions(MarkdownDocument document, DomainAssessmentReport report, AssessmentMarkdownOptions options) {
         document.H2("Do these first");
         var actions = Wording.DoFirstGroups(report).ToList();
         if (actions.Count == 0) {

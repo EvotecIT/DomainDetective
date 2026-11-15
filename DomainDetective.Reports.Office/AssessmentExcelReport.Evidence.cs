@@ -18,7 +18,7 @@ public static partial class AssessmentExcelReport {
         foreach (var group in tables.GroupBy(static row => row.Check.Key, StringComparer.Ordinal)) {
             // OfficeIMO cleans forbidden characters, shortens to 31 characters and adds case-insensitive (2), (3)
             // suffixes in encounter order; keep those generic naming rules in the workbook owner.
-            ExcelSheet sheet = workbook.AddWorksheet("Evidence · " + group.First().Check.Title, ExcelSheetNameValidationMode.Sanitize);
+            ExcelSheet sheet = workbook.AddSheet("Evidence · " + group.First().Check.Title, ExcelSheetNameValidationMode.Sanitize);
             // A check can have several evidence tables with different schemas. Union their labelled columns while
             // retaining the table title on each row, including nested evidence's parent-row attribution.
             var columns = new List<(string Label, int Occurrence)>();
@@ -43,7 +43,7 @@ public static partial class AssessmentExcelReport {
                         values[2 + columns.IndexOf(sourceColumns[index])] = index < cells.Count ? cells[index] : string.Empty;
                     }
                     WriteRow(sheet, ++row, values);
-                    sheet.CellFontName(row, 1, "Consolas");
+                    sheet.Cell(row, 1).SetFontFamily("Consolas");
                 }
                 if (table.Evidence.Omitted > 0) {
                     object?[] values = new object?[headers.Length];
@@ -52,7 +52,7 @@ public static partial class AssessmentExcelReport {
                     values[values.Length - 1] = table.Evidence.Omitted.ToString("N0", CultureInfo.InvariantCulture)
                         + " rows omitted from the assessment model; not available in this export.";
                     WriteRow(sheet, ++row, values);
-                    sheet.CellFontColor(row, headers.Length, Muted);
+                    sheet.Cell(row, headers.Length).SetColor(OfficeColor.Parse(Muted));
                 }
             }
             FinishSheet(sheet, 1, row, headers.Length);

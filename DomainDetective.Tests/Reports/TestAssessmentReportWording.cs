@@ -8,6 +8,22 @@ using Wording = DomainDetective.Reports.AssessmentReportWording;
 namespace DomainDetective.Tests.Reports;
 
 public class TestAssessmentReportWording {
+    [Theory]
+    [InlineData(CheckOutcome.Warning, "elevated")]
+    [InlineData(CheckOutcome.Error, "high")]
+    [InlineData(CheckOutcome.Incomplete, "skipped")]
+    public void MultiDomainControlsUseTheWorstStatus(CheckOutcome outcome, string tone) {
+        var report = AssessmentExportFixture.Create(3);
+        foreach (var domain in report.Domains) {
+            var certificate = domain.Checks.Single(check => check.Key == "cert");
+            certificate.Outcome = outcome;
+            certificate.EvidenceComplete = outcome != CheckOutcome.Incomplete;
+        }
+        var document = new HtmlParser().ParseDocument(AssessmentHtmlReport.Render(report));
+        var tile = document.QuerySelectorAll(".hfx-as-stat").Single(item => item.QuerySelector("span")?.TextContent == "Certificate");
+        Assert.Equal(tone, tile.QuerySelector("b")!.GetAttribute("data-tone"));
+    }
+
     [Fact]
     public void InformationalAreaHasNeutralProgressAndScoredAreasUsePostureTones() {
         var document = new HtmlParser().ParseDocument(AssessmentHtmlReport.Render(AssessmentExportFixture.Create()));

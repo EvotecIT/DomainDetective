@@ -141,7 +141,7 @@ internal static class ReportArtifactText {
 
     internal static string Read(string path) {
         if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)) {
-            var document = OfficeIMO.Pdf.PdfReadDocument.Open(File.ReadAllBytes(path));
+            using var document = OfficeIMO.Pdf.PdfDocument.Load(path);
             return Normalize(System.Text.RegularExpressions.Regex.Replace(string.Join(" ", document.Pages.Select(page => page.ExtractText())), @"\s+", " "));
         }
         if (Path.GetExtension(path).Equals(".docx", StringComparison.OrdinalIgnoreCase)) {

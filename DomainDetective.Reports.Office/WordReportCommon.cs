@@ -11,11 +11,11 @@ internal static class WordReportCommon
     public static void ApplyBuiltInProperties(WordDocument doc, string? title = null, string? subject = null, string? keywords = null, string? category = null, string? creator = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
-        if (!string.IsNullOrWhiteSpace(title)) doc.BuiltinDocumentProperties.Title = title;
-        if (!string.IsNullOrWhiteSpace(subject)) doc.BuiltinDocumentProperties.Subject = subject;
-        if (!string.IsNullOrWhiteSpace(keywords)) doc.BuiltinDocumentProperties.Keywords = keywords;
-        if (!string.IsNullOrWhiteSpace(category)) doc.BuiltinDocumentProperties.Category = category;
-        if (!string.IsNullOrWhiteSpace(creator)) doc.BuiltinDocumentProperties.Creator = creator;
+        if (!string.IsNullOrWhiteSpace(title)) doc.Properties.Title = title;
+        if (!string.IsNullOrWhiteSpace(subject)) doc.Properties.Subject = subject;
+        if (!string.IsNullOrWhiteSpace(keywords)) doc.Properties.Keywords = keywords;
+        if (!string.IsNullOrWhiteSpace(category)) doc.Properties.Category = category;
+        if (!string.IsNullOrWhiteSpace(creator)) doc.Properties.Creator = creator;
     }
 
     public static void ApplyNarrativeProperties(WordDocument doc, object narrative, string defaultTitle, string defaultSubject, string? defaultCategory = null, string? defaultKeywords = null, string? defaultCreator = null)
@@ -83,14 +83,14 @@ internal static class WordReportCommon
             if (kv.Value == null) continue;
             try
             {
-                if (doc.CustomDocumentProperties.ContainsKey(kv.Key))
+                if (doc.CustomProperties.ContainsKey(kv.Key))
                 {
-                    SetCustomPropertyValue(doc.CustomDocumentProperties[kv.Key], kv.Value);
+                    SetCustomPropertyValue(doc.CustomProperties[kv.Key], kv.Value);
                 }
                 else
                 {
                     var prop = CreateCustomProperty(kv.Value);
-                    doc.CustomDocumentProperties.Add(kv.Key, prop);
+                    doc.CustomProperties.Add(kv.Key, prop);
                 }
             }
             catch { /* ignore invalid names or unsupported types */ }
@@ -147,24 +147,22 @@ internal static class WordReportCommon
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
 
-        doc.AddHeadersAndFooters();
-        doc.DifferentFirstPage = false;
+        doc.PageSetup.DifferentFirstPage = false;
 
-        var header = doc.Header?.Default;
+        var header = doc.PageSetup.Header;
         if (header == null)
         {
             throw new InvalidOperationException("Word header is not available.");
         }
 
         var headerTable = header.AddTable(1, 2, WordTableStyle.TableNormal);
-        headerTable.WidthType = WordTableWidthUnit.Pct;
-        headerTable.Width = 5000; // 100%
+        headerTable.Width = WordTableWidth.Percent(100);
 
         var leftP = headerTable.Rows[0].Cells[0].AddParagraph(leftText ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
         {
             int h = logoHeightPx.GetValueOrDefault(48);
-            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath!, h, h);
+            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath!, OfficeLength.Pixels(h), OfficeLength.Pixels(h));
         }
         var rightP = headerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
         rightP.ParagraphAlignment = WordParagraphAlignment.Right;
@@ -172,7 +170,7 @@ internal static class WordReportCommon
         if (!string.IsNullOrWhiteSpace(watermarkText))
         {
             var section = doc.Sections[0];
-            var watermarkHeader = section.Header?.Default;
+            var watermarkHeader = section.PageSetup.Header;
             if (watermarkHeader == null)
             {
                 throw new InvalidOperationException("Word header section is not available for watermark rendering.");
@@ -185,15 +183,15 @@ internal static class WordReportCommon
     public static void AddFooter(WordDocument doc, string? leftText = null, string? rightText = null, string? logoPath = null, int? logoHeightPx = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
-        doc.AddHeadersAndFooters();
-        doc.DifferentFirstPage = false;
+
+        doc.PageSetup.DifferentFirstPage = false;
 
         // Fallback left text from custom property 'CompanyLine'
         if (string.IsNullOrWhiteSpace(leftText))
         {
             try
             {
-                if (doc.CustomDocumentProperties.TryGetValue("CompanyLine", out var prop) && prop?.Value != null)
+                if (doc.CustomProperties.TryGetValue("CompanyLine", out var prop) && prop?.Value != null)
                 {
                     leftText = prop.Value.ToString();
                 }
@@ -202,21 +200,20 @@ internal static class WordReportCommon
         }
         leftText ??= "Confidential";
 
-        var footer = doc.Footer?.Default;
+        var footer = doc.PageSetup.Footer;
         if (footer == null)
         {
             throw new InvalidOperationException("Word footer is not available.");
         }
 
         var footerTable = footer.AddTable(1, 2, WordTableStyle.TableNormal);
-        footerTable.WidthType = WordTableWidthUnit.Pct;
-        footerTable.Width = 5000; // 100%
+        footerTable.Width = WordTableWidth.Percent(100);
 
         var lp = footerTable.Rows[0].Cells[0].AddParagraph(leftText);
         // Optional footer logo (right cell)
         if (!string.IsNullOrWhiteSpace(logoPath) && System.IO.File.Exists(logoPath))
         {
-            try { var h = logoHeightPx.GetValueOrDefault(32); footerTable.Rows[0].Cells[1].AddParagraph().AddImage(logoPath!, h, h); }
+            try { var h = logoHeightPx.GetValueOrDefault(32); footerTable.Rows[0].Cells[1].AddParagraph().AddImage(logoPath!, OfficeLength.Pixels(h), OfficeLength.Pixels(h)); }
             catch { /* ignore image errors */ }
         }
         var rp = footerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);

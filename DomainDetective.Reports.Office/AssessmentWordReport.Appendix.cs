@@ -9,8 +9,8 @@ namespace DomainDetective.Reports.Office;
 public static partial class AssessmentWordReport {
     private static void WriteAppendix(WordDocument document, WordPaperStyle style, DomainAssessmentReport report, AssessmentWordOptions options) {
         WordSection allChecks = document.AddSection(WordSectionBreakType.NextPage);
-        allChecks.PageOrientation = OfficePageOrientation.Landscape;
-        allChecks.DifferentFirstPage = false;
+        allChecks.PageSetup.Orientation = OfficePageOrientation.Landscape;
+        allChecks.PageSetup.DifferentFirstPage = false;
         Heading(document, style, "Appendix", 1);
         Heading(document, style, "All checks", 2);
         var checks = report.Domains.SelectMany(domain => domain.Checks.OrderBy(check => AreaIndex(check.Area))
