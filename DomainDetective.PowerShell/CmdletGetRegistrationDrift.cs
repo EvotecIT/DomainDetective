@@ -5,7 +5,7 @@ using DomainDetective.TimeSeries.Registration;
 namespace DomainDetective.PowerShell;
 
 /// <summary>Builds a structured WHOIS/RDAP drift view from stored registration snapshots.</summary>
-/// <para>Loads stored snapshots for a domain and produces a drift view suitable for Word/HTML composition reports.</para>
+/// <para>Loads stored snapshots for a domain and produces a drift view suitable for Word/PDF/HTML composition reports.</para>
 /// <example>
 ///   <summary>Get drift for the last 90 days</summary>
 ///   <code>Get-DDRegistrationDrift -DomainName example.com -StorePath .\Store -SinceUtc (Get-Date).ToUniversalTime().AddDays(-90)</code>

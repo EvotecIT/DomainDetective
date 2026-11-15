@@ -109,9 +109,11 @@ public class TestDnsPropagationReportSmoke
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
         try
         {
-            ExcelCompositionReport.Generate(tmp, items, ReportScope.Minimal, profile: ExcelProfile.Workbook);
-            Assert.True(File.Exists(tmp));
-            Assert.True(new FileInfo(tmp).Length > 0);
+            AssessmentExcelReport.Generate(tmp, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
+            var text = ReportArtifactText.Read(tmp);
+            Assert.Contains("1.1.1.1", text);
+            Assert.Contains("9.9.9.9", text);
+            Assert.Contains("timeout", text, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -119,4 +121,3 @@ public class TestDnsPropagationReportSmoke
         }
     }
 }
-

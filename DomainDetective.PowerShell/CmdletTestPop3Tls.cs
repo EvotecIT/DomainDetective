@@ -48,8 +48,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            ApplyExecutionOptions(_healthCheck);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);            ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
 
@@ -82,11 +81,14 @@ namespace DomainDetective.PowerShell {
                         $"POP3 TLS — {HostName}:{Port}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailPop3Tls");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"POP3 TLS export failed: {ex.Message}");
                 }
@@ -95,5 +97,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

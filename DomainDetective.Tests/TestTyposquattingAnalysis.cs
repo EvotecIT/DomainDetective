@@ -1117,13 +1117,6 @@ namespace DomainDetective.Tests {
             Assert.Contains("Escalation bundle ready", viewCampaign.EscalationSummary, System.StringComparison.OrdinalIgnoreCase);
             Assert.Contains("typosquatting campaign", viewCampaign.EscalationDraftPreview, System.StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Domains involved:", viewCampaign.EscalationDraftBody, System.StringComparison.OrdinalIgnoreCase);
-
-            var section = DomainDetective.Reports.SectionProjectors.BuildTyposquatting(view);
-            Assert.NotNull(section);
-            Assert.NotNull(section!.TopResponsePack);
-            Assert.Equal(viewCampaign.EscalationCaseId, section.TopResponsePack!.CaseId);
-            Assert.Equal(viewCampaign.TopCandidateDomain, section.TopResponsePack.TopDomain);
-            Assert.Contains("abuse@evil-registrar.test", section.TopResponsePack.TrackingSummary, System.StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

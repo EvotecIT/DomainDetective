@@ -237,25 +237,29 @@ public class TestFailureAdmissionAndRetry {
     [Theory]
     [InlineData(ReportFormat.Html, ".html")]
     [InlineData(ReportFormat.Word, ".docx")]
-    public void WebsiteOnlyExportRetainsDomainAndHttpSection(ReportFormat format, string extension) {
+    public void WebsiteOnlyExportRetainsCombinedCheckAndHttpEvidence(ReportFormat format, string extension) {
         var http = new HttpInfo { Subject = "example.test", Url = "https://example.test/website-proof", HstsPresent = true };
         var items = new object[] { Converters.CombineWebsite(new CertificateInfo { Subject = "example.test" }, http) };
+        var report = DomainAssessmentBuilder.Build(items);
+        var domain = Assert.Single(report.Domains);
+        Assert.Equal("example.test", domain.Domain);
+        var websiteCheck = Assert.Single(domain.Checks, check => check.Check == HealthCheckType.WEBSITE);
+        var websiteSource = Assert.IsType<WebsiteInfo>(Assert.Single(websiteCheck.Sources));
+        Assert.Same(http, websiteSource.Http);
+        Assert.Contains(websiteCheck.Facts, fact => fact.Value == http.Url);
+        Assert.True(websiteCheck.Outcome is CheckOutcome.Pass or CheckOutcome.Info);
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + extension);
         try {
             if (format == ReportFormat.Html) {
                 DomainDetective.Reports.Html.HtmlCompositionReport.Generate(path, items, ReportScope.Detailed);
             } else {
-                DomainDetective.Reports.Office.WordCompositionReport.Generate(path, items, ReportScope.Detailed, showInfoFindings: false);
+                DomainDetective.Reports.Office.AssessmentWordReport.Generate(path, report, new DomainDetective.Reports.Office.AssessmentWordOptions { ShowInfoFindings = false });
             }
-            string content;
-            if (format == ReportFormat.Html) { content = File.ReadAllText(path); }
-            else {
-                using var zip = System.IO.Compression.ZipFile.OpenRead(path);
-                using var reader = new StreamReader(zip.GetEntry("word/document.xml")!.Open());
-                content = reader.ReadToEnd();
-            }
+            string content = DomainDetective.Tests.Reports.ReportArtifactText.Read(path);
             Assert.Contains("example.test", content);
-            Assert.Contains("website-proof", content);
+            Assert.Contains("Website", content);
+            // Paper shows a passing check's row; the HTML detail retains its scalar technical facts.
+            if (format == ReportFormat.Html) { Assert.Contains("website-proof", content); }
         } finally { if (File.Exists(path)) { File.Delete(path); } }
     }
 }

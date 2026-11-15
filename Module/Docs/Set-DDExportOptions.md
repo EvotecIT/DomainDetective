@@ -15,15 +15,18 @@ Set-DDExportOptions [-DefaultFormat <ReportFormat>] [-OutputDirectory <string>] 
 ```
 
 ## DESCRIPTION
-Sets global export defaults for DomainDetective reports.
+Assessment reports support Title, output paths, opening and artifact settings. Legacy branding,
+metadata other than Title, logo sizes and narrative placement overrides are rejected before any defaults change.
+SummaryColumnCap accepts only its neutral default of 4. Use Reset to clear retired overrides.
 
 ## EXAMPLES
 
 ### EXAMPLE 1
 ```powershell
-Set-DDExportOptions -LogoPath 'C:\Path'
+PS> Set-DDExportOptions -DefaultFormat Pdf -OutputDirectory './Reports'
 ```
 
+Individual commands can override the default with multiple formats, such as Word,Pdf,Html.
 
 ## PARAMETERS
 
@@ -60,7 +63,7 @@ Accept wildcard characters: False
 ```
 
 ### -Category
-Override the report Category.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -76,7 +79,7 @@ Accept wildcard characters: False
 ```
 
 ### -CompanyAddress
-Company address for custom document properties.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -92,7 +95,7 @@ Accept wildcard characters: False
 ```
 
 ### -CompanyName
-Company name for custom document properties.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -108,7 +111,7 @@ Accept wildcard characters: False
 ```
 
 ### -CompanyYear
-Company year for custom document properties.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -124,7 +127,7 @@ Accept wildcard characters: False
 ```
 
 ### -Creator
-Override the report Creator/Author.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -140,13 +143,13 @@ Accept wildcard characters: False
 ```
 
 ### -DefaultFormat
-Default format for exports.
+Default format for exports, including Pdf. An explicit ExportFormat array on a command overrides this default.
 
 ```yaml
 Type: ReportFormat
 Parameter Sets: __AllParameterSets
 Aliases: None
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named
@@ -156,7 +159,7 @@ Accept wildcard characters: False
 ```
 
 ### -FooterLogoSizePx
-Footer logo height in pixels (optional).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: Int32
@@ -172,7 +175,7 @@ Accept wildcard characters: False
 ```
 
 ### -FooterText
-Footer text (optional; shown in Word footer if provided).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -188,7 +191,7 @@ Accept wildcard characters: False
 ```
 
 ### -HeaderLogoSizePx
-Header logo height in pixels (optional).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: Int32
@@ -204,7 +207,7 @@ Accept wildcard characters: False
 ```
 
 ### -HeaderText
-Header text (optional; shown in Word header if provided).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -220,7 +223,7 @@ Accept wildcard characters: False
 ```
 
 ### -Keywords
-Override the report Keywords (comma-separated).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -236,7 +239,7 @@ Accept wildcard characters: False
 ```
 
 ### -LogoPath
-Logo path for header branding (optional).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -252,7 +255,7 @@ Accept wildcard characters: False
 ```
 
 ### -NarrativePlacement
-Default narrative placement for reports.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: NarrativePlacement
@@ -332,7 +335,7 @@ Accept wildcard characters: False
 ```
 
 ### -Subject
-Override the report Subject/Description.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -348,7 +351,7 @@ Accept wildcard characters: False
 ```
 
 ### -SummaryColumnCap
-Max status columns in Word executive summary tables.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: Int32
@@ -380,7 +383,7 @@ Accept wildcard characters: False
 ```
 
 ### -WatermarkText
-Watermark text (optional; applied to sections).
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String

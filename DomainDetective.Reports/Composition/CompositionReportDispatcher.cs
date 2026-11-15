@@ -1,485 +1,149 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Reflection;
+using System.Threading;
 
 namespace DomainDetective.Reports;
 
-internal static class CompositionReportDispatcher
-{
-    private const string HtmlAssembly = "DomainDetective.Reports.Html";
-    private const string HtmlReportType = "DomainDetective.Reports.Html.HtmlCompositionReport";
-    private const string HtmlProfileType = "DomainDetective.Reports.Html.HtmlProfile";
-    private const string HtmlForgeXAssembly = "HtmlForgeX";
-    private const string HtmlThemeModeType = "HtmlForgeX.ThemeMode";
-    private const string OfficeAssembly = "DomainDetective.Reports.Office";
-    private const string WordReportType = "DomainDetective.Reports.Office.WordCompositionReport";
-    private const string ExcelReportType = "DomainDetective.Reports.Office.ExcelCompositionReport";
-    private const string ExcelProfileType = "DomainDetective.Reports.Office.ExcelProfile";
-    private const string MarkdownAssembly = "DomainDetective.Reports.Markdown";
-    private const string MarkdownReportType = "DomainDetective.Reports.Markdown.MarkdownCompositionReport";
-
-    public static bool TryGenerate(
-        ReportFormat format,
-        CompositionExportRequest request,
-        IReadOnlyList<object> items,
-        string outputPath,
-        out string? error)
-    {
+/// <summary>Loads optional renderers without coupling the assessment model to export assemblies.</summary>
+internal static class CompositionReportDispatcher {
+    public static bool TryGenerate(ReportFormat format, CompositionExportRequest request,
+        DomainAssessmentReport report, string outputPath, out string? error, IReadOnlyList<MessageEvidenceReport>? messages = null) {
         error = null;
-        switch (format)
-        {
-            case ReportFormat.Word:
-                return TryGenerateWord(request, items, outputPath, out error);
-            case ReportFormat.Html:
-                return TryGenerateHtml(request, items, outputPath, out error);
-            case ReportFormat.Excel:
-                return TryGenerateExcel(request, items, outputPath, out error);
-            case ReportFormat.Markdown:
-                return TryGenerateMarkdown(request, items, outputPath, out error);
-            case ReportFormat.MarkdownHtml:
-                return TryGenerateMarkdownHtml(request, items, outputPath, out error);
-            case ReportFormat.Json:
-                return TryGenerateJson(request, items, outputPath, out error);
-            default:
-                error = $"{format} composition is not supported.";
-                return false;
-        }
-    }
-
-    private static bool TryGenerateWord(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        error = null;
-        var reportType = GetType(WordReportType, OfficeAssembly, out error);
-        if (reportType == null)
-        {
-            return false;
-        }
-
-        var method = reportType.GetMethod(
-            "Generate",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[] {
-                typeof(string),
-                typeof(IReadOnlyList<object>),
-                typeof(ReportScope),
-                typeof(bool),
-                typeof(NarrativePlacement),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(bool),
-                typeof(bool),
-                typeof(ProviderHelpRenderOptions),
-                typeof(DomainOrder),
-                typeof(SectionOrderMode),
-                typeof(string[]),
-                typeof(int?),
-                typeof(int?),
-                typeof(int?)
-            },
-            null);
-        if (method == null)
-        {
-            error = "Word composition generator signature not found.";
-            return false;
-        }
-
-        return Invoke(method, new object?[] {
-            outputPath,
-            items,
-            request.Scope,
-            request.ShowInfoFindings,
-            request.NarrativePlacement,
-            request.Title,
-            request.Subject,
-            request.Category,
-            request.Keywords,
-            request.Creator,
-            request.CompanyName,
-            request.CompanyAddress,
-            request.CompanyYear,
-            request.LogoPath,
-            request.HeaderText,
-            request.FooterText,
-            request.WatermarkText,
-            true,
-            true,
-            request.ProviderHelpOptions,
-            request.Ordering.DomainOrder,
-            request.Ordering.SectionOrderMode,
-            request.Ordering.SectionOrder,
-            request.SummaryColumnCap,
-            request.HeaderLogoSizePx,
-            request.FooterLogoSizePx
-        }, out error);
-    }
-
-	    private static bool TryGenerateHtml(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-	    {
-	        error = null;
-	        var reportType = GetType(HtmlReportType, HtmlAssembly, out error);
-        if (reportType == null)
-        {
-            return false;
-        }
-
-        var profileType = GetType(HtmlProfileType, HtmlAssembly, out error);
-        if (profileType == null)
-        {
-            return false;
-        }
-        var profileValue = ParseEnum(profileType, request.HtmlProfile, "Assessment");
-        // Every profile renders the assessment report, which follows the viewer's theme.
-        const string themeName = "System";
-
-        // vNext: includes ThemeMode; keep fallback for older signatures.
-        var themeType = GetType(HtmlThemeModeType, HtmlForgeXAssembly, out _);
-        if (themeType != null)
-        {
-            var methodWithInfo = reportType.GetMethod(
-                "Generate",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] {
-                    typeof(string), typeof(IReadOnlyList<object>), typeof(ReportScope), typeof(bool),
-                    typeof(NarrativePlacement), typeof(string), typeof(string), typeof(string),
-                    typeof(DomainOrder), typeof(SectionOrderMode), typeof(string[]), profileType,
-                    themeType, typeof(bool)
-                },
-                null);
-            if (methodWithInfo != null)
-            {
-                var themeValue = Enum.Parse(themeType, themeName, ignoreCase: true);
-                return Invoke(methodWithInfo, new object?[] {
-                    outputPath, items, request.Scope, request.OpenInBrowser, request.NarrativePlacement,
-                    request.Title, request.Creator, request.Subject, request.Ordering.DomainOrder,
-                    request.Ordering.SectionOrderMode, request.Ordering.SectionOrder, profileValue,
-                    themeValue, request.ShowInfoFindings
-                }, out error);
+        try {
+            AssessmentExportSettings.Validate(request);
+            if (messages?.Count > 0) {
+                return GenerateMessages(format, messages, outputPath, request.OpenInBrowser, out error);
             }
-        }
-        if (!request.ShowInfoFindings)
-        {
-            error = "The HTML composition generator does not support informational finding filtering.";
-            return false;
-        }
-        if (themeType != null)
-        {
-            var methodWithTheme = reportType.GetMethod(
-                "Generate",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] {
-                    typeof(string),
-                    typeof(IReadOnlyList<object>),
-                    typeof(ReportScope),
-                    typeof(bool),
-                    typeof(NarrativePlacement),
-                    typeof(string),
-                    typeof(string),
-                    typeof(string),
-                    typeof(DomainOrder),
-                    typeof(SectionOrderMode),
-                    typeof(string[]),
-                    profileType,
-                    themeType
-                },
-                null);
-            if (methodWithTheme != null)
-            {
-                var themeValue = Enum.Parse(themeType, themeName, ignoreCase: true);
-                return Invoke(methodWithTheme, new object?[] {
-                    outputPath,
-                    items,
-                    request.Scope,
-                    request.OpenInBrowser,
-                    request.NarrativePlacement,
-                    request.Title,
-                    request.Creator,
-                    request.Subject,
-                    request.Ordering.DomainOrder,
-                    request.Ordering.SectionOrderMode,
-                    request.Ordering.SectionOrder,
-                    profileValue,
-                    themeValue
-                }, out error);
+            switch (format) {
+                case ReportFormat.Json:
+                    var directory = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(directory)) { Directory.CreateDirectory(directory); }
+                    File.WriteAllText(outputPath, DomainAssessmentJson.Serialize(report));
+                    return true;
+                case ReportFormat.Excel:
+                    return Generate("Office", "AssessmentExcelReport", "AssessmentExcelOptions", request, report, outputPath, out error);
+                case ReportFormat.Markdown:
+                    return Generate("Markdown", "AssessmentMarkdownReport", "AssessmentMarkdownOptions", request, report, outputPath, out error);
+                case ReportFormat.MarkdownHtml:
+                    return Generate("Markdown", "MarkdownHtmlReportGenerator", "AssessmentMarkdownOptions", request, report, outputPath, out error);
+                case ReportFormat.Html:
+                    return GenerateHtml(request, report, outputPath, out error);
+                default:
+                    error = $"{format} report generation is not supported.";
+                    return false;
             }
-        }
-
-        var method = reportType.GetMethod(
-            "Generate",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[] {
-                typeof(string),
-                typeof(IReadOnlyList<object>),
-                typeof(ReportScope),
-                typeof(bool),
-                typeof(NarrativePlacement),
-                typeof(string),
-                typeof(string),
-                typeof(string),
-                typeof(DomainOrder),
-                typeof(SectionOrderMode),
-                typeof(string[]),
-                profileType
-            },
-            null);
-	        if (method == null)
-	        {
-	            // Backward/forward compatibility: older binaries might differ by interface types
-	            // (e.g., IEnumerable<object> vs IReadOnlyList<object>) or by nullable metadata.
-	            method = FindCompatibleHtmlGenerateMethod(reportType, profileType, themeType);
-	            if (method == null)
-	            {
-	                error = "HTML composition generator signature not found.";
-	                return false;
-	            }
-	        }
-
-	        var parameters = method.GetParameters();
-	        var invokeArgs = parameters.Length == 13
-	            ? new object?[] {
-	                outputPath,
-	                items,
-	                request.Scope,
-	                request.OpenInBrowser,
-	                request.NarrativePlacement,
-	                request.Title,
-	                request.Creator,
-	                request.Subject,
-	                request.Ordering.DomainOrder,
-	                request.Ordering.SectionOrderMode,
-	                request.Ordering.SectionOrder,
-	                profileValue,
-	                Enum.Parse(parameters[12].ParameterType, themeName, ignoreCase: true)
-	            }
-	            : new object?[] {
-	                outputPath,
-	                items,
-	                request.Scope,
-	                request.OpenInBrowser,
-	                request.NarrativePlacement,
-	                request.Title,
-	                request.Creator,
-	                request.Subject,
-	                request.Ordering.DomainOrder,
-	                request.Ordering.SectionOrderMode,
-	                request.Ordering.SectionOrder,
-	                profileValue
-	            };
-
-	        return Invoke(method, invokeArgs, out error);
-	    }
-
-	    private static bool TryGenerateJson(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-	    {
-	        error = null;
-	        try
-	        {
-	            DomainAssessmentReport report = DomainAssessmentBuilder.Build(items, new DomainAssessmentOptions
-	            {
-	                Title = request.Title,
-	                DomainOrder = request.Ordering.DomainOrder
-	            });
-	            string? directory = System.IO.Path.GetDirectoryName(outputPath);
-	            if (!string.IsNullOrEmpty(directory)) System.IO.Directory.CreateDirectory(directory);
-	            System.IO.File.WriteAllText(outputPath, DomainAssessmentJson.Serialize(report));
-	            return true;
-	        }
-	        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or NotSupportedException)
-	        {
-	            error = $"JSON composition failed: {ex.Message}";
-	            return false;
-	        }
-	    }
-
-	    private static MethodInfo? FindCompatibleHtmlGenerateMethod(Type reportType, Type profileType, Type? themeType)
-	    {
-	        var candidates = reportType
-	            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-	            .Where(m => string.Equals(m.Name, "Generate", StringComparison.Ordinal))
-	            .ToArray();
-
-	        bool IsCompatible(ParameterInfo[] ps)
-	        {
-	            if (ps.Length != 12 && ps.Length != 13) return false;
-	            if (ps[0].ParameterType != typeof(string)) return false;
-	            if (!ps[1].ParameterType.IsAssignableFrom(typeof(IReadOnlyList<object>))) return false;
-	            if (ps[2].ParameterType != typeof(ReportScope)) return false;
-	            if (ps[3].ParameterType != typeof(bool)) return false;
-	            if (ps[4].ParameterType != typeof(NarrativePlacement)) return false;
-	            if (ps[8].ParameterType != typeof(DomainOrder)) return false;
-	            if (ps[9].ParameterType != typeof(SectionOrderMode)) return false;
-	            if (!ps[10].ParameterType.IsAssignableFrom(typeof(string[]))) return false;
-	            if (ps[11].ParameterType != profileType) return false;
-	            if (ps.Length == 13)
-	            {
-	                if (themeType == null) return false;
-	                if (ps[12].ParameterType != themeType) return false;
-	            }
-	            return true;
-	        }
-
-	        MethodInfo? best = null;
-	        foreach (var m in candidates)
-	        {
-	            var ps = m.GetParameters();
-	            if (!IsCompatible(ps)) continue;
-	            if (best == null) { best = m; continue; }
-	            if (best.GetParameters().Length == 12 && ps.Length == 13) best = m;
-	        }
-
-	        return best;
-	    }
-
-    private static bool TryGenerateExcel(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        error = null;
-        var reportType = GetType(ExcelReportType, OfficeAssembly, out error);
-        if (reportType == null)
-        {
+        } catch (TargetInvocationException ex) {
+            error = ex.InnerException?.Message ?? ex.Message;
             return false;
-        }
-
-        var profileType = GetType(ExcelProfileType, OfficeAssembly, out error);
-        if (profileType == null)
-        {
-            return false;
-        }
-        var profileValue = ParseEnum(profileType, request.ExcelProfile, "Workbook");
-
-        var method = reportType.GetMethod(
-            "Generate",
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[] {
-                typeof(string),
-                typeof(IReadOnlyList<object>),
-                typeof(ReportScope),
-                typeof(OrderingOptions),
-                profileType,
-                typeof(bool)
-            },
-            null);
-        if (method == null)
-        {
-            error = "Excel composition generator signature not found.";
-            return false;
-        }
-
-        return Invoke(method, new object?[] {
-            outputPath,
-            items,
-            request.Scope,
-            request.Ordering,
-            profileValue,
-            request.ShowInfoFindings
-        }, out error);
-    }
-
-    private static bool TryGenerateMarkdown(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        return TryGenerateMarkdownInternal("Generate", request, items, outputPath, out error);
-    }
-
-    private static bool TryGenerateMarkdownHtml(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        return TryGenerateMarkdownInternal("GenerateMarkdownHtml", request, items, outputPath, out error);
-    }
-
-    private static bool TryGenerateMarkdownInternal(string methodName, CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        error = null;
-        var reportType = GetType(MarkdownReportType, MarkdownAssembly, out error);
-        if (reportType == null)
-        {
-            return false;
-        }
-
-        var method = reportType.GetMethod(
-            methodName,
-            BindingFlags.Public | BindingFlags.Static,
-            null,
-            new[] {
-                typeof(string),
-                typeof(IReadOnlyList<object>),
-                typeof(ReportScope),
-                typeof(OrderingOptions),
-                typeof(bool)
-            },
-            null);
-        if (method == null)
-        {
-            error = "Markdown composition generator signature not found.";
-            return false;
-        }
-
-        return Invoke(method, new object?[] {
-            outputPath,
-            items,
-            request.Scope,
-            request.Ordering,
-            request.ShowInfoFindings
-        }, out error);
-    }
-
-    private static bool Invoke(MethodInfo method, object?[] args, out string? error)
-    {
-        error = null;
-        try
-        {
-            method.Invoke(null, args);
-            return true;
-        }
-        catch (TargetInvocationException ex)
-        {
-            var msg = ex.InnerException?.Message ?? ex.Message;
-            error = msg;
-            return false;
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             error = ex.Message;
             return false;
         }
     }
 
-    private static Type? GetType(string typeName, string assemblyName, out string? error)
-    {
-        error = null;
-        var type = Type.GetType($"{typeName}, {assemblyName}", throwOnError: false);
-        if (type == null)
-        {
-            error = $"Composition generator '{typeName}' not found. Ensure '{assemblyName}' is referenced.";
+    internal static IReadOnlyList<ReportResult> GeneratePaperReports(CompositionExportRequest request,
+        DomainAssessmentReport report, IReadOnlyDictionary<ReportFormat, string> outputs, CancellationToken cancellationToken,
+        IReadOnlyList<MessageEvidenceReport>? messages = null) {
+        try {
+            const string assembly = "DomainDetective.Reports.Office";
+            if (messages?.Count > 0) {
+                var renderer = RequireType(assembly + ".MessageHeaderOfficeReport", assembly);
+                var generate = renderer.GetMethod("GenerateEvidenceReports", new[] {
+                    typeof(IReadOnlyDictionary<ReportFormat, string>), typeof(IReadOnlyList<MessageEvidenceReport>), typeof(CancellationToken)
+                }) ?? throw new InvalidOperationException("Message evidence paper batch generator signature not found.");
+                return (IReadOnlyList<ReportResult>)generate.Invoke(null, new object[] { outputs, messages, cancellationToken })!;
+            }
+            var type = RequireType(assembly + ".AssessmentWordReport", assembly);
+            var optionsType = RequireType(assembly + ".AssessmentWordOptions", assembly);
+            var options = Activator.CreateInstance(optionsType)!;
+            optionsType.GetProperty("ShowInfoFindings")!.SetValue(options, request.ShowInfoFindings);
+            var method = type.GetMethod("GenerateReports", new[] {
+                typeof(IReadOnlyDictionary<ReportFormat, string>), typeof(DomainAssessmentReport), optionsType, typeof(CancellationToken)
+            }) ?? throw new InvalidOperationException("Assessment paper batch generator signature not found.");
+            return (IReadOnlyList<ReportResult>)method.Invoke(null, new object[] { outputs, report, options, cancellationToken })!;
+        } catch (TargetInvocationException ex) {
+            if (ex.InnerException is OperationCanceledException) {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            }
+            return FailedPaperReports(outputs, ex.InnerException?.Message ?? ex.Message);
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            return FailedPaperReports(outputs, ex.Message);
         }
-        return type;
     }
 
-    private static object ParseEnum(Type enumType, string? value, string defaultValue)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return Enum.Parse(enumType, defaultValue, ignoreCase: true);
+    private static IReadOnlyList<ReportResult> FailedPaperReports(IReadOnlyDictionary<ReportFormat, string> outputs, string error) {
+        var results = new List<ReportResult>();
+        foreach (var output in outputs) {
+            results.Add(new ReportResult { Format = output.Key, FilePath = output.Value, ErrorMessage = error });
         }
-        try
-        {
-            return Enum.Parse(enumType, value, ignoreCase: true);
-        }
-        catch
-        {
-            return Enum.Parse(enumType, defaultValue, ignoreCase: true);
-        }
+        return results;
     }
+
+    private static bool GenerateMessages(ReportFormat format, IReadOnlyList<MessageEvidenceReport> messages, string path,
+        bool openInBrowser, out string? error) {
+        if (format == ReportFormat.Json) {
+            error = "JSON message evidence export is not supported. Export the original analysis as JSON instead.";
+            return false;
+        }
+        var (suffix, renderer, method) = format switch {
+            ReportFormat.Excel => ("Office", "MessageHeaderOfficeReport", "GenerateEvidenceExcel"),
+            ReportFormat.Html => ("Html", "MessageHeaderHtmlReport", "GenerateEvidence"),
+            ReportFormat.Markdown or ReportFormat.MarkdownHtml => ("Markdown", "MessageHeaderMarkdownReport", "GenerateEvidence"),
+            _ => (string.Empty, string.Empty, string.Empty)
+        };
+        if (suffix.Length == 0) { error = $"{format} message report generation is not supported."; return false; }
+        string assembly = "DomainDetective.Reports." + suffix;
+        var type = RequireType(assembly + "." + renderer, assembly);
+        var parameters = format == ReportFormat.Excel
+            ? new[] { typeof(string), typeof(IReadOnlyList<MessageEvidenceReport>) }
+            : new[] { typeof(string), typeof(IReadOnlyList<MessageEvidenceReport>), typeof(bool) };
+        var generate = type.GetMethod(method, parameters)
+            ?? throw new InvalidOperationException("Message evidence generator signature not found.");
+        generate.Invoke(null, format == ReportFormat.Excel
+            ? new object[] { path, messages }
+            : new object[] { path, messages, format == ReportFormat.Html ? openInBrowser : format == ReportFormat.MarkdownHtml });
+        error = null;
+        return true;
+    }
+
+    private static bool Generate(string assemblySuffix, string renderer, string optionsName,
+        CompositionExportRequest request, DomainAssessmentReport report, string path, out string? error) {
+        string assembly = "DomainDetective.Reports." + assemblySuffix;
+        var type = RequireType(assembly + "." + renderer, assembly);
+        var optionsType = RequireType(assembly + "." + optionsName, assembly);
+        var options = Activator.CreateInstance(optionsType)!;
+        optionsType.GetProperty("ShowInfoFindings")!.SetValue(options, request.ShowInfoFindings);
+        var method = type.GetMethod("Generate", new[] { typeof(string), typeof(DomainAssessmentReport), optionsType });
+        if (method == null) {
+            error = $"Assessment generator '{type.FullName}.Generate' signature not found.";
+            return false;
+        }
+        method.Invoke(null, new[] { (object)path, report, options });
+        error = null;
+        return true;
+    }
+
+    private static bool GenerateHtml(CompositionExportRequest request, DomainAssessmentReport report, string path, out string? error) {
+        const string assembly = "DomainDetective.Reports.Html";
+        var type = RequireType(assembly + ".AssessmentHtmlReport", assembly);
+        var optionsType = RequireType(assembly + ".AssessmentHtmlOptions", assembly);
+        var options = Activator.CreateInstance(optionsType)!;
+        optionsType.GetProperty("ShowInfoFindings")!.SetValue(options, request.ShowInfoFindings);
+        var theme = optionsType.GetProperty("Theme")!;
+        theme.SetValue(options, Enum.Parse(theme.PropertyType, (request.HtmlTheme ?? "system").Trim(), ignoreCase: true));
+        var method = type.GetMethod("Generate", new[] { typeof(string), typeof(DomainAssessmentReport), optionsType, typeof(bool) });
+        if (method == null) {
+            error = "HTML assessment generator signature not found.";
+            return false;
+        }
+        method.Invoke(null, new[] { (object)path, report, options, request.OpenInBrowser });
+        error = null;
+        return true;
+    }
+
+    private static Type RequireType(string name, string assembly)
+        => Type.GetType(name + ", " + assembly, throwOnError: false)
+           ?? throw new InvalidOperationException($"Assessment generator '{name}' not found. Ensure '{assembly}' is referenced.");
 }

@@ -143,8 +143,8 @@ if (`$null -eq `$coreAssembly) {
 
         $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
         $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
-        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
-        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.md')
 
         Test-Path -LiteralPath $wordPath | Should -BeTrue
         Test-Path -LiteralPath $excelPath | Should -BeTrue
@@ -167,7 +167,9 @@ if (`$null -eq `$coreAssembly) {
         }
 
         Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
-        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+        $markdown = Get-Content -LiteralPath $markdownPath -Raw
+        $markdown | Should -Match 'example\.org'
+        $markdown | Should -Match 'SPF'
     }
 
     It 'generates OfficeIMO reports through the packaged Windows PowerShell module' {
@@ -236,8 +238,8 @@ if (`$null -eq `$coreAssembly) {
 
         $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
         $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
-        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
-        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.md')
 
         Test-Path -LiteralPath $wordPath | Should -BeTrue
         Test-Path -LiteralPath $excelPath | Should -BeTrue
@@ -260,6 +262,8 @@ if (`$null -eq `$coreAssembly) {
         }
 
         Get-Content -LiteralPath $htmlPath -Raw | Should -Match '<!doctype html>'
-        Get-Content -LiteralPath $markdownPath -Raw | Should -Match 'Executive Summary'
+        $markdown = Get-Content -LiteralPath $markdownPath -Raw
+        $markdown | Should -Match 'example\.org'
+        $markdown | Should -Match 'SPF'
     }
 }

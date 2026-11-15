@@ -11,12 +11,12 @@ Imports TLS-RPT JSON reports into a time-series store.
 ## SYNTAX
 ### Path (Default)
 ```powershell
-Import-DDTlsRptReportSnapshot [-Path] <string> -DomainName <string> -StorePath <string> [-NoDeduplicate] [-AsResult] [<CommonParameters>]
+Import-DDTlsRptReportSnapshot [-Path] <string> -DomainName <string> -StorePath <string> [-MaxUncompressedMb <int>] [-NoDeduplicate] [-AsResult] [<CommonParameters>]
 ```
 
 ### Imap
 ```powershell
-Import-DDTlsRptReportSnapshot -DomainName <string> -StorePath <string> -ImapHost <string> -Credential <pscredential> [-ImapPort <int>] [-ImapUseSsl <bool>] [-Mailbox <string>] [-SubjectContains <string>] [-SinceUtc <DateTime>] [-MaxMessages <int>] [-MaxAttachmentMb <int>] [-OnlyUnseen <bool>] [-NoDeduplicate] [-AsResult] [<CommonParameters>]
+Import-DDTlsRptReportSnapshot -DomainName <string> -StorePath <string> -ImapHost <string> -Credential <pscredential> [-ImapPort <int>] [-ImapUseSsl <bool>] [-Mailbox <string>] [-SubjectContains <string>] [-SinceUtc <DateTime>] [-MaxMessages <int>] [-MaxAttachmentMb <int>] [-MaxMessageMb <int>] [-MaxUncompressedMb <int>] [-OnlyUnseen <bool>] [-NoDeduplicate] [-AsResult] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -166,12 +166,44 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -MaxMessageMb
+Maximum raw IMAP message size in MB before MIME parsing (0 for unlimited).
+
+```yaml
+Type: Int32
+Parameter Sets: Imap
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -MaxMessages
 Maximum number of messages to scan (default 500).
 
 ```yaml
 Type: Int32
 Parameter Sets: Imap
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaxUncompressedMb
+Maximum expanded report size in MB for file and IMAP imports (0 for unlimited).
+
+```yaml
+Type: Int32
+Parameter Sets: Path, Imap
 Aliases: None
 Possible values:
 

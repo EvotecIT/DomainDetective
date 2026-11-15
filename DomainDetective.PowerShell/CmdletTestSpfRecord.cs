@@ -58,10 +58,11 @@ namespace DomainDetective.PowerShell {
                     return;
                 }
                 var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                var wantsComposition = fmts.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                var wantsComposition = fmts.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html);
                 var wantsJson = fmts.Contains(DomainDetective.Reports.ReportFormat.Json);
                 var hasUnsupportedFormats = fmts.Any(f =>
                     f != DomainDetective.Reports.ReportFormat.Word
+                    && f != DomainDetective.Reports.ReportFormat.Pdf
                     && f != DomainDetective.Reports.ReportFormat.Html
                     && f != DomainDetective.Reports.ReportFormat.Json);
 
@@ -100,12 +101,12 @@ namespace DomainDetective.PowerShell {
         }
 
         /// <summary>
-        /// Finalizes multi-domain exports for Word/HTML by composing a single file.
+        /// Finalizes multi-domain exports for Word/PDF/HTML by composing a single file.
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
             var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format)
-                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                 .ToArray();
             if (fmts.Length == 0) return Task.CompletedTask;
 
@@ -122,15 +123,18 @@ namespace DomainDetective.PowerShell {
                     fmts,
                     ExportPath,
                     label,
-                    DomainDetective.Reports.ReportScope.Detailed,
+                    DomainDetective.Reports.ReportScope.Normal,
                     $"SPF Report - {label}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (_hadUnsupportedFormats || hadUnsupportedFormats) {
                     return ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"SPF export failed: {ex.Message}");
             }

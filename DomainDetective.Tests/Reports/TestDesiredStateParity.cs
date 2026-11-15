@@ -20,7 +20,7 @@ namespace DomainDetective.Tests.Reports;
 public class TestDesiredStateParity
 {
     [Fact]
-    public void DesiredState_Counts_Appear_In_All_Formats()
+    public void DesiredAndBestPracticeFindingsRemainDistinctInAllFormats()
     {
         var domain = "example.org";
         var desiredWarnings = 2;
@@ -46,197 +46,31 @@ public class TestDesiredStateParity
             References = new[] { "https://example.org/reference" }
         };
 
-        var items = new List<object> { view };
-        var tmpHtml = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".html");
-        var tmpMd = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".md");
-        var tmpDocx = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".docx");
-        var tmpXlsx = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
-
-        HtmlCompositionReport.Generate(tmpHtml, items, ReportScope.Detailed);
-        MarkdownCompositionReport.Generate(tmpMd, items, ReportScope.Detailed);
-        WordCompositionReport.Generate(tmpDocx, items, ReportScope.Detailed, showInfoFindings: false);
-        ExcelCompositionReport.Generate(tmpXlsx, items, ReportScope.Detailed, profile: ExcelProfile.Workbook);
-
-        var html = File.ReadAllText(tmpHtml);
-        var md = File.ReadAllText(tmpMd);
-        var wordXml = ReadZipText(tmpDocx);
-        var excelXml = ReadZipText(tmpXlsx);
-        var excelRows = ReadExcelRows(tmpXlsx);
-
-        AssertStat(html, "Desired Warnings", desiredWarnings);
-        AssertStat(html, "Desired Errors", desiredErrors);
-        AssertStat(html, "Best-Practice Warnings", bestWarnings);
-        AssertStat(html, "Best-Practice Errors", bestErrors);
-        Assert.Contains("Test DesiredState Warning #1", html, StringComparison.Ordinal);
-        Assert.Contains("Test SPF Error #1", html, StringComparison.Ordinal);
-
-        AssertContainsLabelAndValue(md, "Desired State Warnings", desiredWarnings);
-        AssertContainsLabelAndValue(md, "Desired State Errors", desiredErrors);
-        AssertContainsLabelAndValue(md, "Best-Practice Warnings", bestWarnings);
-        AssertContainsLabelAndValue(md, "Best-Practice Errors", bestErrors);
-
-        AssertContainsLabelAndValue(wordXml, "Desired Warnings", desiredWarnings);
-        AssertContainsLabelAndValue(wordXml, "Desired Errors", desiredErrors);
-        AssertContainsLabelAndValue(wordXml, "Best-Practice Warnings", bestWarnings);
-        AssertContainsLabelAndValue(wordXml, "Best-Practice Errors", bestErrors);
-
-        AssertContainsLabelAndValue(excelRows, "Desired Warnings", desiredWarnings);
-        AssertContainsLabelAndValue(excelRows, "Desired Errors", desiredErrors);
-        AssertContainsLabelAndValue(excelRows, "Best-Practice Warnings", bestWarnings);
-        AssertContainsLabelAndValue(excelRows, "Best-Practice Errors", bestErrors);
-        Assert.Contains("HYPERLINK(", excelXml, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static Assessment[] CreateAssessments(string domain, string category, AssessmentSeverity severity, int count)
-    {
-        var list = new List<Assessment>();
-        for (var i = 0; i < count; i++)
-        {
-            list.Add(new Assessment
-            {
-                Severity = severity,
-                Category = category,
-                Target = domain,
-                Code = $"{category}.{severity}.{i + 1}",
-                Message = $"Test {category} {severity} #{i + 1}"
-            });
-        }
-        return list.ToArray();
-    }
-
-    private static string ReadZipText(string path)
-    {
-        var sb = new StringBuilder();
-        using var archive = ZipFile.OpenRead(path);
-        foreach (var entry in archive.Entries)
-        {
-            if (!entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
+        var report = DomainAssessmentBuilder.Build(new object[] { view });
+        var check = Assert.Single(Assert.Single(report.Domains).Checks);
+        Assert.Contains(check.Findings, finding => finding.Code == "DesiredState.Error.1" && finding.Message == "Test DesiredState Error #1");
+        Assert.Contains(check.Evidence, evidence => evidence.Title == "Best-practice findings" && evidence.Rows.Any(row => row.Contains("Test SPF Error #1")));
+        var directory = Path.Combine(Path.GetTempPath(), "dd-desired-export-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try {
+            var paths = new[] { Path.Combine(directory, "report.html"), Path.Combine(directory, "report.md"), Path.Combine(directory, "report.docx"), Path.Combine(directory, "report.xlsx") };
+            AssessmentHtmlReport.Generate(paths[0], report);
+            AssessmentMarkdownReport.Generate(paths[1], report);
+            AssessmentWordReport.Generate(paths[2], report);
+            AssessmentExcelReport.Generate(paths[3], report);
+            foreach (var path in paths) {
+                string text = ReportArtifactText.Read(path);
+                Assert.Contains("Test DesiredState Error #1", text);
+                Assert.Contains("Test DesiredState Warning #1", text);
+                Assert.Contains("Test SPF Error #1", text);
             }
-            using var reader = new StreamReader(entry.Open());
-            var xml = reader.ReadToEnd();
-            var text = Regex.Replace(xml, "<[^>]+>", " ");
-            text = Regex.Replace(text, "\\s+", " ").Trim();
-            if (text.Length == 0)
-            {
-                continue;
-            }
-            sb.Append(' ').Append(text);
-        }
-        return sb.ToString();
+        } finally { Directory.Delete(directory, true); }
     }
 
-    // The HTML report shows counts as stat cards: the number, then its label.
-    private static void AssertStat(string html, string label, int value)
-    {
-        var pattern = ">" + Regex.Escape(value.ToString()) + "</b><span>" + Regex.Escape(label) + "</span>";
-        Assert.Matches(new Regex(pattern, RegexOptions.IgnoreCase), html);
-    }
-
-    private static void AssertContainsLabelAndValue(string text, string label, int value)
-    {
-        Assert.Contains(label, text, StringComparison.OrdinalIgnoreCase);
-        var pattern = Regex.Escape(label) + ".{0,200}" + Regex.Escape(value.ToString());
-        Assert.Matches(new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline), text);
-    }
-
-    private static void AssertContainsLabelAndValue(IEnumerable<string> rows, string label, int value)
-    {
-        var valueText = value.ToString();
-        foreach (var row in rows)
-        {
-            if (row.IndexOf(label, StringComparison.OrdinalIgnoreCase) >= 0 &&
-                row.IndexOf(valueText, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return;
-            }
-        }
-
-        Assert.Fail($"Expected '{label}' with value '{value}' in the same Excel row.");
-    }
-
-    private static List<string> ReadExcelRows(string path)
-    {
-        using var archive = ZipFile.OpenRead(path);
-        var sharedStrings = ReadSharedStrings(archive);
-        var rows = new List<string>();
-        foreach (var entry in archive.Entries)
-        {
-            if (!entry.FullName.StartsWith("xl/worksheets/sheet", StringComparison.OrdinalIgnoreCase) ||
-                !entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            using var stream = entry.Open();
-            var doc = XDocument.Load(stream);
-            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-            foreach (var row in doc.Descendants(ns + "row"))
-            {
-                var values = new List<string>();
-                foreach (var cell in row.Elements(ns + "c"))
-                {
-                    var cellText = ExtractCellText(cell, ns, sharedStrings);
-                    if (!string.IsNullOrWhiteSpace(cellText))
-                    {
-                        values.Add(cellText!);
-                    }
-                }
-
-                if (values.Count > 0)
-                {
-                    rows.Add(string.Join(" | ", values));
-                }
-            }
-        }
-
-        return rows;
-    }
-
-    private static List<string> ReadSharedStrings(ZipArchive archive)
-    {
-        var entry = archive.Entries.FirstOrDefault(e => e.FullName.Equals("xl/sharedStrings.xml", StringComparison.OrdinalIgnoreCase));
-        if (entry == null)
-        {
-            return new List<string>();
-        }
-
-        using var stream = entry.Open();
-        var doc = XDocument.Load(stream);
-        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-        var strings = new List<string>();
-        foreach (var si in doc.Descendants(ns + "si"))
-        {
-            var text = string.Concat(si.Descendants(ns + "t").Select(t => t.Value));
-            strings.Add(text);
-        }
-
-        return strings;
-    }
-
-    private static string? ExtractCellText(XElement cell, XNamespace ns, List<string> sharedStrings)
-    {
-        var type = (string?)cell.Attribute("t");
-        if (string.Equals(type, "inlineStr", StringComparison.OrdinalIgnoreCase))
-        {
-            return cell.Element(ns + "is")?.Element(ns + "t")?.Value;
-        }
-
-        var value = cell.Element(ns + "v")?.Value;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (string.Equals(type, "s", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(value, out var index) &&
-            index >= 0 &&
-            index < sharedStrings.Count)
-        {
-            return sharedStrings[index];
-        }
-
-        return value;
+    private static Assessment[] CreateAssessments(string domain, string category, AssessmentSeverity severity, int count) {
+        return Enumerable.Range(1, count).Select(i => new Assessment {
+            Severity = severity, Category = category, Target = domain,
+            Code = $"{category}.{severity}.{i}", Message = $"Test {category} {severity} #{i}"
+        }).ToArray();
     }
 }

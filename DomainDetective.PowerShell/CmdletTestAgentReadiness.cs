@@ -83,11 +83,14 @@ public sealed class CmdletTestAgentReadiness : ExportableAsyncPSCmdlet {
                         $"Agent Readiness Report - {subject}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDAgentReadiness").ConfigureAwait(false);
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (Exception ex) {
                     WriteWarning($"Agent readiness export failed: {ex.Message}");
                 }

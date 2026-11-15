@@ -12,6 +12,12 @@ public static class MessageHeaderHtmlReport {
     /// <summary>Writes all message evidence without fetching or executing header-supplied resources.</summary>
     public static void Generate(string path, IReadOnlyList<MessageHeaderAnalysis> messages, bool openInBrowser = false) {
         if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
+        GenerateEvidence(path, messages.Select(MessageEvidenceReport.FromMessage).ToArray(), openInBrowser);
+    }
+
+    /// <summary>Writes projected message or standalone ARC evidence without acquiring remote resources.</summary>
+    public static void GenerateEvidence(string path, IReadOnlyList<MessageEvidenceReport> messages, bool openInBrowser = false) {
+        if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
         using var document = new Document {
             Head = { Title = "Email Message Analysis", Author = "DomainDetective", Charset = "utf-8" },
@@ -24,7 +30,7 @@ public static class MessageHeaderHtmlReport {
             page.H1("Email Message Analysis");
             for (var i = 0; i < messages.Count; i++) {
                 page.H2("Message " + (i + 1));
-                var brief = MessageHeaderReportBrief.Build(messages[i]);
+                var brief = messages[i].Brief;
                 page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
                     card.Header(header => header.Title("Executive brief"));
                     card.Body(body => {
@@ -44,7 +50,7 @@ public static class MessageHeaderHtmlReport {
                     });
                 })));
                 page.H3("Evidence appendix");
-                foreach (var section in MessageHeaderReport.Build(messages[i]).Where(section => section.Rows.Count > 0)) {
+                foreach (var section in messages[i].Sections.Where(section => section.Rows.Count > 0)) {
                     page.Row(row => row.Column(TablerColumnNumber.Twelve, column => column.Card(card => {
                         card.Header(header => header.Title(section.Title));
                         card.Body(body => {

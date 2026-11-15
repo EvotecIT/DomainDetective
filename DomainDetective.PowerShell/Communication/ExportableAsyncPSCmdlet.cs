@@ -9,10 +9,11 @@ namespace DomainDetective.PowerShell {
     /// Base cmdlet providing common -Export* parameters and helpers.
     /// </summary>
     public abstract class ExportableAsyncPSCmdlet : ParallelAsyncPSCmdlet {
-        /// <summary>Desired export format(s). Accepts one or many values.</summary>
+        /// <summary>Desired export format(s). Accepts Html, Json, Word, Pdf, Excel, Markdown and MarkdownHtml.</summary>
+        /// <para>Combine formats in one request, for example <c>-ExportFormat Word,Pdf,Html</c>. Word and PDF share the same paper report.</para>
         [Parameter(Mandatory = false)]
         [Alias("Report")]
-        [ValidateSet("Html","Json","Word","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
+        [ValidateSet("Html","Json","Word","Pdf","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
         public ReportFormat[]? ExportFormat { get; set; }
 
         /// <summary>Output file path for export.</summary>

@@ -59,7 +59,8 @@ internal static class Program {
             config.AddCommand<DomainDetective.CLI.Commands.DesiredStateCommand>("DesiredState")
                 .WithDescription("Evaluate Desired State (custom baseline) against a domain")
                 .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json" })
-                .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json", "--mode", "BestPracticesForUnspecified", "--format", "html" });
+                .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json", "--mode", "BestPracticesForUnspecified", "--format", "html" })
+                .WithExample(new[] { "DesiredState", "example.com", "--desired-state", "./desired-state.json", "--format", "word", "--format", "pdf" });
             config.AddCommand<DomainDetective.CLI.Commands.DesiredStateCommand>("desiredstate")
                 .WithDescription("Evaluate Desired State (alias)")
                 .WithExample(new[] { "desiredstate", "example.com", "--desired-state", "./desired-state.json" });
@@ -151,9 +152,10 @@ internal static class Program {
 
             // Reports
             config.AddCommand<DomainDetective.CLI.Commands.GenerateReportCommand>("GenerateReport")
-                .WithDescription("Generate reports (HTML/Word/Markdown/etc.)")
+                .WithDescription("Generate assessment reports (HTML, Word, PDF, Excel, Markdown, JSON)")
                 .WithExample(new[] { "GenerateReport", "example.com", "--format", "html" })
-                .WithExample(new[] { "GenerateReport", "example.com", "--format", "word", "--store-path", "./Store" });
+                .WithExample(new[] { "GenerateReport", "example.com", "--format", "word,pdf", "--store-path", "./Store" })
+                .WithExample(new[] { "GenerateReport", "example.com", "--format", "html", "--format", "pdf", "--theme", "dark" });
             config.AddCommand<DomainDetective.CLI.Commands.GenerateReportCommand>("report")
                 .WithDescription("Generate reports (alias)")
                 .WithExample(new[] { "report", "example.com", "--format", "html" });

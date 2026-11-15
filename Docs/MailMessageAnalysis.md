@@ -69,7 +69,7 @@ Get-DDEmailMessageHeaderInfo -Path './message.eml' -VerifySignatures -PublicKeyR
 Get-DDEmailMessageHeaderInfo -Path './message.eml' -VerifySignatures -AllowDnsLookups
 ```
 
-Use `Path` for byte-preserving verification. `HeaderText -VerifySignatures` encodes the supplied text as UTF-8 and cannot restore original bytes lost through copying. The friendly alias is `Get-EmailHeaderInfo`. The cmdlet supports Windows PowerShell 5.1 and PowerShell 7. Reports support HTML, Markdown, MarkdownHtml, Word, and Excel; batch exports include each message's source and evidence.
+Use `Path` for byte-preserving verification. `HeaderText -VerifySignatures` encodes the supplied text as UTF-8 and cannot restore original bytes lost through copying. The friendly alias is `Get-EmailHeaderInfo`. The cmdlet supports Windows PowerShell 5.1 and PowerShell 7. Reports support HTML, Markdown, MarkdownHtml, Word, PDF, and Excel; batch exports include each message's source and evidence.
 
 ## CLI
 
@@ -108,3 +108,5 @@ PowerShell exposes `MaximumMimeHeaderBytes` and `MaximumMimeComplianceIssues` on
 Domain-level DMARC discovery and policy auditing remain in DomainDetective's existing RFC 9989 owner. Controlled comparisons with MimeKit cover direct policy records, inherited policy, and public-suffix boundaries. MIME parsing does not reconstruct the original SMTP session's SPF result, and a message verdict does not replace the domain audit's policy diagnostics.
 
 No analyzer can prove a forged header's author from header text alone. Current DNS keys can differ from delivery-time keys, reported route clocks can be wrong, a valid ARC signature does not make its sealer trustworthy, and a copied message may no longer match its original signatures. These evidence boundaries remain visible in the results.
+
+Word and PDF can be requested together with `-ExportFormat Word,Pdf`. The report builds one message-evidence Word document and converts it through OfficeIMO, preserving the same layout.

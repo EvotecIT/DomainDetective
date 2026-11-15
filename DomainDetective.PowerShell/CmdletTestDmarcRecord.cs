@@ -57,10 +57,11 @@ namespace DomainDetective.PowerShell {
                 WriteObject(output);
                 if (IsExportRequested()) {
                     var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html);
                     var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                     var hasUnsupportedFormats = formats.Any(f =>
                         f != DomainDetective.Reports.ReportFormat.Word
+                        && f != DomainDetective.Reports.ReportFormat.Pdf
                         && f != DomainDetective.Reports.ReportFormat.Html
                         && f != DomainDetective.Reports.ReportFormat.Json);
 
@@ -99,11 +100,11 @@ namespace DomainDetective.PowerShell {
             await ForEachAsync(DomainName, ProcessDomainAsync);
         }
 
-        /// <summary>Composes DMARC sections into one document for Word/HTML export.</summary>
+        /// <summary>Composes DMARC sections into one document for Word/PDF/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
             var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
-                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                 .ToArray();
             if (formats.Length == 0) return Task.CompletedTask;
 
@@ -120,15 +121,18 @@ namespace DomainDetective.PowerShell {
                     formats,
                     ExportPath,
                     label,
-                    DomainDetective.Reports.ReportScope.Detailed,
+                    DomainDetective.Reports.ReportScope.Normal,
                     $"DMARC Report — {label}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (_hadUnsupportedFormats || hadUnsupportedFormats) {
                     return ExportNotImplementedAsync("Test-DDEmailDmarcRecord");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"DMARC export failed: {ex.Message}");
             }

@@ -9,7 +9,7 @@ namespace DomainDetective.Tests.Reports
     public class TestExcelDkimDetailsSmoke
     {
         [Fact]
-        public void Excel_Generates_With_Dkim_Ttl_Details()
+        public void ExcelRetainsDkimSelectorAndKeyEvidence()
         {
             // Arrange
             var domain = "example.org";
@@ -34,11 +34,12 @@ namespace DomainDetective.Tests.Reports
 
             var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
 
-            ExcelCompositionReport.Generate(tmp, items, DomainDetective.Reports.ReportScope.Detailed);
-            Assert.True(File.Exists(tmp));
-            var len = new FileInfo(tmp).Length;
-            Assert.True(len > 0);
+            AssessmentExcelReport.Generate(tmp, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
+            try {
+                var text = ReportArtifactText.Read(tmp);
+                Assert.Contains("s1", text);
+                Assert.Contains("RSA 2,048", text);
+            } finally { File.Delete(tmp); }
         }
     }
 }
-

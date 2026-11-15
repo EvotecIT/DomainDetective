@@ -11,7 +11,7 @@ Imports TLSRPT JSON reports.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Import-DDEmailTlsRpt [-Path] <string> [<CommonParameters>]
+Import-DDEmailTlsRpt [-Path] <string> [-MaxUncompressedMb <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -26,6 +26,22 @@ Import-DDEmailTlsRpt -Path ./report.json
 
 
 ## PARAMETERS
+
+### -MaxUncompressedMb
+Maximum expanded report size in MiB. The default is 50; 0 means unlimited.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -Path
 Path to the JSON report.

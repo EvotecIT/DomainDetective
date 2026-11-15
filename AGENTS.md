@@ -56,6 +56,11 @@ pwsh ./Website/build.ps1 -Fast                         # static site; -Serve for
 
 ## Conventions
 
+- Before adding or changing tests, apply the shared
+  [test-audit authoring gate](~/.codex/skills/test-audit/SKILL.md#authoring-gate)
+  and [contract-focused proof guidance](~/.codex/skills/contract-focused-tests/SKILL.md).
+  Resolve these procedures from `CODEX_HOME` (default `~/.codex`) on each machine.
+
 - C#: K&R braces, braces on every block. Prefer file-scoped namespaces for new
   files.
 - Cmdlets use the `DD` noun prefix (`Add-DDDnsblProvider`) and document

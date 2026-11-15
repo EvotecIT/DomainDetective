@@ -50,7 +50,7 @@ When a cap is hit, `ResultsCapped` is set and an informational assessment is emi
 ## Output surfaces
 
 - HTML report: “IP Enrichment” section (summary + findings + ASN/country counts + enriched row table + references)
-- Word report: “IP Enrichment” section (summary + evidence tables + findings)
+- Word/PDF report: “IP Enrichment” section (summary + evidence tables + findings)
 - Excel report (net8.0): “IP Enrichment” block (summary + ASN/country counts + rows)
 
 ## Notes and limitations

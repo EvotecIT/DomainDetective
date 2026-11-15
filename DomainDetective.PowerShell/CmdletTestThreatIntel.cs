@@ -48,7 +48,7 @@ namespace DomainDetective.PowerShell;
             this.WriteProgress,
             this.WriteInformation);
         loggerPs.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
         ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
@@ -76,15 +76,17 @@ namespace DomainDetective.PowerShell;
                     $"Threat Intel Report - {NameOrIpAddress}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (hadUnsupportedFormats) {
                     await ExportNotImplementedAsync("Test-DDDomainThreatIntel");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"Threat intel export failed: {ex.Message}");
             }
         }
     }
 }
-

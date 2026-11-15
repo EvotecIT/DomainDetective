@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Data;
-using OfficeIMO.Excel.Fluent;
+using OfficeIMO.Excel;
 
 namespace DomainDetective.Reports.Office;
 
@@ -20,26 +20,26 @@ internal static class ExcelReportText {
         return parts.ToArray();
     }
 
-    internal static string Table(SheetComposer composer, string[] columns, string[][] rows, double[] widths, string? title = null) {
+    internal static string Table(ExcelReportBuilder composer, string[] columns, string[][] rows, double[] widths, string? title = null) {
         var expanded = rows.Any(row => row.Where((text, index) => text.Length > Math.Max(128, (widths[index] - 4) * 18)).Any());
         (columns, rows) = Expand(columns, rows, widths.Select(width => Math.Max(128, (int)(width - 4) * 18)).ToArray());
         if (expanded) { var adjusted = widths.ToList(); adjusted.Insert(1, 12); widths = adjusted.ToArray(); }
         using var data = new DataTable();
         foreach (var column in columns) { data.Columns.Add(column, typeof(string)); }
         foreach (var row in rows) { data.Rows.Add(row.Cast<object>().ToArray()); }
-        var range = composer.TableFrom(data, title: title, freezeHeaderRow: true);
+        var range = composer.AddTable(data, title: title, freezeHeaderRow: true).Range!;
         var headerRow = int.Parse(new string(range.Split(':')[0].Where(char.IsDigit).ToArray()), System.Globalization.CultureInfo.InvariantCulture);
         for (var column = 0; column < columns.Length; column++) {
-            composer.Sheet.SetColumnWidth(column + 1, widths[column]);
+            composer.Sheet.SetColumnWidth(column + 1, ExcelColumnWidth.Characters(widths[column]));
             for (var row = headerRow; row <= headerRow + rows.Length; row++) {
-                composer.Sheet.CellWrapText(row, column + 1);
-                composer.Sheet.CellVerticalAlign(row, column + 1, OfficeIMO.Excel.ExcelVerticalAlignment.Top);
+                composer.Sheet.Cell(row, column + 1).SetWrapText();
+                composer.Sheet.Cell(row, column + 1).SetVerticalAlignment(OfficeIMO.Excel.ExcelVerticalAlignment.Top);
             }
         }
-        composer.Sheet.SetRowHeight(headerRow, 32);
+        composer.Sheet.SetRowHeight(headerRow, ExcelColumnWidth.Length(OfficeLength.Points(32)));
         for (var row = 0; row < rows.Length; row++) {
             var lines = rows[row].Select((value, column) => Math.Max(1, (int)Math.Ceiling(value.Length / Math.Max(1, widths[column] - 4)))).Max();
-            composer.Sheet.SetRowHeight(headerRow + row + 1, Math.Min(409, Math.Max(28, lines * 16 + 12)));
+            composer.Sheet.SetRowHeight(headerRow + row + 1, ExcelColumnWidth.Length(OfficeLength.Points(Math.Min(409, Math.Max(28, lines * 16 + 12)))));
         }
         return range;
     }

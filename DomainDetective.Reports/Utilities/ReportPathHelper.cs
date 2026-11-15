@@ -53,6 +53,12 @@ public static class ReportPathHelper
 
     public static string ResolveOutputPathForFormat(string? explicitPath, string? defaultOutputDirectory, string subject, ReportFormat format, IReadOnlyList<ReportFormat>? allFormats = null)
     {
+        // MarkdownHtml also writes a Markdown sidecar. Give both artifacts their own stem in a batch.
+        if (format == ReportFormat.MarkdownHtml && allFormats != null && allFormats.Count > 1) {
+            string path = ResolveOutputPathForFormat(explicitPath, defaultOutputDirectory, subject, format);
+            return Path.Combine(Path.GetDirectoryName(path) ?? string.Empty,
+                Path.GetFileNameWithoutExtension(path) + ".markdown.html");
+        }
         var formats = allFormats ?? new[] { format };
         if (!string.IsNullOrWhiteSpace(explicitPath))
         {

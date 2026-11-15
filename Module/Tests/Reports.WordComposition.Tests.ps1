@@ -1,5 +1,5 @@
 Describe 'Word composition (Pester)' {
-    It 'renders executive summary headings and references' {
+    It 'retains assessed domains and supplied findings' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         $originalOpen = [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser
         [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $false
@@ -13,6 +13,11 @@ Describe 'Word composition (Pester)' {
             $dmarc.Subject = 'example.com'
             $dmarc.Status = 'Warning'
             $dmarc.WarningCount = 1
+            $finding = [DomainDetective.Assessment]::new()
+            $finding.Severity = [DomainDetective.AssessmentSeverity]::Warning
+            $finding.Code = 'DMARC.EXPORT.FIXTURE'
+            $finding.Message = 'Distinct policy finding survives module export'
+            $dmarc.Assessments = [DomainDetective.Assessment[]]@($finding)
             $dmarc.References = [string[]]@('https://example.com/dmarc')
             @($spf, $dmarc) | Export-DDSecurityReport -ExportFormat Word -ExportPath $reportPath | Out-Null
             Test-Path -Path $reportPath | Should -BeTrue
@@ -37,10 +42,10 @@ Describe 'Word composition (Pester)' {
             }
 
             $text = ($xml -replace '<[^>]+>', ' ') -replace '\s+', ' '
-            $text | Should -Match 'Executive Summary'
-            $text | Should -Match 'Overview'
-            $text | Should -Match 'All References'
-            $text | Should -Match 'Findings\s*\(W/E\)'
+            $text = $text -replace [char]0x200B, ''
+            $text | Should -Match 'example.com'
+            $text | Should -Match 'Distinct policy finding survives module export'
+            $text | Should -Match 'DMARC.EXPORT.FIXTURE'
         } finally {
             [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $originalOpen
         }

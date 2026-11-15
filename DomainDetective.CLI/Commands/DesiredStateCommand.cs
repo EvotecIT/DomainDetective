@@ -51,7 +51,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         [CommandOption("--unicode")]
         public bool Unicode { get; set; }
 
-        [Description("Export report format(s): html, word, excel, markdown, markdownhtml, json")]
+        [Description("Export formats: html, word, pdf, excel, markdown, markdownhtml, json. Repeat the flag or separate formats with commas.")]
         [CommandOption("-f|--format|--report <FORMAT>")]
         public string[] Formats { get; set; } = Array.Empty<string>();
 
@@ -59,7 +59,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         [CommandOption("-o|--output <PATH>")]
         public string? OutputPath { get; set; }
 
-        [Description("Open generated HTML report in browser")]
+        [Description("Open generated reports in their associated application")]
         [CommandOption("--open")]
         public bool OpenInBrowser { get; set; }
 
@@ -83,6 +83,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken) {
+        var exportFormats = ReportFormatParser.Parse(settings.Formats);
         var config = LoadConfiguration(settings.DesiredStatePath);
         var mode = ResolveMode(settings.Mode, config.Mode);
         var wantsClassification = !settings.NoClassification && config.RequiresMailClassification();
@@ -96,7 +97,6 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
             return 1;
         }
 
-        var exportFormats = ParseFormats(settings.Formats);
         var exportRequested = exportFormats.Count > 0 || !string.IsNullOrWhiteSpace(settings.OutputPath);
 
         var views = new List<DomainDetective.Views.DesiredStateInfo>();
@@ -186,13 +186,7 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         }
 
         if (exportRequested && views.Count > 0) {
-            var request = new CompositionExportRequest {
-                Items = views,
-                Formats = exportFormats.Count > 0 ? exportFormats : new[] { ReportFormat.Html },
-                ExportPath = settings.OutputPath,
-                OpenInBrowser = settings.OpenInBrowser
-            };
-            var result = await CompositionExportService.ExportAsync(request, null, cancellationToken).ConfigureAwait(false);
+            var result = await ExportReportsAsync(settings, views, cancellationToken).ConfigureAwait(false);
             var failed = result.Reports.Where(r => !r.Success).ToList();
             if (failed.Count > 0) {
                 foreach (var r in failed) {
@@ -226,54 +220,13 @@ internal sealed class DesiredStateCommand : AsyncCommand<DesiredStateCommand.Set
         throw new ArgumentException($"Invalid desired state mode '{mode}'. Expected BaselineOnly, HybridSplit, or BestPracticesForUnspecified.");
     }
 
-    private static List<ReportFormat> ParseFormats(string[] raw) {
-        var list = new List<ReportFormat>();
-        if (raw == null || raw.Length == 0) {
-            return list;
-        }
-
-        foreach (var entry in raw) {
-            if (string.IsNullOrWhiteSpace(entry)) continue;
-            foreach (var token in entry.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
-                if (TryParseFormat(token, out var fmt)) {
-                    list.Add(fmt);
-                } else {
-                    AnsiConsole.MarkupLine($"[yellow]Unknown format '{token}' ignored.[/]");
-                }
-            }
-        }
-
-        return list.Distinct().ToList();
-    }
-
-    private static bool TryParseFormat(string token, out ReportFormat format) {
-        format = ReportFormat.Html;
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        switch (token.Trim().ToLowerInvariant()) {
-            case "html":
-                format = ReportFormat.Html;
-                return true;
-            case "word":
-            case "docx":
-                format = ReportFormat.Word;
-                return true;
-            case "excel":
-            case "xlsx":
-                format = ReportFormat.Excel;
-                return true;
-            case "markdown":
-            case "md":
-                format = ReportFormat.Markdown;
-                return true;
-            case "markdownhtml":
-            case "mdhtml":
-                format = ReportFormat.MarkdownHtml;
-                return true;
-            case "json":
-                format = ReportFormat.Json;
-                return true;
-            default:
-                return false;
-        }
+    /// <summary>Exports evaluated desired-state views in one report batch without repeating evaluation.</summary>
+    internal static Task<CompositionExportResult> ExportReportsAsync(Settings settings, IReadOnlyList<object> items,
+        CancellationToken cancellationToken = default) {
+        var formats = ReportFormatParser.Parse(settings.Formats);
+        return CompositionExportService.ExportAsync(new CompositionExportRequest {
+            Items = items, Formats = formats.Count > 0 ? formats : new[] { ReportFormat.Html },
+            ExportPath = settings.OutputPath, OpenInBrowser = settings.OpenInBrowser, AutoCollectTtl = false
+        }, null, cancellationToken);
     }
 }

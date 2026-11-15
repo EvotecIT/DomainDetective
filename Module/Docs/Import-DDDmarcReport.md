@@ -11,7 +11,7 @@ Parses zipped DMARC feedback reports.
 ## SYNTAX
 ### __AllParameterSets
 ```powershell
-Import-DDDmarcReport [-Path] <string> [<CommonParameters>]
+Import-DDDmarcReport [-Path] <string> [-MaxUncompressedMb <int>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -26,6 +26,22 @@ Import-DDDmarcReport -Path ./report.zip
 
 
 ## PARAMETERS
+
+### -MaxUncompressedMb
+Maximum expanded report size in MiB. The default is 50; 0 means unlimited.
+
+```yaml
+Type: Int32
+Parameter Sets: __AllParameterSets
+Aliases: None
+Possible values:
+
+Required: False
+Position: named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -Path
 Path to the zipped XML file.

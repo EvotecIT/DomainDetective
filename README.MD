@@ -36,7 +36,7 @@ Most PowerShell checks expose both a fully-prefixed cmdlet and a friendly alias.
 - **Web and certificates**: HTTP posture, certificate analysis, DANE/TLSA, S/MIMEA, static website scans, redirect chains, third-party inventory, header checks, tracker hints, and technology fingerprints.
 - **Registry, routing, and reputation**: WHOIS, RDAP, RPKI, DNSBL, threat intel hooks, VirusTotal helpers, search engine checks, and domain suggestions/search.
 - **Discovery and exposure**: CT timeline, subdomain discovery, certificate inventory, autodiscover, security.txt, contact TXT, directory exposure, and identity provider hints.
-- **Outputs and reporting**: JSON, HTML, Word, Excel, Markdown, and MarkdownHtml, plus JSON artifacts for repeated runs and time-series stores. PDF is planned through OfficeIMO once the dependency-free package path is available.
+- **Outputs and reporting**: JSON, HTML, Word, PDF, Excel, Markdown, and MarkdownHtml, plus JSON artifacts for repeated runs and time-series stores. PDF uses the same assessment document as Word through OfficeIMO conversion.
 
 ## How It Fits Together
 
@@ -46,7 +46,7 @@ flowchart LR
     B["CLI"] --> D
     C["C# library"] --> D
     D --> E["Views and JSON"]
-    D --> F["Reports: HTML, Word, Excel, Markdown"]
+    D --> F["Reports: HTML, Word, PDF, Excel, Markdown"]
     D --> G["Artifacts: scan.json, metrics.json, progress.jsonl"]
     D --> H["Stores: DMARC Aggregate, TLS-RPT, registration, cert inventory"]
 ```
@@ -128,7 +128,7 @@ Compose multi-check reports from pipeline output:
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
 
-Export-DDSecurityReport -ExportFormat Word -ExportPath ".\artifacts\example-email-auth.docx" {
+Export-DDSecurityReport -ExportFormat Word,Pdf -ExportPath ".\artifacts\example-email-auth.docx" {
     Test-EmailSpf -DomainName "example.com"
     Test-EmailDkim -DomainName "example.com"
     Test-EmailDmarc -DomainName "example.com"
@@ -250,7 +250,7 @@ await healthCheck.Verify("example.com");
 | `Test-DnsPropagation` | Query propagation across multiple resolvers |
 | `Test-DesiredState` | Compare a domain to an organization baseline |
 | `Invoke-DDCertificateInventory` | Capture certificate inventory snapshots |
-| `Export-DDSecurityReport` | Build HTML, Word, Excel, or Markdown reports from checks |
+| `Export-DDSecurityReport` | Build HTML, Word, PDF, Excel, or Markdown reports from checks |
 
 ### CLI
 
@@ -279,15 +279,10 @@ await healthCheck.Verify("example.com");
 
 ### Report Ordering
 
-- `DomainOrder`: `Alphabetical` or `Input`
-- `SectionOrderMode`: `Canonical`, `Input`, or `Custom`
-- `SectionOrder`: explicit section keys when using `Custom`
+`DomainOrder` accepts `Alphabetical` or `Input`. Assessment reports use canonical check ordering within each area.
+Nondefault scope, custom section order, legacy metadata other than Title, branding and Excel Dashboard overrides
+are rejected before export.
 
-Canonical per-domain section order:
-
-`MX`, `SPF`, `DKIM`, `DMARC`, `DMARC Aggregate`, `ARC`, `BIMI`, `DNSBL`, `RPKI`, `Registration`, `NS`, `SOA`, `TTL`, `ZoneTransfer`, `Wildcard`, `CAA`, `Classification`, `MTA-STS`, `TLS-RPT`, `TLS-RPT Reports`, `MAILTLS`, `DNSSEC`, `DANE`
-
-Executive summary columns remain canonical across formats; ordering affects per-domain sections only.
 
 ## Available Cmdlets and Aliases
 
@@ -472,7 +467,7 @@ Test-DomainHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Re
 CLI:
 
 ```bash
-dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format word --output ./Reports/example.docx
+dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format word,pdf --output ./Reports/example.docx
 ```
 
 Use this path when you want a broad posture report covering DNS, email, web, certificates, and selected discovery sections.
@@ -570,7 +565,19 @@ Import-DDEmailTlsRpt -Path ./report.json.gz -MaxUncompressedMb 100
 | Markdown | Lightweight document output |
 | MarkdownHtml | HTML generated from the Markdown-style layout |
 | JSON | Best for automation and downstream tooling |
-| PDF | Planned through OfficeIMO PDF after the dependency-free package path is available |
+| PDF | Paper assessment converted from the same Word document through OfficeIMO |
+
+Combine formats with repeated flags or commas; one scan produces one artifact run and all requested reports:
+
+```bash
+dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format word --format pdf --output ./Reports/example.docx
+dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format html,pdf --theme dark --output ./Reports/example.html
+```
+
+Word and PDF share one document build. A supplied file path provides the base name; each format gets its own
+extension. HTML theme options apply to the HTML member of a combined export. There is no separate PDF switch.
+In a multi-format batch, MarkdownHtml uses `<base>.markdown.html` with a `<base>.markdown.md` sidecar,
+leaving `<base>.html` and `<base>.md` for HTML and Markdown. Single-format filenames are unchanged.
 
 ### Artifact Layout
 
@@ -600,7 +607,7 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 $spf = Test-DDEmailSpfRecord -DomainName "evotec.pl"
 $dnsbl = Test-DDDnsBlacklist -NameOrIpAddress "evotec.pl"
 
-($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports -OpenReport
+($spf + $dnsbl) | Export-DDSecurityReport -ExportFormat Word,Pdf -ExportPath .\Reports -OpenReport
 ```
 
 Or use an inline script block:
@@ -608,7 +615,7 @@ Or use an inline script block:
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
 
-Export-DDSecurityReport -Scope Detailed -ExportFormat Markdown -ExportPath .\Reports {
+Export-DDSecurityReport -ExportFormat Markdown -ExportPath .\Reports {
     Test-DDEmailSpfRecord -DomainName "evotec.pl","evotec.xyz"
     Test-DDEmailDkimRecord -DomainName "evotec.pl","evotec.xyz"
     Test-DDEmailDmarcRecord -DomainName "evotec.pl","evotec.xyz"
@@ -617,16 +624,16 @@ Export-DDSecurityReport -Scope Detailed -ExportFormat Markdown -ExportPath .\Rep
 }
 ```
 
-Metadata can be set globally:
+The report title can be set globally:
 
 ```powershell
-Set-DDExportOptions -Title "Evotec - Q3 Portfolio Review" -Subject "Executive summary and remediation plan" -Category "Email Security" -Keywords "SPF,DKIM,DMARC" -Creator "Evotec"
+Set-DDExportOptions -Title "Evotec - Q3 Portfolio Review"
 ```
 
 Or per report:
 
 ```powershell
-Export-DDSecurityReport -ExportFormat Word -Title "Evotec - MX Review" -Subject "MX and transport policies"
+Export-DDSecurityReport -ExportFormat Word,Pdf -Title "Evotec - MX Review"
 ```
 
 ## Configuration Notes
@@ -756,7 +763,7 @@ DomainDetective.PowerShell/     Compiled PowerShell cmdlets
 DomainDetective.CLI/            Spectre.Console CLI and wizard
 DomainDetective.Reports/        Shared reporting abstractions and dispatch
 DomainDetective.Reports.Html/   HTML composition reports
-DomainDetective.Reports.Office/ Word and Excel reports
+DomainDetective.Reports.Office/ Word, PDF and Excel reports
 DomainDetective.Reports.Markdown/ Markdown and MarkdownHtml reports
 DomainDetective.Example/        C# usage samples
 Module/                         Importable module manifest, scripts, and PowerShell examples

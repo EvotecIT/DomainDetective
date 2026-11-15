@@ -58,11 +58,14 @@ namespace DomainDetective.PowerShell {
                             $"CAA Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync("Test-DDDnsCaaRecord");
                         }
+                    } catch (System.OperationCanceledException) {
+                        throw;
                     } catch (System.Exception ex) {
                         WriteWarning($"CAA export failed: {ex.Message}");
                     }
@@ -73,5 +76,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-
-

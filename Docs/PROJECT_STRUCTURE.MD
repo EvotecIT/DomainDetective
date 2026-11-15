@@ -26,7 +26,7 @@
 
 #### 4. **DomainDetective.Reports.Office** (Office Documents)
 - References: DomainDetective.Reports, OfficeIMO.Word, OfficeIMO.Excel
-- Word document generation using OfficeIMO.Word
+- Word document generation using OfficeIMO.Word, with PDF conversion through OfficeIMO's Word-to-PDF engine
 - Excel spreadsheet generation using OfficeIMO.Excel
 - Professional document templates
 
@@ -53,7 +53,7 @@ var report = await reportFactory.CreateReport(healthCheck, format: ReportFormat.
 
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/Markdown composition is available; PDF export remains planned through OfficeIMO.
+# Word/PDF/Excel/Markdown export is available; Word and PDF share one document build.
 ```
 
 ## Benefits of This Structure

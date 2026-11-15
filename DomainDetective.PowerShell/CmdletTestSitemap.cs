@@ -124,11 +124,14 @@ public sealed class CmdletTestSitemap : ExportableAsyncPSCmdlet {
                         $"Sitemap Report - {subject}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDSitemap").ConfigureAwait(false);
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (Exception ex) {
                     WriteWarning($"Sitemap export failed: {ex.Message}");
                 }

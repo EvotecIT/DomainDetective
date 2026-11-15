@@ -6,7 +6,7 @@ schema: 2.0.0
 ---
 # Export-DDSecurityReport
 ## SYNOPSIS
-Composes a security report (Word/HTML) from pipeline view objects (SPF/DKIM/DMARC).
+Exports an assessment as Word, PDF, HTML, Excel, JSON or Markdown from pipeline view objects.
 
 ## SYNTAX
 ### Default (Default)
@@ -22,6 +22,10 @@ Export-DDSecurityReport [[-Compose] <scriptblock>] [[-InputObject] <Object>] [-S
 ## DESCRIPTION
 Pipe outputs from existing cmdlets to build one report without duplicating rendering logic.
 
+Assessment exports use a fixed layout. Nondefault scope, narrative placement, section ordering, Excel profile,
+provider-help, metadata (except Title), branding and watermark overrides are rejected before composition. Use
+Scope Normal, canonical sections, Excel Workbook and Standard provider help. Title, DomainOrder and ShowInfoFindings are supported.
+
 ## EXAMPLES
 
 ### EXAMPLE 1
@@ -34,6 +38,13 @@ Export-DDSecurityReport -ExportFormat Word -ExportPath ".\\Reports" -OpenReport
 
 ### EXAMPLE 2
 ```powershell
+PS> $views | Export-DDSecurityReport -ExportFormat Word,Pdf,Html -ExportPath './Reports/assessment.docx'
+```
+
+The formats use one set of collected results. Word and PDF share one paper document; sibling files use the matching extensions.
+
+### EXAMPLE 3
+```powershell
 Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports" {
   Test-DDEmailSpfRecord  -DomainName contoso.com,fabrikam.com
   Test-DDEmailDkimRecord -DomainName contoso.com,fabrikam.com
@@ -42,7 +53,7 @@ Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports" {
 ```
 
 
-### EXAMPLE 3
+### EXAMPLE 4
 ```powershell
 $views = Test-DDEmailSpfRecord -DomainName contoso.com,fabrikam.com
 $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports" {
@@ -51,10 +62,9 @@ $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports"
 ```
 
 
-### EXAMPLE 4
+### EXAMPLE 5
 ```powershell
-Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\Reports" -DomainOrder Input `
-  -SectionOrderMode Custom -SectionOrder MX,SPF,DMARC {
+Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\Reports" -DomainOrder Input {
   Test-DDEmailSpfRecord   -DomainName contoso.com,fabrikam.com
   Test-DDEmailDmarcRecord -DomainName contoso.com,fabrikam.com
 }
@@ -80,7 +90,7 @@ Accept wildcard characters: False
 ```
 
 ### -Category
-Override document category for this export run.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -100,7 +110,7 @@ Optional script block executed to produce additional input objects for compositi
 
 Example:
 
-Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports {
+Export-DDSecurityReport -ExportFormat Word -ExportPath .\Reports {
 Test-DDEmailSpfRecord -DomainName contoso.com
 Test-DDDnsBlacklist -NameOrIpAddress 203.0.113.5
 }
@@ -119,7 +129,7 @@ Accept wildcard characters: False
 ```
 
 ### -Creator
-Override document creator/author for this export run.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -157,7 +167,7 @@ Optional list of resolver endpoints to use (multi-resolver).
 Type: DnsEndpoint[]
 Parameter Sets: Default, Inline
 Aliases: None
-Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom
+Possible values: System, SystemTcp, Cloudflare, CloudflareSecurity, CloudflareFamily, CloudflareWireFormat, CloudflareWireFormatPost, CloudflareJsonPost, Google, GoogleWireFormat, GoogleWireFormatPost, GoogleJsonPost, Quad9, Quad9ECS, Quad9Unsecure, OpenDNS, OpenDNSFamily, CloudflareQuic, Quad9Http3, Quad9Quic, GoogleQuic, AdGuard, AdGuardFamily, AdGuardNonFiltering, NextDNS, DnsCryptCloudflare, DnsCryptQuad9, DnsCryptRelay, RootServer, CloudflareOdoh, Custom, CleanBrowsingSecurity, CleanBrowsingAdult, CleanBrowsingFamily, ControlD, ControlDMalware, ControlDAds, ControlDFamily, ComodoSecureDns, DnsWatch
 
 Required: False
 Position: named
@@ -204,8 +214,7 @@ Accept wildcard characters: False
 ### -ExcelProfile
 Choose the Excel presentation profile.
 
-Workbook exports structured sheets intended for analysis and filtering; Dashboard
-emphasizes an at-a-glance overview sheet.
+Workbook exports assessment sheets for analysis and filtering. The retired Dashboard profile is rejected.
 
 ```yaml
 Type: String
@@ -237,13 +246,13 @@ Accept wildcard characters: False
 ```
 
 ### -ExportFormat
-Desired export format(s). Accepts one or many values.
+Combine formats in one request, for example -ExportFormat Word,Pdf,Html. Word and PDF share the same paper report.
 
 ```yaml
 Type: ReportFormat[]
 Parameter Sets: Default, Inline
 Aliases: Report
-Possible values: Html, Json, Word, Excel, Markdown, MarkdownHtml
+Possible values: Html, Json, Word, Pdf, Excel, Markdown, MarkdownHtml
 
 Required: False
 Position: named
@@ -284,7 +293,7 @@ Possible values: Assessment, Document, Dashboard
 
 Required: False
 Position: named
-Default value: Assessment
+Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
 ```
@@ -308,7 +317,7 @@ Accept wildcard characters: False
 ```
 
 ### -Keywords
-Override document keywords (comma-separated) for this export run.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -396,6 +405,8 @@ ShowBadges, ShowVerified, IncludeRestricted, IncludeThirdParty,
 and MaxProviders (integer limit).
 Example: @{ Under = 'MX','SPF','DKIM'; ShowNotes = $true; MaxProviders = 10 }.
 
+Assessment exports reject nondefault values for this legacy setting.
+
 ```yaml
 Type: Hashtable
 Parameter Sets: Default, Inline
@@ -416,6 +427,8 @@ Presets: Off (no provider help), Minimal (only under MX, no summaries/notes),
 Standard (balanced defaults), Detailed (enable all summaries/notes/verified/badges under all sections).
 Use together with ProviderHelpOptions to fine-tune.
 
+Assessment exports reject nondefault values for this legacy setting.
+
 ```yaml
 Type: String
 Parameter Sets: Default, Inline
@@ -430,7 +443,7 @@ Accept wildcard characters: False
 ```
 
 ### -Scope
-Detail scope for section writers.
+Use Normal for the assessment layout. Minimal and Detailed are rejected.
 
 ```yaml
 Type: ReportScope
@@ -450,6 +463,8 @@ Explicit section order to use when SectionOrderMode is Custom.
 
 Typical keys include: MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer,
 Wildcard, CAA, Classification, MTA-STS, TLS-RPT, DNSSEC, DANE. Values are normalized (e.g. "TLSRPT" → "TLS-RPT").
+
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String[]
@@ -500,7 +515,7 @@ Accept wildcard characters: False
 ```
 
 ### -Subject
-Override document subject/description for this export run.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: String
@@ -516,7 +531,7 @@ Accept wildcard characters: False
 ```
 
 ### -SummaryColumnCap
-Max status columns in the Word executive summary table.
+Assessment exports reject nondefault values for this legacy setting.
 
 ```yaml
 Type: Int32

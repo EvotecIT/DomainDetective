@@ -32,7 +32,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var helper = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             helper.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
@@ -56,11 +56,14 @@ namespace DomainDetective.PowerShell {
                         $"Mail Latency Report - {HostName}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDEmailLatency");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"Mail latency export failed: {ex.Message}");
                 }
@@ -68,4 +71,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

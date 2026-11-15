@@ -13,9 +13,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="OfficeIMO.Word" Version="3.5.3" />
-        <PackageReference Include="OfficeIMO.Excel" Version="3.5.3" />
-        <!-- <ProjectReference Include="..\..\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" /> -->
+        <PackageReference Include="OfficeIMO.Word" Version="3.6.1" />
+        <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.6.1" />
+        <PackageReference Include="OfficeIMO.Excel" Version="3.6.1" />
     </ItemGroup>
 
   <ItemGroup>

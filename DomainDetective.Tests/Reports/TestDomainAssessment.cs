@@ -174,7 +174,7 @@ namespace DomainDetective.Tests.Reports {
         }
 
         [Fact]
-        public void Html_FixFirstPutsSecurityExposureAboveCosmeticErrors() {
+        public void Html_FixFirstOrdersErrorsBeforeWarnings() {
             var report = new DomainAssessmentReport {
                 Domains = {
                     new DomainAssessment {
@@ -182,7 +182,7 @@ namespace DomainDetective.Tests.Reports {
                         Score = 60,
                         Grade = "C",
                         Checks = {
-                            // Old order: the error with the bigger score cost (BIMI) came first.
+                            // Severity takes precedence over the check's security priority.
                             new CheckAssessment { Key = "bimi", Title = "BIMI", Check = HealthCheckType.BIMI, Area = AnalysisArea.Mail, Outcome = CheckOutcome.Error, Score = 0, Scored = true, Weight = 3 },
                             new CheckAssessment { Key = "dmarc", Title = "DMARC", Check = HealthCheckType.DMARC, Area = AnalysisArea.Mail, Outcome = CheckOutcome.Warning, Score = 70, Scored = true, Weight = 1 }
                         }
@@ -193,7 +193,7 @@ namespace DomainDetective.Tests.Reports {
             string html = AssessmentHtmlReport.Render(report);
             string fixFirst = html.Substring(html.IndexOf("Do these first", StringComparison.Ordinal));
 
-            Assert.True(fixFirst.IndexOf("DMARC", StringComparison.Ordinal) < fixFirst.IndexOf("BIMI", StringComparison.Ordinal));
+            Assert.True(fixFirst.IndexOf("BIMI", StringComparison.Ordinal) < fixFirst.IndexOf("DMARC", StringComparison.Ordinal));
             Assert.Equal(0, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.DMARC));
             Assert.Equal(1, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.MTASTS));
             Assert.Equal(2, DomainAssessmentCatalog.SecurityPriority(HealthCheckType.BIMI));
@@ -326,6 +326,28 @@ namespace DomainDetective.Tests.Reports {
             Assert.Equal(2, domain.Checks.Count);
             Assert.Single(domain.Checks, static c => c.Key == "dmarc");
             Assert.Contains("ArcInfo", report.UnassignedInputs);
+        }
+
+        [Fact]
+        public void MailTls_SaysWhereTlsVersionsCouldNotAllBeTried() {
+            var view = new MailTlsInfo {
+                Check = HealthCheckType.IMAPTLS,
+                Subject = "example.test",
+                Servers = new[] {
+                    new MailTlsServerInfo { Key = "mx1.example.test:993", HostName = "mx1.example.test", Port = 993, Protocol = "Tls13", CertificateValid = true, ChainValid = true, HostnameMatch = true, ProtocolSupportComplete = true, LegacyProtocolSupportComplete = true, DaysToExpire = 90 },
+                    new MailTlsServerInfo { Key = "mx2.example.test:993", HostName = "mx2.example.test", Port = 993, Protocol = "Tls12", CertificateValid = true, ChainValid = true, HostnameMatch = true, ProtocolSupportComplete = false, LegacyProtocolSupportComplete = true, DaysToExpire = 90 }
+                },
+                Assessments = Array.Empty<Assessment>()
+            };
+
+            CheckAssessment check = DomainAssessmentBuilder.Build(new object[] { view }).Domains.Single().Checks.Single();
+
+            CheckMetric tested = Assert.Single(check.Metrics, static m => m.Label == "TLS versions tested");
+            Assert.Equal("1 of 2", tested.Value);
+            Assert.Equal(MetricState.Warning, tested.State);
+            CheckEvidence servers = Assert.Single(check.Evidence, static e => e.Kind == CheckEvidenceKind.Table && e.Title == "Servers");
+            int column = servers.Columns.IndexOf("Versions tested");
+            Assert.Equal(new[] { "all", "partly (legacy tested)" }, servers.Rows.Select(r => r[column]).ToArray());
         }
 
         [Fact]

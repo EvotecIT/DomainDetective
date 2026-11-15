@@ -21,6 +21,7 @@ public sealed class ReportDispatcher
     /// <returns>Structured <see cref="ReportResult"/> with success flag, file path, and size.</returns>
     public async Task<ReportResult> GenerateAsync(DomainHealthCheck health, ReportOptions options, string subject, bool openInBrowser = false)
     {
+        AssessmentExportSettings.Validate(options);
         var path = string.IsNullOrWhiteSpace(options.OutputPath)
             ? ReportPathHelper.GenerateDefaultPath(subject, options.Format, null)
             : options.OutputPath!;
@@ -86,6 +87,12 @@ public sealed class ReportDispatcher
             case ReportFormat.MarkdownHtml:
             {
                 var gen = TryCreate("DomainDetective.Reports.Markdown.MarkdownHtmlReportGenerator, DomainDetective.Reports.Markdown");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.Pdf:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Office.PdfReportGenerator, DomainDetective.Reports.Office");
                 if (gen != null) return gen;
                 break;
             }

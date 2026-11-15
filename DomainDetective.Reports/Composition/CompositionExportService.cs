@@ -11,19 +11,29 @@ namespace DomainDetective.Reports;
 
 public static class CompositionExportService
 {
-    public static async Task<CompositionExportResult> ExportAsync(
+    public static Task<CompositionExportResult> ExportAsync(
         CompositionExportRequest request,
         InternalLogger? logger = null,
         CancellationToken cancellationToken = default)
+        => ExportCoreAsync(request, true, logger, cancellationToken);
+
+    // Health-check reports retain their domain model, including unassigned-input diagnostics.
+    internal static Task<CompositionExportResult> ExportDomainAsync(CompositionExportRequest request)
+        => ExportCoreAsync(request, false, null, default);
+
+    private static async Task<CompositionExportResult> ExportCoreAsync(CompositionExportRequest request,
+        bool projectMessages, InternalLogger? logger, CancellationToken cancellationToken)
     {
         if (request == null)
         {
             throw new ArgumentNullException(nameof(request));
         }
 
-        var formats = (request.Formats != null && request.Formats.Count > 0)
-            ? request.Formats
-            : new[] { ReportFormat.Html };
+        AssessmentExportSettings.Validate(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IReadOnlyList<ReportFormat> formats = ((request.Formats != null && request.Formats.Count > 0)
+            ? request.Formats : new[] { ReportFormat.Html }).Distinct().ToArray();
 
         var flat = CompositionUtilities.Flatten(request.Items ?? Array.Empty<object>());
         if (flat.Count == 0)
@@ -36,7 +46,13 @@ public static class CompositionExportService
             };
         }
 
-        if (request.AutoCollectTtl)
+        var messages = projectMessages
+            ? flat.Select(MessageEvidenceReport.TryCreate).Where(message => message != null).Select(message => message!).ToArray()
+            : Array.Empty<MessageEvidenceReport>();
+        if (messages.Length > 0 && messages.Length != flat.Count) {
+            throw new ArgumentException("Message evidence reports cannot be mixed with domain report items.", nameof(request));
+        }
+        if (request.AutoCollectTtl && messages.Length == 0)
         {
             flat = await CompositionTtlAutoCollector.AddMissingTtlAsync(flat, request.ExecutionOptions, logger, cancellationToken).ConfigureAwait(false);
         }
@@ -50,17 +66,34 @@ public static class CompositionExportService
             LogSectionOrder(flat, request.Ordering, logger);
         }
 
+        var report = DomainAssessmentBuilder.Build(flat, new DomainAssessmentOptions {
+            Title = request.Title, DomainOrder = request.Ordering?.DomainOrder ?? DomainOrder.Alphabetical,
+            GeneratedAtUtc = request.GeneratedAtUtc
+        });
+        var paths = formats.ToDictionary(format => format, format => ReportPathHelper.ResolveOutputPathForFormat(
+            request.ExportPath, request.DefaultOutputDirectory, label, format, formats));
+        Dictionary<ReportFormat, ReportResult>? paperResults = null;
         var results = new List<ReportResult>();
         foreach (var format in formats)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var outPath = ReportPathHelper.ResolveOutputPathForFormat(request.ExportPath, request.DefaultOutputDirectory, label, format, formats);
+            var outPath = paths[format];
             var sw = Stopwatch.StartNew();
             logger?.WriteVerbose("Export-DDSecurityReport: generating {0} report to {1} (items: {2}, domains: {3}).", format, outPath, flat.Count, subjects.Count);
 
             try
             {
-                if (!CompositionReportDispatcher.TryGenerate(format, request, flat, outPath, out var error))
+                if (format is ReportFormat.Word or ReportFormat.Pdf) {
+                    paperResults ??= CompositionReportDispatcher.GeneratePaperReports(request, report,
+                        paths.Where(pair => pair.Key is ReportFormat.Word or ReportFormat.Pdf).ToDictionary(pair => pair.Key, pair => pair.Value), cancellationToken, messages)
+                        .ToDictionary(result => result.Format);
+                    ReportResult paper = paperResults[format];
+                    results.Add(paper);
+                    if (paper.Success && request.OpenInBrowser) { ReportOpenHelper.TryOpen(paper.FilePath); }
+                    if (!paper.Success) { logger?.WriteWarning("Export failed: {0}", paper.ErrorMessage); }
+                    continue;
+                }
+                if (!CompositionReportDispatcher.TryGenerate(format, request, report, outPath, out var error, messages))
                 {
                     var message = string.IsNullOrWhiteSpace(error) ? $"{format} composition not supported." : error!;
                     logger?.WriteWarning("Export failed: {0}", message);

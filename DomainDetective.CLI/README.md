@@ -176,6 +176,28 @@ Structured JSON with all analysis results, suitable for:
 - Automated monitoring systems
 - Custom reporting solutions
 
+### Word and PDF reports
+
+`GenerateReport` (alias `report`) and `DesiredState` accept `html`, `word`, `pdf`, `excel`, `markdown`,
+`markdownhtml` and `json`. Repeat `--format` or separate values with commas. Duplicates are removed while
+preserving the requested order. Unknown formats fail before analysis.
+
+```bash
+dotnet run --project DomainDetective.CLI -- GenerateReport example.com --format word,pdf --output ./Reports/assessment.docx
+dotnet run --project DomainDetective.CLI -- report example.com --format html --format pdf --theme dark --output ./Reports/assessment.html
+dotnet run --project DomainDetective.CLI -- DesiredState example.com --desired-state ./desired-state.json --format word --format pdf --output ./Reports/baseline.docx
+```
+
+All formats use one assessment model; Word and PDF share one document build. A file supplied to `--output`
+provides the base name and each format receives its own extension. GenerateReport writes its scan artifacts
+once. The command returns failure if any requested report fails, while successful reports remain available.
+In a multi-format batch, MarkdownHtml uses `<base>.markdown.html` with a `<base>.markdown.md` sidecar,
+leaving `<base>.html` and `<base>.md` for HTML and Markdown. Single-format filenames are unchanged.
+
+The default output is HTML. `--theme system|light|dark` applies to HTML, including HTML in a combined export;
+other combinations require the default `system`. Only `--template default` is supported. Assessment reports
+always include technical details and recommendations. There is no separate PDF switch.
+
 ### HTML Reports
 - Professional styled reports
 - Color-coded status sections

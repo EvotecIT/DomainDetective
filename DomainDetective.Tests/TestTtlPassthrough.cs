@@ -34,7 +34,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task DkimAnalysis_CapturesPerSelectorDnsRecordTtl_AndFlowsToReports() {
+        public async Task DkimAnalysis_CapturesPerSelectorDnsRecordTtl_AndFlowsToView() {
             var dkim = new DkimAnalysis { Subject = "example.com" };
             await dkim.AnalyzeDkimRecords("s1", new[] {
                 new DnsAnswer { Type = DnsRecordType.TXT, TTL = 300, Name = "s1._domainkey.example.com", DataRaw = "v=DKIM1; p=dGVzdA==" }
@@ -46,10 +46,6 @@ namespace DomainDetective.Tests {
             var viewList = DomainDetective.Views.Converters.Convert(dkim).ToList();
             var view = viewList.Single(v => v.Selector == "s1");
             Assert.Equal(300, view.DnsRecordTtl);
-
-            var sec = DomainDetective.Reports.SectionProjectors.BuildDkim(viewList);
-            Assert.NotNull(sec);
-            Assert.Equal(300, sec!.Rows.Single(r => r.Selector == "s1").TtlSeconds);
         }
 
         [Fact]

@@ -70,8 +70,8 @@ This includes:
 
 ### Report Formats
 - HTML (interactive, default)
-- PDF (planned through OfficeIMO)
 - Word (editable document)
+- PDF (the Word document converted through OfficeIMO, including final TOC page numbers)
 - Excel (data analysis)
 - Markdown (documentation)
 - JSON (data export)

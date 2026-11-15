@@ -15,7 +15,7 @@ Stop-DDUptimeMonitor [-Monitor] <UptimeMonitor> [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-Part of the DomainDetective project.
+Cancels the active probe and waits for its callbacks to finish.
 
 ## EXAMPLES
 

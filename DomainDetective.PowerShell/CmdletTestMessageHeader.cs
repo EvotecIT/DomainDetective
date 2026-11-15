@@ -11,6 +11,12 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Analyze headers from a file.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Get-DDEmailMessageHeaderInfo -ExpectedMx 'mx1.gateway.example.net'</code>
     /// </example>
+    /// <example>
+    ///   <summary>Analyze a local message and save Word, PDF and HTML together.</summary>
+    ///   <prefix>PS&gt; </prefix>
+    ///   <code>Get-DDEmailMessageHeaderInfo -Path './message.eml' -ExportFormat Word,Pdf,Html -ExportPath './Reports'</code>
+    ///   <para>Header analysis is offline by default. The requested reports share the same parsed messages and Word/PDF paper document.</para>
+    /// </example>
 [Cmdlet(VerbsCommon.Get, "DDEmailMessageHeaderInfo", DefaultParameterSetName = "Text")]
 [Alias("Get-EmailHeaderInfo")]
     public sealed class CmdletTestMessageHeader : ExportableAsyncPSCmdlet {
@@ -131,11 +137,14 @@ namespace DomainDetective.PowerShell {
                     "Email Message Header Report",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (hadUnsupportedFormats) {
                     return ExportNotImplementedAsync("Get-DDEmailMessageHeaderInfo");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"Message header export failed: {ex.Message}");
             }
@@ -143,4 +152,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

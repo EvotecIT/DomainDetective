@@ -4,7 +4,9 @@ using System.Collections.Generic;
 namespace DomainDetective.Reports;
 
 /// <summary>
-/// Options for report generation
+/// Options for report generation. Assessment exports use the default template, fixed detail and recommendations.
+/// Nondefault template/theme, disabled details/recommendations and raw-data overrides are rejected.
+/// CustomProperties accepts Domain and OpenInBrowser. Title, GeneratedAt and ShowInfoFindings are preserved.
 /// </summary>
     public class ReportOptions {
     /// <summary>

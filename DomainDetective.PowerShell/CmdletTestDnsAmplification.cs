@@ -64,20 +64,25 @@ public sealed class CmdletTestDnsAmplification : ExportableAsyncPSCmdlet
                             $"DNS Amplification Report — {domain}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats)
                         {
                             await ExportNotImplementedAsync("Test-DDDnsAmplification").ConfigureAwait(false);
                         }
                     }
-                    catch (Exception ex)
+                    catch (System.OperationCanceledException) {
+                        throw;
+                    } catch (Exception ex)
                     {
                         WriteWarning($"DNS amplification export failed: {ex.Message}");
                     }
                 }
             }
-            catch (Exception ex)
+            catch (System.OperationCanceledException) {
+                throw;
+            } catch (Exception ex)
             {
                 WriteError(new ErrorRecord(ex, "DomainDetective.ConvertFailed", ErrorCategory.InvalidData, domain));
             }

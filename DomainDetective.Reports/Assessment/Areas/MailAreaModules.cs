@@ -19,7 +19,7 @@ internal sealed class SpfAreaModule : IAssessmentAreaModule {
         if (!spf.SpfRecordExists) {
             // A failed lookup says nothing about the record; calling it missing would raise a false alarm.
             check.Metrics.Add(spf.DnsQueryFailed
-                ? Metric("Record", "Unknown", MetricState.Warning, "the DNS lookup failed")
+                ? Metric("Record", "Unknown", MetricState.Neutral, "the DNS lookup failed")
                 : Metric("Record", "Missing", MetricState.Error, "anyone can send as this domain"));
             return true;
         }
@@ -85,7 +85,7 @@ internal sealed class DmarcAreaModule : IAssessmentAreaModule {
         if (dmarc == null) return false;
         if (!dmarc.DmarcRecordExists) {
             check.Metrics.Add(dmarc.DnsQueryFailed
-                ? Metric("Record", "Unknown", MetricState.Warning, "the DNS lookup failed")
+                ? Metric("Record", "Unknown", MetricState.Neutral, "the DNS lookup failed")
                 : Metric("Record", "Missing", MetricState.Error, "spoofed mail is not rejected"));
             return true;
         }
@@ -254,18 +254,23 @@ internal sealed class MailTlsAreaModule : IAssessmentAreaModule {
         check.Metrics.Add(Metric("Encrypted", $"{N(tls)} of {N(servers.Count)}", tls == servers.Count ? MetricState.Good : MetricState.Error, "servers negotiating TLS"));
         check.Metrics.Add(Metric("Certificate problems", N(certificateProblems), certificateProblems > 0 ? MetricState.Error : MetricState.Good));
         check.Metrics.Add(Metric("TLS 1.3", $"{N(tls13)} of {N(servers.Count)}", tls13 == servers.Count ? MetricState.Good : MetricState.Neutral));
+        // A version probe that timed out or was refused leaves legacy support unknown, not absent.
+        int probed = servers.Count(static s => !string.IsNullOrWhiteSpace(s.Protocol) && s.ProtocolSupportComplete);
+        if (tls > 0) check.Metrics.Add(Metric("TLS versions tested", $"{N(probed)} of {N(tls)}", probed == tls ? MetricState.Good : MetricState.Warning,
+            probed == tls ? "servers where every TLS version was tried" : "servers where some versions could not be tried; legacy support there is unknown"));
         if (soonest != null) {
             DateTime? expires = soonest.ValidTo ?? soonest.CertificateNotAfter;
             int days = soonest.DaysToExpire;
             check.Metrics.Add(Metric("Next certificate expiry", expires.HasValue ? Day(expires.Value) : N(days) + " days", days < 0 ? MetricState.Error : days <= 14 ? MetricState.Warning : MetricState.Good));
         }
 
-        Table(check, "Servers", new[] { "Server", "Port", "Address", "Protocol", "Cipher", "Certificate", "Expires" },
+        Table(check, "Servers", new[] { "Server", "Port", "Address", "Protocol", "Versions tested", "Cipher", "Certificate", "Expires" },
             servers.Select(static s => (IReadOnlyList<string?>)new[] {
                 s.HostName,
                 s.Port.ToString(CultureInfo.InvariantCulture),
                 s.RemoteAddress ?? s.ConnectAddress,
                 NullIfEmpty(s.Protocol) ?? "no TLS",
+                string.IsNullOrWhiteSpace(s.Protocol) ? null : s.ProtocolSupportComplete ? "all" : s.LegacyProtocolSupportComplete ? "partly (legacy tested)" : "partly",
                 NullIfEmpty(s.CipherSuite),
                 CertificateState(s),
                 string.IsNullOrWhiteSpace(s.Protocol) || !(s.ValidTo ?? s.CertificateNotAfter).HasValue ? null : Day((s.ValidTo ?? s.CertificateNotAfter)!.Value)

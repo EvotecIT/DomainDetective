@@ -55,17 +55,25 @@ Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.js
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -PreviousBundlePath .\Reports\report-desired-state-bundle.json
 ```
 
-CLI example:
+CLI report exports:
 
 ```bash
-# First run (export bundle alongside report)
-DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html
+# Word and PDF from one evaluated assessment and one document build
+DomainDetective DesiredState example.com --config ./desired-state.json --format word,pdf --output ./Reports/report.docx
 
-# Next run with delta
-DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html --previous-bundle .\Reports\report-desired-state-bundle.json
+# Repeated flags are equivalent; each format receives its own file extension
+DomainDetective DesiredState example.com --config ./desired-state.json --format word --format pdf --output ./Reports/report.docx
 ```
 
-When a previous bundle is provided, run delta appears in HTML/Word/Excel/Markdown outputs and in the summary CSV.
+The CLI accepts `html`, `word`, `pdf`, `excel`, `markdown`, `markdownhtml` and `json`. Formats can be combined
+with commas or repeated flags; duplicate values are removed in input order. There is no standalone PDF switch.
+Unknown formats fail before domain evaluation. Export failures are reported per format without removing
+successful outputs.
+In a multi-format batch, MarkdownHtml uses `<base>.markdown.html` with a `<base>.markdown.md` sidecar,
+leaving `<base>.html` and `<base>.md` for HTML and Markdown. Single-format filenames are unchanged.
+
+The previous-bundle comparison above is a PowerShell option. When supplied there, delta evidence is part of the
+assessment model used by HTML, Word, PDF, Excel and Markdown exports.
 
 ### Report output snapshot (baseline metadata + coverage)
 
@@ -74,7 +82,7 @@ When a baseline is loaded, the Desired State section includes:
 - Baseline Metadata (mode, version, hash, source, overrides)
 - Effective Policy Snapshot (resolved checks and overrides)
 - Coverage Summary (configured vs executed checks)
-- Run Delta (when `--previous-bundle` or `-PreviousBundlePath` is provided)
+- Run Delta (when PowerShell `-PreviousBundlePath` is provided)
 
 Example Baseline Metadata block (format varies by output type):
 

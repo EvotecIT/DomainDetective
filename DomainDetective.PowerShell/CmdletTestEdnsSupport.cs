@@ -58,11 +58,14 @@ public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet {
                         $"EDNS Support Report - {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDnsEdnsSupport");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (Exception ex) {
                     WriteWarning($"EDNS support export failed: {ex.Message}");
                 }

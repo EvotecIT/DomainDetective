@@ -67,11 +67,14 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet {
                         $"Directory Exposure Report — {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDirectoryExposure");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"Directory exposure export failed: {ex.Message}");
                 }

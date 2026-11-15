@@ -52,8 +52,7 @@ namespace DomainDetective.PowerShell {
                 this.WriteProgress,
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            ApplyExecutionOptions(_healthCheck);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);            ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
 
@@ -73,6 +72,7 @@ namespace DomainDetective.PowerShell {
             var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
             var label = ParameterSetName == "File" && !string.IsNullOrWhiteSpace(File) ? System.IO.Path.GetFileName(File) : "Message";
             var wantsComposition = formats.Contains(DomainDetective.Reports.ReportFormat.Word)
+                || formats.Contains(DomainDetective.Reports.ReportFormat.Pdf)
                 || formats.Contains(DomainDetective.Reports.ReportFormat.Html);
             if (wantsComposition) {
                 _items.Add(view);
@@ -93,6 +93,7 @@ namespace DomainDetective.PowerShell {
 
             var hasUnsupportedFormats = formats.Any(f =>
                 f != DomainDetective.Reports.ReportFormat.Word
+                && f != DomainDetective.Reports.ReportFormat.Pdf
                 && f != DomainDetective.Reports.ReportFormat.Html
                 && f != DomainDetective.Reports.ReportFormat.Json);
             _hadUnsupportedFormats |= hasUnsupportedFormats;
@@ -105,12 +106,12 @@ namespace DomainDetective.PowerShell {
         }
 
         /// <summary>
-        /// Finalizes exports for Word/HTML by composing a single file.
+        /// Finalizes exports for Word/PDF/HTML by composing a single file.
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
             var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format)
-                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html)
+                .Where(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html)
                 .ToArray();
             if (formats.Length == 0) return Task.CompletedTask;
 
@@ -127,15 +128,18 @@ namespace DomainDetective.PowerShell {
                     formats,
                     ExportPath,
                     label,
-                    DomainDetective.Reports.ReportScope.Detailed,
+                    DomainDetective.Reports.ReportScope.Normal,
                     $"ARC Report — {label}",
                     OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                     TryOpenReport,
-                    out hadUnsupportedFormats);
+                    out hadUnsupportedFormats,
+                    CancelToken);
 
                 if (_hadUnsupportedFormats || hadUnsupportedFormats) {
                     return ExportNotImplementedAsync("Test-DDEmailArcRecord");
                 }
+            } catch (System.OperationCanceledException) {
+                throw;
             } catch (System.Exception ex) {
                 WriteWarning($"ARC export failed: {ex.Message}");
             }
@@ -143,5 +147,3 @@ namespace DomainDetective.PowerShell {
         }
 }
 }
-
-

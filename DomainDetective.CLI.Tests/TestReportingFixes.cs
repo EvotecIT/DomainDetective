@@ -35,11 +35,76 @@ public sealed class TestReportingFixes
     }
 
     [Fact]
-    public void ResolveReportFormat_RejectsPdfBeforeAnalysisStarts()
-    {
-        var ex = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ResolveReportFormat("pdf"));
+    public void ReportFormatsAcceptPdfAlongsideWord() {
+        Assert.Equal(new[] { ReportFormat.Word, ReportFormat.Pdf }, ReportFormatParser.Parse(new[] { "word,pdf" }));
+    }
 
-        Assert.Contains("PDF report generation is not currently shipped", ex.Message, StringComparison.Ordinal);
+    [Theory]
+    [InlineData("template")]
+    [InlineData("technical")]
+    [InlineData("recommendations")]
+    public void ReportPresentationRejectsUnsupportedOverridesWithoutAnalysis(string option) {
+        var settings = new GenerateReportCommand.Settings { Domain = "example.test" };
+        if (option == "template") { settings.Template = "executive"; }
+        if (option == "technical") { settings.IncludeTechnical = false; }
+        if (option == "recommendations") { settings.IncludeRecommendations = false; }
+        var error = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ValidatePresentation(settings));
+        Assert.Contains("--" + option, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("system")]
+    [InlineData("light")]
+    [InlineData("dark")]
+    public void ReportPresentationAcceptsSupportedHtmlThemes(string theme) {
+        var settings = new GenerateReportCommand.Settings { Formats = new[] { "html" }, Theme = theme };
+        Assert.Equal(ReportFormat.Html, Assert.Single(GenerateReportCommand.ValidatePresentation(settings)));
+    }
+
+    [Theory]
+    [InlineData("word", "light")]
+    [InlineData("word", "dark")]
+    [InlineData("excel", "light")]
+    [InlineData("excel", "dark")]
+    [InlineData("markdown", "light")]
+    [InlineData("markdown", "dark")]
+    [InlineData("markdownhtml", "light")]
+    [InlineData("markdownhtml", "dark")]
+    [InlineData("json", "light")]
+    [InlineData("json", "dark")]
+    [InlineData("pdf", "light")]
+    [InlineData("pdf", "dark")]
+    public void ReportPresentationRejectsThemesForNonHtmlFormats(string format, string theme) {
+        var settings = new GenerateReportCommand.Settings { Formats = new[] { format }, Theme = theme };
+        var error = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ValidatePresentation(settings));
+        Assert.Contains("--theme", error.Message, StringComparison.Ordinal);
+        Assert.Contains("only to HTML", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("html", ReportFormat.Html)]
+    [InlineData("word", ReportFormat.Word)]
+    [InlineData("excel", ReportFormat.Excel)]
+    [InlineData("markdown", ReportFormat.Markdown)]
+    [InlineData("markdownhtml", ReportFormat.MarkdownHtml)]
+    [InlineData("json", ReportFormat.Json)]
+    [InlineData("pdf", ReportFormat.Pdf)]
+    public void ReportPresentationAcceptsDefaultSettingsForShippedFormats(string format, ReportFormat expected) {
+        Assert.Equal(expected, Assert.Single(GenerateReportCommand.ValidatePresentation(new GenerateReportCommand.Settings { Formats = new[] { format } })));
+    }
+
+    [Fact]
+    public void ReportPresentationRejectsUnknownHtmlThemeInsteadOfIgnoringIt() {
+        var error = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ValidatePresentation(
+            new GenerateReportCommand.Settings { Theme = "unknown" }));
+        Assert.Contains("--theme", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PdfPresentationStillRejectsUnsupportedTemplates() {
+        var error = Assert.Throws<InvalidOperationException>(() => GenerateReportCommand.ValidatePresentation(
+            new GenerateReportCommand.Settings { Formats = new[] { "pdf" }, Template = "executive" }));
+        Assert.Contains("--template", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

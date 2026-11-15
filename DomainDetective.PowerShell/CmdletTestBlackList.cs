@@ -107,7 +107,7 @@ namespace DomainDetective.PowerShell {
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             // initialize the health check object
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             ApplyExecutionOptions(healthCheck);
             if (MaxConcurrency.HasValue) {
                 healthCheck.DnsConfiguration.ResolverMaxConcurrency = MaxConcurrency.Value;
@@ -182,7 +182,7 @@ AfterWrite:
             if (IsExportRequested()) {
                 try {
                     var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Html);
+                    var wantsComposition = formats.Any(f => f == DomainDetective.Reports.ReportFormat.Word || f == DomainDetective.Reports.ReportFormat.Pdf || f == DomainDetective.Reports.ReportFormat.Html);
                     var wantsJson = formats.Contains(DomainDetective.Reports.ReportFormat.Json);
                     if (wantsComposition) {
                         var view = BuildViewOutput();
@@ -203,7 +203,8 @@ AfterWrite:
                             $"DNSBL Report — {label}",
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             TryOpenReport,
-                            out hadUnsupportedFormats);
+                            out hadUnsupportedFormats,
+                            CancelToken);
 
                         if (hadUnsupportedFormats) {
                             await ExportNotImplementedAsync();
@@ -227,6 +228,8 @@ AfterWrite:
                     if (!wantsComposition && !wantsJson) {
                         await ExportNotImplementedAsync();
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"DNSBL export failed: {ex.Message}");
                 }
@@ -283,5 +286,3 @@ AfterWrite:
         }
     }
 }
-
-

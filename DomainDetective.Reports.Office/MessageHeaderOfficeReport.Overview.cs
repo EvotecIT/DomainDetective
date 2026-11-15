@@ -2,16 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using OfficeIMO.Excel;
-using OfficeIMO.Excel.Fluent;
 
 namespace DomainDetective.Reports.Office;
 
 public static partial class MessageHeaderOfficeReport {
-    private static void WriteOverviewSheet(ExcelDocument document, IReadOnlyList<MessageHeaderAnalysis> messages) {
-        document.AsFluent().Info(i => i.Title("Email Message Analysis").Author("DomainDetective").Company("Evotec").Application("OfficeIMO.Excel")).End();
-        var composer = new SheetComposer(document, "Overview");
+    private static void WriteOverviewSheet(ExcelDocument document, IReadOnlyList<MessageEvidenceReport> messages) {
+        document.Properties.Title = "Email Message Analysis";
+        document.Properties.Creator = "DomainDetective";
+        document.ApplicationProperties.Company = "Evotec";
+        document.ApplicationProperties.ApplicationName = "OfficeIMO.Excel";
+        var composer = document.AddSheet("Overview", ExcelSheetNameValidationMode.Sanitize).Report();
         composer.Title("Email Message Analysis", $"Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
-        var briefs = messages.Select(MessageHeaderReportBrief.Build).ToArray();
+        var briefs = messages.Select(message => message.Brief).ToArray();
         composer.KpiRow(new (string, object?)[] {
             ("Messages", messages.Count),
             ("Errors", briefs.Sum(brief => brief.Findings.Count(a => a.Severity == AssessmentSeverity.Error))),
@@ -23,7 +25,7 @@ public static partial class MessageHeaderOfficeReport {
             var message = messages[i];
             var brief = briefs[i];
             ExcelReportLayout.Section(composer, "Message " + (i + 1) + " — " + brief.SubjectLabel);
-            ExcelReportLayout.Paragraph(composer, MessageHeaderReport.VisibleText(message.From) + " → " + MessageHeaderReport.VisibleText(message.To));
+            ExcelReportLayout.Paragraph(composer, message.ContextLabel);
             ExcelReportLayout.Paragraph(composer, brief.Summary);
             ExcelReportLayout.Section(composer, "What the evidence establishes");
             foreach (var line in brief.Evidence) { ExcelReportLayout.Paragraph(composer, line); }
@@ -42,18 +44,18 @@ public static partial class MessageHeaderOfficeReport {
             if (brief.Actions.Count == 0) { ExcelReportLayout.Paragraph(composer, "Retain the original MIME message and corroborate receiver claims before making a trust decision."); }
         }
         var sheet = composer.Sheet;
-        for (var column = 1; column <= 6; column++) { sheet.SetColumnWidth(column, 18); }
+        for (var column = 1; column <= 6; column++) { sheet.SetColumnWidth(column, ExcelColumnWidth.Characters(18)); }
         for (var row = 1; row < composer.CurrentRow; row++) {
-            sheet.CellWrapText(row, 1);
-            sheet.CellVerticalAlign(row, 1, ExcelVerticalAlignment.Top);
+            sheet.Cell(row, 1).SetWrapText();
+            sheet.Cell(row, 1).SetVerticalAlignment(ExcelVerticalAlignment.Top);
         }
-        sheet.SetRowHeight(1, 36);
-        sheet.SetRowHeight(2, 25);
-        sheet.MergeRange("A1:F1");
-        sheet.MergeRange("A2:F2");
-        sheet.CellFontSize(1, 1, 20);
-        sheet.Freeze(topRows: 3);
-        sheet.SetGridlinesVisible(false);
-        sheet.ApplyPrintLayout(new ExcelPrintLayoutOptions { Preset = ExcelPrintLayoutPreset.Report, PrintArea = "A1:F" + (composer.CurrentRow - 1), FitToHeight = 0, Orientation = OfficeIMO.OfficePageOrientation.Portrait });
+        sheet.SetRowHeight(1, ExcelColumnWidth.Length(OfficeLength.Points(36)));
+        sheet.SetRowHeight(2, ExcelColumnWidth.Length(OfficeLength.Points(25)));
+        sheet.Range("A1:F1").Merge();
+        sheet.Range("A2:F2").Merge();
+        sheet.Cell(1, 1).SetFontSize(OfficeLength.Points(20));
+        sheet.View.Freeze(topRows: 3);
+        sheet.View.ShowGridlines = false;
+        sheet.PageSetup.ApplyLayout(new ExcelPrintLayoutOptions { Preset = ExcelPrintLayoutPreset.Report, PrintArea = "A1:F" + (composer.CurrentRow - 1), FitToHeight = 0, Orientation = OfficeIMO.OfficePageOrientation.Portrait });
     }
 }

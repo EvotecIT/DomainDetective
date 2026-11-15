@@ -52,7 +52,7 @@ When a cap is hit, `ResultsCapped` is set and an informational assessment is emi
 ## Output surfaces
 
 - HTML report: renders a “CT Timeline” section (summary + findings + timeline buckets + recent sample + references).
-- Word report: renders a “CT Timeline” section (summary + findings + evidence tables).
+- Word/PDF report: renders a “CT Timeline” section (summary + findings + evidence tables).
 - Excel report (net8.0): renders a “CT Timeline” block (summary + timeline + recent sample tables).
 
 ## Notes and limitations

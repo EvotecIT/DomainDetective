@@ -60,11 +60,14 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
                         $"Wildcard DNS — {domain}",
                         OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                         TryOpenReport,
-                        out hadUnsupportedFormats);
+                        out hadUnsupportedFormats,
+                        CancelToken);
 
                     if (hadUnsupportedFormats) {
                         await ExportNotImplementedAsync("Test-DDDnsWildcard");
                     }
+                } catch (System.OperationCanceledException) {
+                    throw;
                 } catch (System.Exception ex) {
                     WriteWarning($"Wildcard DNS export failed: {ex.Message}");
                 }
@@ -74,5 +77,3 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
         await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 }
-
-

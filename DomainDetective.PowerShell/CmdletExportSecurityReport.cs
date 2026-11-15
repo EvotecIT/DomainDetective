@@ -11,8 +11,11 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
-    /// <summary>Composes a security report (Word/HTML) from pipeline view objects (SPF/DKIM/DMARC).</summary>
+    /// <summary>Exports an assessment as Word, PDF, HTML, Excel, JSON or Markdown from pipeline view objects.</summary>
     /// <para>Pipe outputs from existing cmdlets to build one report without duplicating rendering logic.</para>
+    /// <para>Assessment exports use a fixed layout. Nondefault scope, narrative placement, section ordering, Excel profile,
+    /// provider-help, metadata (except Title), branding and watermark overrides are rejected before composition. Use
+    /// Scope Normal, canonical sections, Excel Workbook and Standard provider help. Title, DomainOrder and ShowInfoFindings are supported.</para>
     /// <example>
     ///   <summary>Compose SPF+DMARC across two domains.</summary>
     ///   <code>
@@ -20,6 +23,12 @@ namespace DomainDetective.PowerShell {
     ///   Test-DDEmailDmarcRecord -DomainName contoso.com, fabrikam.com |
     ///   Export-DDSecurityReport -ExportFormat Word -ExportPath ".\\Reports" -OpenReport
     ///   </code>
+    /// </example>
+    /// <example>
+    ///   <summary>Export the same collected results to Word, PDF and HTML.</summary>
+    ///   <prefix>PS&gt; </prefix>
+    ///   <code>$views | Export-DDSecurityReport -ExportFormat Word,Pdf,Html -ExportPath './Reports/assessment.docx'</code>
+    ///   <para>The formats use one set of collected results. Word and PDF share one paper document; sibling files use the matching extensions.</para>
     /// </example>
     /// <example>
     ///   <summary>Inline, positional ScriptBlock (no -Compose switch).</summary>
@@ -41,10 +50,9 @@ namespace DomainDetective.PowerShell {
     ///   </code>
     /// </example>
     /// <example>
-    ///   <summary>Preserve input domain order and force a custom section order.</summary>
+    ///   <summary>Preserve input domain order.</summary>
     ///   <code>
-    ///   Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\Reports" -DomainOrder Input `
-    ///     -SectionOrderMode Custom -SectionOrder MX,SPF,DMARC {
+    ///   Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\Reports" -DomainOrder Input {
     ///     Test-DDEmailSpfRecord   -DomainName contoso.com,fabrikam.com
     ///     Test-DDEmailDmarcRecord -DomainName contoso.com,fabrikam.com
     ///   }
@@ -62,7 +70,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 1, ParameterSetName = "Inline")]
         public object? InputObject;
 
-        /// <summary>Detail scope for section writers.</summary>
+        /// <summary>Use Normal for the assessment layout. Minimal and Detailed are rejected.</summary>
         [Parameter(Mandatory = false)]
         public DomainDetective.Reports.ReportScope Scope { get; set; } = DomainDetective.Reports.ReportScope.Normal;
 
@@ -78,6 +86,7 @@ namespace DomainDetective.PowerShell {
         /// <c>Standard</c> (balanced defaults), <c>Detailed</c> (enable all summaries/notes/verified/badges under all sections).
         /// Use together with <see cref="ProviderHelpOptions"/> to fine-tune.
         /// </para>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Off","Minimal","Standard","Detailed")]
         public string ProviderHelpPreset { get; set; } = "Standard";
@@ -90,6 +99,7 @@ namespace DomainDetective.PowerShell {
         /// and <c>MaxProviders</c> (integer limit).
         /// Example: <c>@{ Under = 'MX','SPF','DKIM'; ShowNotes = $true; MaxProviders = 10 }</c>.
         /// </para>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)]
         public Hashtable? ProviderHelpOptions { get; set; }
 
@@ -98,7 +108,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Example:</para>
         /// <para>
         /// <code>
-        /// Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports {
+        /// Export-DDSecurityReport -ExportFormat Word -ExportPath .\Reports {
         ///     Test-DDEmailSpfRecord -DomainName contoso.com
         ///     Test-DDDnsBlacklist -NameOrIpAddress 203.0.113.5
         /// }
@@ -113,12 +123,16 @@ namespace DomainDetective.PowerShell {
         /// <summary>Override document title for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Title { get; set; }
         /// <summary>Override document subject/description for this export run.</summary>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)] public string? Subject { get; set; }
         /// <summary>Override document category for this export run.</summary>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)] public string? Category { get; set; }
         /// <summary>Override document keywords (comma-separated) for this export run.</summary>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)] public string? Keywords { get; set; }
         /// <summary>Override document creator/author for this export run.</summary>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)] public string? Creator { get; set; }
 
         // Presentation profiles (optional)
@@ -135,8 +149,7 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Choose the Excel presentation profile.</para>
         /// <para>
-        /// <c>Workbook</c> exports structured sheets intended for analysis and filtering; <c>Dashboard</c>
-        /// emphasizes an at-a-glance overview sheet.
+        /// <c>Workbook</c> exports assessment sheets for analysis and filtering. The retired <c>Dashboard</c> profile is rejected.
         /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Workbook","Dashboard")]
@@ -166,10 +179,12 @@ namespace DomainDetective.PowerShell {
         /// Typical keys include: MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer,
         /// Wildcard, CAA, Classification, MTA-STS, TLS-RPT, DNSSEC, DANE. Values are normalized (e.g. "TLSRPT" → "TLS-RPT").
         /// </para>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)]
         public string[]? SectionOrder { get; set; }
 
         /// <summary>Max status columns in the Word executive summary table.</summary>
+        /// <para>Assessment exports reject nondefault values for this legacy setting.</para>
         [Parameter(Mandatory = false)]
         [ValidateRange(1, 12)]
         public int? SummaryColumnCap { get; set; }
@@ -267,6 +282,8 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Generates the report at the end of the pipeline.</summary>
         protected override async Task EndProcessingAsync() {
+            // Fail before executing a Compose block or writing any report when retired options are requested.
+            var request = CreateExportSettings();
             // If a script block was provided, invoke and append its results
             if (Compose != null) {
                 WriteVerbose("Export-DDSecurityReport: Compose execution started.");
@@ -333,69 +350,45 @@ namespace DomainDetective.PowerShell {
                 WriteProgress,
                 WriteInformation);
 
-            var ordering = new DomainDetective.Reports.OrderingOptions {
-                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                SectionOrder = SectionOrder
-            };
-
-            var titleOverride = string.IsNullOrWhiteSpace(Title)
-                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle)
-                : Title;
-            var subjectOverride = string.IsNullOrWhiteSpace(Subject)
-                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject)
-                : Subject;
-            var categoryOverride = string.IsNullOrWhiteSpace(Category)
-                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory)
-                : Category;
-            var keywordsOverride = string.IsNullOrWhiteSpace(Keywords)
-                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords)
-                : Keywords;
-            var creatorOverride = string.IsNullOrWhiteSpace(Creator)
-                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator)
-                : Creator;
-
-            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
-            var providerHelp = DomainDetective.Reports.ProviderHelpOptionsFactory.Build(ProviderHelpPreset, ProviderHelpOptions);
-            var openInBrowser = OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser;
-            var request = new DomainDetective.Reports.CompositionExportRequest {
-                Items = _items,
-                Formats = formats,
-                Scope = Scope,
-                ShowInfoFindings = ResolveShowInfoFindings(ShowInfoFindings, MyInvocation?.BoundParameters),
-                Ordering = ordering,
-                HtmlProfile = this.HtmlProfile,
-                ExcelProfile = this.ExcelProfile,
-                Title = titleOverride,
-                Subject = subjectOverride,
-                Category = categoryOverride,
-                Keywords = keywordsOverride,
-                Creator = creatorOverride,
-                NarrativePlacement = ExportDefaults.NarrativePlacement,
-                CompanyName = ExportDefaults.CompanyName,
-                CompanyAddress = ExportDefaults.CompanyAddress,
-                CompanyYear = ExportDefaults.CompanyYear,
-                LogoPath = string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                HeaderText = string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                FooterText = string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
-                WatermarkText = string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                SummaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap,
-                HeaderLogoSizePx = ExportDefaults.HeaderLogoSizePx,
-                FooterLogoSizePx = ExportDefaults.FooterLogoSizePx,
-                ProviderHelpOptions = providerHelp,
-                ExportPath = ExportPath,
-                DefaultOutputDirectory = ExportDefaults.OutputDirectory,
-                OpenInBrowser = openInBrowser,
-                LogSectionOrder = IsVerboseEnabled(),
-                AutoCollectTtl = true,
-                ExecutionOptions = new DomainDetective.Reports.CompositionExecutionOptions {
-                    EnableParallelism = !DisableParallel.IsPresent,
-                    MaxParallelism = MaxParallelism
-                }
+            request.Items = _items;
+            request.Formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            request.ShowInfoFindings = ResolveShowInfoFindings(ShowInfoFindings, MyInvocation?.BoundParameters);
+            request.ExportPath = ExportPath;
+            request.OpenInBrowser = OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser;
+            request.LogSectionOrder = IsVerboseEnabled();
+            request.AutoCollectTtl = true;
+            request.ExecutionOptions = new DomainDetective.Reports.CompositionExecutionOptions {
+                EnableParallelism = !DisableParallel.IsPresent,
+                MaxParallelism = MaxParallelism
             };
 
             await DomainDetective.Reports.CompositionExportService.ExportAsync(request, logger, CancelToken).ConfigureAwait(false);
             return;
+        }
+
+        /// <summary>Validates explicit and inherited presentation options before composition has side effects.</summary>
+        internal DomainDetective.Reports.CompositionExportRequest CreateExportSettings() {
+            if (!string.Equals(ProviderHelpPreset, "Standard", StringComparison.OrdinalIgnoreCase)
+                || ProviderHelpOptions?.Count > 0) {
+                throw new NotSupportedException("Assessment reports do not support ProviderHelpPreset or ProviderHelpOptions overrides. Use the Standard default without overrides.");
+            }
+            var request = ExportDefaults.CreateReportRequest();
+            request.Scope = Scope;
+            request.HtmlProfile = HtmlProfile;
+            request.ExcelProfile = ExcelProfile;
+            request.Title = string.IsNullOrWhiteSpace(Title) ? request.Title : Title;
+            request.Subject = string.IsNullOrWhiteSpace(Subject) ? request.Subject : Subject;
+            request.Category = string.IsNullOrWhiteSpace(Category) ? request.Category : Category;
+            request.Keywords = string.IsNullOrWhiteSpace(Keywords) ? request.Keywords : Keywords;
+            request.Creator = string.IsNullOrWhiteSpace(Creator) ? request.Creator : Creator;
+            request.SummaryColumnCap = SummaryColumnCap ?? request.SummaryColumnCap;
+            request.Ordering = new DomainDetective.Reports.OrderingOptions {
+                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, true),
+                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, true),
+                SectionOrder = SectionOrder
+            };
+            DomainDetective.Reports.AssessmentExportSettings.Validate(request);
+            return request;
         }
 
         private sealed class ComposeScriptItem {

@@ -169,6 +169,10 @@ public sealed class CheckAssessment {
 
 /// <summary>A warning, error or note raised by a check.</summary>
 public sealed class CheckFinding {
+    /// <summary>The finding describes unavailable acquisition evidence, rather than an observed domain defect.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsEvidenceGap { get; set; }
+
     /// <summary>Severity reported by the check.</summary>
     public AssessmentSeverity Severity { get; set; }
 

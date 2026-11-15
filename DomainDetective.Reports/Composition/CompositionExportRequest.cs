@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Reports;
 
+/// <summary>Assessment export input and settings. Nondefault legacy layout, metadata other than Title,
+/// branding and provider-help settings are rejected before files are written. See <see cref="AssessmentExportSettings"/>.</summary>
 public sealed class CompositionExportRequest
 {
     public IReadOnlyList<object> Items { get; set; } = Array.Empty<object>();
@@ -11,6 +13,8 @@ public sealed class CompositionExportRequest
     public bool ShowInfoFindings { get; set; } = true;
     public OrderingOptions Ordering { get; set; } = new OrderingOptions();
     public string? Title { get; set; }
+    /// <summary>Optional generation time preserved in the assessment model.</summary>
+    public DateTimeOffset? GeneratedAtUtc { get; set; }
     public string? Subject { get; set; }
     public string? Category { get; set; }
     public string? Keywords { get; set; }
@@ -28,6 +32,8 @@ public sealed class CompositionExportRequest
     public int? FooterLogoSizePx { get; set; }
     public ProviderHelpRenderOptions? ProviderHelpOptions { get; set; }
     public string HtmlProfile { get; set; } = "Assessment";
+    /// <summary>HTML theme: system, light or dark. Applies only to HTML in a combined export.</summary>
+    public string HtmlTheme { get; set; } = "system";
     public string ExcelProfile { get; set; } = "Workbook";
     public string? ExportPath { get; set; }
     public string? DefaultOutputDirectory { get; set; }
