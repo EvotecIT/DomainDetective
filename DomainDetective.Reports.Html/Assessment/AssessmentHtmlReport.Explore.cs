@@ -32,6 +32,14 @@ public static partial class AssessmentHtmlReport {
     /// finding on one name server" without leaving the table.
     /// </summary>
     private static void RenderExplore(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids, AssessmentHtmlOptions options) {
+        var actions = DoFirstGroups(report).ToList();
+        var actionKeys = actions.Select((_, index) => "priority-" + index.ToString(CultureInfo.InvariantCulture)).ToArray();
+        var actionByTarget = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (int index = 0; index < actions.Count; index++) {
+            foreach (var member in actions[index].Members) {
+                actionByTarget[ids.Check(member.Domain, member.Check)] = actionKeys[index];
+            }
+        }
         List<CheckRow> checks = report.Domains
             .SelectMany(d => d.Checks.Select(c => new CheckRow { Domain = d, Check = c, Target = ids.Check(d, c) }))
             .ToList();
@@ -43,6 +51,15 @@ public static partial class AssessmentHtmlReport {
         ReportDataset checkData = ReportDataset.Create("checks", checks, b => b
             .Title("Checks")
             .Text("target", "Target", static r => r.Target, c => c.Key().Hidden())
+            // Readable chips keep exact group keys, even when different findings share a display label.
+            .Category("action", "Action", r => actionByTarget.TryGetValue(r.Target, out string? key) ? key : null, c => {
+                c.Hidden();
+                for (int index = 0; index < actions.Count; index++) {
+                    var action = actions[index];
+                    int domains = action.Members.Select(member => member.Domain.Domain).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                    c.ValueLabel(actionKeys[index], action.Check.Title + " on " + Plural(domains, "domain"));
+                }
+            })
             // The check names the row and its outcome stays beside it on a phone; domain and area give way first.
             .Category("check", "Check", static r => r.Check.Title, c => c.RowHeader())
             .Category("outcome", "Outcome", static r => OutcomeLabel(r.Check.Outcome), c => c.ResponsivePriority(1)
@@ -83,13 +100,11 @@ public static partial class AssessmentHtmlReport {
                     .AddView("By check", v => v.OrderBy("check").OrderBy("domain"))
                     .QuickFilters("outcome", "area")
                     .Settings(s => s.RowTarget("target").Drawer(true, "check", "domain").Exports(DataExplorerExports.Csv));
-                var actions = DoFirstGroups(report).ToList();
                 for (int index = 0; index < actions.Count; index++) {
                     var action = actions[index];
                     if (action.Members.Count < 2) { continue; }
-                    string[] targets = action.Members.Select(member => ids.Check(member.Domain, member.Check)).ToArray();
-                    explorer.AddShortcut("priority-" + index.ToString(CultureInfo.InvariantCulture), shortcut => shortcut
-                        .View("All checks").Where("target", ReportFilterOperator.In, targets));
+                    explorer.AddShortcut(actionKeys[index], shortcut => shortcut
+                        .View("All checks").Where("action", ReportFilterOperator.EqualTo, actionKeys[index]));
                 }
             }));
             views.View("explore-findings", "Findings", view => view.DataExplorer(findingData, explorer => {
