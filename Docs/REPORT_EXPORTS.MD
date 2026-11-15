@@ -24,6 +24,8 @@ Standalone ARC and message-header inputs use the message evidence renderers for 
 
 PDF is a public export: the same document converted through OfficeIMO's Word-to-PDF path, with correct TOC page numbers. PowerShell takes `Pdf` the way it already takes the other formats (a `-Pdf` switch or a `Pdf` value in the existing format parameter, whichever pattern the cmdlet uses); the CLI takes `--format pdf`. When Word and PDF are both requested, the document is built once and converted.
 
+OfficeIMO 3.6.1 has two layout limitations: refreshing Contents in native Word can leave the cached entries beside the refreshed list, and PDF keep-with-next can leave a heading before a table that starts on the following page. The shared fixes are [OfficeIMO #3477](https://github.com/EvotecIT/OfficeIMO/pull/3477) and [#3491](https://github.com/EvotecIT/OfficeIMO/pull/3491); they are consumed through normal dependency updates.
+
 Order:
 
 1. **Cover (page 1, no header).**
@@ -101,5 +103,5 @@ The same shared wording, no HTML-only phrases. Parentheses and single spaces sta
   - incomplete evidence is never toned as a warning in any export;
   - captured facts, records and lists remain available when informational findings are hidden;
   - CLI `report --format json` retains the raw health-check JSON contract, including when combined with assessment formats.
-- Made-up 1-, 3- and 24-domain runs in each format, kept outside the repository for visual review. Native Word field refresh preserves one Contents list, Summary and each domain entry; refreshed PDFs are checked alongside the generated exports. HTML Controls use equal-width tiles at 1440, 1024 and 390 px, and grouped actions open Explore with the affected domains and finding selected.
+- Made-up 1-, 3- and 24-domain runs in each format, kept outside the repository for visual review. Native Word field-refresh PDFs are checked alongside the generated exports, with version-specific Contents limitations recorded. HTML Controls use equal-width tiles at 1440, 1024 and 390 px, and grouped actions open Explore with the affected domains and finding selected.
 - The legacy `SectionProjectors`/`Composition` Office and Markdown code removed once nothing uses it.
