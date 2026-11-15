@@ -54,8 +54,12 @@ Describe 'Public PDF exports' {
         @(Get-ChildItem -LiteralPath $directory -File).Count | Should -Be 3
         $pdfPath = Join-Path $directory 'assessment.pdf'
         $htmlPath = Join-Path $directory 'assessment.html'
-        $pdf = [OfficeIMO.Pdf.PdfReadDocument]::Open([System.IO.File]::ReadAllBytes($pdfPath))
-        $pdf.ExtractText() | Should -Match 'Offline assessment finding survives every format'
+        $pdf = [OfficeIMO.Pdf.PdfDocument]::Load($pdfPath)
+        try {
+            $pdf.ExtractText() | Should -Match 'Offline assessment finding survives every format'
+        } finally {
+            $pdf.Dispose()
+        }
         [System.IO.File]::ReadAllText($htmlPath) | Should -Match 'Offline assessment finding survives every format'
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $archive = [System.IO.Compression.ZipFile]::OpenRead($path)
@@ -79,8 +83,12 @@ Describe 'Public PDF exports' {
         $defaultPath = Join-Path $defaultDirectory 'message.pdf'
         Get-DDEmailMessageHeaderInfo -HeaderText $headers -ExportPath $defaultPath -ErrorAction Stop | Out-Null
         @(Get-ChildItem -LiteralPath $defaultDirectory -File).Count | Should -Be 1
-        $pdf = [OfficeIMO.Pdf.PdfReadDocument]::Open([System.IO.File]::ReadAllBytes($defaultPath))
-        $pdf.ExtractText() | Should -Match 'Offline message fixture'
+        $pdf = [OfficeIMO.Pdf.PdfDocument]::Load($defaultPath)
+        try {
+            $pdf.ExtractText() | Should -Match 'Offline message fixture'
+        } finally {
+            $pdf.Dispose()
+        }
 
         $batchDirectory = Join-Path $TestDrive 'message-batch'
         Get-DDEmailMessageHeaderInfo -HeaderText $headers -ExportFormat Word, Pdf, Html -ExportPath (Join-Path $batchDirectory 'message.docx') -ErrorAction Stop | Out-Null
@@ -88,8 +96,12 @@ Describe 'Public PDF exports' {
         foreach ($name in @('message.docx', 'message.pdf', 'message.html')) {
             Test-Path -LiteralPath (Join-Path $batchDirectory $name) | Should -BeTrue
         }
-        $batchPdf = [OfficeIMO.Pdf.PdfReadDocument]::Open([System.IO.File]::ReadAllBytes((Join-Path $batchDirectory 'message.pdf')))
-        $batchPdf.ExtractText() | Should -Match 'Offline message fixture'
+        $batchPdf = [OfficeIMO.Pdf.PdfDocument]::Load((Join-Path $batchDirectory 'message.pdf'))
+        try {
+            $batchPdf.ExtractText() | Should -Match 'Offline message fixture'
+        } finally {
+            $batchPdf.Dispose()
+        }
     }
 
     It 'rejects an undefined default format without changing the selected Pdf default' {
