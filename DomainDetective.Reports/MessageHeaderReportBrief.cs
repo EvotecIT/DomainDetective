@@ -74,4 +74,13 @@ public sealed class MessageHeaderReportBrief {
     }
 
     private static string ResultLabel(int count) => count == 1 ? "signature or chain result" : "signature or chain results";
+
+    internal static MessageHeaderReportBrief BuildArc(DomainDetective.Views.ArcInfo arc) => new() {
+        SubjectLabel = "ARC headers",
+        Summary = MessageHeaderReport.VisibleText(arc.Summary ?? "ARC chain state: " + arc.ChainState),
+        Evidence = new[] { "ARC checks establish header structure only. Cryptographic verification and sealer trust were not performed." },
+        Findings = (arc.Assessments ?? Array.Empty<Assessment>()).Where(finding => finding.Severity != AssessmentSeverity.Info)
+            .OrderByDescending(finding => finding.Severity).ToArray(),
+        Actions = arc.Recommendations ?? Array.Empty<RecommendationAdvice>()
+    };
 }

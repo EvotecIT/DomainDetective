@@ -9,10 +9,13 @@ namespace DomainDetective.Reports;
 /// <summary>Loads optional renderers without coupling the assessment model to export assemblies.</summary>
 internal static class CompositionReportDispatcher {
     public static bool TryGenerate(ReportFormat format, CompositionExportRequest request,
-        DomainAssessmentReport report, string outputPath, out string? error) {
+        DomainAssessmentReport report, string outputPath, out string? error, IReadOnlyList<MessageEvidenceReport>? messages = null) {
         error = null;
         try {
             AssessmentExportSettings.Validate(request);
+            if (messages?.Count > 0 && format != ReportFormat.Json) {
+                return GenerateMessages(format, messages, outputPath, out error);
+            }
             switch (format) {
                 case ReportFormat.Json:
                     var directory = Path.GetDirectoryName(outputPath);
@@ -41,9 +44,17 @@ internal static class CompositionReportDispatcher {
     }
 
     internal static IReadOnlyList<ReportResult> GeneratePaperReports(CompositionExportRequest request,
-        DomainAssessmentReport report, IReadOnlyDictionary<ReportFormat, string> outputs, CancellationToken cancellationToken) {
+        DomainAssessmentReport report, IReadOnlyDictionary<ReportFormat, string> outputs, CancellationToken cancellationToken,
+        IReadOnlyList<MessageEvidenceReport>? messages = null) {
         try {
             const string assembly = "DomainDetective.Reports.Office";
+            if (messages?.Count > 0) {
+                var renderer = RequireType(assembly + ".MessageHeaderOfficeReport", assembly);
+                var generate = renderer.GetMethod("GenerateEvidenceReports", new[] {
+                    typeof(IReadOnlyDictionary<ReportFormat, string>), typeof(IReadOnlyList<MessageEvidenceReport>), typeof(CancellationToken)
+                }) ?? throw new InvalidOperationException("Message evidence paper batch generator signature not found.");
+                return (IReadOnlyList<ReportResult>)generate.Invoke(null, new object[] { outputs, messages, cancellationToken })!;
+            }
             var type = RequireType(assembly + ".AssessmentWordReport", assembly);
             var optionsType = RequireType(assembly + ".AssessmentWordOptions", assembly);
             var options = Activator.CreateInstance(optionsType)!;
@@ -68,6 +79,28 @@ internal static class CompositionReportDispatcher {
             results.Add(new ReportResult { Format = output.Key, FilePath = output.Value, ErrorMessage = error });
         }
         return results;
+    }
+
+    private static bool GenerateMessages(ReportFormat format, IReadOnlyList<MessageEvidenceReport> messages, string path, out string? error) {
+        var (suffix, renderer, method) = format switch {
+            ReportFormat.Excel => ("Office", "MessageHeaderOfficeReport", "GenerateEvidenceExcel"),
+            ReportFormat.Html => ("Html", "MessageHeaderHtmlReport", "GenerateEvidence"),
+            ReportFormat.Markdown or ReportFormat.MarkdownHtml => ("Markdown", "MessageHeaderMarkdownReport", "GenerateEvidence"),
+            _ => (string.Empty, string.Empty, string.Empty)
+        };
+        if (suffix.Length == 0) { error = $"{format} message report generation is not supported."; return false; }
+        string assembly = "DomainDetective.Reports." + suffix;
+        var type = RequireType(assembly + "." + renderer, assembly);
+        var parameters = format == ReportFormat.Excel
+            ? new[] { typeof(string), typeof(IReadOnlyList<MessageEvidenceReport>) }
+            : new[] { typeof(string), typeof(IReadOnlyList<MessageEvidenceReport>), typeof(bool) };
+        var generate = type.GetMethod(method, parameters)
+            ?? throw new InvalidOperationException("Message evidence generator signature not found.");
+        generate.Invoke(null, format == ReportFormat.Excel
+            ? new object[] { path, messages }
+            : new object[] { path, messages, format == ReportFormat.MarkdownHtml });
+        error = null;
+        return true;
     }
 
     private static bool Generate(string assemblySuffix, string renderer, string optionsName,

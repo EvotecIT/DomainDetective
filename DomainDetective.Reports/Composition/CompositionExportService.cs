@@ -38,7 +38,11 @@ public static class CompositionExportService
             };
         }
 
-        if (request.AutoCollectTtl)
+        var messages = flat.Select(MessageEvidenceReport.TryCreate).Where(message => message != null).Select(message => message!).ToArray();
+        if (messages.Length > 0 && messages.Length != flat.Count) {
+            throw new ArgumentException("Message evidence reports cannot be mixed with domain report items.", nameof(request));
+        }
+        if (request.AutoCollectTtl && messages.Length == 0)
         {
             flat = await CompositionTtlAutoCollector.AddMissingTtlAsync(flat, request.ExecutionOptions, logger, cancellationToken).ConfigureAwait(false);
         }
@@ -71,7 +75,7 @@ public static class CompositionExportService
             {
                 if (format is ReportFormat.Word or ReportFormat.Pdf) {
                     paperResults ??= CompositionReportDispatcher.GeneratePaperReports(request, report,
-                        paths.Where(pair => pair.Key is ReportFormat.Word or ReportFormat.Pdf).ToDictionary(pair => pair.Key, pair => pair.Value), cancellationToken)
+                        paths.Where(pair => pair.Key is ReportFormat.Word or ReportFormat.Pdf).ToDictionary(pair => pair.Key, pair => pair.Value), cancellationToken, messages)
                         .ToDictionary(result => result.Format);
                     ReportResult paper = paperResults[format];
                     results.Add(paper);
@@ -79,7 +83,7 @@ public static class CompositionExportService
                     if (!paper.Success) { logger?.WriteWarning("Export failed: {0}", paper.ErrorMessage); }
                     continue;
                 }
-                if (!CompositionReportDispatcher.TryGenerate(format, request, report, outPath, out var error))
+                if (!CompositionReportDispatcher.TryGenerate(format, request, report, outPath, out var error, messages))
                 {
                     var message = string.IsNullOrWhiteSpace(error) ? $"{format} composition not supported." : error!;
                     logger?.WriteWarning("Export failed: {0}", message);

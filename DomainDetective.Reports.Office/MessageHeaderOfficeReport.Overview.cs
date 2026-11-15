@@ -7,11 +7,11 @@ using OfficeIMO.Excel.Fluent;
 namespace DomainDetective.Reports.Office;
 
 public static partial class MessageHeaderOfficeReport {
-    private static void WriteOverviewSheet(ExcelDocument document, IReadOnlyList<MessageHeaderAnalysis> messages) {
+    private static void WriteOverviewSheet(ExcelDocument document, IReadOnlyList<MessageEvidenceReport> messages) {
         document.AsFluent().Info(i => i.Title("Email Message Analysis").Author("DomainDetective").Company("Evotec").Application("OfficeIMO.Excel")).End();
         var composer = new SheetComposer(document, "Overview");
         composer.Title("Email Message Analysis", $"Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
-        var briefs = messages.Select(MessageHeaderReportBrief.Build).ToArray();
+        var briefs = messages.Select(message => message.Brief).ToArray();
         composer.KpiRow(new (string, object?)[] {
             ("Messages", messages.Count),
             ("Errors", briefs.Sum(brief => brief.Findings.Count(a => a.Severity == AssessmentSeverity.Error))),
@@ -23,7 +23,7 @@ public static partial class MessageHeaderOfficeReport {
             var message = messages[i];
             var brief = briefs[i];
             ExcelReportLayout.Section(composer, "Message " + (i + 1) + " — " + brief.SubjectLabel);
-            ExcelReportLayout.Paragraph(composer, MessageHeaderReport.VisibleText(message.From) + " → " + MessageHeaderReport.VisibleText(message.To));
+            ExcelReportLayout.Paragraph(composer, message.ContextLabel);
             ExcelReportLayout.Paragraph(composer, brief.Summary);
             ExcelReportLayout.Section(composer, "What the evidence establishes");
             foreach (var line in brief.Evidence) { ExcelReportLayout.Paragraph(composer, line); }

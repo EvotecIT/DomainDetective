@@ -13,7 +13,11 @@ namespace DomainDetective.Reports.Office;
 /// <summary>Word and Excel writers for the shared message-evidence report.</summary>
 public static partial class MessageHeaderOfficeReport {
     /// <summary>Writes message evidence as a Word document.</summary>
-    public static void GenerateWord(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {
+    public static void GenerateWord(string path, IReadOnlyList<MessageHeaderAnalysis> messages)
+        => GenerateEvidenceWord(path, ProjectMessages(messages));
+
+    /// <summary>Writes projected message or standalone ARC evidence as a Word document.</summary>
+    public static void GenerateEvidenceWord(string path, IReadOnlyList<MessageEvidenceReport> messages) {
         Validate(path, messages);
         using WordDocument document = BuildWord(messages);
         document.Save(path);
@@ -21,12 +25,17 @@ public static partial class MessageHeaderOfficeReport {
 
     /// <summary>Writes Word and PDF message evidence from one document build.</summary>
     public static IReadOnlyList<ReportResult> GenerateReports(IReadOnlyDictionary<ReportFormat, string> outputs,
-        IReadOnlyList<MessageHeaderAnalysis> messages, CancellationToken cancellationToken = default) {
+        IReadOnlyList<MessageHeaderAnalysis> messages, CancellationToken cancellationToken = default)
+        => GenerateEvidenceReports(outputs, ProjectMessages(messages), cancellationToken);
+
+    /// <summary>Writes Word and PDF from one projected message-evidence document.</summary>
+    public static IReadOnlyList<ReportResult> GenerateEvidenceReports(IReadOnlyDictionary<ReportFormat, string> outputs,
+        IReadOnlyList<MessageEvidenceReport> messages, CancellationToken cancellationToken = default) {
         if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
         return WordReportExport.Generate(outputs, () => BuildWord(messages), cancellationToken: cancellationToken);
     }
 
-    private static WordDocument BuildWord(IReadOnlyList<MessageHeaderAnalysis> messages) {
+    private static WordDocument BuildWord(IReadOnlyList<MessageEvidenceReport> messages) {
         WordDocument document = WordDocument.Create();
         try {
             WordReportCommon.ApplyBuiltInProperties(document, "Email Message Analysis", "Authentication and delivery evidence", "mail,headers,authentication", "Email", "DomainDetective");
@@ -40,9 +49,9 @@ public static partial class MessageHeaderOfficeReport {
             document.AddParagraph("Start with the conclusions and next steps below. The evidence appendix preserves receiver claims, route records and original header fields for investigation.");
             for (var i = 0; i < messages.Count; i++) {
                 var message = messages[i];
-                var brief = MessageHeaderReportBrief.Build(message);
+                var brief = message.Brief;
                 headings.AddItem("Message " + (i + 1) + " — " + brief.SubjectLabel, 1);
-                document.AddParagraph(MessageHeaderReport.VisibleText(message.From) + " → " + MessageHeaderReport.VisibleText(message.To)).SetItalic();
+                document.AddParagraph(message.ContextLabel).SetItalic();
                 document.AddParagraph(brief.Summary).SetBold();
                 headings.AddItem("What the evidence establishes", 2);
                 AddBriefList(document, brief.Evidence);
@@ -62,7 +71,7 @@ public static partial class MessageHeaderOfficeReport {
             headings.AddItem("Evidence appendix");
             for (var i = 0; i < messages.Count; i++) {
                 headings.AddItem("Message " + (i + 1), 1);
-                foreach (var section in MessageHeaderReport.Build(messages[i]).Where(section => section.Rows.Count > 0)) {
+                foreach (var section in messages[i].Sections.Where(section => section.Rows.Count > 0)) {
                     headings.AddItem(section.Title, 2);
                     // Wide evidence grids are rendered as individual records, retaining readable type.
                     var records = section.Columns.Count == 2
@@ -103,13 +112,17 @@ public static partial class MessageHeaderOfficeReport {
     }
 
     /// <summary>Writes readable overview and evidence worksheets with explicit string cells.</summary>
-    public static void GenerateExcel(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {
+    public static void GenerateExcel(string path, IReadOnlyList<MessageHeaderAnalysis> messages)
+        => GenerateEvidenceExcel(path, ProjectMessages(messages));
+
+    /// <summary>Writes projected message and ARC evidence to overview and evidence worksheets.</summary>
+    public static void GenerateEvidenceExcel(string path, IReadOnlyList<MessageEvidenceReport> messages) {
         Validate(path, messages);
         using var document = ExcelDocument.Create(path);
         WriteOverviewSheet(document, messages);
-        var evidence = messages.Select(MessageHeaderReport.Build).ToArray();
+        var evidence = messages.Select(message => message.Sections).ToArray();
         foreach (var title in evidence.SelectMany(sections => sections).Select(section => section.Title).Distinct()) {
-            var sections = evidence.Select((values, index) => new { Section = values.First(section => section.Title == title), Message = index + 1 }).ToArray();
+            var sections = evidence.SelectMany((values, index) => values.Where(section => section.Title == title).Select(section => new { Section = section, Message = index + 1 })).ToArray();
             if (sections.All(value => value.Section.Rows.Count == 0)) { continue; }
             var columns = new[] { "Input" }.Concat(sections[0].Section.Columns).ToArray();
             var rows = sections.SelectMany(value => value.Section.Rows.Select(row => new[] { value.Message.ToString(System.Globalization.CultureInfo.InvariantCulture) }.Concat(row).ToArray())).ToArray();
@@ -136,7 +149,12 @@ public static partial class MessageHeaderOfficeReport {
         foreach (var value in entries) { list.AddItem(value); }
     }
 
-    private static void Validate(string path, IReadOnlyList<MessageHeaderAnalysis> messages) {
+    private static MessageEvidenceReport[] ProjectMessages(IReadOnlyList<MessageHeaderAnalysis> messages) {
+        if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
+        return messages.Select(MessageEvidenceReport.FromMessage).ToArray();
+    }
+
+    private static void Validate(string path, IReadOnlyList<MessageEvidenceReport> messages) {
         if (messages == null || messages.Count == 0) { throw new ArgumentException("No messages to report.", nameof(messages)); }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
     }

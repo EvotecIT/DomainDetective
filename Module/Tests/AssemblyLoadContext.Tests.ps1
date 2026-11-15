@@ -143,8 +143,8 @@ if (`$null -eq `$coreAssembly) {
 
         $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
         $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
-        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
-        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.md')
 
         Test-Path -LiteralPath $wordPath | Should -BeTrue
         Test-Path -LiteralPath $excelPath | Should -BeTrue
@@ -236,8 +236,8 @@ if (`$null -eq `$coreAssembly) {
 
         $wordPath = [IO.Path]::ChangeExtension($reportBase, '.docx')
         $excelPath = [IO.Path]::ChangeExtension($reportBase, '.xlsx')
-        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.html')
-        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.md')
+        $htmlPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.html')
+        $markdownPath = [IO.Path]::ChangeExtension($reportBase, '.markdown.md')
 
         Test-Path -LiteralPath $wordPath | Should -BeTrue
         Test-Path -LiteralPath $excelPath | Should -BeTrue
