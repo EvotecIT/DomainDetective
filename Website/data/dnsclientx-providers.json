@@ -1,0 +1,357 @@
+{
+  "schema": 1,
+  "transports": [
+    {
+      "id": "DnsOverUDP",
+      "label": "UDP"
+    },
+    {
+      "id": "DnsOverTCP",
+      "label": "TCP"
+    },
+    {
+      "id": "DnsOverTLS",
+      "label": "DoT"
+    },
+    {
+      "id": "DnsOverHttps",
+      "label": "DoH wire"
+    },
+    {
+      "id": "DnsOverHttpsJSON",
+      "label": "DoH JSON"
+    },
+    {
+      "id": "DnsOverHttp3",
+      "label": "DoH3"
+    },
+    {
+      "id": "DnsOverQuic",
+      "label": "DoQ"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "System",
+      "default": "DnsOverUDP",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP"
+      ]
+    },
+    {
+      "name": "SystemTcp",
+      "default": "DnsOverTCP",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP"
+      ]
+    },
+    {
+      "name": "Cloudflare",
+      "default": "DnsOverHttpsJSON",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "CloudflareSecurity",
+      "default": "DnsOverHttpsJSON",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "CloudflareFamily",
+      "default": "DnsOverHttpsJSON",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "CloudflareWireFormat",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "CloudflareWireFormatPost",
+      "default": "DnsOverHttpsWirePost",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "Google",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "GoogleWireFormat",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "GoogleWireFormatPost",
+      "default": "DnsOverHttpsWirePost",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "Quad9",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttp3",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "Quad9ECS",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttp3",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "Quad9Unsecure",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttp3",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "OpenDNS",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverHttps"
+      ]
+    },
+    {
+      "name": "OpenDNSFamily",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverHttps"
+      ]
+    },
+    {
+      "name": "Quad9Http3",
+      "default": "DnsOverHttp3",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttp3",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "Quad9Quic",
+      "default": "DnsOverQuic",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverHttp3",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "AdGuard",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "AdGuardFamily",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "AdGuardNonFiltering",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "NextDNS",
+      "default": "DnsOverHttpsJSON",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverHttps",
+        "DnsOverHttpsJSON"
+      ]
+    },
+    {
+      "name": "RootServer",
+      "default": "DnsOverUDP",
+      "transports": [
+        "DnsOverUDP"
+      ]
+    },
+    {
+      "name": "CleanBrowsingSecurity",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps"
+      ]
+    },
+    {
+      "name": "CleanBrowsingAdult",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps"
+      ]
+    },
+    {
+      "name": "CleanBrowsingFamily",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps"
+      ]
+    },
+    {
+      "name": "ControlD",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "ControlDMalware",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "ControlDAds",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "ControlDFamily",
+      "default": "DnsOverHttps",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP",
+        "DnsOverTLS",
+        "DnsOverHttps",
+        "DnsOverQuic"
+      ]
+    },
+    {
+      "name": "ComodoSecureDns",
+      "default": "DnsOverUDP",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP"
+      ]
+    },
+    {
+      "name": "DnsWatch",
+      "default": "DnsOverUDP",
+      "transports": [
+        "DnsOverUDP",
+        "DnsOverTCP"
+      ]
+    }
+  ]
+}

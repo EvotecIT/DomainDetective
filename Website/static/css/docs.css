@@ -280,3 +280,91 @@
 .docs-toc .pf-toc-l3 a {
   padding-left: 1.6rem;
 }
+
+/* DnsClientX provider x transport matrix (shortcodes/provider-matrix.html) */
+.dx-matrix {
+  position: relative;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--dd-line);
+  border-radius: var(--dd-r);
+}
+
+.dx-matrix:focus-visible {
+  outline: 2px solid var(--dd-accent);
+  outline-offset: 2px;
+}
+
+.dd-prose .dx-matrix table {
+  display: table;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.dx-matrix__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .9rem;
+  margin: 1.25rem 0 -.75rem;
+  color: var(--dd-ink-2);
+  font-size: .85rem;
+}
+
+.dx-matrix__key {
+  margin-right: .3rem;
+}
+
+.dx-matrix th,
+.dx-matrix td {
+  white-space: nowrap;
+}
+
+.dx-matrix thead th {
+  text-align: center;
+}
+
+.dx-matrix th[scope="row"],
+.dx-matrix thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--dd-card-2);
+  text-align: left;
+}
+
+.dx-matrix th[scope="row"] {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.dx-matrix th[scope="row"] code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: .8rem;
+}
+
+@media (max-width: 640px) {
+  .dx-matrix th,
+  .dx-matrix td {
+    padding: .5rem .55rem;
+  }
+
+  .dx-matrix th[scope="row"] code {
+    font-size: .72rem;
+  }
+}
+
+.dx-matrix__cell {
+  text-align: center;
+  font-weight: 700;
+}
+
+.dx-matrix__cell--default { color: var(--dd-accent); }
+.dx-matrix__cell--yes { color: var(--dd-pass); }
+.dx-matrix__cell--no { color: var(--dd-ink-3); }
+
+.dx-matrix__key {
+  font-weight: 700;
+}
