@@ -36,7 +36,7 @@ Order:
      - Incomplete evidence (neutral).
 2. **Contents (several domains).**
    - Immediately after the summary tiles, headed "Contents" in the H2 style, without a forced page break. A single-domain report skips the contents list.
-   - Entries point to the domain chapters and appendix, with final PDF page numbers.
+   - Entries point to Summary, the domain chapters and appendix, with final PDF page numbers. Summary covers Do these first, Area by area and Controls.
 3. **Do these first.**
    - Identical check/finding pairs are grouped across domains, ordered by severity and then affected-domain count. Up to `FixFirstCount` (default 10) grouped items appear, in the same order as the HTML.
    - Each item: bold check title, one muted metadata line with the affected domains (`All 24 domains · Mail` or a count and list), then the top finding message. Keep the status word in its tone in the left column, with about 6 pt between items. Only identifiers use monospace.
@@ -47,8 +47,8 @@ Order:
    - Then the area line (shared wording) as a muted row below each area.
 5. **Controls** (multi-domain only).
    - A matrix table: domains as rows, controls as columns (DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT, BIMI, DNSSEC, CAA, plus every scored Web and Security check present, including Certificate).
-   - At most six controls per table, repeating the domain column to keep full status words readable on portrait pages.
-   - Cells "Pass", "Warning", "Error", "–" with tone text, not fills (paper prints in grey too).
+   - At most six controls per table, repeating the domain column to keep full status words readable on portrait pages. Every group uses the same domain and status column widths, reserving unused columns in the last group.
+   - Cells "Pass", "Warning", "Error", "–" with tone text, not fills (paper prints in grey too). The dash explanation appears only when the matrix contains a dash.
 6. **One chapter per domain** (a page break before each).
    - Chapter heading: domain, grade, score.
    - A metric strip with the domain's per-area scores ("Not scored" muted where incomplete).
@@ -101,5 +101,5 @@ The same shared wording, no HTML-only phrases. Parentheses and single spaces sta
   - incomplete evidence is never toned as a warning in any export;
   - captured facts, records and lists remain available when informational findings are hidden;
   - CLI `report --format json` retains the raw health-check JSON contract, including when combined with assessment formats.
-- A made-up one-domain run and a made-up 24-domain run in each format, kept outside the repository for visual review: Word opened and converted to PDF, with page images at 100 %.
+- Made-up 1-, 3- and 24-domain runs in each format, kept outside the repository for visual review. Native Word field refresh preserves one Contents list, Summary and each domain entry; refreshed PDFs are checked alongside the generated exports. HTML Controls use equal-width tiles at 1440, 1024 and 390 px, and grouped actions open Explore with the affected domains and finding selected.
 - The legacy `SectionProjectors`/`Composition` Office and Markdown code removed once nothing uses it.
