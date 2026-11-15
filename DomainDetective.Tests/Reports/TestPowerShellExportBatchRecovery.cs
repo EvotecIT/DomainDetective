@@ -61,11 +61,15 @@ public class TestPowerShellExportBatchRecovery {
         try {
             var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
                 Items = new object[] { message, CreateArc() }, AutoCollectTtl = true,
-                Formats = new[] { ReportFormat.Word, ReportFormat.Pdf, ReportFormat.Excel, ReportFormat.Markdown, ReportFormat.Html },
+                Formats = new[] { ReportFormat.Word, ReportFormat.Pdf, ReportFormat.Json, ReportFormat.Excel, ReportFormat.Markdown, ReportFormat.Html },
                 ExportPath = Path.Combine(directory, "message.docx")
             });
-            Assert.Equal(5, result.Reports.Count);
-            Assert.All(result.Reports, report => {
+            Assert.Equal(6, result.Reports.Count);
+            var json = Assert.Single(result.Reports, report => report.Format == ReportFormat.Json);
+            Assert.False(json.Success);
+            Assert.Contains("JSON message evidence", json.ErrorMessage);
+            Assert.False(File.Exists(json.FilePath));
+            Assert.All(result.Reports.Where(report => report.Format != ReportFormat.Json), report => {
                 Assert.True(report.Success, report.ErrorMessage);
                 string text = ReportArtifactText.Read(report.FilePath);
                 Assert.Contains("Original message retained", text);
@@ -74,6 +78,25 @@ public class TestPowerShellExportBatchRecovery {
                 Assert.Contains("relay.example.test", text);
             });
         } finally { if (Directory.Exists(directory)) { Directory.Delete(directory, true); } }
+    }
+
+    [Fact]
+    public async Task DomainHealthAdapterRetainsItsDomainReportWhenArcIsAlsoPopulated() {
+        using var health = new DomainHealthCheck();
+        health.SpfAnalysis.Subject = "example.test";
+        health.SpfAnalysis.Assessments.Add(new Assessment {
+            Severity = AssessmentSeverity.Warning, Code = "SPF.EXPORT", Message = "Retained domain finding"
+        });
+        health.ArcAnalysis.Analyze("ARC-Seal: i=1; d=relay.example.test; cv=none; b=fixture\r\n");
+        string path = Path.Combine(Path.GetTempPath(), "dd-domain-with-arc-" + Guid.NewGuid().ToString("N") + ".md");
+        try {
+            var report = await new ReportDispatcher().GenerateAsync(health,
+                new ReportOptions { Format = ReportFormat.Markdown, OutputPath = path }, "example.test");
+            Assert.True(report.Success, report.ErrorMessage);
+            string text = ReportArtifactText.Read(report.FilePath);
+            Assert.Contains("example.test", text);
+            Assert.Contains("Retained domain finding", text);
+        } finally { File.Delete(path); }
     }
 
     private static ArcInfo CreateArc() {

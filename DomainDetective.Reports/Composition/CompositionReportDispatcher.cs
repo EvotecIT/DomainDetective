@@ -13,8 +13,8 @@ internal static class CompositionReportDispatcher {
         error = null;
         try {
             AssessmentExportSettings.Validate(request);
-            if (messages?.Count > 0 && format != ReportFormat.Json) {
-                return GenerateMessages(format, messages, outputPath, out error);
+            if (messages?.Count > 0) {
+                return GenerateMessages(format, messages, outputPath, request.OpenInBrowser, out error);
             }
             switch (format) {
                 case ReportFormat.Json:
@@ -81,7 +81,12 @@ internal static class CompositionReportDispatcher {
         return results;
     }
 
-    private static bool GenerateMessages(ReportFormat format, IReadOnlyList<MessageEvidenceReport> messages, string path, out string? error) {
+    private static bool GenerateMessages(ReportFormat format, IReadOnlyList<MessageEvidenceReport> messages, string path,
+        bool openInBrowser, out string? error) {
+        if (format == ReportFormat.Json) {
+            error = "JSON message evidence export is not supported. Export the original analysis as JSON instead.";
+            return false;
+        }
         var (suffix, renderer, method) = format switch {
             ReportFormat.Excel => ("Office", "MessageHeaderOfficeReport", "GenerateEvidenceExcel"),
             ReportFormat.Html => ("Html", "MessageHeaderHtmlReport", "GenerateEvidence"),
@@ -98,7 +103,7 @@ internal static class CompositionReportDispatcher {
             ?? throw new InvalidOperationException("Message evidence generator signature not found.");
         generate.Invoke(null, format == ReportFormat.Excel
             ? new object[] { path, messages }
-            : new object[] { path, messages, format == ReportFormat.MarkdownHtml });
+            : new object[] { path, messages, format == ReportFormat.Html ? openInBrowser : format == ReportFormat.MarkdownHtml });
         error = null;
         return true;
     }

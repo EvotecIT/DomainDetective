@@ -26,7 +26,7 @@ public static class HealthCheckCompositionReport {
         }
         bool open = options.CustomProperties?.TryGetValue("OpenInBrowser", out var openValue) == true
             && bool.TryParse(openValue?.ToString(), out var requestedOpen) && requestedOpen;
-        var result = await CompositionExportService.ExportAsync(new CompositionExportRequest {
+        var result = await CompositionExportService.ExportDomainAsync(new CompositionExportRequest {
             Items = items, Formats = new[] { options.Format }, ExportPath = path,
             Scope = ReportScope.Normal,
             ShowInfoFindings = options.ShowInfoFindings, Title = options.Title,

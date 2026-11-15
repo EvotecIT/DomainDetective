@@ -11,10 +11,18 @@ namespace DomainDetective.Reports;
 
 public static class CompositionExportService
 {
-    public static async Task<CompositionExportResult> ExportAsync(
+    public static Task<CompositionExportResult> ExportAsync(
         CompositionExportRequest request,
         InternalLogger? logger = null,
         CancellationToken cancellationToken = default)
+        => ExportCoreAsync(request, true, logger, cancellationToken);
+
+    // Health-check reports retain their domain model, including unassigned-input diagnostics.
+    internal static Task<CompositionExportResult> ExportDomainAsync(CompositionExportRequest request)
+        => ExportCoreAsync(request, false, null, default);
+
+    private static async Task<CompositionExportResult> ExportCoreAsync(CompositionExportRequest request,
+        bool projectMessages, InternalLogger? logger, CancellationToken cancellationToken)
     {
         if (request == null)
         {
@@ -38,7 +46,9 @@ public static class CompositionExportService
             };
         }
 
-        var messages = flat.Select(MessageEvidenceReport.TryCreate).Where(message => message != null).Select(message => message!).ToArray();
+        var messages = projectMessages
+            ? flat.Select(MessageEvidenceReport.TryCreate).Where(message => message != null).Select(message => message!).ToArray()
+            : Array.Empty<MessageEvidenceReport>();
         if (messages.Length > 0 && messages.Length != flat.Count) {
             throw new ArgumentException("Message evidence reports cannot be mixed with domain report items.", nameof(request));
         }

@@ -2,6 +2,8 @@
 
 Layout and behavior of the domain assessment exports. Tests and fixtures use made-up data only.
 
+Standalone ARC and message-header inputs use the message evidence renderers for Word, PDF, Excel, Markdown and HTML. They retain header structure and findings without treating them as domain assessments or cryptographic verification. Export message evidence separately from domain views. JSON through this composition route returns an unsupported-format result; the original analysis remains the JSON source.
+
 ## 0. Rules for every export
 
 - **One model, one vocabulary.** Every export reads the same `DomainAssessmentReport` as the HTML report, never the legacy `SectionProjectors`/`Composition`.
