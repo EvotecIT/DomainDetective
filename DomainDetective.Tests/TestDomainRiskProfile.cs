@@ -180,6 +180,7 @@ public class TestDomainRiskProfile {
     [InlineData("05/11/2026", EvidenceState.Partial)]
     [InlineData("25/11/2026", EvidenceState.Observed)]
     [InlineData("2026-05-11", EvidenceState.Observed)]
+    [InlineData("\u0660\u0665/\u0661\u0661/2026", EvidenceState.Partial)]
     public void ADayMonthOrderThatCannotBeToldApartDoesNotDateTheDomain(string text, EvidenceState expected) {
         Assert.Equal(expected, DomainRiskProfileBuilder.DateEvidence(text, true, EvidenceState.Failed).Item1);
     }

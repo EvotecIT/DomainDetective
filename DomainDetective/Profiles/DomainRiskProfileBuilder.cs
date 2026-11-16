@@ -185,7 +185,7 @@ public static class DomainRiskProfileBuilder {
 
     // 05/11/2026 is 5 November in one registry and 11 May in another: read it, but don't date the domain by it.
     private static bool AmbiguousDayMonth(string text) {
-        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(text.Trim(), @"^(\d{1,2})/(\d{1,2})/\d{4}\b");
+        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(text.Trim(), @"^([0-9]{1,2})/([0-9]{1,2})/[0-9]{4}\b");
         if (!m.Success) return false;
         int first = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), second = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
         return first <= 12 && second <= 12 && first != second;

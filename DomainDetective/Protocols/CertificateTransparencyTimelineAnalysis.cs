@@ -536,7 +536,9 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             foreach (var record in page.Certificates)
             {
                 // Issuance is dated by the first CT observation; a later re-observation only moves "last seen".
-                DateTimeOffset? issued = record.FirstEntryTimestampUtc ?? record.EntryTimestampUtc;
+                DateTimeOffset? issued = record.TracksFirstObservation
+                    ? record.FirstEntryTimestampUtc
+                    : record.FirstEntryTimestampUtc ?? record.EntryTimestampUtc;
                 var row = new CtRow(
                     record.Issuer,
                     CommonNameFrom(record.Subject) ?? record.DnsNames.FirstOrDefault(),
@@ -548,7 +550,11 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     record.NotAfterUtc);
                 if (record.EntryTimestampUtc.HasValue && record.EntryTimestampUtc != issued)
                 {
-                    UpdateFirstAndLastSeen(record.EntryTimestampUtc);
+                    // A later re-observation moves "last seen" only; it says nothing about when the domain was first seen.
+                    if (!LastSeenUtc.HasValue || record.EntryTimestampUtc.Value > LastSeenUtc.Value)
+                    {
+                        LastSeenUtc = record.EntryTimestampUtc.Value;
+                    }
                 }
                 if (!ProcessRow(row, nowUtc, issuerCounts, certs, bucketAgg))
                 {

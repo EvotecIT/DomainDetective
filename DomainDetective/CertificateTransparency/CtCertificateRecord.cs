@@ -46,6 +46,12 @@ public sealed class CtCertificateRecord
     /// </summary>
     public DateTimeOffset? FirstEntryTimestampUtc { get; internal set; }
 
+    /// <summary>
+    /// True when the provider tracks first and latest observations separately. <see cref="EntryTimestampUtc"/> is then
+    /// the latest observation and never stands in for a missing <see cref="FirstEntryTimestampUtc"/>.
+    /// </summary>
+    public bool TracksFirstObservation { get; internal set; }
+
     /// <summary>SHA-256 fingerprint of the DER certificate or precertificate.</summary>
     public string? Sha256Fingerprint { get; init; }
 

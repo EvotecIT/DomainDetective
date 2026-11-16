@@ -451,6 +451,8 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
     private static CtCertificateRecord WithFirstObservation(CtCertificateRecord record, DateTimeOffset? firstObservedUtc)
     {
         record.FirstEntryTimestampUtc = firstObservedUtc;
+        // Without a first observation the issuance date is unknown; the latest observation must not stand in for it.
+        record.TracksFirstObservation = true;
         return record;
     }
 

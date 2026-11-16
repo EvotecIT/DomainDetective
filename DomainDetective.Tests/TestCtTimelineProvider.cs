@@ -106,6 +106,22 @@ public class TestCtTimelineProvider {
     }
 
     [Fact]
+    public async Task AMissingFirstObservationLeavesTheIssuanceDateUnknown() {
+        // A certificate re-observed yesterday, with no first observation, must not count as issued yesterday.
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        CtCertificateRecord record = Record("aa", "CN=Example CA R1", now.AddDays(-1));
+        record.TracksFirstObservation = true;
+        var provider = new FakeProvider(_ => new CtCertificateQueryResult { ProviderId = "ddct-api", Certificates = new[] { record } });
+        var analysis = new CertificateTransparencyTimelineAnalysis { Provider = provider, QueryOverride = (_, _) => Task.FromResult("[]") };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+        Assert.Equal(0, analysis.IssuedLast7Days);
+        Assert.Null(analysis.FirstSeenUtc);
+    }
+
+    [Fact]
     public async Task AProviderTimeoutFallsBackToCrtSh() {
         // HttpClient reports its own timeout as TaskCanceledException while the caller's token is untouched.
         var provider = new FakeProvider(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));

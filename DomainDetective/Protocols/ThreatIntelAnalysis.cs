@@ -180,9 +180,24 @@ public class ThreatIntelAnalysis : IHasAssessments
             // An error or meta-only body answers nothing; treat it as a failed query, not a clean one.
             throw new System.IO.InvalidDataException("PhishTank response has no results.");
         }
-        var valid = res.TryGetProperty("valid", out var v) && v.GetString() == "true";
-        var inDb = res.TryGetProperty("in_database", out var db) && db.GetString() == "true";
-        return valid && inDb;
+        // Without an explicit in_database answer (and a valid flag for an entry it holds) nothing was answered.
+        bool inDb = PhishTankFlag(res, "in_database") ?? throw new System.IO.InvalidDataException("PhishTank response has no in_database answer.");
+        if (!inDb) return false;
+        return PhishTankFlag(res, "valid") ?? throw new System.IO.InvalidDataException("PhishTank response has no valid answer.");
+    }
+
+    // PhishTank writes its flags as JSON booleans or as "true"/"false" strings.
+    private static bool? PhishTankFlag(JsonElement results, string name)
+    {
+        if (results.ValueKind != JsonValueKind.Object || !results.TryGetProperty(name, out JsonElement value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when string.Equals(value.GetString(), "true", StringComparison.OrdinalIgnoreCase) => true,
+            JsonValueKind.String when string.Equals(value.GetString(), "false", StringComparison.OrdinalIgnoreCase) => false,
+            _ => null
+        };
     }
 
     /// <summary>Override URLhaus host lookup (for tests). Returns provider JSON.</summary>

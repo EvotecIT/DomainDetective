@@ -53,6 +53,54 @@ public partial class TestAssessmentExports {
             Assert.DoesNotContain("Only the listed CAs", workbook);
         });
     }
+    private static CaaInfo IodefOnly(string domain) => new() {
+        Check = HealthCheckType.CAA, Subject = domain, ValidRecords = 1, Records = new[] { "0 iodef \"mailto:security@" + domain + "\"" }
+    };
+
+    [Fact]
+    public void ReportingOnlyCaaClaimsNoIssuerRestrictionInEveryFormat() {
+        InDirectory(directory => {
+            DomainAssessmentReport single = DomainAssessmentBuilder.Build(new object[] { IodefOnly("example.test") });
+            CheckAssessment check = Assert.Single(Assert.Single(single.Domains).Checks);
+            Assert.Equal(CheckOutcome.Info, check.Outcome);
+            Assert.False(check.Scored);
+            Assert.Equal("No issuer restriction", Wording.ControlValue(check));
+            Assert.Equal("No issuer restriction; incident reporting set.", Wording.ControlReason(check));
+
+            var html = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(AssessmentHtmlReport.Render(single));
+            var control = html.QuerySelectorAll(".dd-control").Single(c => c.QuerySelector(".dd-control-name")?.TextContent == "CAA");
+            Assert.Equal("No issuer restriction", control.QuerySelector(".dd-control-value")!.TextContent);
+            Assert.DoesNotContain("Only the listed CAs", html.DocumentElement.TextContent);
+
+            DomainAssessmentReport several = DomainAssessmentBuilder.Build(new object[] { IodefOnly("one.test"), IodefOnly("two.test") });
+            var multi = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(AssessmentHtmlReport.Render(several));
+            Assert.Equal("No issuer restriction", multi.QuerySelectorAll(".dd-control")
+                .Single(c => c.QuerySelector(".dd-control-name")?.TextContent == "CAA").QuerySelector(".dd-control-value")!.TextContent);
+
+            string wordPath = Path.Combine(directory, "iodef.docx"), excelPath = Path.Combine(directory, "iodef.xlsx");
+            AssessmentWordReport.Generate(wordPath, several);
+            AssessmentExcelReport.Generate(excelPath, several);
+            using var word = ZipFile.OpenRead(wordPath);
+            string document = Load(word, "word/document.xml").Root!.Value;
+            Assert.Contains("No issuer restriction", document);
+            Assert.DoesNotContain("Only the listed CAs", document);
+            using var excel = ZipFile.OpenRead(excelPath);
+            string workbook = WorkbookText(excel);
+            Assert.Contains("incident reporting only and names no issuer", workbook);
+            Assert.DoesNotContain("Only the listed CAs", workbook);
+        });
+    }
+
+    [Fact]
+    public void AnIssueTagStillReadsAsARestriction() {
+        var view = new CaaInfo { Check = HealthCheckType.CAA, Subject = "example.test", ValidRecords = 2,
+            Records = new[] { "0 issue \"letsencrypt.org\"", "0 iodef \"mailto:security@example.test\"" },
+            CanIssueCertificatesForDomain = new[] { "letsencrypt.org" } };
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.True(check.Scored);
+        Assert.Equal("Only the listed CAs may issue certificates.", Wording.ControlReason(check));
+    }
 }
 
 public class TestAssessmentAbsentAndObserved {

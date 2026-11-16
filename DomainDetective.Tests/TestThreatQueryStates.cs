@@ -23,6 +23,25 @@ public class TestThreatQueryStates {
         Assert.Equal(ThreatIntelQueryState.Listed, await UrlHaus(_ => Task.FromResult("{\"query_status\":\"ok\",\"url_count\":2}")));
     }
 
+    private static async Task<ThreatIntelQueryState> PhishTank(string json) {
+        var analysis = new ThreatIntelAnalysis { EnableUrlHaus = false, PhishTankOverride = _ => Task.FromResult(json) };
+        await analysis.Analyze(Unique("phishtank"), null, "key", null, new InternalLogger());
+        return analysis.Listings.Single(l => l.Source == ThreatIntelSource.PhishTank).State;
+    }
+
+    [Theory]
+    [InlineData("{\"results\":{}}", ThreatIntelQueryState.Failed)]
+    [InlineData("{\"meta\":{\"status\":\"error\"}}", ThreatIntelQueryState.Failed)]
+    [InlineData("{\"results\":{\"in_database\":true}}", ThreatIntelQueryState.Failed)]
+    [InlineData("{\"results\":{\"in_database\":false}}", ThreatIntelQueryState.Clean)]
+    [InlineData("{\"results\":{\"in_database\":\"false\"}}", ThreatIntelQueryState.Clean)]
+    [InlineData("{\"results\":{\"in_database\":true,\"valid\":false}}", ThreatIntelQueryState.Clean)]
+    [InlineData("{\"results\":{\"in_database\":true,\"valid\":true}}", ThreatIntelQueryState.Listed)]
+    [InlineData("{\"results\":{\"in_database\":\"true\",\"valid\":\"true\"}}", ThreatIntelQueryState.Listed)]
+    public async Task PhishTankNeedsAnExplicitAnswerBeforeItIsClean(string json, ThreatIntelQueryState expected) {
+        Assert.Equal(expected, await PhishTank(json));
+    }
+
     [Fact]
     public async Task OpenPhishWithoutASourceIsNotQueriedAndAFailingSourceIsFailed() {
         var none = new ThreatIntelAnalysis { EnableUrlHaus = false, EnableOpenPhish = true };

@@ -290,6 +290,13 @@ public static class DomainAssessmentBuilder {
             check.Scored = false;
             check.Summary = AssessmentReportWording.NoCaaPolicy;
         }
+        // Records that only set reporting (iodef, contact) restrict no issuer: say so instead of claiming a restriction.
+        else if (check.Check == HealthCheckType.CAA && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().All(static v => v.Records.Count > 0 && v.Records.All(CaaRecordOnlyReports))) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.CaaReportingOnly;
+        }
         // The same for TLS-RPT: an optional record that is not published is not a passing one.
         if (check.Check == HealthCheckType.TLSRPT && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
             && check.Sources.OfType<DomainDetective.Views.TlsRptInfo>().Any()
@@ -357,6 +364,15 @@ public static class DomainAssessmentBuilder {
         if (string.Equals(category, "Certificate", StringComparison.OrdinalIgnoreCase)) return HealthCheckType.CERT;
         return Enum.TryParse(category.Replace(" ", string.Empty).Replace("-", string.Empty), true, out HealthCheckType kind) && Enum.IsDefined(typeof(HealthCheckType), kind)
             ? kind : null;
+    }
+
+    // "0 iodef \"mailto:…\"": the tag is the second field. Only reporting tags are known not to restrict issuance; any
+    // other tag (issue, issuewild, an unknown critical tag) may.
+    private static bool CaaRecordOnlyReports(string record) {
+        string[] fields = record.Split((char[]?)null, 3, StringSplitOptions.RemoveEmptyEntries);
+        string tag = fields.Length > 1 ? fields[1] : string.Empty;
+        return tag.Equals("iodef", StringComparison.OrdinalIgnoreCase) || tag.Equals("contactemail", StringComparison.OrdinalIgnoreCase)
+            || tag.Equals("contactphone", StringComparison.OrdinalIgnoreCase);
     }
 
     // Markers of a lookup or probe that did not finish. They name the acquisition, not the record, so an observed defect

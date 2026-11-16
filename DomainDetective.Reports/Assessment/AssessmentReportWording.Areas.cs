@@ -44,8 +44,15 @@ public static partial class AssessmentReportWording {
     public static bool IsNoTlsRptRecord(CheckAssessment check) =>
         check.Key == "tlsrpt" && !check.Scored && string.Equals(check.Summary, NoTlsRptRecord, StringComparison.Ordinal);
 
+    /// <summary>Summary for CAA records that only set incident reporting.</summary>
+    public const string CaaReportingOnly = "CAA sets incident reporting only and names no issuer, so any certificate authority may issue certificates for this domain.";
+
+    /// <summary>True for CAA records that only set reporting (iodef or contact tags): no issuer is restricted.</summary>
+    public static bool IsCaaReportingOnly(CheckAssessment check) =>
+        check.Key == "caa" && !check.Scored && string.Equals(check.Summary, CaaReportingOnly, StringComparison.Ordinal);
+
     /// <summary>True for an optional policy the domain does not publish: neither a pass nor a failure.</summary>
-    public static bool IsAbsentPolicy(CheckAssessment check) => IsNoCaaPolicy(check) || IsNoTlsRptRecord(check);
+    public static bool IsAbsentPolicy(CheckAssessment check) => IsNoCaaPolicy(check) || IsCaaReportingOnly(check) || IsNoTlsRptRecord(check);
 
     /// <summary>"80%" for a coverage value, or "all" when complete.</summary>
     public static string CoveragePercent(double? coverage) =>
@@ -103,6 +110,7 @@ public static partial class AssessmentReportWording {
             "bimi" => Metric(check, "Logo") is { } logo ? "Logo " + logo.ToLowerInvariant() : null,
             "dnssec" => check.Outcome == CheckOutcome.Pass ? "Signed and valid" : Fact(check, "Validation status"),
             "caa" => IsNoCaaPolicy(check) ? "No CAA policy"
+                : IsCaaReportingOnly(check) ? "No issuer restriction"
                 : Metric(check, "Issuers") is { } issuers ? Plural(ParseCount(issuers), "CA allowed", "CAs allowed") : null,
             _ => null
         };
@@ -137,7 +145,9 @@ public static partial class AssessmentReportWording {
         "spf" => Metric(check, "DNS lookups") is { } lookups ? (lookups.Contains("/") ? lookups : lookups + " / 10") + " DNS lookups used." : null,
         "dkim" => "Every published key is valid.",
         "dnssec" => "Answers are signed and validate.",
-        "caa" => IsNoCaaPolicy(check) ? "Any certificate authority may issue certificates." : "Only the listed CAs may issue certificates.",
+        "caa" => IsNoCaaPolicy(check) ? "Any certificate authority may issue certificates."
+            : IsCaaReportingOnly(check) ? "No issuer restriction; incident reporting set."
+            : "Only the listed CAs may issue certificates.",
         "tlsrpt" => IsNoTlsRptRecord(check) ? "Mail TLS failures are not reported." : "Mail TLS failures are reported.",
         "mtasts" => "Senders must deliver over TLS.",
         _ => null
