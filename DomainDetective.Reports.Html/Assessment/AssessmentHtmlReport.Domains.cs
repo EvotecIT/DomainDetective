@@ -115,7 +115,7 @@ public static partial class AssessmentHtmlReport {
         if (domain.ErrorChecks > 0) parts.Add($"{Plural(domain.ErrorChecks, "check")} with errors");
         if (domain.WarningChecks > 0) parts.Add($"{Plural(domain.WarningChecks, "check")} with warnings");
         int incomplete = domain.Checks.Count(static c => !c.EvidenceComplete);
-        if (incomplete > 0) parts.Add($"{Plural(incomplete, "check")} with incomplete evidence");
+        if (incomplete > 0) parts.Add($"{Plural(incomplete, "check")} couldn't be checked");
         if (domain.PassedChecks > 0) parts.Add($"{domain.PassedChecks.ToString(CultureInfo.InvariantCulture)} passed");
         return string.Join(", ", parts) + ".";
     }

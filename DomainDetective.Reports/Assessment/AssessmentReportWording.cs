@@ -62,7 +62,7 @@ public static partial class AssessmentReportWording {
         int incomplete = checks.Count(static c => !c.EvidenceComplete);
         string what = $"{Plural(checks.Count, "check")} in {Plural(areas, "area")}: {passed.ToString(CultureInfo.InvariantCulture)} passed";
         if (info > 0) what += $", {info.ToString(CultureInfo.InvariantCulture)} informational";
-        if (incomplete > 0) what += $", {incomplete.ToString(CultureInfo.InvariantCulture)} with incomplete evidence";
+        if (incomplete > 0) what += $", {incomplete.ToString(CultureInfo.InvariantCulture)} couldn't be checked";
         return what + (report.Domains.Count > 1 && report.Score.HasValue ? ". The overall grade averages the domain scores." : ".");
     }
 
@@ -281,7 +281,7 @@ public static partial class AssessmentReportWording {
 
     /// <summary>The complete area note, including the evidence qualification used by HTML.</summary>
     public static string AreaNote(DomainAssessmentReport report, List<CheckAssessment> checks) =>
-        (checks.Any(c => c.Scored && !c.EvidenceComplete) ? "Incomplete evidence. " : string.Empty) + AreaLine(report, checks);
+        (checks.Any(c => c.Scored && !c.EvidenceComplete) ? "Some checks couldn't run. " : string.Empty) + AreaLine(report, checks);
 
     /// <summary>The scoring facts printed in the HTML About section and paper appendix.</summary>
     public static IReadOnlyList<KeyValuePair<string, string>> ScoringFacts { get; } = Array.AsReadOnly(new[] {

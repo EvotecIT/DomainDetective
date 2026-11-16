@@ -25,8 +25,8 @@ public static partial class AssessmentWordReport {
         List<RiskSignal> signals = Wording.ShownSignals(profile).ToList();
         if (signals.Count > 0) {
             Heading(document, style, "Signals", 3);
-            WordTable table = Table(document, style, new[] { "Points", "Why", "Source" },
-                signals.Select(s => new[] { Wording.Points(s.Points), s.Reason, Wording.SignalSource(s) }), 10, 62, 28);
+            WordTable table = Table(document, style, new[] { "Counts", "Why", "Source" },
+                signals.Select(s => new[] { s.Points < 0 ? "In favour" : "Against", s.Reason, Wording.SignalSource(s) }), 14, 58, 28);
             for (int index = 0; index < signals.Count; index++) {
                 string tone = signals[index].Points < 0 ? Good : signals[index].Points >= 20 || signals[index].Decisive ? High : Elevated;
                 style.ApplyCellTone(table.Rows[index + 1].Cells[0], tone);

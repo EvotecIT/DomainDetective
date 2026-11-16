@@ -101,7 +101,7 @@ public partial class TestAssessmentExports {
                 && row.Elements(Word + "tc").Last().Elements(Word + "p").First().Value == "DMARC");
             XElement[] paragraphs = action.Elements(Word + "tc").Last().Elements(Word + "p").ToArray();
             Assert.NotNull(paragraphs[0].Descendants(Word + "b").FirstOrDefault());
-            Assert.Equal("example.test · Mail · 4 findings", ParagraphText(paragraphs[1]));
+            Assert.Equal("Mail · 4 findings", ParagraphText(paragraphs[1]));
             Assert.All(paragraphs[1].Descendants(Word + "r").Where(run => run.Element(Word + "t") != null),
                 run => Assert.Equal("687078", (string?)run.Element(Word + "rPr")?.Element(Word + "color")?.Attribute(Word + "val")));
             Assert.Equal("120", (string?)paragraphs[2].Element(Word + "pPr")?.Element(Word + "spacing")?.Attribute(Word + "after"));

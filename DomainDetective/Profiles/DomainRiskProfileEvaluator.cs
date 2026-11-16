@@ -375,7 +375,7 @@ public static class DomainRiskProfileEvaluator {
         EvidenceState firstSeen = e.CtState == EvidenceState.Observed && !FirstSeenIsHistory(e) ? EvidenceState.Partial : answered;
         string? firstSeenNote = e.CtState != EvidenceState.Observed ? null
             : e.CtCapped ? "CT answer was capped; the earliest entry may be missing"
-            : e.CtSource == "certspotter" ? "Cert Spotter lists recent issuances only; crt.sh or DDCT has the full history"
+            : e.CtSource == "certspotter" ? "recent issuances only; the full history was unavailable, so this is not the first certificate"
             : null;
         var items = new List<EvidenceItem> {
             Item("certificates.first-seen", "First seen", firstSeen, 0.4, source, "cttimeline", firstSeenNote),
@@ -389,8 +389,10 @@ public static class DomainRiskProfileEvaluator {
                 e.CtSource == "ddct-api" ? "earliest entry DDCT has ingested" : firstSeenNote);
         }
         if (e.UniqueCertificates > 0) {
-            AddFact(facts, "Certificates", e.UniqueCertificates.ToString(CultureInfo.InvariantCulture) + ", " +
-                                           e.IssuedLast30Days.ToString(CultureInfo.InvariantCulture) + " in the last 30 days");
+            bool partial = !FirstSeenIsHistory(e);
+            AddFact(facts, partial ? "Recent certificates" : "Certificates", e.UniqueCertificates.ToString(CultureInfo.InvariantCulture) + ", " +
+                                           e.IssuedLast30Days.ToString(CultureInfo.InvariantCulture) + " in the last 30 days",
+                partial ? "recent issuances only; the full history was unavailable" : null);
         }
         if (e.Issuers.Count > 0) {
             string[] issuers = e.Issuers.OrderByDescending(static i => i.Value).Select(static i => IssuerName(i.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

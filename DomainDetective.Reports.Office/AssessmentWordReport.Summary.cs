@@ -100,7 +100,8 @@ public static partial class AssessmentWordReport {
             // Keep the same message and source strings as HTML. The domain is a separate identifier run.
             style.SetCellText(cell, action.Check.Title);
             cell.Paragraphs[0].Bold = true;
-            cell.AddParagraph(Identifier(action.AffectedDomains));
+            // A one-domain report names the domain once, on the cover, not on every action.
+            cell.AddParagraph(report.Domains.Count > 1 ? Identifier(action.AffectedDomains) : string.Empty);
             cell.AddParagraph(Wording.DoFirstMessage(action.Check));
         }
         style.ApplyTable(table, hasHeader: false, allowRowSplit: false, alignNumericColumns: false);
@@ -127,9 +128,9 @@ public static partial class AssessmentWordReport {
             foreach (WordParagraph paragraph in text.Paragraphs) { paragraph.FontSize = OfficeLength.Points(10.5); }
             WordParagraph meta = text.Paragraphs[1];
             WordParagraph message = text.Paragraphs[2];
-            meta.FontFamily = report.Domains.Count == 1 ? Mono : style.FontFamily;
+            meta.FontFamily = style.FontFamily;
             meta.Color = OfficeColor.Parse(style.Muted);
-            WordParagraph source = meta.AddText(" · " + Wording.DoFirstSource(actions[index].Check));
+            WordParagraph source = meta.AddText((report.Domains.Count > 1 ? " · " : string.Empty) + Wording.DoFirstSource(actions[index].Check));
             source.FontFamily = style.FontFamily;
             source.FontSize = OfficeLength.Points(10.5);
             source.Color = OfficeColor.Parse(style.Muted);

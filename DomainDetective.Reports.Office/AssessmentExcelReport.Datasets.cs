@@ -59,8 +59,8 @@ public static partial class AssessmentExcelReport {
             ? "Every finding, including informational notes." : "Warnings, errors and incomplete evidence. Informational notes are left out.");
         const int header = 4;
         WriteHeader(sheet, header, several
-            ? new[] { "Severity", "Domain", "Check", "Finding", "Where", "Code", "Area" }
-            : new[] { "Severity", "Check", "Finding", "Where", "Code", "Area" });
+            ? new[] { "Severity", "Domain", "Check", "Finding", "Where", "Area", "Code" }
+            : new[] { "Severity", "Check", "Finding", "Where", "Area", "Code" });
         int offset = several ? 1 : 0;
         int row = header;
         foreach (DomainAssessment domain in report.Domains) {
@@ -71,7 +71,7 @@ public static partial class AssessmentExcelReport {
                     values.AddRange(new object?[] {
                         check.Title, finding.Message,
                         string.Equals(finding.Target, domain.Domain, StringComparison.OrdinalIgnoreCase) ? null : finding.Target,
-                        finding.Code, Wording.AreaLabel(check.Area)
+                        Wording.AreaLabel(check.Area), finding.Code
                     });
                     WriteRow(sheet, ++row, values.ToArray());
                     Tone(sheet, row, 1, finding.IsEvidenceGap ? Muted : finding.Severity == AssessmentSeverity.Error ? High
@@ -79,16 +79,18 @@ public static partial class AssessmentExcelReport {
                     if (several) { sheet.Cell(row, 2).SetFontFamily(Mono); }
                     sheet.Cell(row, 2 + offset).SetBold();
                     sheet.Cell(row, 4 + offset).SetFontFamily(Mono);
-                    sheet.Cell(row, 5 + offset).SetFontFamily(Mono);
-                    sheet.Cell(row, 5 + offset).SetColor(OfficeColor.Parse(Muted));
+                    sheet.Cell(row, 6 + offset).SetFontFamily(Mono);
+                    sheet.Cell(row, 6 + offset).SetColor(OfficeColor.Parse(Muted));
+                    sheet.Cell(row, 6 + offset).SetFontSize(OfficeLength.Points(8));
                 }
             }
         }
         if (row == header) { WriteCell(sheet, ++row, 1, "No findings."); }
         Table(sheet, "Findings", header, row, 6 + offset, several
-            ? new double[] { 12, 26, 22, 80, 40, 36, 11 } : new double[] { 12, 22, 80, 40, 36, 11 });
-        // Only the finding wraps; long target lists stay on one line and keep their full value in the cell.
+            ? new double[] { 12, 26, 22, 70, 34, 11, 22 } : new double[] { 12, 22, 70, 34, 11, 22 });
+        // The finding and its hosts wrap inside their columns; the code stays narrow at the end for filtering.
         Wrap(sheet, header + 1, row, 3 + offset);
+        Wrap(sheet, header + 1, row, 4 + offset);
         Paper(sheet, header, 1, Tabs[1]);
     }
 }

@@ -68,8 +68,8 @@ public static partial class AssessmentHtmlReport {
                     panel.AssessmentFlow(flow => {
                         flow.Label("Inbound mail transport");
                         if (mx != null) {
-                            flow.Step("MX · mail servers", !mx.EvidenceComplete ? "Incomplete" : Metric(mx, "Provider") ?? Suffix(Metric(mx, "Mail servers"), "servers") ?? OutcomeLabel(mx.Outcome), OutcomeSeverity(mx.Outcome), s => {
-                                s.Caption(mx.EvidenceComplete ? JoinText(Suffix(Metric(mx, "Mail servers"), "servers"), Prefix("IPv6", Metric(mx, "IPv6")), Prefix("backup", Metric(mx, "Backup server"))) : "Mail-server evidence is incomplete.").Link(Link(mx));
+                            flow.Step("MX · mail servers", !mx.EvidenceComplete && Metric(mx, "Provider") == null ? OutcomeLabel(CheckOutcome.Incomplete) : Metric(mx, "Provider") ?? Suffix(Metric(mx, "Mail servers"), "servers") ?? OutcomeLabel(mx.Outcome), OutcomeSeverity(mx.Outcome), s => {
+                                s.Caption(mx.EvidenceComplete ? JoinText(Suffix(Metric(mx, "Mail servers"), "servers"), Prefix("IPv6", Metric(mx, "IPv6")), Prefix("backup", Metric(mx, "Backup server"))) : "Some mail-server lookups did not finish.").Link(Link(mx));
                                 foreach (List<string> row in TableRows(mx, "Mail servers").Take(3)) s.Line(JoinText(Cell(row, 0), Cell(row, 1)) ?? string.Empty);
                             });
                         }
@@ -86,7 +86,7 @@ public static partial class AssessmentHtmlReport {
                         }
                         if (dane != null) {
                             string records = Fact(dane, "Number of records") ?? "0";
-                            flow.Step("DANE · pinned keys", !dane.EvidenceComplete ? "Incomplete" : records == "0" ? "none" : records + " records", OutcomeSeverity(dane.Outcome), s => s
+                            flow.Step("DANE · pinned keys", !dane.EvidenceComplete ? OutcomeLabel(CheckOutcome.Incomplete) : records == "0" ? "none" : records + " records", OutcomeSeverity(dane.Outcome), s => s
                                 .Caption(TopFinding(dane))
                                 .Link(Link(dane)));
                         }
@@ -184,7 +184,7 @@ public static partial class AssessmentHtmlReport {
                 .Subtitle("The domain and every address behind its mail servers, checked against blocklists.")
                 .Settings(s => s.Flush())
                 .AssessmentStats(stats => stats
-                    .Stat(!complete ? "Incomplete" : listed == "0" ? "No listings observed" : listed + " listed", "Blocklist result", !complete ? Severity.Skipped : listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
+                    .Stat(!complete ? OutcomeLabel(CheckOutcome.Incomplete) : listed == "0" ? "No listings observed" : listed + " listed", "Blocklist result", !complete ? Severity.Skipped : listed == "0" ? Severity.Good : Severity.High, Link(dnsbl))
                     .Stat(Fact(dnsbl, "Providers checked") ?? "-", "Blocklists checked")
                     .Stat(Fact(dnsbl, "Hosts checked") ?? "-", "Hosts and addresses checked")));
         }

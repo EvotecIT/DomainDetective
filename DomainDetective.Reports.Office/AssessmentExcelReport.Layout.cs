@@ -113,6 +113,8 @@ public static partial class AssessmentExcelReport {
         lastRow = Math.Max(lastRow, headerRow + 1);
         string range = "A" + Text(headerRow) + ":" + ColumnName(columns) + Text(lastRow);
         sheet.AddTable(range, true, name, ExcelTableStyle.TableStyleMedium2, includeAutoFilter: true);
+        // The table header repeats on every printed page.
+        sheet.PageSetup.SetPrintTitles(headerRow, headerRow, null, null);
         for (int column = 1; column <= columns; column++) {
             // The table style draws the teal header band; white text keeps it readable.
             sheet.Cell(headerRow, column).SetColor(OfficeColor.Parse("FFFFFF"));
@@ -125,10 +127,22 @@ public static partial class AssessmentExcelReport {
     private static void Paper(ExcelSheet sheet, int frozenRows, int frozenColumns, string tab, bool fitWidth = true) {
         if (frozenRows > 0 || frozenColumns > 0) { sheet.View.Freeze(topRows: frozenRows, leftColumns: frozenColumns); }
         sheet.SetTabColor(OfficeColor.Parse(tab));
+        // Every sheet prints landscape and one page wide, however many rows it runs to.
         sheet.PageSetup.Orientation = OfficeIMO.OfficePageOrientation.Landscape;
-        if (fitWidth) {
+        sheet.PageSetup.FitToWidth = 1;
+        sheet.PageSetup.FitToHeight = 0;
+    }
+
+    /// <summary>Limits each sheet's print area to what was written and adds a footer with the sheet and page number.</summary>
+    private static void PrintLayout(ExcelDocument workbook, string scope) {
+        foreach (ExcelSheet sheet in workbook.Sheets) {
+            string used = sheet.UsedRange.Address;
+            if (!string.IsNullOrWhiteSpace(used)) { sheet.PageSetup.PrintArea = used; }
+            sheet.PageSetup.Orientation = OfficeIMO.OfficePageOrientation.Landscape;
             sheet.PageSetup.FitToWidth = 1;
             sheet.PageSetup.FitToHeight = 0;
+            sheet.PageSetup.Footer.Left.Text = "DomainDetective · " + scope.Replace("&", "&&") + " · &A";
+            sheet.PageSetup.Footer.Right.Text = "Page &P of &N";
         }
     }
 

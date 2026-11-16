@@ -40,6 +40,7 @@ public static partial class AssessmentExcelReport {
         WriteChecks(checks, report, evidenceRows);
         WriteFindings(findings, report, options);
         if (risk != null) { WriteRiskProfiles(risk, profiled); }
+        PrintLayout(workbook, Scope(report));
         workbook.Save();
     }
 
@@ -67,8 +68,8 @@ public static partial class AssessmentExcelReport {
             (Wording.OutcomeLabel(CheckOutcome.Incomplete), Text(incomplete), Muted, null)
         };
         if (report.Domains.Count == 1 && report.Domains[0].RiskProfile is { } riskProfile) {
-            tiles.Add(("Risk", Wording.RiskValue(riskProfile), RiskColor(riskProfile), null));
-            tiles.Add(("Confidence", Wording.ConfidenceValue(riskProfile), Muted, null));
+            tiles.Add(("Risk", Wording.RiskWord(riskProfile), RiskColor(riskProfile), riskProfile.Rated ? "score " + riskProfile.RiskScore.ToString(CultureInfo.InvariantCulture) : null));
+            tiles.Add(("Evidence seen", Wording.ConfidencePercent(riskProfile).Replace(" of evidence seen", string.Empty), Muted, Wording.ConfidenceLabel(riskProfile.Confidence) + " confidence"));
         }
         for (int index = 0; index < tiles.Count; index++) {
             int column = index + 1;

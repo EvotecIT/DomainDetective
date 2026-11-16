@@ -13,10 +13,12 @@ public static partial class AssessmentReportWording {
     /// </summary>
     public static string DomainIntro(DomainAssessment domain) {
         string? strengths = DomainStrengths(domain);
-        CheckAssessment? first = FixOrder(domain.Checks).FirstOrDefault(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning);
-        string fix = first == null
+        List<string> first = FixOrder(domain.Checks).Where(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
+            .Select(static c => c.Title).Distinct(StringComparer.Ordinal).Take(3).ToList();
+        // Name the checks only; their findings are printed in full where they are listed.
+        string fix = first.Count == 0
             ? domain.Checks.Count == 0 ? "No checks ran." : "Nothing needs fixing."
-            : "Fix first: " + first.Title + (ControlReason(first) is { Length: > 0 } why ? ": " + LowerFirst(Shorten(FirstSentence(why).TrimEnd('.'), 80)) : string.Empty) + ".";
+            : "Fix first: " + JoinList(first) + ".";
         return strengths == null ? fix : strengths + " " + fix;
     }
 
