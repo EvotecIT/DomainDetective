@@ -235,7 +235,7 @@ public static class DomainRiskProfileEvaluator {
             });
             first = false;
         }
-        if (e.DomainBlocklistState == EvidenceState.Observed && e.DomainBlocklists.Count > 0) {
+        if (e.DomainBlocklistState is EvidenceState.Observed or EvidenceState.Partial && e.DomainBlocklists.Count > 0) {
             signals.Add(new RiskSignal {
                 Id = "reputation.domain-blocklist",
                 Facet = ProfileFacetKind.Reputation,
@@ -345,7 +345,7 @@ public static class DomainRiskProfileEvaluator {
     private static bool FirstSeenIsHistory(DomainRiskEvidence e) => !e.CtCapped && e.CtSource != "certspotter";
 
     private static void CertificateSignals(DomainRiskEvidence e, DateTimeOffset now, List<RiskSignal> signals) {
-        if (e.CtState != EvidenceState.Observed) return;
+        if (e.CtState is not (EvidenceState.Observed or EvidenceState.Partial)) return;
         if (e.CtFirstSeenUtc.HasValue && FirstSeenIsHistory(e)) {
             double age = (now - e.CtFirstSeenUtc.Value).TotalDays;
             if (age < 30) {
@@ -370,10 +370,12 @@ public static class DomainRiskProfileEvaluator {
 
     private static ProfileFacet CertificateFacet(DomainRiskEvidence e, DateTimeOffset now) {
         string source = CtLabel(e);
-        bool noCertificates = e.CtState == EvidenceState.Observed && e.UniqueCertificates == 0;
-        EvidenceState answered = noCertificates ? EvidenceState.Clean : e.CtState;
-        EvidenceState firstSeen = e.CtState == EvidenceState.Observed && !FirstSeenIsHistory(e) ? EvidenceState.Partial : answered;
-        string? firstSeenNote = e.CtState != EvidenceState.Observed ? null
+        bool read = e.CtState is EvidenceState.Observed or EvidenceState.Partial;
+        bool noCertificates = read && e.UniqueCertificates == 0;
+        // Every CT item shares the answer's coverage: a capped or partly failed history is partial throughout.
+        EvidenceState answered = EvidenceCoverage.Limit(noCertificates ? EvidenceState.Clean : read ? EvidenceState.Observed : e.CtState, e.CtCapped);
+        EvidenceState firstSeen = read && !FirstSeenIsHistory(e) ? EvidenceState.Partial : answered;
+        string? firstSeenNote = !read ? null
             : e.CtCapped ? "part of the CT history was not read (capped or a query failed); the earliest entry may be missing"
             : e.CtSource == "certspotter" ? "recent issuances only; the full history was unavailable, so this is not the first certificate"
             : null;
@@ -441,16 +443,17 @@ public static class DomainRiskProfileEvaluator {
     private static ProfileFacet NetworkFacet(DomainRiskEvidence e) {
         EvidenceState asn = e.NetworkState, country = e.NetworkState, hosting = e.NetworkState;
         string? countryNote = null, hostingNote = null, asnNote = null;
-        if (e.NetworkState == EvidenceState.Observed) {
+        bool capped = e.NetworkState == EvidenceState.Partial;
+        if (e.NetworkState is EvidenceState.Observed or EvidenceState.Partial) {
             if (e.Addresses.Count == 0) {
-                asn = country = hosting = EvidenceState.Clean;
+                asn = country = hosting = EvidenceCoverage.Limit(EvidenceState.Clean, capped);
             } else {
                 // Each item is complete only when every address answered; one enriched address does not stand for the rest.
                 static bool Enriched(ProfileAddress a) => a.Asn.HasValue || a.Cidr.Length > 0;
                 static bool PublishedRange(ProfileAddress a) => a.HostingProvider.Length > 0 && !a.HostingMatchedBy.StartsWith("AS", StringComparison.Ordinal);
                 int total = e.Addresses.Count;
                 int enriched = e.Addresses.Count(Enriched);
-                asn = enriched == total ? EvidenceState.Observed : EvidenceState.Partial;
+                asn = EvidenceCoverage.From(total, enriched, found: true, capped: capped);
                 if (enriched < total) {
                     asnNote = (total - enriched).ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) + " addresses have no network data";
                 }
@@ -473,14 +476,16 @@ public static class DomainRiskProfileEvaluator {
                 // provider claims it. A network-only match or an address without network data is not settled.
                 int settled = e.Addresses.Count(a => PublishedRange(a) || (a.HostingProvider.Length == 0 && Enriched(a)));
                 bool anyPublished = e.Addresses.Any(PublishedRange);
-                if (settled == total) {
-                    hosting = anyPublished ? EvidenceState.Observed : EvidenceState.Clean;
-                    if (!anyPublished) hostingNote = "no published cloud or CDN range matched";
-                } else {
-                    hosting = EvidenceState.Partial;
+                hosting = EvidenceCoverage.From(total, settled, found: anyPublished, capped: capped);
+                if (settled == total && !anyPublished) hostingNote = "no published cloud or CDN range matched";
+                if (settled < total) {
                     hostingNote = e.Addresses.Any(static a => a.HostingProvider.Length > 0 && a.HostingMatchedBy.StartsWith("AS", StringComparison.Ordinal))
                         ? "some addresses matched by network only, not a published range"
                         : (total - settled).ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) + " addresses could not be attributed";
+                }
+                country = EvidenceCoverage.Limit(country, capped);
+                if (capped) {
+                    asnNote = "address list capped" + (asnNote == null ? string.Empty : "; " + asnNote);
                 }
             }
         }

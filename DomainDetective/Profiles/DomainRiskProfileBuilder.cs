@@ -80,12 +80,7 @@ public static class DomainRiskProfileBuilder {
                 state = EvidenceState.Failed;
             } else {
                 ThreatIntelFinding? finding = listings.Where(l => l.Source == feed.Source).Select(static l => (ThreatIntelFinding?)l).FirstOrDefault();
-                state = finding?.State switch {
-                    ThreatIntelQueryState.Listed => EvidenceState.Observed,
-                    ThreatIntelQueryState.Clean => EvidenceState.Clean,
-                    ThreatIntelQueryState.Failed => EvidenceState.Failed,
-                    _ => EvidenceState.NotQueried
-                };
+                state = FeedState(finding?.State);
                 listed = finding?.State == ThreatIntelQueryState.Listed;
             }
             evidence.Feeds.Add(new ThreatFeedEvidence {
@@ -107,18 +102,38 @@ public static class DomainRiskProfileBuilder {
         evidence.HostBlocklistState = BlocklistState(hostRecords);
         evidence.HostsChecked = hostRecords.Select(static r => r.IpAddress).Where(static ip => !string.IsNullOrWhiteSpace(ip)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
         evidence.HostsListed = hostRecords.Where(static r => r.IsBlackListed).Select(static r => r.IpAddress).Where(static ip => !string.IsNullOrWhiteSpace(ip)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
-        if (!health.DNSBLAnalysis.DiscoverySucceeded && evidence.HostBlocklistState is EvidenceState.Observed or EvidenceState.Clean) {
-            evidence.HostBlocklistState = EvidenceState.Partial;
-        }
+        // Hosts that could not be discovered were never checked, so host coverage is partial however the lists answered.
+        evidence.HostBlocklistState = EvidenceCoverage.Limit(evidence.HostBlocklistState, !health.DNSBLAnalysis.DiscoverySucceeded);
     }
 
-    private static EvidenceState BlocklistState(List<DNSBLRecord> records) {
-        if (records.Count == 0) return EvidenceState.NotQueried;
-        int answered = records.Count(static r => r.QuerySucceeded);
-        if (answered == 0) return EvidenceState.Failed;
-        if (records.Any(static r => r.QuerySucceeded && r.IsBlackListed)) return EvidenceState.Observed;
-        return answered < records.Count ? EvidenceState.Partial : EvidenceState.Clean;
-    }
+    // ---- Per-source mapping onto the shared coverage rule (EvidenceCoverage) --------------------------------------------
+
+    /// <summary>One threat feed: a single query that either answered (listed or clean), failed, or was not asked.</summary>
+    internal static EvidenceState FeedState(ThreatIntelQueryState? state) => state switch {
+        ThreatIntelQueryState.Listed => EvidenceCoverage.From(1, 1, found: true),
+        ThreatIntelQueryState.Clean => EvidenceCoverage.From(1, 1, found: false),
+        ThreatIntelQueryState.Failed => EvidenceCoverage.From(1, 0, found: false),
+        _ => EvidenceState.NotQueried
+    };
+
+    /// <summary>DNSBL lists for the domain or its hosts: every list must answer before the coverage is complete.</summary>
+    internal static EvidenceState BlocklistState(IReadOnlyCollection<DNSBLRecord> records) =>
+        EvidenceCoverage.From(records.Count, records.Count(static r => r.QuerySucceeded), records.Any(static r => r.QuerySucceeded && r.IsBlackListed));
+
+    /// <summary>CT timeline: an answer that was capped or partly failed is partial history.</summary>
+    internal static EvidenceState CtState(bool querySucceeded, bool capped) =>
+        EvidenceCoverage.From(1, querySucceeded ? 1 : 0, found: true, capped: capped);
+
+    /// <summary>DNS inventory: every record type queried must answer.</summary>
+    internal static EvidenceState InventoryState(bool querySucceeded, int typesQueried, int typesFailed) =>
+        !querySucceeded ? EvidenceState.Failed : EvidenceCoverage.From(System.Math.Max(1, typesQueried), System.Math.Max(1, typesQueried) - typesFailed, found: true);
+
+    /// <summary>IP enrichment: a capped address list is partial; per-address completeness is judged by the evaluator.</summary>
+    internal static EvidenceState NetworkState(bool querySucceeded, bool capped) =>
+        EvidenceCoverage.From(1, querySucceeded ? 1 : 0, found: true, capped: capped);
+
+    /// <summary>Web scan: a scan that did not finish is partial.</summary>
+    internal static EvidenceState WebState(bool complete) => EvidenceCoverage.From(1, 1, found: true, capped: !complete);
 
     private static void Registration(DomainHealthCheck health, DomainRiskEvidence evidence) {
         bool rdapOk = Ran(health, HealthCheckType.RDAP) && !Failed(health, HealthCheckType.RDAP) && health.RdapAnalysis != null &&
@@ -153,7 +168,15 @@ public static class DomainRiskProfileBuilder {
 
     private static string StatusName(string value) => value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value.Substring(1);
 
-    private static (EvidenceState, DateTimeOffset?) DateEvidence(string? text, bool answered, EvidenceState missing) {
+    /// <summary>DNSSEC: a definite answer is complete, an indeterminate one partial, anything else a failed check.</summary>
+    internal static EvidenceState DnssecState(DnssecValidationStatus status) => status switch {
+        DnssecValidationStatus.Secure or DnssecValidationStatus.Insecure or DnssecValidationStatus.Bogus => EvidenceCoverage.From(1, 1, found: true),
+        DnssecValidationStatus.Indeterminate => EvidenceCoverage.From(1, 1, found: true, capped: true),
+        _ => EvidenceCoverage.From(1, 0, found: false)
+    };
+
+    /// <summary>A registration date: parsed is complete, present but unreadable is partial, no answer is failed.</summary>
+    internal static (EvidenceState, DateTimeOffset?) DateEvidence(string? text, bool answered, EvidenceState missing) {
         if (!answered) return (missing, null);
         if (string.IsNullOrWhiteSpace(text)) return (EvidenceState.Partial, null);
         return TryParseDate(text!, out DateTimeOffset value) ? (EvidenceState.Observed, value) : (EvidenceState.Partial, null);
@@ -182,12 +205,12 @@ public static class DomainRiskProfileBuilder {
             evidence.CtState = NotAnswered(health, HealthCheckType.CTTIMELINE);
             return;
         }
-        evidence.CtState = ct.QuerySucceeded ? EvidenceState.Observed : EvidenceState.Failed;
+        // A capped answer and a partly failed one both leave out part of the history.
+        evidence.CtCapped = ct.ResultsCapped || ct.PartialResults;
+        evidence.CtState = CtState(ct.QuerySucceeded, evidence.CtCapped);
         evidence.CtSource = ct.Source;
         evidence.CtFirstSeenUtc = ct.FirstSeenUtc;
         evidence.CtLastSeenUtc = ct.LastSeenUtc;
-        // A capped answer and a partly failed one both leave out part of the history.
-        evidence.CtCapped = ct.ResultsCapped || ct.PartialResults;
         evidence.UniqueCertificates = ct.UniqueCertificateCount;
         evidence.IssuedLast7Days = ct.IssuedLast7Days;
         evidence.IssuedLast30Days = ct.IssuedLast30Days;
@@ -197,7 +220,7 @@ public static class DomainRiskProfileBuilder {
     private static void Dns(DomainHealthCheck health, DomainRiskEvidence evidence) {
         DnsInventoryAnalysis? inventory = health.DnsInventoryAnalysis;
         if (Ran(health, HealthCheckType.DNSINVENTORY) && !Failed(health, HealthCheckType.DNSINVENTORY) && inventory != null) {
-            evidence.InventoryState = !inventory.QuerySucceeded ? EvidenceState.Failed : inventory.RecordTypesFailed > 0 ? EvidenceState.Partial : EvidenceState.Observed;
+            evidence.InventoryState = InventoryState(inventory.QuerySucceeded, inventory.RecordTypesQueried, inventory.RecordTypesFailed);
             if (inventory.Provider != DnsProvider.Unknown) evidence.DnsProvider = inventory.Provider.ToString();
             if (inventory.MailProvider != MailProviderKind.Unknown) evidence.MailProvider = inventory.MailProvider.ToString();
         } else {
@@ -214,11 +237,7 @@ public static class DomainRiskProfileBuilder {
         if (Ran(health, HealthCheckType.DNSSEC) && !Failed(health, HealthCheckType.DNSSEC) && health.DnsSecAnalysis != null) {
             DnssecValidationStatus status = health.DnsSecAnalysis.ValidationStatus;
             evidence.Dnssec = status;
-            evidence.DnssecState = status switch {
-                DnssecValidationStatus.Secure or DnssecValidationStatus.Insecure or DnssecValidationStatus.Bogus => EvidenceState.Observed,
-                DnssecValidationStatus.Indeterminate => EvidenceState.Partial,
-                _ => EvidenceState.Failed
-            };
+            evidence.DnssecState = DnssecState(status);
         } else {
             evidence.DnssecState = NotAnswered(health, HealthCheckType.DNSSEC);
         }
@@ -238,7 +257,8 @@ public static class DomainRiskProfileBuilder {
             evidence.NetworkState = NotAnswered(health, HealthCheckType.IPENRICHMENT);
             return;
         }
-        evidence.NetworkState = enrichment.QuerySucceeded ? EvidenceState.Observed : EvidenceState.Failed;
+        // When enrichment stopped at its address limit, the addresses it dropped were never looked at.
+        evidence.NetworkState = NetworkState(enrichment.QuerySucceeded, enrichment.ResultsCapped);
         foreach (IpEnrichmentRow row in enrichment.Rows ?? Array.Empty<IpEnrichmentRow>()) {
             if (evidence.Addresses.Any(a => string.Equals(a.IpAddress, row.IpAddress, StringComparison.OrdinalIgnoreCase))) continue;
             evidence.Addresses.Add(new ProfileAddress {
@@ -267,7 +287,7 @@ public static class DomainRiskProfileBuilder {
             evidence.WebState = EvidenceState.NotQueried;
             return;
         }
-        evidence.WebState = web.AnalysisComplete ? EvidenceState.Observed : EvidenceState.Partial;
+        evidence.WebState = WebState(web.AnalysisComplete);
         evidence.Technologies = web.TechDetections.OrderBy(static t => t, StringComparer.OrdinalIgnoreCase).ToList();
     }
 }
