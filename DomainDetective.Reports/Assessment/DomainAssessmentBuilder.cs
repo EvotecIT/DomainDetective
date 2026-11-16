@@ -356,6 +356,8 @@ public static class DomainAssessmentBuilder {
             HealthCheckType? kind = CategoryCheck(category);
             string key = kind?.ToString().ToLowerInvariant() ?? "additional-findings";
             CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == key);
+            // An informational note on its own is not worth a check of its own.
+            if (check == null && assessment.Severity == AssessmentSeverity.Info) continue;
             if (check == null) {
                 (string title, string? longTitle) = kind.HasValue ? DomainAssessmentCatalog.TitleFor(kind.Value) : ("Additional findings", null);
                 check = new CheckAssessment {
