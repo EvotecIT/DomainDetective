@@ -29,9 +29,13 @@ public static partial class AssessmentWordReport {
             .Select(evidence => (item.Domain, item.Check, Evidence: evidence)));
         foreach (var group in lists.GroupBy(item => (item.Check.Key, item.Evidence.Title))) {
             Heading(document, style, group.First().Check.Title + " · " + group.Key.Title, 3);
-            WordTable table = Table(document, style, new[] { "Domain", "Value" }, group.SelectMany(item =>
-                item.Evidence.Items.Select(value => new[] { Identifier(item.Domain.Domain), value })), 28, 72);
+            var values = group.SelectMany(item => item.Evidence.Items.Select(value => new[] { Identifier(item.Domain.Domain), value })).ToList();
+            WordTable table = Table(document, style, new[] { "Domain", "Value" }, values.Take(TableEvidenceRows), 28, 72);
             foreach (WordTableRow row in table.Rows.Skip(1)) { IdentifierValueCell(row.Cells[1]); }
+            if (values.Count > TableEvidenceRows) {
+                Note(document, style, "First " + Number(TableEvidenceRows) + " of " + Number(values.Count)
+                    + " shown; all " + Number(values.Count) + " are on the Evidence sheet of the Excel workbook.");
+            }
             foreach (var item in group.Where(item => item.Evidence.Omitted > 0)) {
                 Body(document, style, item.Domain.Domain);
                 OmissionNote(document, style, item.Evidence);

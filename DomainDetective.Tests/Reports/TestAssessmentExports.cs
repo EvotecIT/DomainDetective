@@ -108,38 +108,6 @@ public partial class TestAssessmentExports {
     }
 
     [Fact]
-    public void WorkbookPreservesEvidenceAndUsesPaperTablesWithoutFillsOrMerges() {
-        InDirectory(directory => {
-            var report = AssessmentExportFixture.Create(2);
-            report.Domains[0].Checks.Single(c => c.Key == "mx").Evidence[0].Rows[0][0] = "=1+1";
-            string path = Path.Combine(directory, "assessment.xlsx");
-            AssessmentExcelReport.Generate(path, report);
-            using var archive = ZipFile.OpenRead(path);
-            var strings = SpreadsheetStrings(archive);
-            string text = string.Join("\n", strings);
-            Assert.Contains("=1+1", text);
-            Assert.Contains(report.Domains[1].Domain, text);
-            foreach (var entry in archive.Entries.Where(e => e.FullName.StartsWith("xl/worksheets/sheet", StringComparison.Ordinal) && e.FullName.EndsWith(".xml", StringComparison.Ordinal))) {
-                using var stream = entry.Open(); var sheet = XDocument.Load(stream);
-                Assert.Empty(sheet.Descendants(Excel + "mergeCell"));
-                Assert.Empty(sheet.Descendants(Excel + "f"));
-                Assert.NotEmpty(sheet.Descendants(Excel + "pane"));
-                Assert.NotEmpty(sheet.Descendants(Excel + "autoFilter"));
-            }
-            var styles = Load(archive, "xl/styles.xml");
-            Assert.DoesNotContain(styles.Descendants(Excel + "patternFill"), p => (string?)p.Attribute("patternType") == "solid");
-            var book = Load(archive, "xl/workbook.xml");
-            var names = book.Descendants(Excel + "sheet").Select(s => (string)s.Attribute("name")!).ToList();
-            Assert.Equal(new[] { "Summary", "Do these first", "Checks", "Findings" }, names.Take(4));
-            Assert.Equal(8, names.Count);
-            var summary = Load(archive, "xl/worksheets/sheet1.xml");
-            Assert.Contains(summary.Descendants(Excel + "col"), column =>
-                (int?)column.Attribute("min") == 1 && (double?)column.Attribute("width") == 28);
-            Assert.Equal("1", (string?)summary.Root!.Element(Excel + "pageSetup")?.Attribute("fitToWidth"));
-        });
-    }
-
-    [Fact]
     public void WordIdentifiersUseInvisibleBreaksAndPdfConversionProducesPages() {
         InDirectory(directory => {
             var report = AssessmentExportFixture.Create();

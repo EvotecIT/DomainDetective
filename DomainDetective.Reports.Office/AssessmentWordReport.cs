@@ -59,7 +59,7 @@ public static partial class AssessmentWordReport {
             WriteAreas(document, style, report);
             if (report.Domains.Count > 1) { WriteRiskSummary(document, style, report); }
             if (report.Domains.Count > 1) { WriteControls(document, style, report); }
-            foreach (DomainAssessment domain in report.Domains) { WriteDomain(document, style, domain, options); }
+            foreach (DomainAssessment domain in report.Domains) { WriteDomain(document, style, report, domain, options); }
             WriteAppendix(document, style, report, options);
             document.TableOfContent?.RefreshEntries();
             return document;
@@ -104,6 +104,17 @@ public static partial class AssessmentWordReport {
         CheckOutcome.Pass => Good,
         _ => Neutral
     };
+    /// <summary>The pale background that goes with a tone, for panels and callouts. Neutral stays grey.</summary>
+    private static string Tint(string tone) => tone switch {
+        High => "FDEDED",
+        Elevated => "FDF6E3",
+        Good => "EAF5EE",
+        Accent => "E7F2F1",
+        _ => "F1F3F5"
+    };
+
+    private const string Accent = "0F766E";
+
     private static string ScoreTone(int? score) => score switch {
         null => Neutral,
         >= 90 => Good,
@@ -133,11 +144,18 @@ public static partial class AssessmentWordReport {
         paragraph.Color = OfficeColor.Parse(style.Ink);
         paragraph.Style = level == 1 ? WordParagraphStyles.Heading1 : level == 2 ? WordParagraphStyles.Heading2 : WordParagraphStyles.Heading3;
         paragraph.FontFamily = style.DisplayFontFamily;
-        paragraph.FontSize = OfficeLength.Points(level == 1 ? 18 : level == 2 ? 12 : 11);
+        paragraph.FontSize = OfficeLength.Points(level == 1 ? 20 : level == 2 ? 13 : 11);
         paragraph.KeepWithNext = true;
+        paragraph.KeepLinesTogether = true;
         paragraph.PageBreakBefore = newPage;
-        paragraph.LineSpacingBefore = OfficeLength.Points(level == 1 ? 10 : 6);
-        paragraph.LineSpacingAfter = OfficeLength.Points(4);
+        paragraph.LineSpacingBefore = OfficeLength.Points(level == 1 ? 10 : level == 2 ? 12 : 6);
+        paragraph.LineSpacingAfter = OfficeLength.Points(level == 1 ? 8 : 4);
+        if (level <= 2) {
+            // Chapter and section headings sit on a rule: a teal one under chapters, a hairline under sections.
+            paragraph.Borders.BottomStyle = WordBorderStyle.Single;
+            paragraph.Borders.BottomColor = OfficeColor.Parse(level == 1 ? style.Accent : style.Border);
+            paragraph.Borders.BottomSize = OfficeLength.Points(level == 1 ? 2 : 0.75);
+        }
     }
 
     private static WordTable Table(WordDocument document, WordPaperStyle style, string[] headers, IEnumerable<string[]> values, params int[] widths) {
