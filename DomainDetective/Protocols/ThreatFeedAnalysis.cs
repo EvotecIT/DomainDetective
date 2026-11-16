@@ -95,12 +95,16 @@ public class ThreatFeedAnalysis : IHasAssessments {
 
         var vtListed = false;
         var abuseListed = false;
+        var vtState = ThreatIntelQueryState.NotQueried;
+        var abuseState = ThreatIntelQueryState.NotQueried;
 
         if (virusTotalApiKey != null && !string.IsNullOrWhiteSpace(virusTotalApiKey)) {
             try {
                 var result = await QueryVirusTotal(ip, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
+                vtState = result == null ? ThreatIntelQueryState.Failed : vtListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
             } catch (Exception ex) {
+                vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
@@ -110,14 +114,16 @@ public class ThreatFeedAnalysis : IHasAssessments {
             try {
                 var json = await QueryAbuseIpDb(ip, abuseIpDbApiKey, ct);
                 abuseListed = ParseAbuseIpDb(json);
+                abuseState = abuseListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
             } catch (Exception ex) {
+                abuseState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.AbuseIpdbQueryFailed, "AbuseIPDB query failed: {0}", ex.Message);
                 FailureReason = $"AbuseIPDB query failed: {ex.Message}";
             }
         }
 
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed, State = vtState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed, State = abuseState });
 
         if (!vtListed && !abuseListed)
         {

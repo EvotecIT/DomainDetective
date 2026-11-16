@@ -6,7 +6,7 @@ using System.Linq;
 namespace DomainDetective.Reports;
 
 /// <summary>The format-independent vocabulary and reading order of an assessment.</summary>
-public static class AssessmentReportWording {
+public static partial class AssessmentReportWording {
     /// <summary>What needs attention in an area, in one line.</summary>
     public static string AreaLine(DomainAssessmentReport report, List<CheckAssessment> checks) {
         var titles = FixOrder(checks).Select(static c => c.Title).Distinct(StringComparer.Ordinal).ToList();

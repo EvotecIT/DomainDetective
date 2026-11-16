@@ -57,6 +57,7 @@ public static partial class AssessmentWordReport {
             if (report.Domains.Count > 1) { Heading(document, style, "Summary", 1); }
             WriteActions(document, style, report, options);
             WriteAreas(document, style, report);
+            if (report.Domains.Count > 1) { WriteRiskSummary(document, style, report); }
             if (report.Domains.Count > 1) { WriteControls(document, style, report); }
             foreach (DomainAssessment domain in report.Domains) { WriteDomain(document, style, domain, options); }
             WriteAppendix(document, style, report, options);

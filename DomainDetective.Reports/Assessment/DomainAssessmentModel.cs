@@ -54,6 +54,12 @@ public sealed class DomainAssessment {
 
     /// <summary>Number of checks whose outcome is <see cref="CheckOutcome.Pass"/>.</summary>
     public int PassedChecks { get; set; }
+
+    /// <summary>
+    /// How risky the domain looks and how sure that is, from registration, reputation, CT, DNS and network evidence.
+    /// Null when none of the checks it is built from ran. Separate from <see cref="Score"/>, which grades configuration.
+    /// </summary>
+    public DomainDetective.Profiles.DomainRiskProfile? RiskProfile { get; set; }
 }
 
 /// <summary>Score of one analysis area of a domain.</summary>

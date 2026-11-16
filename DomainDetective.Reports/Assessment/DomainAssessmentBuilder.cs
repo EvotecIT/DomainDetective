@@ -46,6 +46,17 @@ public static class DomainAssessmentBuilder {
         var domains = new Dictionary<string, DomainAssessment>(StringComparer.OrdinalIgnoreCase);
         var firstSeen = new List<string>();
         foreach (object item in CompositionUtilities.Flatten(items ?? Array.Empty<object>())) {
+            if (item is DomainDetective.Views.DomainRiskProfileInfo riskProfile) {
+                string? profileDomain = NormalizeDomain(riskProfile.Subject);
+                if (profileDomain == null) continue;
+                if (!domains.TryGetValue(profileDomain, out DomainAssessment? owner)) {
+                    owner = new DomainAssessment { Domain = profileDomain };
+                    domains[profileDomain] = owner;
+                    firstSeen.Add(profileDomain);
+                }
+                owner.RiskProfile = riskProfile.Profile;
+                continue;
+            }
             DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(item.GetType());
             string? domain = reader.IsView ? NormalizeDomain(reader.Subject(item)) : null;
             if (domain == null) {

@@ -32,6 +32,7 @@ public static partial class AssessmentHtmlReport {
             }
         });
 
+        RenderRiskProfile(section, domain, ids);
         RenderDomainProfile(section, domain, ids, generatedAt);
 
         // Checks grouped by chapter (Sender authentication, Transport security, ...) in the catalog's order, each with

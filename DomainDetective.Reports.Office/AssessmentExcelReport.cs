@@ -27,6 +27,7 @@ public static partial class AssessmentExcelReport {
         WriteChecks(workbook.AddSheet("Checks"), report);
         WriteFindings(workbook.AddSheet("Findings"), report, options);
         WriteCapturedEvidence(workbook.AddSheet("Evidence"), report);
+        WriteRiskProfiles(workbook, report);
         WriteEvidence(workbook, report);
         workbook.Save();
     }

@@ -76,6 +76,8 @@ public static partial class AssessmentWordReport {
         }
     }
 
+    private const int TableEvidenceColumns = 9;
+
     private static void WriteTableEvidence(WordDocument document, WordPaperStyle style, DomainAssessmentReport report) {
         var evidence = report.Domains.SelectMany(domain => domain.Checks.SelectMany(check => check.Evidence
             .Where(e => e.Kind == CheckEvidenceKind.Table).Select(e => (Domain: domain, Check: check, Evidence: e)))).ToList();
@@ -85,11 +87,23 @@ public static partial class AssessmentWordReport {
         foreach (var group in evidence.GroupBy(item => (item.Check.Key, item.Evidence.Title, Schema: string.Join("\u001F", item.Evidence.Columns)))) {
             var first = group.First();
             Heading(document, style, first.Check.Title + " · " + first.Evidence.Title, 3);
-            string[] headers = new[] { "Domain" }.Concat(first.Evidence.Columns).ToArray();
-            WordTable table = Table(document, style, headers,
-                group.SelectMany(item => item.Evidence.Rows.Select(row => new[] { Identifier(item.Domain.Domain) }.Concat(row).ToArray())));
-            foreach (WordTableRow row in table.Rows.Skip(1)) {
-                foreach (WordTableCell cell in row.Cells) { IdentifierValueCell(cell); }
+            // The landscape appendix holds about nine data columns beside the domain; wider schemas print as
+            // consecutive, evenly split tables that repeat the domain column, the way the controls matrix does.
+            int columns = first.Evidence.Columns.Count;
+            int parts = (columns + TableEvidenceColumns - 1) / TableEvidenceColumns;
+            int width = parts <= 1 ? columns : (columns + parts - 1) / parts;
+            for (int start = 0; start < columns; start += width) {
+                int count = System.Math.Min(width, columns - start);
+                if (parts > 1) {
+                    Note(document, style, "Columns " + Number(start + 1) + "–" + Number(start + count) + " of " + Number(columns) + ".");
+                }
+                string[] headers = new[] { "Domain" }.Concat(first.Evidence.Columns.Skip(start).Take(count)).ToArray();
+                WordTable table = Table(document, style, headers,
+                    group.SelectMany(item => item.Evidence.Rows.Select(row => new[] { Identifier(item.Domain.Domain) }
+                        .Concat(Enumerable.Range(start, count).Select(index => index < row.Count ? row[index] : string.Empty)).ToArray())));
+                foreach (WordTableRow row in table.Rows.Skip(1)) {
+                    foreach (WordTableCell cell in row.Cells) { IdentifierValueCell(cell); }
+                }
             }
             foreach (var item in group.Where(item => item.Evidence.Omitted > 0)) {
                 Body(document, style, item.Domain.Domain + " · " + item.Check.Title);

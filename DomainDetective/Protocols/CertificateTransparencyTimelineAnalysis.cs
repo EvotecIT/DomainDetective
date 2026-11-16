@@ -38,6 +38,21 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     /// </summary>
     public Func<string, CancellationToken, Task<string>>? QueryOverride { get; set; }
 
+    /// <summary>
+    /// Optional CT provider queried before crt.sh, for example <c>DdctApiCertificateTransparencyProvider</c> for a
+    /// DDCT instance. When it fails, the analysis falls back to crt.sh and Cert Spotter and records why.
+    /// </summary>
+    public ICtCertificateTransparencyProvider? Provider { get; set; }
+
+    /// <summary>Maximum number of pages read from <see cref="Provider"/>.</summary>
+    public int ProviderMaxPages { get; set; } = 20;
+
+    /// <summary>Source that supplied the timeline: the provider id (for example <c>ddct-api</c>), <c>crt.sh</c> or <c>certspotter</c>.</summary>
+    public string Source { get; private set; } = string.Empty;
+
+    /// <summary>Why <see cref="Provider"/> was not used, when it failed and another source answered.</summary>
+    public string? ProviderFailureReason { get; private set; }
+
     /// <summary>True when CT query succeeded and parsing completed.</summary>
     public bool QuerySucceeded { get; private set; }
 
@@ -118,7 +133,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         Subject = DomainHelper.ValidateIdn(domain);
 
         var urls = BuildQueryUrls(Subject!);
-        if (urls.Count == 0)
+        if (urls.Count == 0 && Provider == null)
         {
             QuerySucceeded = true;
             return;
@@ -133,13 +148,39 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         {
             var anyPayloadParsed = false;
             string? lastFailure = null;
+            if (Provider != null)
+            {
+                try
+                {
+                    anyPayloadParsed = await QueryProviderAsync(Provider, now, issuerCounts, certs, bucketAgg, logger, cancellationToken).ConfigureAwait(false);
+                    Source = Provider.ProviderId;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Start the fallback from a clean slate so a half-read provider answer is not mixed in.
+                    ResetCounters();
+                    issuerCounts.Clear();
+                    certs.Clear();
+                    bucketAgg.Clear();
+                    ProviderFailureReason = ex.Message;
+                    lastFailure = $"{Provider.ProviderId}: {ex.Message}";
+                    logger?.WriteVerbose("CT provider {0} failed for {1}: {2}", Provider.ProviderId, Subject, ex.Message);
+                }
+                if (anyPayloadParsed)
+                {
+                    urls.Clear();
+                }
+            }
+
             foreach (var url in urls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                    anyPayloadParsed |= ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                    bool parsed = ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                    if (parsed && Source.Length == 0) Source = "crt.sh";
+                    anyPayloadParsed |= parsed;
                 }
                 catch (Exception ex)
                 {
@@ -161,7 +202,9 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     try
                     {
                         var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
-                        anyPayloadParsed |= ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
+                        bool parsed = ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
+                        if (parsed) Source = "certspotter";
+                        anyPayloadParsed |= parsed;
                     }
                     catch (Exception ex)
                     {
@@ -299,6 +342,14 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         Subject = null;
         QuerySucceeded = false;
         FailureReason = null;
+        Source = string.Empty;
+        ProviderFailureReason = null;
+        ResetCounters();
+        Assessments.Clear();
+    }
+
+    private void ResetCounters()
+    {
         CertificateObservationCount = 0;
         UniqueCertificateCount = 0;
         FirstSeenUtc = null;
@@ -313,7 +364,6 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         ResultsCapped = false;
         Timeline = Array.Empty<CtTimelineBucket>();
         RecentCertificates = Array.Empty<CtCertificateSample>();
-        Assessments.Clear();
     }
 
     private List<string> BuildQueryUrls(string domain)
@@ -406,26 +456,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
         foreach (var item in doc.RootElement.EnumerateArray())
         {
-            if (!TryStartNextCtObservation())
-            {
-                break;
-            }
-
-            var row = ReadCtRow(item);
-            UpdateFirstAndLastSeen(row.EntryTimestampUtc);
-
-            var key = BuildCertificateKey(row.Id, row.IssuerName, row.SerialNumber, row.NotBeforeUtc, row.NotAfterUtc, row.CommonName, row.NameValue);
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                continue;
-            }
-
-            if (certs.ContainsKey(key))
-            {
-                continue;
-            }
-
-            if (!TryAddUniqueCertificate(key, row, nowUtc, issuerCounts, certs, bucketAgg))
+            if (!ProcessRow(ReadCtRow(item), nowUtc, issuerCounts, certs, bucketAgg))
             {
                 break;
             }
@@ -433,6 +464,84 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
         logger?.WriteVerbose("CT timeline processed {0} row(s), {1} unique certificate(s) for {2}", CertificateObservationCount, certs.Count, Subject);
         return true;
+    }
+
+    // Returns false once a processing cap is reached.
+    private bool ProcessRow(
+        CtRow row,
+        DateTimeOffset nowUtc,
+        Dictionary<string, int> issuerCounts,
+        Dictionary<string, CtCertificateAggregate> certs,
+        Dictionary<int, CtBucketAggregate> bucketAgg)
+    {
+        if (!TryStartNextCtObservation())
+        {
+            return false;
+        }
+
+        UpdateFirstAndLastSeen(row.EntryTimestampUtc);
+
+        var key = BuildCertificateKey(row.Id, row.IssuerName, row.SerialNumber, row.NotBeforeUtc, row.NotAfterUtc, row.CommonName, row.NameValue);
+        if (string.IsNullOrWhiteSpace(key) || certs.ContainsKey(key))
+        {
+            return true;
+        }
+
+        return TryAddUniqueCertificate(key, row, nowUtc, issuerCounts, certs, bucketAgg);
+    }
+
+    private async Task<bool> QueryProviderAsync(
+        ICtCertificateTransparencyProvider provider,
+        DateTimeOffset nowUtc,
+        Dictionary<string, int> issuerCounts,
+        Dictionary<string, CtCertificateAggregate> certs,
+        Dictionary<int, CtBucketAggregate> bucketAgg,
+        InternalLogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var query = CtCertificateQuery.ForDomainTreeCertificates(Subject!, requireFullCertificate: false);
+        await foreach (var page in provider.QueryPagesAsync(query, null, ProviderMaxPages, cancellationToken).ConfigureAwait(false))
+        {
+            foreach (var record in page.Certificates)
+            {
+                var row = new CtRow(
+                    record.Issuer,
+                    CommonNameFrom(record.Subject) ?? record.DnsNames.FirstOrDefault(),
+                    record.DnsNames.Count > 0 ? string.Join("\n", record.DnsNames) : null,
+                    record.SerialNumber,
+                    record.Sha256Fingerprint ?? record.ProviderCertificateId,
+                    record.EntryTimestampUtc,
+                    record.NotBeforeUtc,
+                    record.NotAfterUtc);
+                if (!ProcessRow(row, nowUtc, issuerCounts, certs, bucketAgg))
+                {
+                    logger?.WriteVerbose("CT timeline from {0} capped for {1}", provider.ProviderId, Subject);
+                    return true;
+                }
+            }
+        }
+
+        logger?.WriteVerbose("CT timeline from {0} processed {1} row(s), {2} unique certificate(s) for {3}", provider.ProviderId, CertificateObservationCount, certs.Count, Subject);
+        return true;
+    }
+
+    private static string? CommonNameFrom(string? subject)
+    {
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            return null;
+        }
+
+        foreach (var part in subject!.Split(','))
+        {
+            var trimmed = part.Trim();
+            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed.Substring(3).Trim();
+            }
+        }
+
+        return subject;
     }
 
     private bool TryStartNextCtObservation()

@@ -1,3 +1,4 @@
+using DomainDetective.Providers.Hosting;
 using DomainDetective.Helpers;
 using DnsClientX;
 using System;
@@ -74,6 +75,26 @@ public sealed class IpEnrichmentRow
     public string Country { get; init; } = string.Empty;
     /// <summary>Gets or sets the region value.</summary>
     public string Region { get; init; } = string.Empty;
+    /// <summary>Where <see cref="Country"/> came from: the RDAP registration record or the offline GeoIP data.</summary>
+    public IpCountrySource CountrySource { get; init; } = IpCountrySource.None;
+    /// <summary>
+    /// Hosting or CDN provider and what matched it, for example "Cloudflare (CDN) · 104.16.0.0/13". Empty when no
+    /// published range or provider network matched.
+    /// </summary>
+    public string Hosting { get; init; } = string.Empty;
+    /// <summary>The hosting match behind <see cref="Hosting"/>: provider, kind, service, region and the range or network.</summary>
+    public HostingAttribution? HostingAttribution { get; init; }
+}
+
+/// <summary>Source of an IP enrichment country value.</summary>
+public enum IpCountrySource
+{
+    /// <summary>No country is known.</summary>
+    None,
+    /// <summary>The country registered for the network in RDAP: where the holder is registered, not where the server is.</summary>
+    RdapRegistration,
+    /// <summary>The offline GeoIP data.</summary>
+    GeoIp
 }
 
 /// <summary>
@@ -115,6 +136,9 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
 
     /// <summary>Maximum concurrent enrichment operations.</summary>
     public int MaxParallelism { get; set; } = 8;
+
+    /// <summary>Published hosting and CDN ranges used to name the provider of each address. Defaults to the bundled catalog.</summary>
+    public HostingRangeCatalog? HostingRanges { get; set; }
 
     /// <summary>True when processing was capped to protect performance.</summary>
     public bool ResultsCapped { get; private set; }
@@ -307,7 +331,10 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
                 AsName = d.AsName ?? string.Empty,
                 Cidr = d.Cidr ?? string.Empty,
                 Country = d.Country ?? string.Empty,
-                Region = d.Region ?? string.Empty
+                Region = d.Region ?? string.Empty,
+                CountrySource = d.CountrySource,
+                Hosting = d.Hosting == null ? string.Empty : d.Hosting + " · " + d.Hosting.MatchedBy,
+                HostingAttribution = d.Hosting
             });
         }
 
@@ -508,6 +535,8 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
         public string? Cidr { get; init; }
         public string? Country { get; init; }
         public string? Region { get; init; }
+        public IpCountrySource CountrySource { get; init; }
+        public HostingAttribution? Hosting { get; init; }
         public bool ReverseDnsAttempted { get; init; }
         public bool ReverseDnsSucceeded { get; init; }
         public bool RdapAttempted { get; init; }
@@ -585,7 +614,13 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
 
         var country = geo?.Country;
         var region = geo?.Region;
-        if (string.IsNullOrWhiteSpace(country)) country = rdapCountry;
+        var countrySource = string.IsNullOrWhiteSpace(country) ? IpCountrySource.None : IpCountrySource.GeoIp;
+        if (string.IsNullOrWhiteSpace(country) && !string.IsNullOrWhiteSpace(rdapCountry))
+        {
+            country = rdapCountry;
+            countrySource = IpCountrySource.RdapRegistration;
+        }
+        var hosting = (HostingRanges ?? HostingRangeCatalog.Default).Match(canonical, asn);
 
         return new IpEnrichmentDetails
         {
@@ -597,6 +632,8 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
             Cidr = cidr,
             Country = country,
             Region = region,
+            CountrySource = countrySource,
+            Hosting = hosting,
             ReverseDnsAttempted = rdnsAttempted,
             ReverseDnsSucceeded = rdnsOk,
             RdapAttempted = rdapAttempted,

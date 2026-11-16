@@ -206,6 +206,7 @@ public static partial class AssessmentHtmlReport {
 
         RenderAreas(section, report, ids);
         RenderControls(section, report, ids);
+        if (report.Domains.Count > 1) RenderRiskByDomain(section, report, ids);
         if (report.Domains.Count > 1) RenderCoverage(section, report, ids);
     }
 
@@ -324,6 +325,9 @@ public static partial class AssessmentHtmlReport {
             .Title("How this report is scored")
             .AssessmentFacts(facts => {
                 foreach (var fact in ScoringFacts) facts.Fact(fact.Key, fact.Value);
+                if (report.Domains.Any(static d => d.RiskProfile != null)) {
+                    facts.Fact("Risk profile", RiskScaleNote + " Rules " + report.Domains.First(static d => d.RiskProfile != null).RiskProfile!.RuleVersion + ".", true);
+                }
                 facts.Fact("Generated", FormatTime(report.GeneratedAtUtc));
             }));
         if (report.UnassignedInputs.Count > 0) {

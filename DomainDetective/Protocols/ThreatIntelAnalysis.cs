@@ -262,6 +262,11 @@ public class ThreatIntelAnalysis : IHasAssessments
         var vtListed = false;
         var urlHausListed = false;
         var openPhishListed = false;
+        var googleState = ThreatIntelQueryState.NotQueried;
+        var phishState = ThreatIntelQueryState.NotQueried;
+        var vtState = ThreatIntelQueryState.NotQueried;
+        var urlHausState = ThreatIntelQueryState.NotQueried;
+        var openPhishState = ThreatIntelQueryState.NotQueried;
 
         if (googleApiKey != null && !string.IsNullOrWhiteSpace(googleApiKey))
         {
@@ -269,9 +274,11 @@ public class ThreatIntelAnalysis : IHasAssessments
             {
                 var json = await QueryGoogle(domainName, googleApiKey, ct);
                 googleListed = ParseGoogle(json);
+                googleState = StateFor(googleListed);
             }
             catch (Exception ex)
             {
+                googleState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.GsbQueryFailed, "Google Safe Browsing query failed: {0}", ex.Message);
                 FailureReason = $"Google Safe Browsing query failed: {ex.Message}";
             }
@@ -283,9 +290,11 @@ public class ThreatIntelAnalysis : IHasAssessments
             {
                 var json = await QueryPhishTank(domainName, phishTankApiKey, ct);
                 phishListed = ParsePhishTank(json);
+                phishState = StateFor(phishListed);
             }
             catch (Exception ex)
             {
+                phishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.PhishTankQueryFailed, "PhishTank query failed: {0}", ex.Message);
                 FailureReason = $"PhishTank query failed: {ex.Message}";
             }
@@ -298,6 +307,7 @@ public class ThreatIntelAnalysis : IHasAssessments
                 var result = await QueryVirusTotal(domainName, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
                 RiskScore = result?.Attributes?.Reputation;
+                vtState = result == null ? ThreatIntelQueryState.Failed : StateFor(vtListed);
                 if (RiskScore.HasValue && RiskScore.Value >= 70)
                 {
                     logger?.WriteWarningCode(ThreatIntelCodes.VirusTotalRiskHigh, "VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
@@ -305,6 +315,7 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
             catch (Exception ex)
             {
+                vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
@@ -315,7 +326,9 @@ public class ThreatIntelAnalysis : IHasAssessments
         {
             try {
                 urlHausListed = await QueryUrlHausListed(domainName, ct);
+                urlHausState = StateFor(urlHausListed);
             } catch (Exception ex) {
+                urlHausState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.UrlHausQueryFailed, "URLHaus query failed: {0}", ex.Message);
                 FailureReason = $"URLHaus query failed: {ex.Message}";
             }
@@ -326,18 +339,20 @@ public class ThreatIntelAnalysis : IHasAssessments
         {
             try {
                 openPhishListed = await QueryOpenPhishListed(domainName, ct);
+                openPhishState = StateFor(openPhishListed);
             } catch (Exception ex) {
+                openPhishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.OpenPhishQueryFailed, "OpenPhish query failed: {0}", ex.Message);
                 FailureReason = $"OpenPhish query failed: {ex.Message}";
             }
         }
 
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.GoogleSafeBrowsing, IsListed = googleListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.UrlHaus, IsListed = urlHausListed });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.GoogleSafeBrowsing, IsListed = googleListed, State = googleState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed, State = phishState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed, State = vtState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.UrlHaus, IsListed = urlHausListed, State = urlHausState });
         if (EnableOpenPhish)
-            Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.OpenPhish, IsListed = openPhishListed });
+            Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.OpenPhish, IsListed = openPhishListed, State = openPhishState });
 
         // Compute composite score and confidence
         ComputeComposite(domainName, googleListed, phishListed, vtListed, urlHausListed, openPhishListed, RiskScore);
@@ -345,6 +360,8 @@ public class ThreatIntelAnalysis : IHasAssessments
             logger?.WriteInformationCode(ThreatIntelCodes.NoListings, "No threat intelligence listings for {0}", domainName);
         }
     }
+
+    private static ThreatIntelQueryState StateFor(bool listed) => listed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
 
     /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();

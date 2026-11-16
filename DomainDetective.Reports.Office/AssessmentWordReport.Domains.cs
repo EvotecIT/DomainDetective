@@ -13,6 +13,7 @@ public static partial class AssessmentWordReport {
             int? score = domain.Areas.FirstOrDefault(a => a.Area == group.Key)?.Score;
             return (Wording.AreaLabel(group.Key), Score(score), ScoreTone(score));
         }));
+        WriteRiskProfile(document, style, domain);
         foreach (var group in domain.Checks.GroupBy(c => c.Area).OrderBy(g => AreaIndex(g.Key))) {
             Heading(document, style, Wording.AreaLabel(group.Key), 2);
             // Keep canonical order within the two groups; every non-pass outcome precedes passing checks.

@@ -29,6 +29,8 @@ public static partial class Converters
             Subject = analysis.Subject,
             QuerySucceeded = analysis.QuerySucceeded,
             FailureReason = analysis.FailureReason,
+            Source = analysis.Source,
+            ProviderFailureReason = analysis.ProviderFailureReason,
             CertificateObservationCount = analysis.CertificateObservationCount,
             UniqueCertificateCount = analysis.UniqueCertificateCount,
             FirstSeenUtc = analysis.FirstSeenUtc,
@@ -69,6 +71,10 @@ public sealed class CtTimelineInfo
     public bool QuerySucceeded { get; set; }
     /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; set; }
+    /// <summary>Source that supplied the timeline: ddct-api, crt.sh or certspotter.</summary>
+    public string? Source { get; set; }
+    /// <summary>Why the configured CT provider was not used, when another source answered instead.</summary>
+    public string? ProviderFailureReason { get; set; }
     /// <summary>Gets or sets the certificate observation count value.</summary>
     public int CertificateObservationCount { get; set; }
     /// <summary>Gets or sets the unique certificate count value.</summary>

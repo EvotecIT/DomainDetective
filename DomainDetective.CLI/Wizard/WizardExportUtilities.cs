@@ -1,3 +1,4 @@
+using DomainDetective.Profiles;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -130,7 +131,63 @@ internal static class WizardExportUtilities
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        AddProfile(healthCheck, result);
         return result;
+    }
+
+    private static void AddProfile(DomainHealthCheck healthCheck, DomainScanResult result)
+    {
+        result.Web.Technologies = (healthCheck.WebStaticScanAnalysis?.TechDetections ?? new HashSet<string>())
+            .OrderBy(static t => t, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var ct = healthCheck.CtTimelineAnalysis;
+        if (ct != null && ct.QuerySucceeded)
+        {
+            result.Certificates.FirstSeenUtc = ct.FirstSeenUtc;
+            result.Certificates.LastSeenUtc = ct.LastSeenUtc;
+            result.Certificates.Certificates = ct.UniqueCertificateCount;
+            result.Certificates.Source = NullIfWhiteSpace(ct.Source);
+            result.Certificates.Issuers = ct.IssuerCounts.OrderByDescending(static i => i.Value).Select(static i => i.Key).ToList();
+        }
+
+        foreach (var row in healthCheck.IpEnrichmentAnalysis?.Rows ?? Array.Empty<IpEnrichmentRow>())
+        {
+            result.Network.Addresses.Add(new AddressInfo
+            {
+                Ip = row.IpAddress,
+                Source = row.SourceKind.ToString(),
+                Asn = row.Asn,
+                AsName = NullIfWhiteSpace(row.AsName),
+                Cidr = NullIfWhiteSpace(row.Cidr),
+                Country = NullIfWhiteSpace(row.Country),
+                Hosting = NullIfWhiteSpace(row.HostingAttribution?.Provider),
+                IsCdn = row.HostingAttribution?.Kind == DomainDetective.Providers.Hosting.HostingKind.Cdn
+            });
+        }
+        result.Network.Asns = result.Network.Addresses.Where(static a => a.Asn.HasValue)
+            .GroupBy(static a => a.Asn!.Value)
+            .Select(static g => ("AS" + g.Key.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + (g.First().AsName ?? string.Empty)).Trim())
+            .ToList();
+        result.Network.HostingProviders = result.Network.Addresses.Where(static a => a.Hosting != null)
+            .Select(static a => a.IsCdn ? a.Hosting + " (CDN)" : a.Hosting!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (DomainRiskProfileBuilder.HasEvidence(healthCheck))
+        {
+            var profile = DomainRiskProfileBuilder.Build(healthCheck);
+            result.Risk = new RiskResult
+            {
+                Score = profile.RiskScore,
+                Level = profile.RiskLevel.ToString(),
+                Rated = profile.Rated,
+                Confidence = profile.ConfidenceScore,
+                ConfidenceLevel = profile.Confidence.ToString(),
+                Signals = profile.Signals.Where(static s => s.Points != 0).Select(static s => AssessmentReportWording.Points(s.Points) + " " + s.Reason).ToList(),
+                Gaps = AssessmentReportWording.TopGaps(profile).Select(AssessmentReportWording.GapLine).ToList()
+            };
+        }
     }
 
     private static List<MxInfo> BuildMxInfos(IReadOnlyCollection<string>? mxRecords)
