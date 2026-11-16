@@ -112,6 +112,11 @@ public static class DomainRiskProfileEvaluator {
             RegisteredUtc = evidence.CreatedUtc,
             Registrar = evidence.Registrar
         };
+        if (evidence.HighRiskLookalikes is > 0) {
+            profile.Watch.Add(evidence.HighRiskLookalikes.Value == 1
+                ? "1 lookalike domain rated high risk imitates this domain"
+                : evidence.HighRiskLookalikes.Value.ToString(CultureInfo.InvariantCulture) + " lookalike domains rated high risk imitate this domain");
+        }
         return profile;
     }
 
@@ -182,15 +187,22 @@ public static class DomainRiskProfileEvaluator {
         return years == 1 ? "1 year" : years.ToString(CultureInfo.InvariantCulture) + " years";
     }
 
-    /// <summary>Short issuer name: the CN of a distinguished name ("R3"), else its O, else the text as given.</summary>
+    /// <summary>Issuer organisation from a distinguished name ("Let's Encrypt"), else its CN, else the text as given.</summary>
     internal static string IssuerName(string issuer) {
-        string? organization = null;
+        string? common = null;
         foreach (string part in issuer.Split(',')) {
             string trimmed = part.Trim();
-            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)) return trimmed.Substring(3).Trim();
-            if (trimmed.StartsWith("O=", StringComparison.OrdinalIgnoreCase)) organization = trimmed.Substring(2).Trim();
+            if (trimmed.StartsWith("O=", StringComparison.OrdinalIgnoreCase)) return TrimCompanySuffix(trimmed.Substring(2).Trim().Trim('"'));
+            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)) common = trimmed.Substring(3).Trim();
         }
-        return organization ?? issuer.Trim();
+        return common ?? issuer.Trim();
+    }
+
+    private static string TrimCompanySuffix(string name) {
+        foreach (string suffix in new[] { " LLC", " Inc.", " Inc", " Ltd.", " Ltd", " Limited", " GmbH", " S.A.", " B.V.", " Corporation", " Corp." }) {
+            if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - suffix.Length).TrimEnd(',', ' ');
+        }
+        return name;
     }
 
     private static string Date(DateTimeOffset? value) => value?.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
@@ -259,7 +271,7 @@ public static class DomainRiskProfileEvaluator {
             AddFact(facts, "Blocklisted hosts", e.HostsListed.ToString(CultureInfo.InvariantCulture) + " of " + e.HostsChecked.ToString(CultureInfo.InvariantCulture));
         }
         if (e.HighRiskLookalikes.HasValue) {
-            AddFact(facts, "High-risk lookalikes", e.HighRiskLookalikes.Value.ToString(CultureInfo.InvariantCulture), "domains imitating this one; exposure, not scored");
+            AddFact(facts, "High-risk lookalikes", e.HighRiskLookalikes.Value.ToString(CultureInfo.InvariantCulture));
         }
         return Facet(ProfileFacetKind.Reputation, true, true, 0.30, items, facts);
     }
@@ -312,7 +324,7 @@ public static class DomainRiskProfileEvaluator {
         };
         var facts = new List<ProfileFact>();
         AddFact(facts, "Registrar", e.Registrar);
-        if (e.CreatedUtc.HasValue) AddFact(facts, "Registered", Date(e.CreatedUtc) + " (" + Age((now - e.CreatedUtc.Value).TotalDays) + " ago, " + (source.Length > 0 ? source : "registry") + ")");
+        if (e.CreatedUtc.HasValue) AddFact(facts, "Registered", Age((now - e.CreatedUtc.Value).TotalDays) + " ago (" + Date(e.CreatedUtc) + ")");
         if (e.ExpiresUtc.HasValue) AddFact(facts, "Expires", Date(e.ExpiresUtc));
         if (e.PrivacyProtected == true) AddFact(facts, "Privacy service", "Yes", "common for legitimate registrations; not scored");
         if (e.Statuses.Count > 0) AddFact(facts, "Status", string.Join(", ", e.Statuses.Take(6)));
@@ -373,7 +385,7 @@ public static class DomainRiskProfileEvaluator {
         };
         var facts = new List<ProfileFact>();
         if (e.CtFirstSeenUtc.HasValue) {
-            AddFact(facts, FirstSeenIsHistory(e) ? "First seen" : "Earliest entry returned", Date(e.CtFirstSeenUtc) + " (" + Age((now - e.CtFirstSeenUtc.Value).TotalDays) + " ago)",
+            AddFact(facts, FirstSeenIsHistory(e) ? "First seen" : "Earliest entry returned", Age((now - e.CtFirstSeenUtc.Value).TotalDays) + " ago (" + Date(e.CtFirstSeenUtc) + ")",
                 e.CtSource == "ddct-api" ? "earliest entry DDCT has ingested" : firstSeenNote);
         }
         if (e.UniqueCertificates > 0) {
@@ -467,14 +479,17 @@ public static class DomainRiskProfileEvaluator {
         string[] networks = e.Addresses.Where(static a => a.Asn.HasValue)
             .GroupBy(static a => a.Asn!.Value)
             .Select(static g => "AS" + g.Key.ToString(CultureInfo.InvariantCulture) + (g.First().AsName.Length > 0 ? " " + g.First().AsName : string.Empty))
-            .Take(5).ToArray();
-        if (networks.Length > 0) AddFact(facts, "Networks", string.Join(", ", networks));
-        else {
-            string[] cidrs = e.Addresses.Select(static a => a.Cidr).Where(static c => c.Length > 0).Distinct(StringComparer.Ordinal).Take(5).ToArray();
-            if (cidrs.Length > 0) AddFact(facts, "Networks", string.Join(", ", cidrs));
+            .ToArray();
+        string[] shown = networks.Length > 0 ? networks
+            : e.Addresses.Select(static a => a.Cidr).Where(static c => c.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+        if (shown.Length > 0) {
+            AddFact(facts, "Networks", string.Join(", ", shown.Take(3)) + (shown.Length > 3 ? " and " + (shown.Length - 3).ToString(CultureInfo.InvariantCulture) + " more" : string.Empty));
         }
         string[] countries = e.Addresses.Where(static a => a.Country.Length > 0).Select(static a => a.Country.ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
-        if (countries.Length > 0) AddFact(facts, "Countries", string.Join(", ", countries), countryNote != null ? "registration country (RDAP), not server location" : null);
+        if (countries.Length > 0) {
+            bool registered = e.Addresses.All(static a => a.CountrySource != IpCountrySource.GeoIp);
+            AddFact(facts, registered ? "IP space registered in" : "Countries", string.Join(", ", countries));
+        }
         return Facet(ProfileFacetKind.Network, true, true, 0.10, items, facts);
     }
 
@@ -501,6 +516,10 @@ public static class DomainRiskProfileEvaluator {
         return Facet(ProfileFacetKind.History, false, false, 0.10, items, new List<ProfileFact>());
     }
 
+    // Lowercases only a leading capital followed by a lowercase letter, so "DNS records" and "IP" keep their case.
+    private static string LowerFirst(string text) =>
+        text.Length > 1 && char.IsUpper(text[0]) && char.IsLower(text[1]) ? char.ToLowerInvariant(text[0]) + text.Substring(1) : text;
+
     private static string Capitalize(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
 
     // ---- Gaps ---------------------------------------------------------------------------------------------------------
@@ -508,6 +527,9 @@ public static class DomainRiskProfileEvaluator {
     private static List<EvidenceGap> Gaps(List<ProfileFacet> facets, double totalWeight) {
         var gaps = new List<EvidenceGap>();
         if (totalWeight <= 0) return gaps;
+        ProfileFacet? reputation = facets.FirstOrDefault(static f => f.Kind == ProfileFacetKind.Reputation);
+        List<EvidenceItem> feeds = reputation?.Evidence.Where(static i => i.CheckKey == "threatintel").ToList() ?? new List<EvidenceItem>();
+        int answered = feeds.Count(static i => i.State is EvidenceState.Observed or EvidenceState.Clean);
         foreach (ProfileFacet facet in facets.Where(static f => f.Counted)) {
             double itemWeight = facet.Evidence.Sum(static i => i.Weight);
             if (itemWeight <= 0) continue;
@@ -516,7 +538,12 @@ public static class DomainRiskProfileEvaluator {
                 if (missing <= 0) continue;
                 double gain = Round(facet.Weight * (item.Weight / itemWeight) * missing / totalWeight);
                 if (gain <= 0) continue;
-                gaps.Add(new EvidenceGap { EvidenceId = item.Id, State = item.State, ConfidenceGain = gain, Action = Action(item) });
+                string action = Action(item);
+                if (feeds.Contains(item) && item.State is EvidenceState.NotQueried or EvidenceState.Failed) {
+                    action += ": threat feeds answering go from " + answered.ToString(CultureInfo.InvariantCulture) + " to " +
+                              (answered + 1).ToString(CultureInfo.InvariantCulture) + " of " + feeds.Count.ToString(CultureInfo.InvariantCulture);
+                }
+                gaps.Add(new EvidenceGap { EvidenceId = item.Id, State = item.State, ConfidenceGain = gain, Action = action });
             }
         }
         return gaps.OrderByDescending(static g => g.ConfidenceGain).ThenBy(static g => g.EvidenceId, StringComparer.Ordinal).ToList();
@@ -539,9 +566,11 @@ public static class DomainRiskProfileEvaluator {
             _ => item.CheckKey ?? item.Label
         };
         return item.State switch {
-            EvidenceState.NotQueried => "Include the " + check + " check: " + item.Label.ToLowerInvariant() + " was not collected",
-            EvidenceState.Failed => item.Label + " lookup failed; run the " + check + " check again",
-            EvidenceState.Partial => item.Label + " is incomplete" + (string.IsNullOrWhiteSpace(item.Note) ? string.Empty : ": " + item.Note),
+            EvidenceState.NotQueried => "Include the " + check + " check to collect " + LowerFirst(item.Label),
+            EvidenceState.Failed => "Run the " + check + " check again: the " + LowerFirst(item.Label) + " lookup failed",
+            EvidenceState.Partial => string.IsNullOrWhiteSpace(item.Note)
+                ? item.Label + ": some sources did not answer; run the " + check + " check again"
+                : item.Label + ": " + item.Note,
             _ => item.Label + " is not available"
         };
     }

@@ -95,6 +95,11 @@ public sealed class DomainRiskProfile {
     public List<ProfileFacet> Facets { get; set; } = new();
     /// <summary>What would raise confidence, largest gain first.</summary>
     public List<EvidenceGap> Gaps { get; set; } = new();
+    /// <summary>
+    /// Things worth watching that are not evidence against the domain itself, such as lookalike domains that imitate it.
+    /// They never change the score.
+    /// </summary>
+    public List<string> Watch { get; set; } = new();
     /// <summary>Addresses behind the domain with network and hosting attribution.</summary>
     public List<ProfileAddress> Addresses { get; set; } = new();
     /// <summary>Website technologies detected, when the web scan ran.</summary>

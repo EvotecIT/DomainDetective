@@ -46,18 +46,22 @@ public class TestAssessmentEvidenceCompletion {
     }
 
     [Fact]
-    public void PartialScoredEvidenceCannotProduceAPerfectDomainOrOverallGrade() {
+    public void PartialScoredEvidenceIsScoredOnlyOnWhatWasJudgedAndSaysSo() {
         var report = DomainAssessmentBuilder.Build(new object[] {
             new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", SpfRecordExists = true },
             new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" }
         });
         var domain = Assert.Single(report.Domains);
         Assert.Equal(100, Assert.Single(domain.Checks, check => check.Check == HealthCheckType.SPF).Score);
-        Assert.Null(domain.Score);
-        Assert.Null(report.Score);
-        Assert.Equal("-", domain.Grade);
-        Assert.Equal("-", report.Grade);
-        Assert.Null(Assert.Single(domain.Areas).Score);
+        // The MX check could not be judged: it is left out of the score, and the coverage says how much is missing.
+        Assert.Null(Assert.Single(domain.Checks, check => check.Check == HealthCheckType.MX).Score);
+        Assert.Equal(100, domain.Score);
+        Assert.Equal(0.5, domain.Coverage);
+        Assert.Equal(0.5, report.Coverage);
+        AreaScore area = Assert.Single(domain.Areas);
+        Assert.Equal(0.5, area.Coverage);
+        Assert.Equal(new[] { "MX" }, area.Incomplete);
+        Assert.Equal("Grade A from 50% of the scored checks; 1 scored check could not be judged and is left out.", AssessmentReportWording.ScoreNote(report));
     }
 
     [Theory]

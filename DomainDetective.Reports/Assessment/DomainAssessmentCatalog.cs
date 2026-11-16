@@ -308,6 +308,15 @@ public static class DomainAssessmentCatalog {
     public static (string Title, string? LongTitle) TitleFor(HealthCheckType check)
         => Titles.TryGetValue(check, out var title) ? title : (check.ToString(), null);
 
+    /// <summary>
+    /// Checks that gather data (inventory, enrichment, discovery, registration lookups) rather than judge a control. A
+    /// lookup that fails in one of them is missing evidence, not a finding against the domain.
+    /// </summary>
+    public static bool GathersData(HealthCheckType check) => check is HealthCheckType.IPENRICHMENT or HealthCheckType.IPNEIGHBOR
+        or HealthCheckType.CTTIMELINE or HealthCheckType.DNSINVENTORY or HealthCheckType.SUBDOMAINS or HealthCheckType.TYPOSQUATTING
+        or HealthCheckType.RDAP or HealthCheckType.WHOIS or HealthCheckType.DNSTRACE or HealthCheckType.DNSPROPAGATION
+        or HealthCheckType.MAILCLASSIFICATION or HealthCheckType.MICROSOFT365 or HealthCheckType.IDENTITYPROVIDER or HealthCheckType.CONTACT;
+
     /// <summary>Whether a check counts toward the domain score.</summary>
     public static bool IsScored(HealthCheckType check) => !Informational.Contains(check);
 

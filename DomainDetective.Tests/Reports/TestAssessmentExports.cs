@@ -38,8 +38,9 @@ public partial class TestAssessmentExports {
                     Assert.Contains(Wording.DoFirstMessage(action.Check), output);
                     Assert.Contains(Wording.DoFirstSource(action.Check), output);
                 }
+                // HTML gives each area a counts line instead of the paper note.
                 foreach (var group in report.Domains.SelectMany(d => d.Checks).GroupBy(c => c.Area)) {
-                    Assert.Contains(Wording.AreaNote(report, group.ToList()), output);
+                    Assert.Contains(ReferenceEquals(output, html) ? Wording.AreaCounts(group.ToList()) : Wording.AreaNote(report, group.ToList()), output);
                 }
             }
             // Security exposure is ordered before certificate renewal in every action list.
@@ -90,7 +91,7 @@ public partial class TestAssessmentExports {
             Assert.True(neutralCells >= 3);
             Assert.Contains("Not scored", AssessmentMarkdownReport.Render(report));
             Assert.Contains("Incomplete", AssessmentMarkdownReport.Render(report));
-            Assert.Contains("No overall grade: 1 scored check has incomplete evidence.", WebUtility.HtmlDecode(AssessmentHtmlReport.Render(report)));
+            Assert.Contains("No grade yet: 1 scored check could not be judged.", WebUtility.HtmlDecode(AssessmentHtmlReport.Render(report)));
         });
     }
 

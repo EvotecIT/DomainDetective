@@ -76,7 +76,7 @@ public class TestDomainRiskProfile {
         Assert.Equal(full.RiskScore, partial.RiskScore);
         Assert.Equal(full.RiskLevel, partial.RiskLevel);
         Assert.True(partial.ConfidenceScore < full.ConfidenceScore);
-        Assert.Contains(partial.Gaps, g => g.EvidenceId == "reputation.gsb" && g.Action == "Add a Google Safe Browsing API key");
+        Assert.Contains(partial.Gaps, g => g.EvidenceId == "reputation.gsb" && g.Action.StartsWith("Add a Google Safe Browsing API key", StringComparison.Ordinal));
     }
 
     [Fact]

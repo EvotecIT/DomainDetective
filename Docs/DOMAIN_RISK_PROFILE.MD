@@ -34,6 +34,14 @@ Country and WHOIS privacy are never scored. Without GeoIP data, the country is t
 
 All wording comes from `AssessmentReportWording`.
 
+## Areas and configuration scores
+
+The checks behind the profile (RDAP, WHOIS, DNSBL, threat intel, typosquatting, CT timeline, IP enrichment and neighbours) form their own **Reputation** area. Its row in "Area by area" shows the risk verdict and how much evidence was seen. DANE now sits under Mail.
+
+Domain and area scores count the scored checks whose evidence is complete, and they show the share they rest on ("83% of checks judged"). A check that couldn't be judged is left out of the score and named, instead of hiding the whole score. "Not scored" remains only when nothing in the area could be judged.
+
+Checks that only gather data (inventory, enrichment, discovery and registration lookups) never fail a domain because a lookup failed. That failure counts as missing evidence. What they actually find still counts.
+
 ## Hosting and CDN ranges
 
 `IpEnrichmentRow` names the hosting provider of each address from the ranges that AWS, Google Cloud, Cloudflare, Fastly and Akamai publish. The data ships as `Data/hosting_ranges.tsv.gz` (`HostingRangeCatalog`). A published range gives a High-confidence match. When no range matches, a known provider network (ASN) gives a Medium one. Refresh the data with:

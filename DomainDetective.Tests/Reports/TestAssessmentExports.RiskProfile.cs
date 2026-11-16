@@ -48,8 +48,11 @@ public partial class TestAssessmentExports {
             using var excel = ZipFile.OpenRead(excelPath);
             string[] outputs = { html, WordText(Load(word, "word/document.xml")), WorkbookText(excel), markdown };
 
+            // HTML leads with the verdict word and its reason; the paper and data formats print the full sentence.
+            Assert.Contains(Wording.RiskWord(profile), outputs[0]);
+            Assert.Contains(Wording.RiskReason(profile), outputs[0]);
+            foreach (string output in outputs.Skip(1)) Assert.Contains(Wording.RiskVerdict(profile), output);
             foreach (string output in outputs) {
-                Assert.Contains(Wording.RiskVerdict(profile), output);
                 foreach (RiskSignal signal in Wording.ShownSignals(profile)) Assert.Contains(signal.Reason, output);
             }
             // The page, paper and Markdown formats also rank the domains and print what would raise confidence.

@@ -24,12 +24,9 @@ public static partial class AssessmentHtmlReport {
         section.ReportScopeHeader(header => {
             header.Eyebrow("Domain")
                 .Title(domain.Domain)
-                .Description(DomainVerdict(domain) + " " + DomainSummary(domain));
-            if (domain.Score.HasValue) header.Chip("Grade " + domain.Grade, GradeSeverity(domain.Score));
-            header.Metric("Score", domain.Score?.ToString(CultureInfo.InvariantCulture) ?? "-", GradeSeverity(domain.Score));
-            foreach (AreaScore area in domain.Areas.Where(static a => a.Score.HasValue)) {
-                header.Metric(AreaLabel(area.Area), area.Score!.Value.ToString(CultureInfo.InvariantCulture), GradeSeverity(area.Score));
-            }
+                .Description(DomainIntro(domain));
+            // The risk panel below carries the numbers; the header only names the grade.
+            if (domain.Score.HasValue) header.Chip("Configuration " + domain.Grade, GradeSeverity(domain.Score));
         });
 
         RenderRiskProfile(section, domain, ids);

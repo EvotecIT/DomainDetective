@@ -17,15 +17,17 @@ public static partial class AssessmentMarkdownReport {
             if (checks.Count == 0) { continue; }
             int[] scores = report.Domains.SelectMany(static d => d.Areas)
                 .Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-            int? score = scores.Length == 0 || checks.Any(static c => c.Scored && !c.EvidenceComplete)
-                ? null : (int)Math.Round(scores.Average());
+            int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average());
+            double? coverage = DomainAssessmentCatalog.ScoreCoverage(checks);
             int errors = checks.Count(static c => c.Outcome == CheckOutcome.Error);
             int warnings = checks.Count(static c => c.Outcome == CheckOutcome.Warning);
             bool incomplete = checks.Any(static c => !c.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete);
             rows.Add(new[] {
                 Wording.AreaLabel(area),
-                errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete ? "Incomplete" : score.HasValue ? "Passing" : "Informational",
-                score?.ToString(CultureInfo.InvariantCulture) ?? "Not scored",
+                Wording.AreaStatus(checks),
+                score.HasValue
+                    ? score.Value.ToString(CultureInfo.InvariantCulture) + (coverage is < 0.995 ? " (" + Wording.CoveragePercent(coverage) + " judged)" : string.Empty)
+                    : "Not scored",
                 checks.Count.ToString(CultureInfo.InvariantCulture),
                 checks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass).ToString(CultureInfo.InvariantCulture),
                 checks.Count(Wording.NeedsAttention).ToString(CultureInfo.InvariantCulture),

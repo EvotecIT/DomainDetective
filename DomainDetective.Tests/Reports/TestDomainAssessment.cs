@@ -167,9 +167,9 @@ namespace DomainDetective.Tests.Reports {
             Assert.Contains("of them with errors.", html);
             Assert.Contains("hfx-as-ring is-grade", html);
             Assert.Contains("Do these first", html);
-            // One card per area, each saying in one line what needs attention.
+            // One row per area, each saying in one line what to look at.
             Assert.Contains("Area by area", html);
-            Assert.Contains("Needs attention: DMARC", html);
+            Assert.Contains("Look at DMARC", html);
             Assert.True(html.IndexOf("Do these first", StringComparison.Ordinal) < html.IndexOf("Area by area", StringComparison.Ordinal));
         }
 

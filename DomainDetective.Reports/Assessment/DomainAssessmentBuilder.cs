@@ -50,7 +50,12 @@ public static class DomainAssessmentBuilder {
             // Findings no check view carried belong to the check they name; they are placed once every check exists.
             if (item is AssessmentEvidenceInfo evidenceInfo) {
                 string? owner = NormalizeDomain(evidenceInfo.Subject);
-                if (owner != null) leftovers.Add((owner, evidenceInfo));
+                if (owner == null) continue;
+                if (!domains.ContainsKey(owner)) {
+                    domains[owner] = new DomainAssessment { Domain = owner };
+                    firstSeen.Add(owner);
+                }
+                leftovers.Add((owner, evidenceInfo));
                 continue;
             }
             if (item is DomainDetective.Views.DomainRiskProfileInfo riskProfile) {
@@ -258,9 +263,11 @@ public static class DomainAssessmentBuilder {
             .ToList();
         // Checks that only gather data (inventory, enrichment, discovery) never fail the domain: a lookup error in them is
         // missing evidence, not a finding about the domain.
-        if (!check.Scored && check.Findings.Any(static f => f.Severity == AssessmentSeverity.Error && !f.IsEvidenceGap)) {
-            foreach (CheckFinding finding in check.Findings.Where(static f => f.Severity == AssessmentSeverity.Error)) finding.IsEvidenceGap = true;
-            check.EvidenceComplete = false;
+        if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) {
+            foreach (CheckFinding finding in check.Findings.Where(static f => !f.IsEvidenceGap && f.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(f))) {
+                finding.IsEvidenceGap = true;
+                check.EvidenceComplete = false;
+            }
         }
         check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
         check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
@@ -268,7 +275,7 @@ public static class DomainAssessmentBuilder {
         if (check.ErrorCount == 0 && check.WarningCount == 0) {
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
-                if (!check.Scored) continue;
+                if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) continue;
                 check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
                 check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
             }
@@ -320,13 +327,44 @@ public static class DomainAssessmentBuilder {
 
     private static int? WeightedScore(IEnumerable<CheckAssessment> checks) => DomainAssessmentCatalog.CombinedScore(checks);
 
-    /// <summary>Adds findings no check view carried to the check named by their category; others are dropped.</summary>
+    private static HealthCheckType? CategoryCheck(string category) {
+        if (category.Length == 0) return null;
+        if (string.Equals(category, "Certificate", StringComparison.OrdinalIgnoreCase)) return HealthCheckType.CERT;
+        return Enum.TryParse(category.Replace(" ", string.Empty).Replace("-", string.Empty), true, out HealthCheckType kind) && Enum.IsDefined(typeof(HealthCheckType), kind)
+            ? kind : null;
+    }
+
+    // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.
+    private static bool DescribesFailedLookup(CheckFinding finding) {
+        string code = finding.Code ?? string.Empty;
+        string message = finding.Message ?? string.Empty;
+        return code.IndexOf("Fail", StringComparison.OrdinalIgnoreCase) >= 0 || code.IndexOf("Timeout", StringComparison.OrdinalIgnoreCase) >= 0
+            || code.IndexOf("Unreachable", StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf(" failed", StringComparison.OrdinalIgnoreCase) >= 0 || message.IndexOf("timed out", StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("could not be", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    /// <summary>
+    /// Adds findings no check view carried to the check their category names. When that check has no view of its own,
+    /// it is created under its real name and area (unscored, since only part of its evidence arrived); findings whose
+    /// category names no check go to "Additional findings".
+    /// </summary>
     private static void PlaceLeftovers(DomainAssessment domain, AssessmentEvidenceInfo info) {
         foreach (Assessment assessment in info.Assessments) {
             if (string.IsNullOrWhiteSpace(assessment.Message)) continue;
-            string key = (assessment.Category ?? string.Empty).Trim().ToLowerInvariant();
+            string category = (assessment.Category ?? string.Empty).Trim();
+            HealthCheckType? kind = CategoryCheck(category);
+            string key = kind?.ToString().ToLowerInvariant() ?? "additional-findings";
             CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == key);
-            if (check == null) continue;
+            if (check == null) {
+                (string title, string? longTitle) = kind.HasValue ? DomainAssessmentCatalog.TitleFor(kind.Value) : ("Additional findings", null);
+                check = new CheckAssessment {
+                    Key = key, Check = kind, Title = title, LongTitle = longTitle,
+                    Area = kind.HasValue ? DomainDetective.Views.Converters.AreaFor(kind.Value) : AnalysisArea.General,
+                    Scored = false
+                };
+                domain.Checks.Add(check);
+            }
             if (check.Findings.Any(f => f.Code == assessment.Code && f.Message == assessment.Message.Trim())) continue;
             check.Findings.Add(new CheckFinding {
                 Severity = assessment.Severity, Code = assessment.Code, Message = assessment.Message.Trim(), Target = assessment.Target

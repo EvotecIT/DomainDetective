@@ -178,7 +178,7 @@ public static partial class AssessmentHtmlReport {
         }
 
         CheckAssessment? dnsbl = Check("dnsbl");
-        if (dnsbl != null) {
+        if (dnsbl != null && domain.RiskProfile == null) {
             string? listed = Fact(dnsbl, "Hosts listed");
             bool complete = dnsbl.EvidenceComplete && listed != null;
             section.ReportPanel(panel => panel

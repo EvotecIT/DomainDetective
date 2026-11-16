@@ -44,6 +44,9 @@ public static partial class AssessmentReportWording {
     /// <summary>One sentence: the verdict, never turning missing evidence into safety.</summary>
     public static string RiskVerdict(DomainRiskProfile profile) {
         if (!profile.Rated) return "Not rated: too little evidence was collected to rate this domain.";
+        if (profile.RiskLevel == DomainRiskLevel.None && profile.Watch.Count > 0) {
+            return "No risk signals about the domain itself; watch: " + string.Join("; ", profile.Watch) + ".";
+        }
         string confidence = ConfidenceLabel(profile.Confidence).ToLowerInvariant() + " confidence (" + profile.ConfidenceScore.ToString("0.00", CultureInfo.InvariantCulture) + ")";
         if (profile.RiskLevel == DomainRiskLevel.None) {
             return profile.Confidence == EvidenceConfidence.High
@@ -74,7 +77,7 @@ public static partial class AssessmentReportWording {
         ProfileFacetKind.Certificates => "Certificates",
         ProfileFacetKind.Dns => "DNS",
         ProfileFacetKind.Network => "Network",
-        ProfileFacetKind.Web => "Web",
+        ProfileFacetKind.Web => "Web technologies",
         _ => "History"
     };
 
@@ -108,9 +111,51 @@ public static partial class AssessmentReportWording {
         return missing.Count == 0 ? "Complete" : string.Join("; ", missing);
     }
 
-    /// <summary>Gap line: "Add a VirusTotal API key (+0.07)".</summary>
-    public static string GapLine(EvidenceGap gap) =>
-        gap.Action + " (+" + gap.ConfidenceGain.ToString("0.00", CultureInfo.InvariantCulture) + ")";
+    /// <summary>Gap line: "Add a VirusTotal API key: threat feeds answering go from 1 to 2 of 5".</summary>
+    public static string GapLine(EvidenceGap gap) => gap.Action;
+
+    /// <summary>The headline word for the risk: "High risk", "Watch", "No signals", "Clear" or "Not rated".</summary>
+    public static string RiskWord(DomainRiskProfile profile) {
+        if (!profile.Rated) return "Not rated";
+        if (profile.RiskLevel != DomainRiskLevel.None) return RiskLevelLabel(profile.RiskLevel) + " risk";
+        if (profile.Watch.Count > 0) return "Watch";
+        return profile.Confidence == EvidenceConfidence.High ? "Clear" : "No signals";
+    }
+
+    /// <summary>One line under the risk word: the strongest signal, the watch item, or what the verdict rests on.</summary>
+    public static string RiskReason(DomainRiskProfile profile) {
+        if (!profile.Rated) return "Too little evidence was collected to rate this domain.";
+        RiskSignal? top = profile.Signals.FirstOrDefault(static s => s.Points > 0);
+        if (top != null) return top.Reason + ".";
+        if (profile.Watch.Count > 0) return "Nothing against the domain itself; " + profile.Watch[0] + ".";
+        return profile.Confidence == EvidenceConfidence.High
+            ? "Nothing in registration, reputation, certificates or DNS counts against it."
+            : "Nothing found so far, but part of the evidence is missing.";
+    }
+
+    /// <summary>"71% of evidence seen".</summary>
+    public static string ConfidencePercent(DomainRiskProfile profile) =>
+        ((int)Math.Round(profile.ConfidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% of evidence seen";
+
+    /// <summary>How much of an area's evidence was seen, in words.</summary>
+    public static string FacetState(ProfileFacet facet) {
+        if (!facet.Counted) return facet.Kind == ProfileFacetKind.History ? "not available" : "not scanned";
+        return facet.Coverage >= 0.995 ? "seen" : facet.Coverage <= 0.005 ? "not seen" : "partly seen";
+    }
+
+    /// <summary>The block a facet's facts are shown in: Ownership, Infrastructure, Certificates or Reputation.</summary>
+    public static string FactBlock(ProfileFacetKind kind) => kind switch {
+        ProfileFacetKind.Registration => "Ownership",
+        ProfileFacetKind.Certificates => "Certificates",
+        ProfileFacetKind.Reputation => "Reputation",
+        _ => "Infrastructure"
+    };
+
+    /// <summary>Fact blocks in display order.</summary>
+    public static IReadOnlyList<string> FactBlocks { get; } = new[] { "Ownership", "Infrastructure", "Certificates", "Reputation" };
+
+    /// <summary>Points a risk signal is worth, for display.</summary>
+    public static IEnumerable<RiskSignal> TrustSignals(DomainRiskProfile profile) => profile.Signals.Where(static s => s.Points < 0);
 
     /// <summary>The gaps worth listing in a summary.</summary>
     public static IEnumerable<EvidenceGap> TopGaps(DomainRiskProfile profile, int count = RiskGapCount) =>
