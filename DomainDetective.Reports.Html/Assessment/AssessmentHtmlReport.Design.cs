@@ -174,6 +174,13 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
     }
 
     /// <summary>One even tile per control: a value a reader understands, coloured by outcome, and a one-line reason.</summary>
+    // An unscored state every domain shares (no CAA policy) is shown as itself, not as "0 of N pass".
+    private static string? SharedNeutralValue(IReadOnlyList<CheckAssessment> results) {
+        if (results.Count == 0 || results.Any(static c => c.Scored || c.Outcome != CheckOutcome.Info)) return null;
+        string value = ControlValue(results[0]);
+        return results.All(c => ControlValue(c) == value) ? value : null;
+    }
+
     private static void RenderControls(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
         var present = ControlChecks(report).ToList();
         if (present.Count == 0) return;
@@ -203,7 +210,7 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
                         : passing == results.Count ? "dd-tone-good" : Tone(worst);
                     grid.Value(new HtmlTag("div").Class("dd-control " + tone)
                         .Value(Span(first.Title, "dd-control-name"))
-                        .Value(Span(passing.ToString(CultureInfo.InvariantCulture) + " of " + Plural(results.Count, "domain") + " pass", "dd-control-value"))
+                        .Value(Span(SharedNeutralValue(results) ?? passing.ToString(CultureInfo.InvariantCulture) + " of " + Plural(results.Count, "domain") + " pass", "dd-control-value"))
                         .Value(Span(results.Where(static c => c.Outcome != CheckOutcome.Pass).Select(ControlReason).FirstOrDefault(static r => r.Length > 0) ?? string.Empty, "dd-control-reason")));
                 }
             }

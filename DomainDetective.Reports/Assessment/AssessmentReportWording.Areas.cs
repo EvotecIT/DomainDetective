@@ -30,6 +30,13 @@ public static partial class AssessmentReportWording {
     private static string LowerFirst(string text) =>
         text.Length > 1 && char.IsUpper(text[0]) && char.IsLower(text[1]) ? char.ToLowerInvariant(text[0]) + text.Substring(1) : text;
 
+    /// <summary>Summary for a domain without a CAA policy.</summary>
+    public const string NoCaaPolicy = "No CAA policy is published, so any certificate authority may issue certificates for this domain.";
+
+    /// <summary>True for a CAA check that found no policy: unscored, and worded as "any CA may issue".</summary>
+    public static bool IsNoCaaPolicy(CheckAssessment check) =>
+        check.Key == "caa" && !check.Scored && string.Equals(check.Summary, NoCaaPolicy, StringComparison.Ordinal);
+
     /// <summary>"80%" for a coverage value, or "all" when complete.</summary>
     public static string CoveragePercent(double? coverage) =>
         !coverage.HasValue ? "none" : ((int)Math.Round(coverage.Value * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "%";
@@ -85,7 +92,8 @@ public static partial class AssessmentReportWording {
             "tlsrpt" => Metric(check, "Report addresses") is { } count ? Plural(ParseCount(count), "report address", "report addresses") : null,
             "bimi" => Metric(check, "Logo") is { } logo ? "Logo " + logo.ToLowerInvariant() : null,
             "dnssec" => check.Outcome == CheckOutcome.Pass ? "Signed and valid" : Fact(check, "Validation status"),
-            "caa" => Metric(check, "Issuers") is { } issuers ? Plural(ParseCount(issuers), "CA allowed", "CAs allowed") : null,
+            "caa" => IsNoCaaPolicy(check) ? "No CAA policy"
+                : Metric(check, "Issuers") is { } issuers ? Plural(ParseCount(issuers), "CA allowed", "CAs allowed") : null,
             _ => null
         };
         if (value != null) return value;
@@ -119,7 +127,7 @@ public static partial class AssessmentReportWording {
         "spf" => Metric(check, "DNS lookups") is { } lookups ? (lookups.Contains("/") ? lookups : lookups + " / 10") + " DNS lookups used." : null,
         "dkim" => "Every published key is valid.",
         "dnssec" => "Answers are signed and validate.",
-        "caa" => "Only the listed CAs may issue certificates.",
+        "caa" => IsNoCaaPolicy(check) ? null : "Only the listed CAs may issue certificates.",
         "tlsrpt" => "Mail TLS failures are reported.",
         "mtasts" => "Senders must deliver over TLS.",
         _ => null

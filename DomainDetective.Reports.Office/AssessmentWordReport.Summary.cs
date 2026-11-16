@@ -204,7 +204,8 @@ public static partial class AssessmentWordReport {
             string[] labels = new[] { "Domain" }.Concat(columns.Select(check => check.Title)).Concat(Enumerable.Repeat(string.Empty, 6 - columns.Count)).ToArray();
             var rows = report.Domains.Select(domain => new[] { Identifier(domain.Domain) }.Concat(columns.Select(control => {
                 CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == control.Key);
-                return check?.Outcome is CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error ? Wording.OutcomeLabel(check.Outcome) : "–";
+                return check?.Outcome is CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error ? Wording.OutcomeLabel(check.Outcome)
+                    : check != null && Wording.IsNoCaaPolicy(check) ? Wording.ControlValue(check) : "–";
             })).ToArray());
             int[] widths = new[] { 28 }.Concat(Enumerable.Repeat(12, 6)).ToArray();
             if (offset > 0) {

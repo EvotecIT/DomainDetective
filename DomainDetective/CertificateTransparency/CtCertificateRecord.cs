@@ -40,6 +40,12 @@ public sealed class CtCertificateRecord
     /// <summary>CT entry timestamp, when supplied by the provider.</summary>
     public DateTimeOffset? EntryTimestampUtc { get; init; }
 
+    /// <summary>
+    /// Earliest CT entry seen for this certificate, when the provider tracks more than one observation. Issuance-based
+    /// views (first seen, recent issuance) use it; <see cref="EntryTimestampUtc"/> may be a later re-observation.
+    /// </summary>
+    public DateTimeOffset? FirstEntryTimestampUtc { get; internal set; }
+
     /// <summary>SHA-256 fingerprint of the DER certificate or precertificate.</summary>
     public string? Sha256Fingerprint { get; init; }
 

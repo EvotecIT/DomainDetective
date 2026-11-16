@@ -59,6 +59,53 @@ public class TestCtTimelineProvider {
     }
 
     [Fact]
+    public async Task FirstSeenUsesTheFirstCtObservationNotALaterReobservation() {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        CtCertificateRecord old = Record("aa", "CN=Example CA R1", now.AddDays(-1));
+        old.FirstEntryTimestampUtc = now.AddDays(-400);
+        var provider = new FakeProvider(_ => new CtCertificateQueryResult { ProviderId = "ddct-api", Certificates = new[] { old } });
+        var analysis = new CertificateTransparencyTimelineAnalysis { Provider = provider, QueryOverride = (_, _) => Task.FromResult("[]") };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.Equal(now.AddDays(-400), analysis.FirstSeenUtc);
+        Assert.Equal(now.AddDays(-1), analysis.LastSeenUtc);
+    }
+
+    [Fact]
+    public async Task AProviderTimeoutFallsBackToCrtSh() {
+        // HttpClient reports its own timeout as TaskCanceledException while the caller's token is untouched.
+        var provider = new FakeProvider(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));
+        string json = "[{\"id\":1,\"issuer_name\":\"Issuer A\",\"entry_timestamp\":\"" + DateTimeOffset.UtcNow.AddDays(-10).ToString("O") +
+                      "\",\"common_name\":\"contoso.example\",\"name_value\":\"contoso.example\"}]";
+        var analysis = new CertificateTransparencyTimelineAnalysis {
+            Provider = provider,
+            CrtShExactUrlTemplate = string.Empty,
+            QueryOverride = (_, _) => Task.FromResult(json)
+        };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal("crt.sh", analysis.Source);
+        Assert.Contains("HttpClient.Timeout", analysis.ProviderFailureReason);
+    }
+
+    [Fact]
+    public async Task CallerCancellationStillStopsTheAnalysis() {
+        using var cancel = new CancellationTokenSource();
+        var provider = new FakeProvider(_ => { cancel.Cancel(); throw new OperationCanceledException(cancel.Token); });
+        int crtShCalls = 0;
+        var analysis = new CertificateTransparencyTimelineAnalysis {
+            Provider = provider,
+            QueryOverride = (_, _) => { crtShCalls++; return Task.FromResult("[]"); }
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => analysis.AnalyzeAsync("contoso.example", new InternalLogger(), cancel.Token));
+        Assert.Equal(0, crtShCalls);
+    }
+
+    [Fact]
     public async Task AFailingProviderFallsBackToCrtShWithoutMixingAnswers() {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         var provider = new FakeProvider(_ => throw new HttpRequestException("connection refused"));

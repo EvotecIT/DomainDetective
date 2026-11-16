@@ -282,6 +282,14 @@ public static class DomainAssessmentBuilder {
                 check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
             }
         }
+        // No CAA record at all means any certificate authority may issue: report that plainly, neither as a pass that
+        // implies an issuer restriction nor as a failure.
+        if (check.Check == HealthCheckType.CAA && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().All(static v => v.ValidRecords == 0 && v.InvalidRecords == 0)) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.NoCaaPolicy;
+        }
         // What a data-gathering check notices (a missing PTR, a short CT history) is context for the profile, not a fix
         // for the domain. Lookalike domains and exposed subdomains are the exceptions: they are something to act on.
         if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)

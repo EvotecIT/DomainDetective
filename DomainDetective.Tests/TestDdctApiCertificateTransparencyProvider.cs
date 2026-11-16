@@ -234,7 +234,10 @@ public class TestDdctApiCertificateTransparencyProvider
         CtCertificateQueryResult result = await provider.QueryAsync(
             CtCertificateQuery.ForExactHostHistory("www.example.test"));
 
-        Assert.Single(result.Certificates);
+        CtCertificateRecord record = Assert.Single(result.Certificates);
+        // Issuance is dated by the first observation; the entry timestamp keeps the latest one.
+        Assert.Equal(DateTimeOffset.Parse("2026-04-12T10:00:00Z"), record.FirstEntryTimestampUtc);
+        Assert.Equal(DateTimeOffset.Parse("2026-04-12T12:00:00Z"), record.EntryTimestampUtc);
         Assert.True(result.HasMore);
         Assert.Contains(result.Diagnostics, message => message.Contains("page cap", StringComparison.OrdinalIgnoreCase));
     }

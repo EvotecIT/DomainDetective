@@ -161,8 +161,10 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     anyPayloadParsed = await QueryProviderAsync(Provider, now, issuerCounts, certs, bucketAgg, logger, cancellationToken).ConfigureAwait(false);
                     Source = Provider.ProviderId;
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
+                    // HttpClient reports its own timeout as a cancellation; unless the caller cancelled, that is a
+                    // provider failure and crt.sh is tried instead.
                     // Start the fallback from a clean slate so a half-read provider answer is not mixed in.
                     ResetCounters();
                     issuerCounts.Clear();
@@ -189,7 +191,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     if (parsed && Source.Length == 0) Source = "crt.sh";
                     anyPayloadParsed |= parsed;
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
                     failedQueries++;
                     lastFailure = ex.Message;
@@ -220,7 +222,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                         if (parsed) Source = "certspotter";
                         anyPayloadParsed |= parsed;
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                     {
                         lastFailure = lastFailure == null ? ex.Message : $"{lastFailure}; fallback failed: {ex.Message}";
                         logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
@@ -235,7 +237,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
             QuerySucceeded = true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
@@ -522,15 +524,21 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             morePages = page.HasMore;
             foreach (var record in page.Certificates)
             {
+                // Issuance is dated by the first CT observation; a later re-observation only moves "last seen".
+                DateTimeOffset? issued = record.FirstEntryTimestampUtc ?? record.EntryTimestampUtc;
                 var row = new CtRow(
                     record.Issuer,
                     CommonNameFrom(record.Subject) ?? record.DnsNames.FirstOrDefault(),
                     record.DnsNames.Count > 0 ? string.Join("\n", record.DnsNames) : null,
                     record.SerialNumber,
                     record.Sha256Fingerprint ?? record.ProviderCertificateId,
-                    record.EntryTimestampUtc,
+                    issued,
                     record.NotBeforeUtc,
                     record.NotAfterUtc);
+                if (record.EntryTimestampUtc.HasValue && record.EntryTimestampUtc != issued)
+                {
+                    UpdateFirstAndLastSeen(record.EntryTimestampUtc);
+                }
                 if (!ProcessRow(row, nowUtc, issuerCounts, certs, bucketAgg))
                 {
                     logger?.WriteVerbose("CT timeline from {0} capped for {1}", provider.ProviderId, Subject);
