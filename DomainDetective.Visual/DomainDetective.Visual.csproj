@@ -27,6 +27,7 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+        <PackageReference Include="AngleSharp" Version="1.10.1" />
         <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
         <Reference Include="System.IO.Compression" />
         <Reference Include="System.IO.Compression.FileSystem" />
