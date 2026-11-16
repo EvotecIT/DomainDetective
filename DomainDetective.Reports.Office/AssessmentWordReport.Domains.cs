@@ -19,7 +19,7 @@ public static partial class AssessmentWordReport {
         Heading(document, style, Identifier(domain.Domain) + " · "
             + (domain.Score.HasValue ? domain.Grade + " · " + Score(domain.Score) : "Not scored"), 1, newPage: true);
         Panel(document, style, Wording.DomainVerdict(domain), domain.Score.HasValue && OfficeScoreText.Partial(domain.Coverage)
-            ? new[] { "The score covers " + OfficeScoreText.Percent(domain.Coverage!.Value) + " of the scored checks; those with incomplete evidence are left out." }
+            ? new[] { "The score covers " + OfficeScoreText.Percent(domain.Coverage!.Value) + " of the scored check weight; checks with incomplete evidence and no findings are left out." }
             : new string[0],
             domain.ErrorChecks > 0 ? High : domain.WarningChecks > 0 ? Elevated : domain.Checks.Any(c => !c.EvidenceComplete) ? Neutral : Good);
         Cards(document, style, domain.Checks.GroupBy(c => c.Area).OrderBy(g => AreaIndex(g.Key)).Select(group => {

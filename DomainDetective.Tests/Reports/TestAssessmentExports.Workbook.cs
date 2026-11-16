@@ -144,7 +144,7 @@ public partial class TestAssessmentExports {
                 && ParagraphText(row.Elements(Word + "tc").First()) == area).Elements(Word + "tc").ElementAt(2));
             var checks = report.Domains[0].Checks.Where(c => c.Area == AnalysisArea.Mail).ToList();
             string percent = ((int)Math.Round(DomainAssessmentCatalog.ScoreCoverage(checks)!.Value * 100, MidpointRounding.AwayFromZero)) + "%";
-            Assert.Equal(DomainAssessmentCatalog.CombinedScore(checks) + " · " + percent + " of checks judged", Score("Mail"));
+            Assert.Equal(DomainAssessmentCatalog.CombinedScore(checks) + " · " + percent + " of check weight judged", Score("Mail"));
             Assert.Equal("Not scored", Score("Web"));
             Assert.Equal("100", Score("DNS"));
         });

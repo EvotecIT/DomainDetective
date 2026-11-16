@@ -73,6 +73,39 @@ public class TestCtTimelineProvider {
     }
 
     [Fact]
+    public async Task AnEmptyProviderAnswerAsksCrtShInstead() {
+        // DDCT holds only the names it monitors; an empty answer there says nothing about the domain.
+        var provider = new FakeProvider(_ => new CtCertificateQueryResult { ProviderId = "ddct-api", Certificates = Array.Empty<CtCertificateRecord>() });
+        string json = "[{\"id\":1,\"issuer_name\":\"Issuer A\",\"entry_timestamp\":\"" + DateTimeOffset.UtcNow.AddDays(-10).ToString("O") +
+                      "\",\"common_name\":\"contoso.example\",\"name_value\":\"contoso.example\"}]";
+        var analysis = new CertificateTransparencyTimelineAnalysis {
+            Provider = provider,
+            CrtShExactUrlTemplate = string.Empty,
+            QueryOverride = (_, _) => Task.FromResult(json)
+        };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal("crt.sh", analysis.Source);
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+    }
+
+    [Fact]
+    public async Task AnEmptyCrtShBodyLeavesTheHistoryPartial() {
+        string json = "[{\"id\":1,\"issuer_name\":\"Issuer A\",\"entry_timestamp\":\"" + DateTimeOffset.UtcNow.AddDays(-10).ToString("O") +
+                      "\",\"common_name\":\"contoso.example\",\"name_value\":\"contoso.example\"}]";
+        var analysis = new CertificateTransparencyTimelineAnalysis {
+            QueryOverride = (url, _) => Task.FromResult(url.Contains("%25") ? json : "  ")
+        };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.True(analysis.PartialResults);
+    }
+
+    [Fact]
     public async Task AProviderTimeoutFallsBackToCrtSh() {
         // HttpClient reports its own timeout as TaskCanceledException while the caller's token is untouched.
         var provider = new FakeProvider(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));

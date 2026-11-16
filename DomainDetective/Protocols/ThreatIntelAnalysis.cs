@@ -177,7 +177,8 @@ public class ThreatIntelAnalysis : IHasAssessments
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("results", out var res))
         {
-            return false;
+            // An error or meta-only body answers nothing; treat it as a failed query, not a clean one.
+            throw new System.IO.InvalidDataException("PhishTank response has no results.");
         }
         var valid = res.TryGetProperty("valid", out var v) && v.GetString() == "true";
         var inDb = res.TryGetProperty("in_database", out var db) && db.GetString() == "true";
@@ -298,7 +299,7 @@ public class ThreatIntelAnalysis : IHasAssessments
                 googleListed = ParseGoogle(json);
                 googleState = StateFor(googleListed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 googleState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.GsbQueryFailed, "Google Safe Browsing query failed: {0}", ex.Message);
@@ -314,7 +315,7 @@ public class ThreatIntelAnalysis : IHasAssessments
                 phishListed = ParsePhishTank(json);
                 phishState = StateFor(phishListed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 phishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.PhishTankQueryFailed, "PhishTank query failed: {0}", ex.Message);
@@ -336,7 +337,7 @@ public class ThreatIntelAnalysis : IHasAssessments
                     logger?.WriteWarningCode(ThreatIntelCodes.VirusTotalRiskHigh, "VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
@@ -350,7 +351,7 @@ public class ThreatIntelAnalysis : IHasAssessments
             try {
                 urlHausListed = await QueryUrlHausListed(domainName, ct);
                 urlHausState = StateFor(urlHausListed);
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
                 urlHausState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.UrlHausQueryFailed, "URLHaus query failed: {0}", ex.Message);
                 FailureReason = $"URLHaus query failed: {ex.Message}";
@@ -364,7 +365,7 @@ public class ThreatIntelAnalysis : IHasAssessments
                 bool? openPhish = await QueryOpenPhishListed(domainName, ct);
                 openPhishListed = openPhish == true;
                 openPhishState = openPhish.HasValue ? StateFor(openPhishListed) : ThreatIntelQueryState.NotQueried;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
                 openPhishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.OpenPhishQueryFailed, "OpenPhish query failed: {0}", ex.Message);
                 FailureReason = $"OpenPhish query failed: {ex.Message}";

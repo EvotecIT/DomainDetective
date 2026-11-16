@@ -268,7 +268,8 @@ public static class DomainAssessmentCatalog {
         int weight = 0;
         double total = 0;
         foreach (CheckAssessment check in checks) {
-            if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue) continue;
+            // An incomplete check is scored only when it already shows defects (DomainAssessmentBuilder sets its score).
+            if (!check.Scored || !check.Score.HasValue || (!check.EvidenceComplete && check.Outcome is not (CheckOutcome.Error or CheckOutcome.Warning))) continue;
             weight += check.Weight;
             total += (double)check.Score.Value * check.Weight;
         }

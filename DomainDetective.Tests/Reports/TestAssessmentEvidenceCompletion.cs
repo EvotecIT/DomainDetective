@@ -61,7 +61,7 @@ public class TestAssessmentEvidenceCompletion {
         AreaScore area = Assert.Single(domain.Areas);
         Assert.Equal(0.5, area.Coverage);
         Assert.Equal(new[] { "MX" }, area.Incomplete);
-        Assert.Equal("Grade A from 50% of the scored checks; 1 scored check could not be judged and is left out.", AssessmentReportWording.ScoreNote(report));
+        Assert.Equal("Grade A from 50% of the scored check weight; 1 scored check could not be judged and is left out.", AssessmentReportWording.ScoreNote(report));
     }
 
     [Theory]

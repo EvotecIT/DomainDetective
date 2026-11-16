@@ -62,7 +62,7 @@ public static partial class AssessmentExcelReport {
         int incomplete = all.Count(static c => !c.EvidenceComplete);
         var tiles = new List<(string Label, string Value, string Tone, string? Note)> {
             ("Grade · score", OfficeScoreText.Graded(report.Grade, report.Score, null), ScoreTone(report.Score),
-                OfficeScoreText.Partial(report.Coverage) ? OfficeScoreText.Percent(report.Coverage!.Value) + " of checks judged" : null),
+                OfficeScoreText.Partial(report.Coverage) ? OfficeScoreText.Percent(report.Coverage!.Value) + " of check weight judged" : null),
             ("Needs attention", Text(attention), errors > 0 ? High : attention > 0 ? Elevated : Muted, null),
             ("Errors", Text(errors), errors > 0 ? High : Muted, null),
             (Wording.OutcomeLabel(CheckOutcome.Incomplete), Text(incomplete), Muted, null)
@@ -223,10 +223,8 @@ public static partial class AssessmentExcelReport {
         area == AnalysisArea.Reputation && report.Domains.Count == 1 && report.Domains[0].RiskProfile is { } profile
             ? " Risk: " + Wording.RiskValue(profile) + "." : string.Empty;
 
-    private static string AreaStatus(List<CheckAssessment> checks) => checks.Any(static c => c.Outcome == CheckOutcome.Error) ? "Errors"
-        : checks.Any(static c => c.Outcome == CheckOutcome.Warning) ? "Needs attention"
-        : checks.Any(static c => !c.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete) ? Wording.OutcomeLabel(CheckOutcome.Incomplete)
-        : checks.Any(static c => c.Scored) ? "Passing" : "Informational";
+    // One status word for every format.
+    private static string AreaStatus(List<CheckAssessment> checks) => Wording.AreaStatus(checks);
 
     private static string AreaTone(List<CheckAssessment> checks) => checks.Any(static c => c.Outcome == CheckOutcome.Error) ? High
         : checks.Any(static c => c.Outcome == CheckOutcome.Warning) ? Elevated

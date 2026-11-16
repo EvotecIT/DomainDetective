@@ -30,7 +30,8 @@ public class TestAssessmentCoverageEvidence {
         Assert.Equal(!incomplete, check.EvidenceComplete);
         Assert.Equal(failed, check.WarningCount);
         if (incomplete) {
-            Assert.Null(check.Score);
+            // Missing evidence lowers coverage, never the score: a check that already shows a warning keeps it.
+            if (failed > 0) Assert.NotNull(check.Score); else Assert.Null(check.Score);
         }
 
         var html = AssessmentHtmlReport.Render(report);

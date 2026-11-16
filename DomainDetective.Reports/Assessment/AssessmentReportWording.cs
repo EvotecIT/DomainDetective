@@ -230,7 +230,7 @@ public static partial class AssessmentReportWording {
             int incomplete = checks.Count(static c => c.Scored && !c.EvidenceComplete);
             string left = incomplete == 1 ? "1 scored check could not be judged" : $"{incomplete.ToString(CultureInfo.InvariantCulture)} scored checks could not be judged";
             return report.Score.HasValue
-                ? $"Grade {report.Grade} from {CoveragePercent(report.Coverage)} of the scored checks; {left} and {(incomplete == 1 ? "is" : "are")} left out."
+                ? $"Grade {report.Grade} from {CoveragePercent(report.Coverage)} of the scored check weight; {left} and {(incomplete == 1 ? "is" : "are")} left out."
                 : $"No grade yet: {left}.";
         }
         return ScoreNote(report.Score, checks.Count(c => c.Outcome == CheckOutcome.Error), checks.Count(c => c.Outcome == CheckOutcome.Warning));
@@ -289,7 +289,7 @@ public static partial class AssessmentReportWording {
     /// <summary>The scoring facts printed in the HTML About section and paper appendix.</summary>
     public static IReadOnlyList<KeyValuePair<string, string>> ScoringFacts { get; } = Array.AsReadOnly(new[] {
         new KeyValuePair<string,string>("Check score", "100 when a check passes; 15 points off per warning (not below 50); with errors, 40 for the first, 10 less for each further error and 5 less per warning (not below 0)."),
-        new KeyValuePair<string,string>("Domain score", "Weighted average of the scored checks that could be judged. DMARC counts three times, SPF, DKIM, MX and DNSSEC twice. A check whose evidence is incomplete is left out, and the share of checks judged is shown with the score."),
+        new KeyValuePair<string,string>("Domain score", "Weighted average of the scored checks that could be judged. DMARC counts three times, SPF, DKIM, MX and DNSSEC twice. A check whose evidence is incomplete is left out unless it already shows errors or warnings, and the share of the check weight judged is shown with the score."),
         new KeyValuePair<string,string>("Informational checks", "Inventory and discovery checks (subdomains, DNS inventory, CT timeline, Microsoft 365, ...) are shown but not scored."),
         new KeyValuePair<string,string>("Grade", "A from 90, B from 80, C from 70, D from 60, otherwise F.")
     });

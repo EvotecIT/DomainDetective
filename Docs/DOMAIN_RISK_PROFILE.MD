@@ -10,9 +10,9 @@ The risk profile answers two questions about a domain: how risky does it look, a
 
 | Area | Evidence | Scored signals | Shown, not scored |
 | --- | --- | --- | --- |
-| Reputation | Threat feeds (per feed: listed, clean, not queried, failed), domain and host DNSBL | First feed listing +40 (holds the level at High), more feeds +10, domain blocklist +20, listed hosts +5 each (max 15) | Feeds answered, lookalikes rated High or Critical |
+| Reputation | Threat feeds (per feed: listed, clean, not queried, failed), domain and host DNSBL | First feed listing +40 (holds the level at High), more feeds +10, a VirusTotal flag +10 (any one engine, so it never decides the level), domain blocklist +20, listed hosts +5 each (max 15) | Feeds answered, lookalikes rated High or Critical |
 | Registration | RDAP, then WHOIS: created, expires, status, registrar | Under 30 days +20, under 90 days +12, under a year +5, hold +20, expired +15, over three years −5 | Registrar, privacy service |
-| Certificates | CT timeline from DDCT, crt.sh or Cert Spotter | First certificate under 30 days ago +8, issuance burst +5 | First seen, issuers, certificate count |
+| Certificates | CT timeline from DDCT, crt.sh or Cert Spotter | First certificate under 30 days ago +8 (crt.sh full history only), issuance burst +5 | First seen, issuers, certificate count |
 | DNS | Inventory, DNSSEC, NS, FCrDNS | DNSSEC bogus +10, mail hosts without FCrDNS +3, DNSSEC secure −3 | DNS and mail provider |
 | Network | IP enrichment with hosting attribution | – | Networks, hosting and CDN, countries |
 | Web | Web static scan (counts only when it ran) | – | Technologies |
@@ -54,7 +54,7 @@ Akamai publishes only its origin ACL ranges, so most Akamai edge addresses match
 
 ## CT from DDCT
 
-The CT timeline queries `CertificateTransparencyTimelineAnalysis.Provider` first when it is set. When it isn't set and `DOMAINDETECTIVE_DDCT_URL` is, the timeline uses a `DdctApiCertificateTransparencyProvider` for that endpoint. `DOMAINDETECTIVE_DDCT_API_KEY` and `DOMAINDETECTIVE_DDCT_SCOPE` are optional. If the provider fails, the timeline falls back to crt.sh and records why (`ProviderFailureReason`). A DDCT first-seen date is the earliest entry DDCT has ingested, so the profile words it as "on or before".
+The CT timeline queries `CertificateTransparencyTimelineAnalysis.Provider` first when it is set. When it isn't set and `DOMAINDETECTIVE_DDCT_URL` is, the timeline uses a `DdctApiCertificateTransparencyProvider` for that endpoint. `DOMAINDETECTIVE_DDCT_API_KEY` and `DOMAINDETECTIVE_DDCT_SCOPE` are optional. If the provider fails, the timeline falls back to crt.sh and records why (`ProviderFailureReason`). A DDCT first-seen date is the earliest entry DDCT has ingested, which can be later than the first certificate, so the profile shows it as the earliest entry returned and doesn't score it. DDCT holds only the names it monitors, so an empty DDCT answer is followed by a crt.sh query. Issuance dates use the first CT observation of each certificate, not a later re-observation.
 
 ## Not covered yet
 

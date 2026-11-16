@@ -106,7 +106,7 @@ public class ThreatFeedAnalysis : IHasAssessments {
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
                 vtState = result?.Attributes?.LastAnalysisStats == null ? ThreatIntelQueryState.Failed
                     : vtListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
                 vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
@@ -119,7 +119,7 @@ public class ThreatFeedAnalysis : IHasAssessments {
                 bool? abuse = ParseAbuseIpDb(json);
                 abuseListed = abuse == true;
                 abuseState = !abuse.HasValue ? ThreatIntelQueryState.Failed : abuseListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
                 abuseState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.AbuseIpdbQueryFailed, "AbuseIPDB query failed: {0}", ex.Message);
                 FailureReason = $"AbuseIPDB query failed: {ex.Message}";

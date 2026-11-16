@@ -33,9 +33,9 @@ public static partial class AssessmentWordReport {
         });
     }
 
-    /// <summary>"85% of checks judged" when part of the scored evidence was incomplete; otherwise null.</summary>
+    /// <summary>"85% of check weight judged" when part of the scored evidence was incomplete; otherwise null.</summary>
     private static string? Judged(double? coverage) => OfficeScoreText.Partial(coverage)
-        ? OfficeScoreText.Percent(coverage!.Value) + " of checks judged" : null;
+        ? OfficeScoreText.Percent(coverage!.Value) + " of check weight judged" : null;
 
     /// <summary>A shaded block with a toned left rule: a bold lead sentence and quieter supporting lines.</summary>
     private static void Panel(WordDocument document, WordPaperStyle style, string lead, IEnumerable<string> lines, string tone) {
@@ -184,10 +184,8 @@ public static partial class AssessmentWordReport {
         return int.MaxValue;
     }
 
-    private static string AreaStatus(List<CheckAssessment> checks) => checks.Any(c => c.Outcome == CheckOutcome.Error) ? "Errors"
-        : checks.Any(c => c.Outcome == CheckOutcome.Warning) ? "Needs attention"
-        : checks.Any(c => !c.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete) ? Wording.OutcomeLabel(CheckOutcome.Incomplete)
-        : checks.Any(c => c.Scored) ? "Passing" : "Informational";
+    // One status word for every format.
+    private static string AreaStatus(List<CheckAssessment> checks) => Wording.AreaStatus(checks);
 
     private static string AreaTone(List<CheckAssessment> checks) => checks.Any(c => c.Outcome == CheckOutcome.Error) ? High
         : checks.Any(c => c.Outcome == CheckOutcome.Warning) ? Elevated
@@ -205,7 +203,7 @@ public static partial class AssessmentWordReport {
             var rows = report.Domains.Select(domain => new[] { Identifier(domain.Domain) }.Concat(columns.Select(control => {
                 CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == control.Key);
                 return check?.Outcome is CheckOutcome.Pass or CheckOutcome.Warning or CheckOutcome.Error ? Wording.OutcomeLabel(check.Outcome)
-                    : check != null && Wording.IsNoCaaPolicy(check) ? Wording.ControlValue(check) : "–";
+                    : check != null && Wording.IsAbsentPolicy(check) ? Wording.ControlValue(check) : "–";
             })).ToArray());
             int[] widths = new[] { 28 }.Concat(Enumerable.Repeat(12, 6)).ToArray();
             if (offset > 0) {

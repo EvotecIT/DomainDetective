@@ -174,6 +174,15 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     lastFailure = $"{Provider.ProviderId}: {ex.Message}";
                     logger?.WriteVerbose("CT provider {0} failed for {1}: {2}", Provider.ProviderId, Subject, ex.Message);
                 }
+                if (anyPayloadParsed && certs.Count == 0)
+                {
+                    // DDCT holds only the names it monitors, so "no certificates" there is not an answer for the
+                    // domain: ask crt.sh instead of reading it as an empty history.
+                    anyPayloadParsed = false;
+                    Source = string.Empty;
+                    ResetCounters();
+                    logger?.WriteVerbose("CT provider {0} returned no certificates for {1}; querying crt.sh", Provider.ProviderId, Subject);
+                }
                 if (anyPayloadParsed)
                 {
                     urls.Clear();
@@ -189,6 +198,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
                     bool parsed = ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
                     if (parsed && Source.Length == 0) Source = "crt.sh";
+                    // An empty body answers nothing for this query.
+                    if (!parsed) failedQueries++;
                     anyPayloadParsed |= parsed;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

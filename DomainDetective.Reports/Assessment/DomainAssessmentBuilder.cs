@@ -290,6 +290,13 @@ public static class DomainAssessmentBuilder {
             check.Scored = false;
             check.Summary = AssessmentReportWording.NoCaaPolicy;
         }
+        // The same for TLS-RPT: an optional record that is not published is not a passing one.
+        if (check.Check == HealthCheckType.TLSRPT && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.TlsRptInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.TlsRptInfo>().All(static v => !v.TlsRptRecordExists)) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.NoTlsRptRecord;
+        }
         // What a data-gathering check notices (a missing PTR, a short CT history) is context for the profile, not a fix
         // for the domain. Lookalike domains and exposed subdomains are the exceptions: they are something to act on.
         if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)
@@ -301,7 +308,9 @@ public static class DomainAssessmentBuilder {
             : !check.EvidenceComplete ? CheckOutcome.Incomplete
             : check.Scored ? CheckOutcome.Pass
             : CheckOutcome.Info;
-        check.Score = check.EvidenceComplete ? DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount) : null;
+        // Missing evidence lowers coverage, never the score: a check that already shows errors or warnings keeps them.
+        check.Score = check.EvidenceComplete || check.ErrorCount + check.WarningCount > 0
+            ? DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount) : null;
     }
 
     /// <summary>
@@ -360,9 +369,15 @@ public static class DomainAssessmentBuilder {
     };
 
     // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.
+    private static readonly string[] ObservedFailureCodes = { "TlsFailed", "DownloadFailed", "Download.Failed", "HttpStatus", "StatusCode" };
+
     private static bool DescribesFailedLookup(CheckFinding finding) {
         string code = finding.Code ?? string.Empty;
         string message = finding.Message ?? string.Empty;
+        // A failed TLS handshake or a logo that will not download is what the domain publishes, not a lookup we lost.
+        foreach (string observed in ObservedFailureCodes) {
+            if (code.IndexOf(observed, StringComparison.OrdinalIgnoreCase) >= 0) return false;
+        }
         foreach (string marker in FailedLookupCodes) {
             if (code.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) return true;
         }

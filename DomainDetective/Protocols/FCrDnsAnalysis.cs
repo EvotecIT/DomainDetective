@@ -31,6 +31,9 @@ public class FCrDnsAnalysis
         public string? PtrRecord => PtrRecords.FirstOrDefault();
         /// <summary>True when PTR hostname resolves to the original IP.</summary>
         public bool ForwardConfirmed { get; set; }
+
+        /// <summary>True when a forward lookup of a PTR name returned at least one address.</summary>
+        public bool ForwardAnswered { get; set; }
     }
 
     /// <summary>Collection of results for each IP.</summary>
@@ -72,11 +75,13 @@ public class FCrDnsAnalysis
             }
 
             bool match = false;
+            bool answered = false;
             foreach (var ptr in ptrs)
             {
                 var normalizedPtr = ptr.TrimEnd('.');
                 var a = await QueryDns(normalizedPtr, DnsRecordType.A);
                 var aaaa = await QueryDns(normalizedPtr, DnsRecordType.AAAA);
+                answered |= a.Length > 0 || aaaa.Length > 0;
                 logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
                 if (a.Concat(aaaa).Any(r => r.Data == item.IpAddress))
                 {
@@ -89,7 +94,8 @@ public class FCrDnsAnalysis
             {
                 IpAddress = item.IpAddress,
                 PtrRecords = ptrs.Select(p => p.TrimEnd('.')).ToList(),
-                ForwardConfirmed = match
+                ForwardConfirmed = match,
+                ForwardAnswered = answered || match
             });
         }
     }

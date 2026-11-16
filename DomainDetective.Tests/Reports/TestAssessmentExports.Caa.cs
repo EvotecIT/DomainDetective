@@ -18,7 +18,7 @@ public partial class TestAssessmentExports {
         Assert.False(check.Scored);
         Assert.True(Wording.IsNoCaaPolicy(check));
         Assert.Equal("No CAA policy", Wording.ControlValue(check));
-        Assert.Contains("any certificate authority may issue", Wording.ControlReason(check));
+        Assert.Equal("Any certificate authority may issue certificates.", Wording.ControlReason(check));
 
         var withPolicy = new CaaInfo { Check = HealthCheckType.CAA, Subject = "example.test", ValidRecords = 1, CanIssueCertificatesForDomain = new[] { "letsencrypt.org" } };
         CheckAssessment restricted = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { withPolicy }).Domains).Checks);
@@ -52,5 +52,46 @@ public partial class TestAssessmentExports {
             Assert.Contains("any certificate authority may issue", workbook);
             Assert.DoesNotContain("Only the listed CAs", workbook);
         });
+    }
+}
+
+public class TestAssessmentAbsentAndObserved {
+    [Fact]
+    public void AMissingTlsRptRecordIsNotAPassThatClaimsReporting() {
+        var view = new TlsRptInfo { Check = HealthCheckType.TLSRPT, Subject = "example.test", TlsRptRecordExists = false, Assessments = System.Array.Empty<Assessment>() };
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.Equal(CheckOutcome.Info, check.Outcome);
+        Assert.False(check.Scored);
+        Assert.Equal("Not published", Wording.ControlValue(check));
+        Assert.Equal("Mail TLS failures are not reported.", Wording.ControlReason(check));
+    }
+
+    [Fact]
+    public void AnObservedTlsFailureIsADefectNotACheckThatCouldNotRun() {
+        var view = new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Assessments = new[] {
+            new Assessment { Severity = AssessmentSeverity.Warning, Code = "WEBAVAILABILITY.Public.TlsFailed",
+                Message = "Public web endpoint request failed: The SSL connection could not be established." }
+        } };
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.True(check.EvidenceComplete);
+        Assert.Equal(CheckOutcome.Warning, check.Outcome);
+    }
+
+    [Fact]
+    public void ACheckWithErrorsStaysInTheScoreWhenOneLookupDidNotFinish() {
+        var view = new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Assessments = new[] {
+            new Assessment { Severity = AssessmentSeverity.Error, Code = "MX.Fixture.Error", Message = "Mail server name is a CNAME." },
+            new Assessment { Severity = AssessmentSeverity.Warning, Code = "MX.Address.QueryFailed", Message = "Address query failed for mx2.example.test." }
+        } };
+        DomainAssessment domain = Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains);
+        CheckAssessment check = Assert.Single(domain.Checks);
+
+        Assert.False(check.EvidenceComplete);
+        Assert.Equal(CheckOutcome.Error, check.Outcome);
+        Assert.NotNull(check.Score);
+        Assert.Equal(check.Score, domain.Score);
+        Assert.True(domain.Coverage < 1);
     }
 }

@@ -50,6 +50,10 @@ public static partial class AssessmentReportWording {
             return "No risk signals about the domain itself; watch: " + string.Join("; ", profile.Watch) + ".";
         }
         string confidence = ConfidenceLabel(profile.Confidence).ToLowerInvariant() + " confidence (" + profile.ConfidenceScore.ToString("0.00", CultureInfo.InvariantCulture) + ")";
+        if (profile.RiskLevel == DomainRiskLevel.None && profile.Signals.Any(static s => s.Points > 0)) {
+            // Risk signals were found but favourable ones outweigh them; say so rather than "none found".
+            return "Negligible risk (" + profile.RiskScore.ToString(CultureInfo.InvariantCulture) + "): the risk signals found are outweighed, with " + confidence + ".";
+        }
         if (profile.RiskLevel == DomainRiskLevel.None) {
             return profile.Confidence == EvidenceConfidence.High
                 ? "No risk signals found, with " + confidence + "."

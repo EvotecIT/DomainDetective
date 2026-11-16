@@ -44,7 +44,7 @@ public static partial class AssessmentHtmlReport {
                 head.Value(new HtmlTag("div").Class("dd-kpi")
                     .Value(Span("Configuration", "dd-kpi-label"))
                     .Value(Span(domain.Grade + " · " + domain.Score.Value.ToString(CultureInfo.InvariantCulture), "dd-kpi-value"))
-                    .Value(Span(domain.Coverage is < 0.995 ? CoveragePercent(domain.Coverage) + " of scored checks judged" : "every scored check judged", "dd-kpi-note")));
+                    .Value(Span(domain.Coverage is < 0.995 ? CoveragePercent(domain.Coverage) + " of scored check weight judged" : "every scored check judged", "dd-kpi-note")));
             }
             body.Value(head);
 

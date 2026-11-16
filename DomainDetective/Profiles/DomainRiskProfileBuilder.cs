@@ -179,7 +179,16 @@ public static class DomainRiskProfileBuilder {
     internal static (EvidenceState, DateTimeOffset?) DateEvidence(string? text, bool answered, EvidenceState missing) {
         if (!answered) return (missing, null);
         if (string.IsNullOrWhiteSpace(text)) return (EvidenceState.Partial, null);
+        if (AmbiguousDayMonth(text!)) return (EvidenceState.Partial, null);
         return TryParseDate(text!, out DateTimeOffset value) ? (EvidenceState.Observed, value) : (EvidenceState.Partial, null);
+    }
+
+    // 05/11/2026 is 5 November in one registry and 11 May in another: read it, but don't date the domain by it.
+    private static bool AmbiguousDayMonth(string text) {
+        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(text.Trim(), @"^(\d{1,2})/(\d{1,2})/\d{4}\b");
+        if (!m.Success) return false;
+        int first = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), second = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+        return first <= 12 && second <= 12 && first != second;
     }
 
     private static readonly string[] DateFormats = {
@@ -243,8 +252,12 @@ public static class DomainRiskProfileBuilder {
         }
 
         if (Ran(health, HealthCheckType.FCRDNS) && !Failed(health, HealthCheckType.FCRDNS) && health.FcrDnsAnalysis != null) {
-            evidence.PtrState = health.FcrDnsAnalysis.Results.Count > 0 ? EvidenceState.Observed : EvidenceState.Clean;
-            evidence.MailHostsWithoutFcrDns = health.FcrDnsAnalysis.Results.Count(static r => !r.ForwardConfirmed);
+            var fcrdns = health.FcrDnsAnalysis.Results;
+            // A PTR name whose forward lookup returned nothing may be a failed lookup, not a mismatch: it lowers
+            // coverage, and only a forward answer that misses the address counts against the domain.
+            int settled = fcrdns.Count(static r => r.ForwardAnswered || r.PtrRecords.Count == 0);
+            evidence.PtrState = fcrdns.Count == 0 ? EvidenceState.Clean : EvidenceCoverage.From(fcrdns.Count, settled, found: true);
+            evidence.MailHostsWithoutFcrDns = fcrdns.Count(static r => !r.ForwardConfirmed && (r.ForwardAnswered || r.PtrRecords.Count == 0));
         } else {
             evidence.PtrState = NotAnswered(health, HealthCheckType.FCRDNS);
         }

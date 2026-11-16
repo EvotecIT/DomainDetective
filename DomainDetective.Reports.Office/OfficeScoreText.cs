@@ -7,11 +7,11 @@ namespace DomainDetective.Reports.Office;
 
 /// <summary>Score and coverage phrases shared by the Word and Excel assessment exports.</summary>
 internal static class OfficeScoreText {
-    /// <summary>"84", "84 · 80% of checks judged" or "Not scored" when nothing could be judged.</summary>
+    /// <summary>"84", "84 · 80% of check weight judged" or "Not scored" when nothing could be judged.</summary>
     internal static string Score(int? score, double? coverage) {
         if (!score.HasValue) { return "Not scored"; }
         string value = score.Value.ToString(CultureInfo.InvariantCulture);
-        return Partial(coverage) ? value + " · " + Percent(coverage!.Value) + " of checks judged" : value;
+        return Partial(coverage) ? value + " · " + Percent(coverage!.Value) + " of check weight judged" : value;
     }
 
     /// <summary>"B · 84", with the coverage qualifier when part of the scored evidence was incomplete.</summary>

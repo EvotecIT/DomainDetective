@@ -223,13 +223,17 @@ public static class DomainRiskProfileEvaluator {
     private static void ReputationSignals(DomainRiskEvidence e, List<RiskSignal> signals, string? withoutSource) {
         bool first = true;
         foreach (ThreatFeedEvidence feed in e.Feeds.Where(f => f.Listed && f.State == EvidenceState.Observed && !string.Equals(f.Name, withoutSource, StringComparison.Ordinal))
-                     .OrderByDescending(static f => f.Weight)) {
+                     .OrderBy(static f => f.Id == "virustotal").ThenByDescending(static f => f.Weight)) {
+            // VirusTotal counts a domain as flagged when any one of its engines does, so it adds weight but never
+            // decides the level on its own.
+            bool engines = feed.Id == "virustotal";
+            bool decisive = first && !engines;
             signals.Add(new RiskSignal {
                 Id = "reputation.listed." + feed.Id,
                 Facet = ProfileFacetKind.Reputation,
-                Points = first ? 40 : 10,
-                Decisive = first,
-                Reason = "Listed by " + feed.Name,
+                Points = decisive ? 40 : 10,
+                Decisive = decisive,
+                Reason = engines ? "Flagged by at least one VirusTotal engine" : "Listed by " + feed.Name,
                 Source = feed.Name,
                 CheckKey = "threatintel"
             });
@@ -286,7 +290,8 @@ public static class DomainRiskProfileEvaluator {
         string check = RegistrationCheck(e);
         if (e.CreatedState == EvidenceState.Observed && e.CreatedUtc.HasValue) {
             double age = (now - e.CreatedUtc.Value).TotalDays;
-            (string id, int points)? rule = age < 30 ? ("registration.age.under30d", 20)
+            (string id, int points)? rule = age < 0 ? null
+                : age < 30 ? ("registration.age.under30d", 20)
                 : age < 90 ? ("registration.age.under90d", 12)
                 : age < 365 ? ("registration.age.under1y", 5)
                 : age >= 3 * 365 ? ("registration.age.over3y", -5)
@@ -341,18 +346,18 @@ public static class DomainRiskProfileEvaluator {
         _ => "CT (" + e.CtSource + ")"
     };
 
-    // Cert Spotter's issuance API lists recent issuances, not the whole history, so its earliest entry is not a first-seen date.
-    private static bool FirstSeenIsHistory(DomainRiskEvidence e) => !e.CtCapped && e.CtSource != "certspotter";
+    // Cert Spotter's issuance API lists recent issuances, not the whole history, so its earliest entry is not a first-seen
+    // date. DDCT's earliest entry is the first one it ingested, which can be later than the first certificate.
+    private static bool FirstSeenIsHistory(DomainRiskEvidence e) => !e.CtCapped && e.CtSource is not ("certspotter" or "ddct-api");
 
     private static void CertificateSignals(DomainRiskEvidence e, DateTimeOffset now, List<RiskSignal> signals) {
         if (e.CtState is not (EvidenceState.Observed or EvidenceState.Partial)) return;
         if (e.CtFirstSeenUtc.HasValue && FirstSeenIsHistory(e)) {
             double age = (now - e.CtFirstSeenUtc.Value).TotalDays;
-            if (age < 30) {
-                string qualifier = e.CtSource == "ddct-api" ? "on or before " : string.Empty;
+            if (age is >= 0 and < 30) {
                 signals.Add(new RiskSignal {
                     Id = "certificates.first-seen.under30d", Facet = ProfileFacetKind.Certificates, Points = 8,
-                    Reason = "First certificate logged " + qualifier + Date(e.CtFirstSeenUtc) + " (" + Days(age) + " ago)",
+                    Reason = "First certificate logged " + Date(e.CtFirstSeenUtc) + " (" + Days(age) + " ago)",
                     Source = CtLabel(e), CheckKey = "cttimeline"
                 });
             }
@@ -378,6 +383,7 @@ public static class DomainRiskProfileEvaluator {
         string? firstSeenNote = !read ? null
             : e.CtCapped ? "part of the CT history was not read (capped or a query failed); the earliest entry may be missing"
             : e.CtSource == "certspotter" ? "recent issuances only; the full history was unavailable, so this is not the first certificate"
+            : e.CtSource == "ddct-api" ? "earliest entry DDCT has ingested; the first certificate may be older"
             : null;
         var items = new List<EvidenceItem> {
             Item("certificates.first-seen", "First seen", firstSeen, 0.4, source, "cttimeline", firstSeenNote),
@@ -388,7 +394,7 @@ public static class DomainRiskProfileEvaluator {
         var facts = new List<ProfileFact>();
         if (e.CtFirstSeenUtc.HasValue) {
             AddFact(facts, FirstSeenIsHistory(e) ? "First seen" : "Earliest entry returned", Age((now - e.CtFirstSeenUtc.Value).TotalDays) + " ago (" + Date(e.CtFirstSeenUtc) + ")",
-                e.CtSource == "ddct-api" ? "earliest entry DDCT has ingested" : firstSeenNote);
+                firstSeenNote);
         }
         if (e.UniqueCertificates > 0) {
             bool partial = !FirstSeenIsHistory(e);
@@ -446,7 +452,9 @@ public static class DomainRiskProfileEvaluator {
         bool capped = e.NetworkState == EvidenceState.Partial;
         if (e.NetworkState is EvidenceState.Observed or EvidenceState.Partial) {
             if (e.Addresses.Count == 0) {
-                asn = country = hosting = EvidenceCoverage.Limit(EvidenceState.Clean, capped);
+                // Address discovery reads failed lookups as empty answers, so no addresses proves nothing about hosting.
+                asn = country = hosting = EvidenceState.NotAvailable;
+                asnNote = "no addresses resolved";
             } else {
                 // Each item is complete only when every address answered; one enriched address does not stand for the rest.
                 static bool Enriched(ProfileAddress a) => a.Asn.HasValue || a.Cidr.Length > 0;

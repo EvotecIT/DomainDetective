@@ -126,7 +126,7 @@ public class TestDomainRiskProfile {
         evidence.RegistrationSource = "WHOIS";
         evidence.CreatedUtc = Now.AddDays(-12);
         evidence.StatusState = EvidenceState.Failed;
-        evidence.CtSource = "ddct-api";
+        evidence.CtSource = "crt.sh";
         evidence.CtFirstSeenUtc = Now.AddDays(-11);
 
         DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
@@ -135,8 +135,63 @@ public class TestDomainRiskProfile {
         Assert.Equal(68, profile.RiskScore);
         Assert.Equal(DomainRiskLevel.High, profile.RiskLevel);
         Assert.Equal("Google Safe Browsing", profile.RestsOn);
-        Assert.Contains(profile.Signals, s => s.Id == "certificates.first-seen.under30d" && s.Reason.Contains("on or before"));
+        Assert.Contains(profile.Signals, s => s.Id == "certificates.first-seen.under30d");
         Assert.Contains(profile.Gaps, g => g.EvidenceId == "registration.status");
+    }
+
+    [Fact]
+    public void ADdctFirstSeenIsNotScoredBecauseDdctMayNotHoldTheWholeHistory() {
+        DomainRiskEvidence evidence = Answered();
+        evidence.CtSource = "ddct-api";
+        evidence.CtFirstSeenUtc = Now.AddDays(-11);
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        Assert.DoesNotContain(profile.Signals, s => s.Id == "certificates.first-seen.under30d");
+        EvidenceItem firstSeen = profile.Facets.Single(f => f.Kind == ProfileFacetKind.Certificates).Evidence.Single(e => e.Id == "certificates.first-seen");
+        Assert.Equal(EvidenceState.Partial, firstSeen.State);
+        Assert.Contains("may be older", firstSeen.Note);
+    }
+
+    [Fact]
+    public void AFutureCreationDateIsNotAYoungDomain() {
+        DomainRiskEvidence evidence = Answered();
+        evidence.CreatedUtc = Now.AddDays(5);
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        Assert.DoesNotContain(profile.Signals, s => s.Id.StartsWith("registration.age", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("05/11/2026", EvidenceState.Partial)]
+    [InlineData("25/11/2026", EvidenceState.Observed)]
+    [InlineData("2026-05-11", EvidenceState.Observed)]
+    public void ADayMonthOrderThatCannotBeToldApartDoesNotDateTheDomain(string text, EvidenceState expected) {
+        Assert.Equal(expected, DomainRiskProfileBuilder.DateEvidence(text, true, EvidenceState.Failed).Item1);
+    }
+
+    [Fact]
+    public void NoResolvedAddressesIsNotACleanNetwork() {
+        DomainRiskEvidence evidence = Answered();
+        evidence.Addresses.Clear();
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        Assert.All(profile.Facets.Single(f => f.Kind == ProfileFacetKind.Network).Evidence, item => Assert.Equal(EvidenceState.NotAvailable, item.State));
+    }
+
+    [Fact]
+    public void OneVirusTotalEngineAddsWeightButDoesNotDecideTheLevel() {
+        DomainRiskEvidence evidence = Answered();
+        List(evidence, "virustotal");
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        RiskSignal signal = Assert.Single(profile.Signals, s => s.Id == "reputation.listed.virustotal");
+        Assert.False(signal.Decisive);
+        Assert.Equal(10, signal.Points);
+        Assert.DoesNotContain("Listed by", signal.Reason);
     }
 
     [Fact]

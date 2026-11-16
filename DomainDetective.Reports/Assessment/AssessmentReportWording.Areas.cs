@@ -33,9 +33,19 @@ public static partial class AssessmentReportWording {
     /// <summary>Summary for a domain without a CAA policy.</summary>
     public const string NoCaaPolicy = "No CAA policy is published, so any certificate authority may issue certificates for this domain.";
 
+    /// <summary>Summary for a domain without a TLS-RPT record.</summary>
+    public const string NoTlsRptRecord = "No TLS-RPT record is published, so mail TLS failures are not reported to this domain.";
+
     /// <summary>True for a CAA check that found no policy: unscored, and worded as "any CA may issue".</summary>
     public static bool IsNoCaaPolicy(CheckAssessment check) =>
         check.Key == "caa" && !check.Scored && string.Equals(check.Summary, NoCaaPolicy, StringComparison.Ordinal);
+
+    /// <summary>True for a TLS-RPT check that found no record: unscored, and worded as "not reported".</summary>
+    public static bool IsNoTlsRptRecord(CheckAssessment check) =>
+        check.Key == "tlsrpt" && !check.Scored && string.Equals(check.Summary, NoTlsRptRecord, StringComparison.Ordinal);
+
+    /// <summary>True for an optional policy the domain does not publish: neither a pass nor a failure.</summary>
+    public static bool IsAbsentPolicy(CheckAssessment check) => IsNoCaaPolicy(check) || IsNoTlsRptRecord(check);
 
     /// <summary>"80%" for a coverage value, or "all" when complete.</summary>
     public static string CoveragePercent(double? coverage) =>
@@ -89,7 +99,7 @@ public static partial class AssessmentReportWording {
             "dkim" => Metric(check, "Selectors found") is { } found ? Plural(ParseCount(found), "selector") : null,
             "mx" => Metric(check, "Mail servers") is { } servers ? Plural(ParseCount(servers), "mail server") : null,
             "mtasts" => Metric(check, "Mode") is { } mode ? Capitalize(mode) : Metric(check, "Policy") is { } p ? Capitalize(p) : null,
-            "tlsrpt" => Metric(check, "Report addresses") is { } count ? Plural(ParseCount(count), "report address", "report addresses") : null,
+            "tlsrpt" => IsNoTlsRptRecord(check) ? "Not published" : Metric(check, "Report addresses") is { } count ? Plural(ParseCount(count), "report address", "report addresses") : null,
             "bimi" => Metric(check, "Logo") is { } logo ? "Logo " + logo.ToLowerInvariant() : null,
             "dnssec" => check.Outcome == CheckOutcome.Pass ? "Signed and valid" : Fact(check, "Validation status"),
             "caa" => IsNoCaaPolicy(check) ? "No CAA policy"
@@ -127,8 +137,8 @@ public static partial class AssessmentReportWording {
         "spf" => Metric(check, "DNS lookups") is { } lookups ? (lookups.Contains("/") ? lookups : lookups + " / 10") + " DNS lookups used." : null,
         "dkim" => "Every published key is valid.",
         "dnssec" => "Answers are signed and validate.",
-        "caa" => IsNoCaaPolicy(check) ? null : "Only the listed CAs may issue certificates.",
-        "tlsrpt" => "Mail TLS failures are reported.",
+        "caa" => IsNoCaaPolicy(check) ? "Any certificate authority may issue certificates." : "Only the listed CAs may issue certificates.",
+        "tlsrpt" => IsNoTlsRptRecord(check) ? "Mail TLS failures are not reported." : "Mail TLS failures are reported.",
         "mtasts" => "Senders must deliver over TLS.",
         _ => null
     };

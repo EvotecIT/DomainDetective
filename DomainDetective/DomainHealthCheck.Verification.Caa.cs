@@ -28,7 +28,8 @@ namespace DomainDetective {
             DnsAnswer[] caa = Array.Empty<DnsAnswer>();
             var candidate = domainName;
             while (!string.IsNullOrWhiteSpace(candidate)) {
-                caa = await DnsConfiguration.QueryDNS(candidate, DnsRecordType.CAA, cancellationToken: cancellationToken);
+                // A failed lookup must not read as "no CAA policy", so only a conclusive answer is accepted.
+                caa = await DnsConfiguration.QueryPolicyDNS(candidate, DnsRecordType.CAA, cancellationToken: cancellationToken);
                 caa = caa.Where(answer => answer.Type == DnsRecordType.CAA).ToArray();
                 if (caa.Length > 0) {
                     for (var index = 0; index < caa.Length; index++) {

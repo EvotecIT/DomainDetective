@@ -60,7 +60,7 @@ public static class Exporters
                 sb.Append(res.Risk.Rated
                     ? $"<li>Risk: {Escape(res.Risk.Level)} ({res.Risk.Score})</li>"
                     : "<li>Risk: not rated, too little evidence</li>");
-                sb.Append($"<li>Confidence: {Escape(res.Risk.ConfidenceLevel)} ({res.Risk.Confidence:0.00})</li>");
+                sb.Append($"<li>Confidence: {Escape(res.Risk.ConfidenceLevel)} ({res.Risk.Confidence.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)})</li>");
                 foreach (var signal in res.Risk.Signals) sb.Append($"<li>{Escape(signal)}</li>");
                 foreach (var gap in res.Risk.Gaps) sb.Append($"<li>To raise confidence: {Escape(gap)}</li>");
                 sb.Append("</ul></div>");

@@ -136,7 +136,7 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
                         .Value(Span(ConfidencePercent(risk)));
                 } else if (score.HasValue) {
                     scoreCell.Value(new HtmlTag("b").Value(score.Value.ToString(CultureInfo.InvariantCulture)))
-                        .Value(Span(coverage is < 0.995 ? CoveragePercent(coverage) + " of checks judged" : "of 100"));
+                        .Value(Span(coverage is < 0.995 ? CoveragePercent(coverage) + " of check weight judged" : "of 100"));
                 } else {
                     scoreCell.Value(new HtmlTag("b").Class("dd-muted").Style("color", "var(--hfx-color-text-muted)").Value(scored ? "Not judged" : "–"))
                         .Value(Span(scored ? "evidence incomplete" : "informational only"));
