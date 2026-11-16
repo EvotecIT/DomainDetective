@@ -47,7 +47,8 @@ public static partial class AssessmentWordReport {
                     style.ApplyCellTone(row.Cells[3], Neutral);
                 }
             }
-            foreach (CheckAssessment check in checks.Where(c => Wording.NeedsAttention(c) || options.ShowInfoFindings && c.Findings.Count > 0)) {
+            // Checks that couldn't run get a short block too, in grey, so the reason is on paper.
+            foreach (CheckAssessment check in checks.Where(c => Wording.NeedsAttention(c) || (c.Scored && !c.EvidenceComplete) || options.ShowInfoFindings && c.Findings.Count > 0)) {
                 WriteAttention(document, style, report, domain, check, options);
             }
         }

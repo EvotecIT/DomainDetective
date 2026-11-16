@@ -69,7 +69,8 @@ public partial class TestAssessmentExports {
             using var excel = ZipFile.OpenRead(excelPath);
             XDocument body = Load(word, "word/document.xml");
             Assert.Contains("Not scored", WordText(body));
-            var incompleteRuns = body.Descendants(Word + "r").Where(r => r.Elements(Word + "t").Any(t => t.Value == "Incomplete")).ToList();
+            string couldNotCheck = Wording.OutcomeLabel(CheckOutcome.Incomplete);
+            var incompleteRuns = body.Descendants(Word + "r").Where(r => r.Elements(Word + "t").Any(t => t.Value == couldNotCheck)).ToList();
             Assert.NotEmpty(incompleteRuns);
             Assert.All(incompleteRuns, r => Assert.Equal("687078", (string?)r.Element(Word + "rPr")?.Element(Word + "color")?.Attribute(Word + "val")));
             var strings = SpreadsheetStrings(excel);
@@ -81,7 +82,7 @@ public partial class TestAssessmentExports {
                 using var stream = sheet.Open(); var xml = XDocument.Load(stream);
                 foreach (var cell in xml.Descendants(Excel + "c")) {
                     string value = CellText(cell, strings);
-                    if (value is not ("Incomplete" or "Not scored")) { continue; }
+                    if (value != couldNotCheck && value != "Not scored") { continue; }
                     int index = (int?)cell.Attribute("s") ?? 0;
                     var font = fonts[(int)formats[index].Attribute("fontId")!];
                     Assert.Equal("FF687078", ((string?)font.Element(Excel + "color")?.Attribute("rgb"))?.ToUpperInvariant());
@@ -90,7 +91,7 @@ public partial class TestAssessmentExports {
             }
             Assert.True(neutralCells >= 3);
             Assert.Contains("Not scored", AssessmentMarkdownReport.Render(report));
-            Assert.Contains("Incomplete", AssessmentMarkdownReport.Render(report));
+            Assert.Contains(couldNotCheck, AssessmentMarkdownReport.Render(report));
             Assert.Contains("No grade yet: 1 scored check could not be judged.", WebUtility.HtmlDecode(AssessmentHtmlReport.Render(report)));
         });
     }
