@@ -19,7 +19,8 @@ public static partial class AssessmentReportWording {
 
     /// <summary>"High · 68", "None · 0" or "Not rated".</summary>
     public static string RiskValue(DomainRiskProfile profile) =>
-        !profile.Rated ? "Not rated" : RiskLevelLabel(profile.RiskLevel) + " · " + profile.RiskScore.ToString(CultureInfo.InvariantCulture);
+        !profile.Rated || profile.RiskLevel == DomainRiskLevel.None ? RiskWord(profile)
+            : RiskWord(profile) + " · " + profile.RiskScore.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Level name.</summary>
     public static string RiskLevelLabel(DomainRiskLevel level) => level switch {
@@ -32,7 +33,8 @@ public static partial class AssessmentReportWording {
 
     /// <summary>"Medium · 0.74".</summary>
     public static string ConfidenceValue(DomainRiskProfile profile) =>
-        ConfidenceLabel(profile.Confidence) + " · " + profile.ConfidenceScore.ToString("0.00", CultureInfo.InvariantCulture);
+        ((int)Math.Round(profile.ConfidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% seen · " +
+        ConfidenceLabel(profile.Confidence).ToLowerInvariant() + " confidence";
 
     /// <summary>Confidence level name.</summary>
     public static string ConfidenceLabel(EvidenceConfidence confidence) => confidence switch {
@@ -119,6 +121,7 @@ public static partial class AssessmentReportWording {
         if (!profile.Rated) return "Not rated";
         if (profile.RiskLevel != DomainRiskLevel.None) return RiskLevelLabel(profile.RiskLevel) + " risk";
         if (profile.Watch.Count > 0) return "Watch";
+        if (profile.Signals.Any(static s => s.Points > 0)) return "Negligible";
         return profile.Confidence == EvidenceConfidence.High ? "Clear" : "No signals";
     }
 
@@ -126,12 +129,16 @@ public static partial class AssessmentReportWording {
     public static string RiskReason(DomainRiskProfile profile) {
         if (!profile.Rated) return "Too little evidence was collected to rate this domain.";
         RiskSignal? top = profile.Signals.FirstOrDefault(static s => s.Points > 0);
-        if (top != null) return top.Reason + ".";
+        if (top != null && profile.RiskLevel != DomainRiskLevel.None) return top.Reason + ".";
+        if (top != null) return "A small signal is outweighed by what counts in its favour: " + LowerFirstSignal(top.Reason) + ".";
         if (profile.Watch.Count > 0) return "Nothing against the domain itself; " + profile.Watch[0] + ".";
         return profile.Confidence == EvidenceConfidence.High
             ? "Nothing in registration, reputation, certificates or DNS counts against it."
             : "Nothing found so far, but part of the evidence is missing.";
     }
+
+    private static string LowerFirstSignal(string text) =>
+        text.Length > 1 && char.IsUpper(text[0]) && char.IsLower(text[1]) ? char.ToLowerInvariant(text[0]) + text.Substring(1) : text;
 
     /// <summary>"71% of evidence seen".</summary>
     public static string ConfidencePercent(DomainRiskProfile profile) =>
