@@ -101,13 +101,16 @@ public static partial class AssessmentReportWording {
     /// </summary>
     public static string DomainVerdict(DomainAssessment domain) {
         string? strengths = DomainStrengths(domain);
+        // Name the checks only: a finding cut short to fit a sentence reads as broken text, and each is printed in full
+        // where the check is listed.
         string[] fixes = FixOrder(domain.Checks)
+            .Select(static c => c.Title)
+            .Distinct(StringComparer.Ordinal)
             .Take(3)
-            .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
             .ToArray();
         string first = strengths == null ? string.Empty : strengths + " ";
         string second = fixes.Length == 0 ? domain.Checks.Any(c => !c.EvidenceComplete)
-            ? IncompleteEvidence(domain.Checks) : "Every scored check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
+            ? IncompleteEvidence(domain.Checks) : "Every scored check passed." : "Fix first: " + JoinList(fixes.ToList()) + ".";
         return first + second;
     }
 
