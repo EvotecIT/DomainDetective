@@ -14,7 +14,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DnsClientX" Version="2.2.0" />
+        <PackageReference Include="DnsClientX" Version="2.3.1" />
     </ItemGroup>
 
     <ItemGroup>
