@@ -119,7 +119,7 @@ public partial class TestAssessmentExports {
             // Web holds only the incomplete certificate, so nothing there could be judged and the score stays blank.
             XElement webRow = rows.First(r => CellTexts(r, strings).FirstOrDefault() == "Web");
             Assert.DoesNotContain(webRow.Elements(Excel + "c"), c => ((string)c.Attribute("r")!).StartsWith("C", StringComparison.Ordinal) && c.Element(Excel + "v") != null);
-            Assert.Contains(archive.Entries, e => e.FullName.Contains("/charts/chart", StringComparison.Ordinal));
+            Assert.Contains(archive.Entries, e => e.FullName.IndexOf("/charts/chart", StringComparison.Ordinal) >= 0);
         });
     }
 

@@ -77,4 +77,41 @@ public class TestCtTimelineProvider {
         Assert.Equal("connection refused", analysis.ProviderFailureReason);
         Assert.Equal(1, analysis.UniqueCertificateCount);
     }
+
+    [Fact]
+    public async Task AProviderAnswerCutOffAtThePageLimitIsMarkedCapped() {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        int page = 0;
+        var provider = new FakeProvider(_ => {
+            page++;
+            return new CtCertificateQueryResult {
+                ProviderId = "ddct-api",
+                Certificates = new[] { Record("p" + page, "CN=Example CA", now.AddDays(-page)) },
+                HasMore = true,
+                ContinuationToken = "token-" + page
+            };
+        });
+        var analysis = new CertificateTransparencyTimelineAnalysis { Provider = provider, ProviderMaxPages = 2 };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(2, provider.Queries.Count);
+        // The earliest entries may be beyond the last page read, so first seen is not the domain's first certificate.
+        Assert.True(analysis.ResultsCapped);
+    }
+
+    [Fact]
+    public async Task AProviderAnswerThatEndsWithinThePageLimitIsComplete() {
+        var provider = new FakeProvider(_ => new CtCertificateQueryResult {
+            ProviderId = "ddct-api",
+            Certificates = new[] { Record("only", "CN=Example CA", DateTimeOffset.UtcNow.AddDays(-5)) },
+            HasMore = false
+        });
+        var analysis = new CertificateTransparencyTimelineAnalysis { Provider = provider, ProviderMaxPages = 2 };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.False(analysis.ResultsCapped);
+    }
 }

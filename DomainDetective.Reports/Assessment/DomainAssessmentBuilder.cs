@@ -342,11 +342,13 @@ public static class DomainAssessmentBuilder {
             ? kind : null;
     }
 
-    private static readonly string[] FailedLookupCodes = { "QueryFailed", "Query.Failed", "ProbeFailed", "Probe.Failed", "LookupFailed", "Timeout", "Unreachable", "NotChecked", "Incomplete" };
+    // Markers of a lookup or probe that did not finish. They name the acquisition, not the record, so an observed defect
+    // ("missing glue", "key could not be validated") never matches.
+    private static readonly string[] FailedLookupCodes = { "QueryFailed", "Query.Failed", "ProbeFailed", "Probe.Failed", "LookupFailed", "Lookup.Failed", "Timeout", "Unreachable", "NotChecked" };
 
     private static readonly string[] FailedLookupPhrases = {
-        "query failed", "probe failed", "lookup failed", "request failed", " failed:", "timed out", "could not be", "did not complete",
-        "was not checked", "not checked:", "error response", "budget exhausted", "no usable", "unable to"
+        "query failed", "probe failed", "lookup failed", "request failed", "timed out", "query did not complete",
+        "did not complete; ", "was not checked", "error response", "query budget exhausted", "check failed for"
     };
 
     // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.

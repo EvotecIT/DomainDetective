@@ -33,7 +33,7 @@ public static partial class AssessmentReportWording {
 
     /// <summary>"Medium · 0.74".</summary>
     public static string ConfidenceValue(DomainRiskProfile profile) =>
-        ((int)Math.Round(profile.ConfidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% seen · " +
+        ((int)Math.Round(profile.EvidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% seen · " +
         ConfidenceLabel(profile.Confidence).ToLowerInvariant() + " confidence";
 
     /// <summary>Confidence level name.</summary>
@@ -142,7 +142,7 @@ public static partial class AssessmentReportWording {
 
     /// <summary>"71% of evidence seen".</summary>
     public static string ConfidencePercent(DomainRiskProfile profile) =>
-        ((int)Math.Round(profile.ConfidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% of evidence seen";
+        ((int)Math.Round(profile.EvidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "% of evidence seen";
 
     /// <summary>How much of an area's evidence was seen, in words.</summary>
     public static string FacetState(ProfileFacet facet) {

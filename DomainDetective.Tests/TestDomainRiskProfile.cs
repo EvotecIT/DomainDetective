@@ -242,4 +242,31 @@ public class TestDomainRiskProfile {
         Assert.Equal(ThreatIntelQueryState.NotQueried, analysis.Listings.Single(l => l.Source == ThreatIntelSource.VirusTotal).State);
         Assert.Equal(ThreatIntelQueryState.NotQueried, analysis.Listings.Single(l => l.Source == ThreatIntelSource.UrlHaus).State);
     }
+
+    [Fact]
+    public void EvidenceSeenReportsCoverageNotTheCappedConfidence() {
+        DomainRiskEvidence evidence = Answered();
+        List(evidence, "gsb");
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        // The level rests on one feed, so confidence is capped; the evidence itself was almost all seen.
+        Assert.True(profile.ConfidenceScore <= 0.74);
+        Assert.True(profile.EvidenceScore > 0.9);
+        string expected = ((int)Math.Round(profile.EvidenceScore * 100, MidpointRounding.AwayFromZero)).ToString(System.Globalization.CultureInfo.InvariantCulture) + "% of evidence seen";
+        Assert.Equal(expected, AssessmentReportWording.ConfidencePercent(profile));
+        Assert.StartsWith(expected.Replace(" of evidence seen", " seen"), AssessmentReportWording.ConfidenceValue(profile));
+    }
+
+    [Fact]
+    public void AWebScanThatIsNotForThisDomainIsIgnored() {
+        var health = new DomainHealthCheck();
+        // A scan left over from another run carries technologies but no domain this profile can claim.
+        health.WebStaticScanAnalysis.TechDetections.Add("Nginx");
+
+        DomainRiskEvidence evidence = DomainRiskProfileBuilder.CollectEvidence(health);
+
+        Assert.Equal(EvidenceState.NotQueried, evidence.WebState);
+        Assert.Empty(evidence.Technologies);
+    }
 }

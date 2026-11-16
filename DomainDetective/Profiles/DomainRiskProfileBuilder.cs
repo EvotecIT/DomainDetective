@@ -43,6 +43,14 @@ public static class DomainRiskProfileBuilder {
         return evidence;
     }
 
+    private static bool ScannedDomain(string? scanned, string domain) {
+        if (string.IsNullOrWhiteSpace(scanned) || string.IsNullOrWhiteSpace(domain)) return false;
+        string a = scanned!.Trim().TrimEnd('.'), b = domain.Trim().TrimEnd('.');
+        return string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+               || b.EndsWith("." + a, StringComparison.OrdinalIgnoreCase)
+               || a.EndsWith("." + b, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool Ran(DomainHealthCheck health, HealthCheckType check) => health.LastVerifiedChecks.Contains(check);
 
     private static bool Failed(DomainHealthCheck health, HealthCheckType check) =>
@@ -252,7 +260,9 @@ public static class DomainRiskProfileBuilder {
 
     private static void Web(DomainHealthCheck health, DomainRiskEvidence evidence) {
         WebStaticScanAnalysis? web = health.WebStaticScanAnalysis;
-        if (web == null || (!web.AnalysisComplete && web.TechDetections.Count == 0 && web.Hosts.Count == 0)) {
+        // The web scan is kept across runs, so it counts only when it scanned this domain (or its registrable domain).
+        if (web == null || (!web.AnalysisComplete && web.TechDetections.Count == 0 && web.Hosts.Count == 0)
+            || !ScannedDomain(web.PrimaryRegistrableDomain, evidence.Domain)) {
             evidence.WebState = EvidenceState.NotQueried;
             return;
         }

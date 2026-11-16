@@ -500,8 +500,10 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         CancellationToken cancellationToken)
     {
         var query = CtCertificateQuery.ForDomainTreeCertificates(Subject!, requireFullCertificate: false);
+        bool morePages = false;
         await foreach (var page in provider.QueryPagesAsync(query, null, ProviderMaxPages, cancellationToken).ConfigureAwait(false))
         {
+            morePages = page.HasMore && !string.IsNullOrWhiteSpace(page.ContinuationToken);
             foreach (var record in page.Certificates)
             {
                 var row = new CtRow(
@@ -519,6 +521,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     return true;
                 }
             }
+        }
+
+        // Stopping at the page limit with more pages left means the earliest entries may be missing.
+        if (morePages)
+        {
+            ResultsCapped = true;
         }
 
         logger?.WriteVerbose("CT timeline from {0} processed {1} row(s), {2} unique certificate(s) for {3}", provider.ProviderId, CertificateObservationCount, certs.Count, Subject);

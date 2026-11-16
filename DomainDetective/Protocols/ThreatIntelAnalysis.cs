@@ -184,20 +184,34 @@ public class ThreatIntelAnalysis : IHasAssessments
         return valid && inDb;
     }
 
-    // URLHaus host lookup (no API key required)
+    /// <summary>Override URLhaus host lookup (for tests). Returns provider JSON.</summary>
+    public Func<string, Task<string>>? UrlHausOverride { private get; set; }
+
+    // URLHaus host lookup (no API key required). A failed request or an unexpected answer throws, so it is recorded as a
+    // failed query rather than a clean one.
     private async Task<bool> QueryUrlHausListed(string domainName, CancellationToken ct)
     {
-        try {
+        {
             if (_cacheUrlHaus.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
                 return e.listed;
             }
-            using var content = new System.Net.Http.FormUrlEncodedContent(new[] { new KeyValuePair<string,string>("host", domainName) });
-            using var resp = await _client.PostAsync("https://urlhaus-api.abuse.ch/v1/host/", content, ct);
-            var json = await ReadAsStringAsync(resp);
+            string json;
+            if (UrlHausOverride != null) {
+                json = await UrlHausOverride(domainName);
+            } else {
+                using var content = new System.Net.Http.FormUrlEncodedContent(new[] { new KeyValuePair<string,string>("host", domainName) });
+                using var resp = await _client.PostAsync("https://urlhaus-api.abuse.ch/v1/host/", content, ct);
+                resp.EnsureSuccessStatusCode();
+                json = await ReadAsStringAsync(resp);
+            }
             using var doc = JsonDocument.Parse(json);
             bool listed = false;
             _urlHausLastSeenUtc = null;
-            if (doc.RootElement.TryGetProperty("query_status", out var status) && status.GetString() == "ok") {
+            string? queryStatus = doc.RootElement.TryGetProperty("query_status", out var statusElement) ? statusElement.GetString() : null;
+            if (queryStatus != "ok" && queryStatus != "no_results") {
+                throw new InvalidOperationException("URLhaus returned query_status '" + (queryStatus ?? "missing") + "'.");
+            }
+            if (queryStatus == "ok") {
                 if (doc.RootElement.TryGetProperty("url_count", out var count) && count.GetInt32() > 0) listed = true;
                 // Try to extract most recent timestamp from urls[] entries
                 if (doc.RootElement.TryGetProperty("urls", out var urls) && urls.ValueKind == JsonValueKind.Array) {
@@ -215,16 +229,15 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
             _cacheUrlHaus[domainName] = (DateTime.UtcNow, listed);
             return listed;
-        } catch {
-            return false;
         }
     }
 
     /// <summary>Override for OpenPhish JSON/CSV checks (for tests). Returns provider JSON.</summary>
     public Func<string, Task<string>>? OpenPhishOverride { private get; set; }
-    private async Task<bool> QueryOpenPhishListed(string domainName, CancellationToken ct)
+    // Null when no OpenPhish source is configured: the feed was not queried. A failing source throws.
+    private async Task<bool?> QueryOpenPhishListed(string domainName, CancellationToken ct)
     {
-        try {
+        {
             if (_cacheOpenPhish.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
                 return e.listed;
             }
@@ -241,8 +254,8 @@ public class ThreatIntelAnalysis : IHasAssessments
                 _cacheOpenPhish[domainName] = (DateTime.UtcNow, listed);
                 return listed;
             }
-        } catch { }
-        return false; // disabled by default to avoid heavy feed downloads
+        }
+        return null; // no feed source configured; downloading the full feed is left to the caller
     }
 
 
@@ -307,7 +320,8 @@ public class ThreatIntelAnalysis : IHasAssessments
                 var result = await QueryVirusTotal(domainName, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
                 RiskScore = result?.Attributes?.Reputation;
-                vtState = result == null ? ThreatIntelQueryState.Failed : StateFor(vtListed);
+                // A response without analysis statistics answers nothing, so it is a failed query, not a clean one.
+                vtState = result?.Attributes?.LastAnalysisStats == null ? ThreatIntelQueryState.Failed : StateFor(vtListed);
                 if (RiskScore.HasValue && RiskScore.Value >= 70)
                 {
                     logger?.WriteWarningCode(ThreatIntelCodes.VirusTotalRiskHigh, "VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
@@ -338,8 +352,9 @@ public class ThreatIntelAnalysis : IHasAssessments
         if (EnableOpenPhish)
         {
             try {
-                openPhishListed = await QueryOpenPhishListed(domainName, ct);
-                openPhishState = StateFor(openPhishListed);
+                bool? openPhish = await QueryOpenPhishListed(domainName, ct);
+                openPhishListed = openPhish == true;
+                openPhishState = openPhish.HasValue ? StateFor(openPhishListed) : ThreatIntelQueryState.NotQueried;
             } catch (Exception ex) {
                 openPhishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.OpenPhishQueryFailed, "OpenPhish query failed: {0}", ex.Message);

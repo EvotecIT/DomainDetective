@@ -28,7 +28,8 @@ public static partial class AssessmentHtmlReport {
             var body = new HtmlTag("div").Class("dd-risk").Attribute("data-dd-risk-profile", domain.Domain);
 
             // Verdict, evidence seen, configuration.
-            int seen = (int)Math.Round(profile.ConfidenceScore * 100, MidpointRounding.AwayFromZero);
+            // How much was seen is the evidence score; the single-source cap and corroboration change confidence, not coverage.
+            int seen = (int)Math.Round(profile.EvidenceScore * 100, MidpointRounding.AwayFromZero);
             var head = new HtmlTag("div").Class("dd-risk-head")
                 .Value(new HtmlTag("div").Class(RiskToneClass(profile))
                     .Value(new HtmlTag("div").Class("dd-risk-word").Value(RiskWord(profile)))
@@ -148,7 +149,7 @@ public static partial class AssessmentHtmlReport {
                     list.Scope(domain.Domain, RiskSeverity(profile), item => {
                         item.Status(RiskWord(profile));
                         item.Metric("Risk", profile.Rated ? profile.RiskScore.ToString(CultureInfo.InvariantCulture) : "Not rated", RiskSeverity(profile));
-                        item.Metric("Evidence seen", ((int)Math.Round(profile.ConfidenceScore * 100)).ToString(CultureInfo.InvariantCulture) + "%");
+                        item.Metric("Evidence seen", ((int)Math.Round(profile.EvidenceScore * 100)).ToString(CultureInfo.InvariantCulture) + "%");
                         item.Metric("Configuration", domain.Score.HasValue ? domain.Grade : "Not judged", GradeSeverity(domain.Score));
                         item.Note(RiskReason(profile));
                         item.Link("Open domain", ids.Domain(domain));
