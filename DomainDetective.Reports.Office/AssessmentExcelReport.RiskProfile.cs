@@ -8,72 +8,72 @@ using Wording = DomainDetective.Reports.AssessmentReportWording;
 namespace DomainDetective.Reports.Office;
 
 public static partial class AssessmentExcelReport {
-    /// <summary>Writes the risk profile sheets when any domain has a profile.</summary>
-    private static void WriteRiskProfiles(ExcelDocument workbook, DomainAssessmentReport report) {
-        List<DomainAssessment> profiled = Wording.RiskOrder(report).ToList();
-        if (profiled.Count == 0) { return; }
-        WriteRiskSummary(workbook.AddSheet("Risk profile"), profiled);
-        WriteRiskSignals(workbook.AddSheet("Risk signals"), profiled);
-        WriteRiskCoverage(workbook.AddSheet("Evidence coverage"), profiled);
-    }
+    /// <summary>One risk sheet: the verdict per domain, then every signal, then every evidence item behind the confidence.</summary>
+    private static void WriteRiskProfiles(ExcelSheet sheet, List<DomainAssessment> domains) {
+        bool several = domains.Count > 1;
+        Title(sheet, "Risk profile · " + (several ? Wording.Plural(domains.Count, "domain") : domains[0].Domain), Wording.RiskScaleNote);
+        int row = 3;
 
-    private static void WriteRiskSummary(ExcelSheet sheet, List<DomainAssessment> domains) {
-        WriteRow(sheet, 1, "Risk profile");
-        sheet.Cell(1, 1).SetBold();
-        WriteRow(sheet, 2, Wording.RiskScaleNote);
-        sheet.Cell(2, 1).SetColor(OfficeColor.Parse(Muted));
-        const int header = 4;
-        WriteHeader(sheet, header, "Domain", "Risk score", "Risk level", "Rated", "Confidence", "Confidence score", "Posture", "Verdict", "Top signals", "Rules");
-        int row = header;
+        row += 1;
+        int header = row;
+        WriteHeader(sheet, header, "Domain", "Risk", "Score", "Confidence", "Posture", "Verdict", "Top signals");
         foreach (DomainAssessment domain in domains) {
             DomainRiskProfile profile = domain.RiskProfile!;
-            WriteRow(sheet, ++row, domain.Domain, profile.RiskScore, Wording.RiskLevelLabel(profile.RiskLevel), profile.Rated ? "Yes" : "No",
-                Wording.ConfidenceLabel(profile.Confidence), profile.ConfidenceScore, domain.Score.HasValue ? domain.Grade : "Not scored",
+            WriteRow(sheet, ++row, domain.Domain, Wording.RiskLevelLabel(profile.RiskLevel), profile.Rated ? (object?)profile.RiskScore : null,
+                Wording.ConfidenceValue(profile), OfficeScoreText.Graded(domain.Grade, domain.Score, domain.Coverage),
                 Wording.RiskVerdict(profile) + (Wording.ConfidenceNote(profile) is { } note ? " " + note : string.Empty),
-                string.Join("; ", Wording.ShownSignals(profile).Take(3).Select(static s => s.Reason)), profile.RuleVersion);
-            sheet.Cell(row, 1).SetFontFamily("Consolas");
-            sheet.Cell(row, 3).SetColor(OfficeColor.Parse(RiskColor(profile)));
-            if (!profile.Rated) { sheet.Cell(row, 2).SetColor(OfficeColor.Parse(Muted)); }
-            if (profile.Confidence == EvidenceConfidence.Low) { sheet.Cell(row, 5).SetColor(OfficeColor.Parse(Muted)); }
+                string.Join("; ", Wording.ShownSignals(profile).Take(3).Select(static s => s.Reason)));
+            sheet.Cell(row, 1).SetFontFamily(Mono);
+            Tone(sheet, row, 2, RiskColor(profile));
+            if (profile.Confidence == EvidenceConfidence.Low) { sheet.Cell(row, 4).SetColor(OfficeColor.Parse(Muted)); }
+            sheet.Cell(row, 5).SetColor(OfficeColor.Parse(ScoreTone(domain.Score)));
         }
-        FinishSheet(sheet, header, row, 10, (1, 30), (8, 60), (9, 60));
-    }
+        Table(sheet, "RiskProfile", header, row, 7, 26, 20, 10, 16, 24, 70, 60);
+        Wrap(sheet, header + 1, row, 6, 7);
+        WriteCell(sheet, ++row, 1, "Rules " + string.Join(", ", domains.Select(static d => d.RiskProfile!.RuleVersion).Distinct()) + ".")
+            .SetColor(OfficeColor.Parse(Muted)).SetFontSize(OfficeLength.Points(8));
 
-    private static void WriteRiskSignals(ExcelSheet sheet, List<DomainAssessment> domains) {
-        const int header = 1;
-        WriteHeader(sheet, header, "Domain", "Area", "Signal", "Reason", "Points", "Decisive", "Source", "Check");
-        int row = header;
+        row += 2;
+        WriteCell(sheet, row, 1, "Signals").SetBold().SetFontSize(OfficeLength.Points(11));
+        header = ++row;
+        WriteHeader(sheet, header, "Domain", "Area", "Points", "Source", "Check", "Why", "Holds the level");
         foreach (DomainAssessment domain in domains) {
             foreach (RiskSignal signal in domain.RiskProfile!.Signals) {
-                WriteRow(sheet, ++row, domain.Domain, Wording.FacetLabel(signal.Facet), signal.Id, signal.Reason, signal.Points,
-                    signal.Decisive ? "Yes" : "No", signal.Source, signal.CheckKey ?? string.Empty);
-                sheet.Cell(row, 1).SetFontFamily("Consolas");
-                sheet.Cell(row, 5).SetColor(OfficeColor.Parse(signal.Points < 0 ? Good : signal.Points >= 20 || signal.Decisive ? High : Elevated));
+                WriteRow(sheet, ++row, domain.Domain, Wording.FacetLabel(signal.Facet), signal.Points, signal.Source,
+                    CheckTitle(domain, signal.CheckKey), signal.Reason, signal.Decisive ? "Yes" : null);
+                sheet.Cell(row, 1).SetFontFamily(Mono);
+                Tone(sheet, row, 3, signal.Points < 0 ? Good : signal.Points >= 20 || signal.Decisive ? High : signal.Points == 0 ? Muted : Elevated);
             }
         }
-        FinishSheet(sheet, header, row, 8, (1, 30), (3, 34), (4, 60));
-        if (row == header) { WriteRow(sheet, header + 2, "No risk signals were observed."); }
-    }
+        if (row == header) { WriteCell(sheet, ++row, 1, "No risk signals were observed."); }
+        Table(sheet, "RiskSignals", header, row, 7);
+        Wrap(sheet, header + 1, row, 6);
 
-    private static void WriteRiskCoverage(ExcelSheet sheet, List<DomainAssessment> domains) {
-        const int header = 1;
-        WriteHeader(sheet, header, "Domain", "Area", "Counted", "Area coverage", "Evidence", "State", "Source", "Check", "Note", "Confidence gain");
-        int row = header;
+        row += 2;
+        WriteCell(sheet, row, 1, "Evidence behind the confidence").SetBold().SetFontSize(OfficeLength.Points(11));
+        header = ++row;
+        WriteHeader(sheet, header, "Domain", "Area", "Confidence gain", "State", "Source", "Evidence", "Note");
         foreach (DomainAssessment domain in domains) {
             DomainRiskProfile profile = domain.RiskProfile!;
-            var gains = profile.Gaps.ToDictionary(static g => g.EvidenceId, static g => g.ConfidenceGain);
+            var gains = profile.Gaps.GroupBy(static g => g.EvidenceId).ToDictionary(static g => g.Key, static g => g.First().ConfidenceGain);
             foreach (ProfileFacet facet in profile.Facets) {
                 foreach (EvidenceItem item in facet.Evidence) {
-                    WriteRow(sheet, ++row, domain.Domain, Wording.FacetLabel(facet.Kind), facet.Counted ? "Yes" : "No", Wording.FacetCoverage(facet),
-                        item.Label, Wording.EvidenceStateLabel(item.State), item.Source, item.CheckKey ?? string.Empty, item.Note ?? string.Empty,
-                        gains.TryGetValue(item.Id, out double gain) ? gain.ToString("0.00", CultureInfo.InvariantCulture) : string.Empty);
-                    sheet.Cell(row, 1).SetFontFamily("Consolas");
-                    if (item.State is not (EvidenceState.Observed or EvidenceState.Clean)) { sheet.Cell(row, 6).SetColor(OfficeColor.Parse(Muted)); }
+                    WriteRow(sheet, ++row, domain.Domain, Wording.FacetLabel(facet.Kind) + (facet.Counted ? " · " + Wording.FacetCoverage(facet) : " · not counted"),
+                        gains.TryGetValue(item.Id, out double gain) ? (object?)gain : null, Wording.EvidenceStateLabel(item.State), item.Source,
+                        item.Label, item.Note);
+                    sheet.Cell(row, 1).SetFontFamily(Mono);
+                    if (item.State is not (EvidenceState.Observed or EvidenceState.Clean)) { sheet.Cell(row, 4).SetColor(OfficeColor.Parse(Muted)); }
+                    if (gains.ContainsKey(item.Id)) { sheet.Cell(row, 3).SetNumberFormat("+0.00"); }
                 }
             }
         }
-        FinishSheet(sheet, header, row, 10, (1, 30), (5, 28), (9, 50));
+        Table(sheet, "RiskEvidence", header, row, 7);
+        Wrap(sheet, header + 1, row, 6, 7);
+        Paper(sheet, 0, 0, Tabs[2]);
     }
+
+    private static string? CheckTitle(DomainAssessment domain, string? key) => key == null ? null
+        : domain.Checks.FirstOrDefault(c => c.Key == key)?.Title;
 
     private static string RiskColor(DomainRiskProfile profile) => !profile.Rated ? Muted : profile.RiskLevel switch {
         DomainRiskLevel.Critical or DomainRiskLevel.High => High,

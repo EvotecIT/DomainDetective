@@ -74,10 +74,15 @@ public partial class TestAssessmentExports {
             using var excel = ZipFile.OpenRead(path);
             string workbook = Load(excel, "xl/workbook.xml").ToString();
 
+            // One risk sheet holds the verdict, one row per signal and one row per evidence item.
             Assert.Contains("Risk profile", workbook);
-            Assert.Contains("Risk signals", workbook);
-            Assert.Contains("Evidence coverage", workbook);
-            Assert.Contains("reputation.listed.gsb", WorkbookText(excel));
+            Assert.DoesNotContain("Risk signals", workbook);
+            string text = WorkbookText(excel);
+            DomainRiskProfile profile = report.Domains[0].RiskProfile!;
+            foreach (RiskSignal signal in profile.Signals) Assert.Contains(signal.Reason, text);
+            foreach (EvidenceItem item in profile.Facets.SelectMany(f => f.Evidence)) Assert.Contains(item.Label, text);
+            // Internal rule identifiers stay out of the workbook.
+            Assert.DoesNotContain("reputation.listed.gsb", text);
         });
     }
 
