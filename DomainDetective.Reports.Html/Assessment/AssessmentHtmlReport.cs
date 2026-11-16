@@ -155,8 +155,7 @@ public static partial class AssessmentHtmlReport {
             posture.Headline(ReportVerdict(report, errors, warnings), ReportVerdictDetail(report, checks));
             if (report.Score.HasValue) posture.Score(report.Score.Value, "of 100").Grade(report.Grade);
             foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
-                int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-                if (scores.Length > 0) posture.Meter(AreaLabel(area), (int)Math.Round(scores.Average()));
+                if (DomainAssessmentCatalog.AreaScore(report, area).Score is { } areaScore) posture.Meter(AreaLabel(area), areaScore);
             }
             // An area without a meter must say why, or it reads as if it was never checked.
             posture.ScoreNote(ScoreNote(report));

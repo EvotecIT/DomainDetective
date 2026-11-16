@@ -374,7 +374,7 @@ public static class DomainRiskProfileEvaluator {
         EvidenceState answered = noCertificates ? EvidenceState.Clean : e.CtState;
         EvidenceState firstSeen = e.CtState == EvidenceState.Observed && !FirstSeenIsHistory(e) ? EvidenceState.Partial : answered;
         string? firstSeenNote = e.CtState != EvidenceState.Observed ? null
-            : e.CtCapped ? "CT answer was capped; the earliest entry may be missing"
+            : e.CtCapped ? "part of the CT history was not read (capped or a query failed); the earliest entry may be missing"
             : e.CtSource == "certspotter" ? "recent issuances only; the full history was unavailable, so this is not the first certificate"
             : null;
         var items = new List<EvidenceItem> {
@@ -440,36 +440,52 @@ public static class DomainRiskProfileEvaluator {
 
     private static ProfileFacet NetworkFacet(DomainRiskEvidence e) {
         EvidenceState asn = e.NetworkState, country = e.NetworkState, hosting = e.NetworkState;
-        string? countryNote = null, hostingNote = null;
+        string? countryNote = null, hostingNote = null, asnNote = null;
         if (e.NetworkState == EvidenceState.Observed) {
             if (e.Addresses.Count == 0) {
                 asn = country = hosting = EvidenceState.Clean;
             } else {
-                asn = e.Addresses.Any(static a => a.Asn.HasValue || a.Cidr.Length > 0) ? EvidenceState.Observed : EvidenceState.Partial;
-                if (e.Addresses.Any(static a => a.CountrySource == IpCountrySource.GeoIp)) {
+                // Each item is complete only when every address answered; one enriched address does not stand for the rest.
+                static bool Enriched(ProfileAddress a) => a.Asn.HasValue || a.Cidr.Length > 0;
+                static bool PublishedRange(ProfileAddress a) => a.HostingProvider.Length > 0 && !a.HostingMatchedBy.StartsWith("AS", StringComparison.Ordinal);
+                int total = e.Addresses.Count;
+                int enriched = e.Addresses.Count(Enriched);
+                asn = enriched == total ? EvidenceState.Observed : EvidenceState.Partial;
+                if (enriched < total) {
+                    asnNote = (total - enriched).ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) + " addresses have no network data";
+                }
+
+                int geo = e.Addresses.Count(static a => a.CountrySource == IpCountrySource.GeoIp);
+                int registered = e.Addresses.Count(static a => a.CountrySource == IpCountrySource.RdapRegistration);
+                if (geo == total) {
                     country = EvidenceState.Observed;
-                } else if (e.Addresses.Any(static a => a.CountrySource == IpCountrySource.RdapRegistration)) {
+                } else if (geo + registered > 0) {
                     country = EvidenceState.Partial;
-                    countryNote = "registration country (RDAP), not server location; no GeoIP data is bundled";
+                    countryNote = geo > 0
+                        ? "GeoIP for " + geo.ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) + " addresses"
+                        : "registration country (RDAP), not server location; no GeoIP data is bundled";
                 } else {
                     country = EvidenceState.NotAvailable;
                     countryNote = "RDAP gave no country and no GeoIP data is bundled";
                 }
-                bool published = e.Addresses.Any(static a => a.HostingProvider.Length > 0 && !a.HostingMatchedBy.StartsWith("AS", StringComparison.Ordinal));
-                bool network = e.Addresses.Any(static a => a.HostingProvider.Length > 0);
-                if (published) {
-                    hosting = EvidenceState.Observed;
-                } else if (network) {
-                    hosting = EvidenceState.Partial;
-                    hostingNote = "matched by network only, not a published range";
+
+                // An address is settled when a published range names its host, or when its network is known and no
+                // provider claims it. A network-only match or an address without network data is not settled.
+                int settled = e.Addresses.Count(a => PublishedRange(a) || (a.HostingProvider.Length == 0 && Enriched(a)));
+                bool anyPublished = e.Addresses.Any(PublishedRange);
+                if (settled == total) {
+                    hosting = anyPublished ? EvidenceState.Observed : EvidenceState.Clean;
+                    if (!anyPublished) hostingNote = "no published cloud or CDN range matched";
                 } else {
-                    hosting = asn == EvidenceState.Observed ? EvidenceState.Clean : EvidenceState.Partial;
-                    hostingNote = "no published cloud or CDN range matched";
+                    hosting = EvidenceState.Partial;
+                    hostingNote = e.Addresses.Any(static a => a.HostingProvider.Length > 0 && a.HostingMatchedBy.StartsWith("AS", StringComparison.Ordinal))
+                        ? "some addresses matched by network only, not a published range"
+                        : (total - settled).ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) + " addresses could not be attributed";
                 }
             }
         }
         var items = new List<EvidenceItem> {
-            Item("network.asn", "Networks (ASN or CIDR)", asn, 0.5, "RDAP", "ipenrichment"),
+            Item("network.asn", "Networks (ASN or CIDR)", asn, 0.5, "RDAP", "ipenrichment", asnNote),
             Item("network.country", "Country", country, 0.25, "RDAP", "ipenrichment", countryNote),
             Item("network.hosting", "Hosting and CDN", hosting, 0.25, "Published ranges", "ipenrichment", hostingNote)
         };

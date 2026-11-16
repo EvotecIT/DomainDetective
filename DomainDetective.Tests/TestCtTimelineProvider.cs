@@ -128,4 +128,34 @@ public class TestCtTimelineProvider {
 
         Assert.True(analysis.ResultsCapped);
     }
+
+    [Fact]
+    public async Task AFailedSubdomainQueryLeavesAPartialHistoryThatNeverReadsAsFirstSeen() {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        string exact = "[{\"id\":1,\"issuer_name\":\"Issuer A\",\"entry_timestamp\":\"" + now.AddDays(-5).ToString("O") +
+                       "\",\"common_name\":\"contoso.example\",\"name_value\":\"contoso.example\"}]";
+        var analysis = new CertificateTransparencyTimelineAnalysis {
+            UseCertSpotterFallback = false,
+            // The subdomain (wildcard) query fails; the exact-name query answers with one recent certificate.
+            QueryOverride = (url, _) => url.Contains("%25.") ? throw new HttpRequestException("wildcard query failed") : Task.FromResult(exact)
+        };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.True(analysis.PartialResults);
+        // The profile reads this answer the way DomainRiskProfileBuilder does: a partial answer counts as capped.
+        var evidence = new DomainDetective.Profiles.DomainRiskEvidence {
+            Domain = "contoso.example",
+            CtState = DomainDetective.Profiles.EvidenceState.Observed,
+            CtSource = analysis.Source,
+            CtFirstSeenUtc = analysis.FirstSeenUtc,
+            CtCapped = analysis.ResultsCapped || analysis.PartialResults,
+            UniqueCertificates = analysis.UniqueCertificateCount
+        };
+        var profile = DomainDetective.Profiles.DomainRiskProfileEvaluator.Evaluate(evidence, now);
+        Assert.DoesNotContain(profile.Signals, s => s.Id == "certificates.first-seen.under30d");
+        Assert.Equal(DomainDetective.Profiles.EvidenceState.Partial,
+            profile.Facets.Single(f => f.Kind == DomainDetective.Profiles.ProfileFacetKind.Certificates).Evidence.Single(e => e.Id == "certificates.first-seen").State);
+    }
 }

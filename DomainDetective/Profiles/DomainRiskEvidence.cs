@@ -54,7 +54,7 @@ public sealed class DomainRiskEvidence {
     public DateTimeOffset? CtFirstSeenUtc { get; set; }
     /// <summary>Latest CT entry.</summary>
     public DateTimeOffset? CtLastSeenUtc { get; set; }
-    /// <summary>True when the CT answer was capped, so the earliest entry may be missing.</summary>
+    /// <summary>True when the CT answer was capped or one of its queries failed, so the earliest entry may be missing.</summary>
     public bool CtCapped { get; set; }
     /// <summary>Unique certificates per issuer.</summary>
     public Dictionary<string, int> Issuers { get; set; } = new(StringComparer.OrdinalIgnoreCase);

@@ -96,7 +96,7 @@ public static partial class AssessmentExcelReport {
             List<CheckAssessment> checks = all.Where(c => c.Area == area).ToList();
             if (checks.Count == 0) { continue; }
             areas.Add((Wording.AreaLabel(area), checks));
-            (int? score, double? coverage) = OfficeScoreText.Area(checks);
+            (int? score, double? coverage) = DomainAssessmentCatalog.AreaScore(report, area);
             string tone = AreaTone(checks);
             WriteRow(sheet, ++row, Wording.AreaLabel(area), AreaStatus(checks), score, coverage, checks.Count,
                 checks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass), checks.Count(Wording.NeedsAttention),

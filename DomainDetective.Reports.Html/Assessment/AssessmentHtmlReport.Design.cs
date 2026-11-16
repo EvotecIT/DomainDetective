@@ -120,9 +120,7 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
                 .Settings(s => s.Flush());
             var list = new HtmlTag("div").Class("dd-areas");
             foreach (var (area, checks) in areas) {
-                int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-                int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
-                double? coverage = DomainAssessmentCatalog.ScoreCoverage(checks);
+                (int? score, double? coverage) = DomainAssessmentCatalog.AreaScore(report, area);
                 bool scored = checks.Any(static c => c.Scored);
                 var row = new HtmlTag(single != null ? "a" : "div").Class("dd-area " + AreaTone(checks));
                 if (single != null) row.Attribute("href", "#" + ids.Domain(single));

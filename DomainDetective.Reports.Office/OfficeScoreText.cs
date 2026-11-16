@@ -24,12 +24,6 @@ internal static class OfficeScoreText {
     internal static string Percent(double value) =>
         ((int)Math.Round(value * 100, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) + "%";
 
-    /// <summary>Area score across every domain: the same weighted rule as a domain's area score, over all its checks.</summary>
-    internal static (int? Score, double? Coverage) Area(IEnumerable<CheckAssessment> checks) {
-        List<CheckAssessment> list = checks.ToList();
-        return (DomainAssessmentCatalog.CombinedScore(list), DomainAssessmentCatalog.ScoreCoverage(list));
-    }
-
     /// <summary>"and 3 more findings" for warnings and errors beyond the first one, or null.</summary>
     internal static string? MoreFindings(CheckAssessment check) {
         int more = check.ErrorCount + check.WarningCount - 1;

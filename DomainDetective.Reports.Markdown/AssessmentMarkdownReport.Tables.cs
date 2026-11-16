@@ -15,10 +15,7 @@ public static partial class AssessmentMarkdownReport {
         foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
             List<CheckAssessment> checks = report.Domains.SelectMany(static d => d.Checks).Where(c => c.Area == area).ToList();
             if (checks.Count == 0) { continue; }
-            int[] scores = report.Domains.SelectMany(static d => d.Areas)
-                .Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-            int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average());
-            double? coverage = DomainAssessmentCatalog.ScoreCoverage(checks);
+            (int? score, double? coverage) = DomainAssessmentCatalog.AreaScore(report, area);
             int errors = checks.Count(static c => c.Outcome == CheckOutcome.Error);
             int warnings = checks.Count(static c => c.Outcome == CheckOutcome.Warning);
             bool incomplete = checks.Any(static c => !c.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete);

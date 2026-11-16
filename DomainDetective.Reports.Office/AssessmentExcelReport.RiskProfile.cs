@@ -19,7 +19,7 @@ public static partial class AssessmentExcelReport {
         WriteHeader(sheet, header, "Domain", "Risk", "Score", "Confidence", "Posture", "Verdict", "Top signals");
         foreach (DomainAssessment domain in domains) {
             DomainRiskProfile profile = domain.RiskProfile!;
-            WriteRow(sheet, ++row, domain.Domain, Wording.RiskLevelLabel(profile.RiskLevel), profile.Rated ? (object?)profile.RiskScore : null,
+            WriteRow(sheet, ++row, domain.Domain, profile.Rated ? Wording.RiskLevelLabel(profile.RiskLevel) : Wording.RiskWord(profile), profile.Rated ? (object?)profile.RiskScore : null,
                 Wording.ConfidenceValue(profile), OfficeScoreText.Graded(domain.Grade, domain.Score, domain.Coverage),
                 Wording.RiskVerdict(profile) + (Wording.ConfidenceNote(profile) is { } note ? " " + note : string.Empty),
                 string.Join("; ", Wording.ShownSignals(profile).Take(3).Select(static s => s.Reason)));

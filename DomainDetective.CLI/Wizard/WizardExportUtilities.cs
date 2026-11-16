@@ -180,7 +180,7 @@ internal static class WizardExportUtilities
             result.Risk = new RiskResult
             {
                 Score = profile.RiskScore,
-                Level = profile.RiskLevel.ToString(),
+                Level = profile.Rated ? profile.RiskLevel.ToString() : "NotRated",
                 Rated = profile.Rated,
                 Confidence = profile.ConfidenceScore,
                 ConfidenceLevel = profile.Confidence.ToString(),

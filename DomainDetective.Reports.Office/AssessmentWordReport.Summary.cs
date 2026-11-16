@@ -155,7 +155,7 @@ public static partial class AssessmentWordReport {
         var rows = new List<string[]>();
         foreach (var group in groups) {
             List<CheckAssessment> checks = group.ToList();
-            (int? score, double? coverage) = OfficeScoreText.Area(checks);
+            (int? score, double? coverage) = DomainAssessmentCatalog.AreaScore(report, group.Key);
             rows.Add(new[] {
                 Wording.AreaLabel(group.Key), AreaStatus(checks), OfficeScoreText.Score(score, coverage), Number(checks.Count),
                 Number(checks.Count(c => c.Scored && c.Outcome == CheckOutcome.Pass)), Number(checks.Count(Wording.NeedsAttention))
@@ -168,7 +168,7 @@ public static partial class AssessmentWordReport {
             WordTableRow main = table.Rows[index * 2 + 1];
             main.Cells[0].Paragraphs[0].Bold = true;
             style.ApplyCellTone(main.Cells[1], AreaTone(checks));
-            style.ApplyCellTone(main.Cells[2], ScoreTone(OfficeScoreText.Area(checks).Score));
+            style.ApplyCellTone(main.Cells[2], ScoreTone(DomainAssessmentCatalog.AreaScore(report, groups[index].Key).Score));
             // A full-width quiet note retains the shared sentence without squeezing it into the Area column.
             WordTableRow note = table.Rows[index * 2 + 2];
             table.MergeCells(index * 2 + 2, 0, 1, 6);

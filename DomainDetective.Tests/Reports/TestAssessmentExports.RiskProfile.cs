@@ -119,4 +119,51 @@ public partial class TestAssessmentExports {
         Assert.Equal(report.Domains[0].RiskProfile!.RiskLevel, profile.RiskLevel);
         Assert.Equal(report.Domains[0].RiskProfile!.Signals.Count, profile.Signals.Count);
     }
+
+    [Fact]
+    public void TheWorkbookRiskColumnSaysNotRatedBelowTheRatingFloor() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create();
+            var evidence = new DomainRiskEvidence { Domain = report.Domains[0].Domain, InventoryState = EvidenceState.Observed };
+            DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence);
+            Assert.False(profile.Rated);
+            report.Domains[0].RiskProfile = profile;
+            string path = Path.Combine(directory, "unrated.xlsx");
+            AssessmentExcelReport.Generate(path, report);
+            using var excel = ZipFile.OpenRead(path);
+            string[] strings = SpreadsheetStrings(excel);
+
+            Assert.Contains("Not rated", strings);
+            Assert.DoesNotContain(Wording.RiskLevelLabel(profile.RiskLevel), strings.Where(s => s == "None" || s == "Low"));
+        });
+    }
+
+    [Fact]
+    public void EveryFormatShowsTheSameMultiDomainAreaScore() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create(2);
+            // Domain one judged one Mail check at 100; domain two judged several at 0. Pooling checks would not give 50.
+            report.Domains[0].Areas.Single(a => a.Area == AnalysisArea.Mail).Score = 100;
+            report.Domains[1].Areas.Single(a => a.Area == AnalysisArea.Mail).Score = 0;
+            foreach (var check in report.Domains[0].Checks.Where(c => c.Area == AnalysisArea.Mail).Skip(1)) { check.EvidenceComplete = false; check.Score = null; }
+            (int? score, _) = DomainAssessmentCatalog.AreaScore(report, AnalysisArea.Mail);
+            Assert.Equal(50, score);
+
+            var html = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(AssessmentHtmlReport.Render(report));
+            var mail = html.QuerySelectorAll(".dd-area").Single(row => row.QuerySelector(".dd-area-name b")?.TextContent == "Mail");
+            Assert.Equal("50", mail.QuerySelector(".dd-area-score b")!.TextContent);
+            Assert.Contains("| Mail | ", AssessmentMarkdownReport.Render(report));
+            Assert.Matches(@"\| Mail \| [^|]+ \| 50", AssessmentMarkdownReport.Render(report));
+
+            string wordPath = Path.Combine(directory, "areas.docx"), excelPath = Path.Combine(directory, "areas.xlsx");
+            AssessmentWordReport.Generate(wordPath, report);
+            AssessmentExcelReport.Generate(excelPath, report);
+            using var word = ZipFile.OpenRead(wordPath);
+            var mailRow = Load(word, "word/document.xml").Descendants(Word + "tr")
+                .First(row => row.Elements(Word + "tc").FirstOrDefault()?.Value == "Mail" && row.Elements(Word + "tc").Count() >= 3);
+            Assert.StartsWith("50", mailRow.Elements(Word + "tc").ElementAt(2).Value);
+            using var excel = ZipFile.OpenRead(excelPath);
+            Assert.Contains("50", WorkbookText(excel));
+        });
+    }
 }

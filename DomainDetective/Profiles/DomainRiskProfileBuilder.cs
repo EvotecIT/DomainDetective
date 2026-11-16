@@ -186,7 +186,8 @@ public static class DomainRiskProfileBuilder {
         evidence.CtSource = ct.Source;
         evidence.CtFirstSeenUtc = ct.FirstSeenUtc;
         evidence.CtLastSeenUtc = ct.LastSeenUtc;
-        evidence.CtCapped = ct.ResultsCapped;
+        // A capped answer and a partly failed one both leave out part of the history.
+        evidence.CtCapped = ct.ResultsCapped || ct.PartialResults;
         evidence.UniqueCertificates = ct.UniqueCertificateCount;
         evidence.IssuedLast7Days = ct.IssuedLast7Days;
         evidence.IssuedLast30Days = ct.IssuedLast30Days;

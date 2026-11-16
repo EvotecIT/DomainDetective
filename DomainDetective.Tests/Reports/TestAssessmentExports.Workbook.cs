@@ -103,6 +103,8 @@ public partial class TestAssessmentExports {
             cert.Outcome = CheckOutcome.Incomplete; cert.EvidenceComplete = false; cert.Score = null;
             var mail = report.Domains[0].Checks.Single(c => c.Key == "mx");
             mail.Outcome = CheckOutcome.Incomplete; mail.EvidenceComplete = false; mail.Score = null;
+            // Recompute the stored area scores the way the builder does after checks change.
+            DomainAssessmentBuilder.Rescore(report.Domains[0]);
             string path = Path.Combine(directory, "assessment.xlsx");
             AssessmentExcelReport.Generate(path, report);
             using var archive = ZipFile.OpenRead(path);
@@ -131,6 +133,7 @@ public partial class TestAssessmentExports {
             cert.Outcome = CheckOutcome.Incomplete; cert.EvidenceComplete = false; cert.Score = null;
             var mx = report.Domains[0].Checks.Single(c => c.Key == "mx");
             mx.Outcome = CheckOutcome.Incomplete; mx.EvidenceComplete = false; mx.Score = null;
+            DomainAssessmentBuilder.Rescore(report.Domains[0]);
             string path = Path.Combine(directory, "assessment.docx");
             AssessmentWordReport.Generate(path, report);
             using var archive = ZipFile.OpenRead(path);

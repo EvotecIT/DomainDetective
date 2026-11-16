@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 
 namespace DomainDetective.Reports;
@@ -273,6 +274,17 @@ public static class DomainAssessmentCatalog {
         }
         if (weight == 0) return null;
         return (int)Math.Round(total / weight, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// An area's score across a report: the average of each domain's area score (each already weighted over its own
+    /// judged checks), and the share of the area's scored weight that could be judged. Every renderer uses this, so the
+    /// same assessment shows the same area score in every format.
+    /// </summary>
+    public static (int? Score, double? Coverage) AreaScore(DomainAssessmentReport report, AnalysisArea area) {
+        int[] scores = report.Domains.SelectMany(static d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
+        int? score = scores.Length == 0 ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        return (score, ScoreCoverage(report.Domains.SelectMany(static d => d.Checks).Where(c => c.Area == area)));
     }
 
     /// <summary>

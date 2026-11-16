@@ -167,7 +167,7 @@ public sealed class RiskResult
 {
     /// <summary>Risk from 0 to 100.</summary>
     public int Score { get; set; }
-    /// <summary>None, Low, Medium, High or Critical.</summary>
+    /// <summary>None, Low, Medium, High or Critical; NotRated when too little evidence was collected.</summary>
     public string Level { get; set; } = string.Empty;
     /// <summary>False when too little evidence was collected to give a level.</summary>
     public bool Rated { get; set; }

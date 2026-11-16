@@ -98,6 +98,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     /// <summary>True when processing was capped to protect performance.</summary>
     public bool ResultsCapped { get; private set; }
 
+    /// <summary>
+    /// True when one of the CT queries failed while another answered (for example the subdomain query failed but the
+    /// exact-name query succeeded). The timeline then covers only part of the history, like a capped answer.
+    /// </summary>
+    public bool PartialResults { get; private set; }
+
     /// <summary>Maximum number of CT rows to process across all queries.</summary>
     public int MaxCtRowsToProcess { get; set; } = 10_000;
 
@@ -172,6 +178,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 }
             }
 
+            int failedQueries = 0;
             foreach (var url in urls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -184,6 +191,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 }
                 catch (Exception ex)
                 {
+                    failedQueries++;
                     lastFailure = ex.Message;
                     logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
                 }
@@ -192,6 +200,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 {
                     break;
                 }
+            }
+
+            // Some crt.sh queries answered and some did not: what was read is real, but it is not the whole history.
+            if (anyPayloadParsed && failedQueries > 0)
+            {
+                PartialResults = true;
             }
 
             if (!anyPayloadParsed && UseCertSpotterFallback)
@@ -362,6 +376,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         IssuedLast7Days = 0;
         IssuedLast30Days = 0;
         ResultsCapped = false;
+        PartialResults = false;
         Timeline = Array.Empty<CtTimelineBucket>();
         RecentCertificates = Array.Empty<CtCertificateSample>();
     }

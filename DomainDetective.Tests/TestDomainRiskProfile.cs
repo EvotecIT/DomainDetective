@@ -269,4 +269,19 @@ public class TestDomainRiskProfile {
         Assert.Equal(EvidenceState.NotQueried, evidence.WebState);
         Assert.Empty(evidence.Technologies);
     }
+
+    [Fact]
+    public void OneEnrichedAddressDoesNotMakeTheNetworkComplete() {
+        DomainRiskEvidence evidence = Answered();
+        // A second address whose RDAP lookup failed: no network data and no provider.
+        evidence.Addresses.Add(new ProfileAddress { IpAddress = "192.0.2.20" });
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        ProfileFacet network = profile.Facets.Single(f => f.Kind == ProfileFacetKind.Network);
+        Assert.Equal(EvidenceState.Partial, network.Evidence.Single(e => e.Id == "network.asn").State);
+        Assert.Equal(EvidenceState.Partial, network.Evidence.Single(e => e.Id == "network.hosting").State);
+        Assert.Contains("1 of 2 addresses", network.Evidence.Single(e => e.Id == "network.asn").Note);
+        Assert.Contains(profile.Gaps, g => g.EvidenceId == "network.asn");
+    }
 }
