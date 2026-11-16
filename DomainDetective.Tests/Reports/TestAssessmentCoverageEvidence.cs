@@ -47,7 +47,7 @@ public class TestAssessmentCoverageEvidence {
             Assert.Contains($"class=\"is-fail\" style=\"flex-grow: {failed};\"", cell);
         }
         if (incomplete && !warning) {
-            Assert.Contains(">Incomplete</span>", cell);
+            Assert.Contains(">Couldn't check</span>", System.Net.WebUtility.HtmlDecode(cell));
         }
     }
 }

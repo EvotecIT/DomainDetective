@@ -103,7 +103,11 @@ public static class DomainAssessmentCatalog {
         HealthCheckType.CONTACT,
         HealthCheckType.ROBOTS,
         HealthCheckType.NTP,
-        HealthCheckType.FLATTENINGSERVICE
+        HealthCheckType.FLATTENINGSERVICE,
+        // Reputation evidence is judged by the risk profile, not the configuration score.
+        HealthCheckType.DNSBL,
+        HealthCheckType.THREATINTEL,
+        HealthCheckType.THREATFEED
     };
 
     // Mail authentication decides whether a domain can be spoofed, so it weighs more than other checks.

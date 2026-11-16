@@ -166,15 +166,17 @@ public static partial class AssessmentHtmlReport {
             posture.Severity(Severity.Good, passed, "Passed");
             posture.Severity(Severity.Informational, info, "Informational");
             // Neutral, not amber: an evidence gap is not a warning about the domain.
-            if (incomplete > 0) posture.Severity(Severity.Skipped, incomplete, "Incomplete evidence");
-            posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), report.Domains.Count == 1 ? "domain" : "domains");
+            if (incomplete > 0) posture.Severity(Severity.Skipped, incomplete, "Couldn't check");
+            if (report.Domains.Count > 1) posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), "domains");
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
         });
 
         var attention = DoFirstGroups(report).ToList();
 
         section.ReportPanel(panel => {
-            panel.Title("Do these first").Subtitle("Shared findings across domains, ordered by severity and how many domains are affected.").Settings(s => s.Flush());
+            panel.Title("Do these first").Subtitle(report.Domains.Count == 1
+                ? "What to fix, most important first. Checks that couldn't run are listed with their area, not here."
+                : "Shared findings across domains, ordered by severity and how many domains are affected.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
                 return;

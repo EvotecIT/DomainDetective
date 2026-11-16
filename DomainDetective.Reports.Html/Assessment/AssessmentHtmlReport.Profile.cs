@@ -51,7 +51,7 @@ public static partial class AssessmentHtmlReport {
                                 s.Link(Link(dmarc));
                                 foreach (List<string> row in destinations.Take(4)) {
                                     string authorization = Cell(row, 2);
-                                    s.Line(JoinText(Cell(row, 1), authorization.Length == 0 ? null : authorization.ToLowerInvariant()) ?? string.Empty,
+                                    s.Line(JoinText(MiddleShorten(Cell(row, 1), 36), AuthorizationText(authorization)) ?? string.Empty,
                                         Has(authorization, "missing") || string.Equals(authorization, "No", StringComparison.OrdinalIgnoreCase) || Has(authorization, "not published") ? Severity.Elevated : null);
                                 }
                             });
@@ -108,14 +108,12 @@ public static partial class AssessmentHtmlReport {
                         bool secure = string.Equals(status, "Secure", StringComparison.OrdinalIgnoreCase);
                         Severity tone = secure ? Severity.Good : OutcomeSeverity(dnssec.Outcome);
                         string tld = domain.Domain.IndexOf('.') >= 0 ? domain.Domain.Substring(domain.Domain.LastIndexOf('.') + 1) : domain.Domain;
-                        panel.AssessmentFlow(flow => flow
-                            .Label("DNSSEC chain of trust")
-                            .Step("Root", ".", secure ? Severity.Good : null, s => s.Link(Link(dnssec)))
-                            .Step("Top-level domain", tld, secure ? Severity.Good : null, s => s.Link(Link(dnssec)))
-                            .Step("DNSSEC · " + status.ToLowerInvariant(), domain.Domain, tone, s => s
-                                .Caption(dnssec.EvidenceComplete ? JoinText(Prefix("DS matches", Fact(dnssec, "DS match")), Prefix("chain valid", Fact(dnssec, "Chain valid"))) : "Validation evidence is incomplete.")
-                                .Emphasis()
-                                .Link(Link(dnssec))));
+                        // The chain is three names; one line of chips says it without a card per dot.
+                        panel.AssessmentChips(chips => chips
+                            .Label("DNSSEC chain of trust · " + (dnssec.EvidenceComplete ? status.ToLowerInvariant() : "couldn't check"))
+                            .Chip("root", secure ? Severity.Good : null, Link(dnssec))
+                            .Chip(tld, secure ? Severity.Good : null, Link(dnssec))
+                            .Chip(domain.Domain + (dnssec.EvidenceComplete && Fact(dnssec, "DS match") is { } ds ? " · DS " + (ds == "Yes" ? "matches" : "does not match") : string.Empty), tone, Link(dnssec)));
                     }
                     if (ns != null) {
                         panel.AssessmentChips(chips => {
@@ -191,6 +189,26 @@ public static partial class AssessmentHtmlReport {
                     .Stat(Fact(dnsbl, "Hosts checked") ?? "-", "Hosts and addresses checked")));
         }
     }
+
+    private static string MiddleShorten(string text, int max) {
+        if (text.Length <= max) return text;
+        int at = text.IndexOf('@');
+        if (at > 0 && text.Length - at < max - 4) {
+            int keep = max - (text.Length - at) - 1;
+            return text.Substring(0, Math.Max(3, keep)) + "…" + text.Substring(at);
+        }
+        int half = (max - 1) / 2;
+        return text.Substring(0, half) + "…" + text.Substring(text.Length - half);
+    }
+
+    private static string? AuthorizationText(string authorization) => authorization switch {
+        "" => null,
+        "Not needed" => "same organisation",
+        "Published" => "authorized",
+        "Missing" => "authorization missing",
+        "Not checked" => "authorization not checked",
+        _ => authorization.ToLowerInvariant()
+    };
 
     private static void ProtocolChip(AssessmentChipList chips, CheckAssessment cert, string factLabel, string text, bool legacy, string? link) {
         string? value = Fact(cert, factLabel);

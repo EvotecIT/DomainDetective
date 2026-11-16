@@ -74,6 +74,7 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
 .dd-facts dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:13px}
 .dd-facts dt{color:var(--hfx-color-text-muted);white-space:nowrap}
 .dd-facts dd{margin:0;overflow-wrap:break-word;color:var(--hfx-color-text)}
+.dd-risk a,.dd-note a{text-decoration:underline;text-underline-offset:3px;color:var(--hfx-color-accent-text)}
 .dd-gaps ul{margin:0;padding-left:18px;font-size:13px;color:var(--hfx-color-text-secondary);display:grid;gap:3px}
 @media (max-width:760px){
 .dd-area{grid-template-columns:minmax(0,1fr) auto;padding:12px 14px}
@@ -98,7 +99,7 @@ a.dd-control:hover{background:var(--hfx-color-hover)}
     private static string AreaTone(IReadOnlyCollection<CheckAssessment> checks) => AreaStatus(checks) switch {
         "Errors" => "dd-tone-bad",
         "Needs attention" => "dd-tone-warn",
-        "Incomplete" => "dd-tone-neutral",
+        "Partly checked" => "dd-tone-neutral",
         "Passing" => "dd-tone-good",
         _ => "dd-tone-info"
     };

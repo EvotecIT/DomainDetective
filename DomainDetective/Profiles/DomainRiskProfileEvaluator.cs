@@ -397,7 +397,7 @@ public static class DomainRiskProfileEvaluator {
             AddFact(facts, "Issuers", string.Join(", ", issuers.Take(3)) +
                                       (issuers.Length > 3 ? " and " + (issuers.Length - 3).ToString(CultureInfo.InvariantCulture) + " more" : string.Empty));
         }
-        if (e.CtSource.Length > 0) AddFact(facts, "CT source", source);
+        if (e.CtSource.Length > 0) AddFact(facts, "CT source", e.CtSource switch { "ddct-api" => "DDCT", "certspotter" => "Cert Spotter", _ => e.CtSource });
         return Facet(ProfileFacetKind.Certificates, true, true, 0.15, items, facts);
     }
 

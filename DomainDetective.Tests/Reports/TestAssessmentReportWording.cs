@@ -93,8 +93,8 @@ public class TestAssessmentReportWording {
 
     [Theory]
     [InlineData(0, "Mail")]
-    [InlineData(1, "Mail · and 1 more finding")]
-    [InlineData(3, "Mail · and 3 more findings")]
+    [InlineData(1, "Mail · 2 findings")]
+    [InlineData(3, "Mail · 4 findings")]
     public void ActionSourceUsesCountAgreement(int additionalFindings, string expected) {
         var check = new CheckAssessment { Area = AnalysisArea.Mail, ErrorCount = 1, WarningCount = additionalFindings };
         Assert.Equal(expected, Wording.DoFirstSource(check));

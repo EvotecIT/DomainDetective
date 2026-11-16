@@ -263,22 +263,30 @@ public static class DomainAssessmentBuilder {
             .ToList();
         // Checks that only gather data (inventory, enrichment, discovery) never fail the domain: a lookup error in them is
         // missing evidence, not a finding about the domain.
-        if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) {
-            foreach (CheckFinding finding in check.Findings.Where(static f => !f.IsEvidenceGap && f.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(f))) {
-                finding.IsEvidenceGap = true;
-                check.EvidenceComplete = false;
-            }
+        // A probe or lookup that did not finish says nothing about the domain: it is a check that couldn't run, shown in
+        // grey, counted against confidence and kept out of the warnings and the things to fix.
+        // SPF and DMARC decide this from the record itself: a failed include lookup behind a published record is a defect.
+        bool ownGapRule = check.Check is HealthCheckType.SPF or HealthCheckType.DMARC;
+        foreach (CheckFinding finding in check.Findings.Where(f => !ownGapRule && !f.IsEvidenceGap && f.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(f))) {
+            finding.IsEvidenceGap = true;
+            check.EvidenceComplete = false;
         }
         check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
         check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
         // Some views report counts without the individual assessments; the outcome must still reflect them.
-        if (check.ErrorCount == 0 && check.WarningCount == 0) {
+        if (check.ErrorCount == 0 && check.WarningCount == 0 && !check.Findings.Any(static f => f.Severity >= AssessmentSeverity.Warning)) {
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
                 if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) continue;
                 check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
                 check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
             }
+        }
+        // What a data-gathering check notices (a missing PTR, a short CT history) is context for the profile, not a fix
+        // for the domain. Lookalike domains and exposed subdomains are the exceptions: they are something to act on.
+        if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)
+            && check.Check is not (HealthCheckType.TYPOSQUATTING or HealthCheckType.SUBDOMAINS)) {
+            check.WarningCount = 0;
         }
         check.Outcome = check.ErrorCount > 0 ? CheckOutcome.Error
             : check.WarningCount > 0 ? CheckOutcome.Warning
@@ -334,14 +342,24 @@ public static class DomainAssessmentBuilder {
             ? kind : null;
     }
 
+    private static readonly string[] FailedLookupCodes = { "QueryFailed", "Query.Failed", "ProbeFailed", "Probe.Failed", "LookupFailed", "Timeout", "Unreachable", "NotChecked", "Incomplete" };
+
+    private static readonly string[] FailedLookupPhrases = {
+        "query failed", "probe failed", "lookup failed", "request failed", " failed:", "timed out", "could not be", "did not complete",
+        "was not checked", "not checked:", "error response", "budget exhausted", "no usable", "unable to"
+    };
+
     // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.
     private static bool DescribesFailedLookup(CheckFinding finding) {
         string code = finding.Code ?? string.Empty;
         string message = finding.Message ?? string.Empty;
-        return code.IndexOf("Fail", StringComparison.OrdinalIgnoreCase) >= 0 || code.IndexOf("Timeout", StringComparison.OrdinalIgnoreCase) >= 0
-            || code.IndexOf("Unreachable", StringComparison.OrdinalIgnoreCase) >= 0
-            || message.IndexOf(" failed", StringComparison.OrdinalIgnoreCase) >= 0 || message.IndexOf("timed out", StringComparison.OrdinalIgnoreCase) >= 0
-            || message.IndexOf("could not be", StringComparison.OrdinalIgnoreCase) >= 0;
+        foreach (string marker in FailedLookupCodes) {
+            if (code.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        foreach (string marker in FailedLookupPhrases) {
+            if (message.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        return false;
     }
 
     /// <summary>

@@ -284,7 +284,8 @@ namespace DomainDetective {
                     Http3Supported = response.Version >= HttpVersion.Version30;
                     Http2Supported = response.Version >= HttpVersion.Version20;
                     if (RequestVersion >= HttpVersion.Version30 && response.Version < HttpVersion.Version30) {
-                        logger?.WriteWarningCode(HttpCodes.Http3Downgrade, "Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
+                        // HTTP/3 is optional, so a server that answers over HTTP/2 is noted, not warned about.
+                        logger?.WriteInformationCode(HttpCodes.Http3Downgrade, "Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
                     }
 #else
                     Http2Supported = response.Version.Major >= 2;

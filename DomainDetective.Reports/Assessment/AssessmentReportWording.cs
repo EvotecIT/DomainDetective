@@ -132,10 +132,8 @@ public static partial class AssessmentReportWording {
     /// <see cref="DomainAssessmentCatalog.SecurityPriority"/>), then errors before warnings, then by what costs the score
     /// most (points lost times the check's weight).
     /// </summary>
-    public static bool NeedsAttention(CheckAssessment check) => check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)
-        // Checks that only gather data need attention for what they found, not for a lookup that did not finish.
-        ? check.Outcome is CheckOutcome.Error or CheckOutcome.Warning
-        : !check.EvidenceComplete || check.Outcome is CheckOutcome.Error or CheckOutcome.Warning or CheckOutcome.Incomplete;
+    // Only something found about the domain needs attention; a check that couldn't run is reported separately.
+    public static bool NeedsAttention(CheckAssessment check) => check.Outcome is CheckOutcome.Error or CheckOutcome.Warning;
 
     /// <summary>Shared assessment wording and selection for FixOrder.</summary>
     public static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
@@ -156,7 +154,8 @@ public static partial class AssessmentReportWording {
 
     /// <summary>The first non-informational finding in the check's display order.</summary>
     public static string? TopFinding(CheckAssessment check)
-        => check.Findings.FirstOrDefault(static f => f.Severity != AssessmentSeverity.Info)?.Message;
+        => check.Findings.FirstOrDefault(static f => f.Severity != AssessmentSeverity.Info && !f.IsEvidenceGap)?.Message
+           ?? check.Findings.FirstOrDefault(static f => f.IsEvidenceGap)?.Message;
 
 
     /// <summary>Shortens a sentence fragment with an ellipsis.</summary>
@@ -183,13 +182,13 @@ public static partial class AssessmentReportWording {
     public static string OutcomeLabel(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => "Error",
         CheckOutcome.Warning => "Warning",
-        CheckOutcome.Incomplete => "Incomplete",
+        CheckOutcome.Incomplete => "Couldn't check",
         CheckOutcome.Pass => "Pass",
         _ => "Info"
     };
 
     /// <summary>The finding label distinguishes unavailable evidence from an observed error or warning.</summary>
-    public static string FindingLabel(CheckFinding finding) => finding.IsEvidenceGap ? "Incomplete" : finding.Severity switch {
+    public static string FindingLabel(CheckFinding finding) => finding.IsEvidenceGap ? "Couldn't check" : finding.Severity switch {
         AssessmentSeverity.Error => "Error",
         AssessmentSeverity.Warning => "Warning",
         _ => "Info"
@@ -271,8 +270,8 @@ public static partial class AssessmentReportWording {
 
     /// <summary>The action's area and count of additional warning/error findings.</summary>
     public static string DoFirstSource(CheckAssessment check) {
-        int more = check.ErrorCount + check.WarningCount - 1;
-        return more > 0 ? $"{AreaLabel(check.Area)} · and {Plural(more, "more finding")}" : AreaLabel(check.Area);
+        int total = check.ErrorCount + check.WarningCount;
+        return total > 1 ? $"{AreaLabel(check.Area)} · {Plural(total, "finding")}" : AreaLabel(check.Area);
     }
 
     private static string IncompleteEvidence(IEnumerable<CheckAssessment> checks) {

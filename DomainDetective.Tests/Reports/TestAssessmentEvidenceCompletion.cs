@@ -107,15 +107,16 @@ public class TestAssessmentEvidenceCompletion {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void IncompleteChecksRemainInTheAttentionListAndDefaultExplorer(bool includeWarning) {
+    public void ChecksThatCouldNotRunStayOutOfTheAttentionListButInTheExplorer(bool includeWarning) {
         var views = new List<object> { new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" } };
         if (includeWarning) views.Add(new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", Assessments = new[] {
             new Assessment { Severity = AssessmentSeverity.Warning, Message = "Published SPF needs correction.", Code = "SPF.Fixture.Warning" }
         } });
-        var html = Render(views.ToArray());
-        Assert.DoesNotContain("Nothing needs attention", html);
-        Assert.Contains($"title=\"checks need attention\">{(includeWarning ? 2 : 1)}</span>", html);
-        Assert.Contains("\"values\":[\"Error\",\"Warning\",\"Incomplete\"]", html);
+        var html = System.Net.WebUtility.HtmlDecode(Render(views.ToArray()));
+        // A check that couldn't run is not something to fix; it is shown as such, and only real findings are counted.
+        if (includeWarning) Assert.Contains("title=\"checks need attention\">1</span>", html);
+        else Assert.Contains("Nothing needs attention", html);
+        Assert.Contains("Couldn't check", html);
     }
 
     [Theory]

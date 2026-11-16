@@ -36,7 +36,7 @@ public static partial class AssessmentReportWording {
     public static string AreaStatus(IReadOnlyCollection<CheckAssessment> checks) {
         if (checks.Any(static c => c.Outcome == CheckOutcome.Error)) return "Errors";
         if (checks.Any(static c => c.Outcome == CheckOutcome.Warning)) return "Needs attention";
-        if (checks.Any(static c => c.Scored && !c.EvidenceComplete)) return "Incomplete";
+        if (checks.Any(static c => c.Scored && !c.EvidenceComplete)) return "Partly checked";
         return checks.Any(static c => c.Scored) ? "Passing" : "Informational";
     }
 
@@ -49,7 +49,7 @@ public static partial class AssessmentReportWording {
         var parts = new List<string>();
         if (pass > 0) parts.Add(pass.ToString(CultureInfo.InvariantCulture) + " pass");
         if (attention > 0) parts.Add(attention.ToString(CultureInfo.InvariantCulture) + (attention == 1 ? " needs attention" : " need attention"));
-        if (incomplete > 0) parts.Add(incomplete.ToString(CultureInfo.InvariantCulture) + " incomplete");
+        if (incomplete > 0) parts.Add(incomplete.ToString(CultureInfo.InvariantCulture) + " couldn't be checked");
         if (info > 0) parts.Add(info.ToString(CultureInfo.InvariantCulture) + " informational");
         return Plural(checks.Count, "check") + (parts.Count > 0 ? ": " + string.Join(", ", parts) : string.Empty);
     }
@@ -61,7 +61,7 @@ public static partial class AssessmentReportWording {
             .OrderByDescending(static c => c.Outcome).Select(static c => c.Title).Distinct(StringComparer.Ordinal).ToArray();
         var parts = new List<string>();
         if (attention.Length > 0) parts.Add("Look at " + ShortList(attention, 3));
-        if (incomplete.Length > 0) parts.Add("not judged: " + ShortList(incomplete, 3));
+        if (incomplete.Length > 0) parts.Add("couldn't check " + ShortList(incomplete, 3));
         return parts.Count == 0 ? null : Capitalize(string.Join("; ", parts)) + ".";
     }
 
@@ -70,7 +70,7 @@ public static partial class AssessmentReportWording {
 
     /// <summary>A control's headline value in words a reader understands: "Reject", "Strict (-all)", "2 selectors".</summary>
     public static string ControlValue(CheckAssessment check) {
-        if (!check.EvidenceComplete && check.Outcome == CheckOutcome.Incomplete) return "Not judged";
+        if (!check.EvidenceComplete && check.Outcome == CheckOutcome.Incomplete) return "Couldn't check";
         string? policy = Metric(check, "Policy");
         string? value = check.Key switch {
             "dmarc" => policy == null ? null : policy.ToLowerInvariant() switch {
@@ -93,7 +93,7 @@ public static partial class AssessmentReportWording {
             CheckOutcome.Pass => "Passes",
             CheckOutcome.Warning => "Needs attention",
             CheckOutcome.Error => "Failing",
-            CheckOutcome.Incomplete => "Not judged",
+            CheckOutcome.Incomplete => "Couldn't check",
             _ => "Informational"
         };
     }
