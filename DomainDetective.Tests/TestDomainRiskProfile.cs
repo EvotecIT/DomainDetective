@@ -154,6 +154,19 @@ public class TestDomainRiskProfile {
     }
 
     [Fact]
+    public void AConfirmedReverseDnsMismatchIsReportedWhenAnotherLookupDidNotAnswer() {
+        DomainRiskEvidence evidence = Answered();
+        // One address resolves elsewhere (a confirmed mismatch); another's forward lookup returned nothing.
+        evidence.PtrState = EvidenceCoverage.From(2, 1, found: true);
+        evidence.MailHostsWithoutFcrDns = 1;
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        Assert.Contains(profile.Signals, s => s.Id == "dns.mail-ptr");
+        Assert.Equal(EvidenceState.Partial, profile.Facets.Single(f => f.Kind == ProfileFacetKind.Dns).Evidence.Single(e => e.Id == "dns.ptr").State);
+    }
+
+    [Fact]
     public void AFutureCreationDateIsNotAYoungDomain() {
         DomainRiskEvidence evidence = Answered();
         evidence.CreatedUtc = Now.AddDays(5);

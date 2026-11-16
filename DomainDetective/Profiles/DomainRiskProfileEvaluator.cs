@@ -420,7 +420,8 @@ public static class DomainRiskProfileEvaluator {
         if (e.DnssecState == EvidenceState.Observed && e.Dnssec == DnssecValidationStatus.Secure) {
             signals.Add(new RiskSignal { Id = "dns.dnssec.secure", Facet = ProfileFacetKind.Dns, Points = -3, Reason = "DNSSEC validates", Source = "DNSSEC", CheckKey = "dnssec" });
         }
-        if (e.PtrState == EvidenceState.Observed && e.MailHostsWithoutFcrDns > 0) {
+        // A confirmed mismatch is reported even when another address's lookup did not answer; coverage stays partial.
+        if (e.PtrState is EvidenceState.Observed or EvidenceState.Partial && e.MailHostsWithoutFcrDns > 0) {
             signals.Add(new RiskSignal {
                 Id = "dns.mail-ptr", Facet = ProfileFacetKind.Dns, Points = 3,
                 Reason = e.MailHostsWithoutFcrDns.ToString(CultureInfo.InvariantCulture) + " mail host address(es) without forward-confirmed reverse DNS",
