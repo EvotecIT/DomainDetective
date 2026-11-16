@@ -55,4 +55,19 @@ public class TestThreatQueryStates {
         await zero.Analyze("192.0.2.12", null, "key", new InternalLogger());
         Assert.Equal(ThreatIntelQueryState.Clean, zero.Listings.Single(l => l.Source == ThreatIntelSource.AbuseIpDb).State);
     }
+
+    private static async Task<ThreatIntelQueryState> OpenPhish(string answer) {
+        var analysis = new ThreatIntelAnalysis { EnableUrlHaus = false, EnableOpenPhish = true, OpenPhishOverride = _ => Task.FromResult(answer) };
+        await analysis.Analyze(Unique("openphish"), null, null, null, new InternalLogger());
+        return analysis.Listings.Single(l => l.Source == ThreatIntelSource.OpenPhish).State;
+    }
+
+    [Fact]
+    public async Task OpenPhishNeedsARecognizedAnswerBeforeItIsClean() {
+        Assert.Equal(ThreatIntelQueryState.Failed, await OpenPhish("{}"));
+        Assert.Equal(ThreatIntelQueryState.Failed, await OpenPhish("service unavailable"));
+        Assert.Equal(ThreatIntelQueryState.Clean, await OpenPhish("{\"listed\":false}"));
+        Assert.Equal(ThreatIntelQueryState.Clean, await OpenPhish("not listed"));
+        Assert.Equal(ThreatIntelQueryState.Listed, await OpenPhish("{\"listed\":true}"));
+    }
 }

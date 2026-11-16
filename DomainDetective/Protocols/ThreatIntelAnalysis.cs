@@ -234,6 +234,22 @@ public class ThreatIntelAnalysis : IHasAssessments
 
     /// <summary>Override for OpenPhish JSON/CSV checks (for tests). Returns provider JSON.</summary>
     public Func<string, Task<string>>? OpenPhishOverride { private get; set; }
+    // Accepts JSON { "listed": true|false } or the plain words "listed" / "not listed". Anything else is not an answer,
+    // so it throws and is recorded as a failed query rather than a clean one.
+    private static bool ParseOpenPhish(string? text) {
+        string trimmed = (text ?? string.Empty).Trim();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal)) {
+            using var doc = JsonDocument.Parse(trimmed);
+            if (doc.RootElement.TryGetProperty("listed", out var l) && (l.ValueKind == JsonValueKind.True || l.ValueKind == JsonValueKind.False)) {
+                return l.GetBoolean();
+            }
+            throw new InvalidOperationException("OpenPhish answer has no 'listed' value.");
+        }
+        if (string.Equals(trimmed, "listed", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(trimmed, "not listed", StringComparison.OrdinalIgnoreCase)) return false;
+        throw new InvalidOperationException("OpenPhish answer was not recognized.");
+    }
+
     // Null when no OpenPhish source is configured: the feed was not queried. A failing source throws.
     private async Task<bool?> QueryOpenPhishListed(string domainName, CancellationToken ct)
     {
@@ -243,14 +259,7 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
             if (OpenPhishOverride != null) {
                 var text = await OpenPhishOverride(domainName);
-                // Expect simple responses: "listed" or JSON with { listed: true }
-                bool listed = false;
-                try {
-                    using var doc = JsonDocument.Parse(text);
-                    if (doc.RootElement.TryGetProperty("listed", out var l)) listed = l.GetBoolean();
-                } catch {
-                    listed = text.IndexOf("listed", StringComparison.OrdinalIgnoreCase) >= 0;
-                }
+                bool listed = ParseOpenPhish(text);
                 _cacheOpenPhish[domainName] = (DateTime.UtcNow, listed);
                 return listed;
             }

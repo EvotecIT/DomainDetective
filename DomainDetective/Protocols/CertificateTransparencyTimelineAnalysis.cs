@@ -503,7 +503,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         bool morePages = false;
         await foreach (var page in provider.QueryPagesAsync(query, null, ProviderMaxPages, cancellationToken).ConfigureAwait(false))
         {
-            morePages = page.HasMore && !string.IsNullOrWhiteSpace(page.ContinuationToken);
+            // The provider's own "more" flag decides; without a token the pager stops, but the history is still partial.
+            morePages = page.HasMore;
             foreach (var record in page.Certificates)
             {
                 var row = new CtRow(

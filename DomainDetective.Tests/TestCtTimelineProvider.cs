@@ -114,4 +114,18 @@ public class TestCtTimelineProvider {
 
         Assert.False(analysis.ResultsCapped);
     }
+
+    [Fact]
+    public async Task AProviderThatSaysThereIsMoreButGivesNoTokenIsCapped() {
+        var provider = new FakeProvider(_ => new CtCertificateQueryResult {
+            ProviderId = "ddct-api",
+            Certificates = new[] { Record("first", "CN=Example CA", DateTimeOffset.UtcNow.AddDays(-3)) },
+            HasMore = true
+        });
+        var analysis = new CertificateTransparencyTimelineAnalysis { Provider = provider, ProviderMaxPages = 5 };
+
+        await analysis.AnalyzeAsync("contoso.example", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.ResultsCapped);
+    }
 }
