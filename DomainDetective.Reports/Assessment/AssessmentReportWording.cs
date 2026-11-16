@@ -198,6 +198,7 @@ public static partial class AssessmentReportWording {
     public static string AreaLabel(AnalysisArea area) => area switch {
         AnalysisArea.DNS => "DNS",
         AnalysisArea.General => "Other",
+        AnalysisArea.Reputation => "Reputation",
         _ => area.ToString()
     };
 

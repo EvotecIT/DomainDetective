@@ -117,7 +117,7 @@ public static class DomainAssessmentCatalog {
 
     /// <summary>Areas in display order.</summary>
     public static IReadOnlyList<AnalysisArea> AreaOrder { get; } = new[] {
-        AnalysisArea.Mail, AnalysisArea.DNS, AnalysisArea.Web, AnalysisArea.Security, AnalysisArea.Identity, AnalysisArea.General
+        AnalysisArea.Mail, AnalysisArea.DNS, AnalysisArea.Web, AnalysisArea.Security, AnalysisArea.Reputation, AnalysisArea.Identity, AnalysisArea.General
     };
 
     /// <summary>
@@ -142,19 +142,23 @@ public static class DomainAssessmentCatalog {
         new AssessmentChapter("dns-inventory", "Inventory", AnalysisArea.DNS,
             "Subdomains and records found for the domain."),
         new AssessmentChapter("web-tls", "Certificates and TLS", AnalysisArea.Web,
-            "The certificate the website serves and its history in certificate logs."),
+            "The certificate the website serves and how it is negotiated."),
         new AssessmentChapter("web-security", "Web security", AnalysisArea.Web,
             "Security headers, exposed directories and a published security contact."),
         new AssessmentChapter("web-site", "Site and discovery", AnalysisArea.Web,
             "Whether the site answers and what it publishes for crawlers and agents."),
-        new AssessmentChapter("reputation", "Reputation", AnalysisArea.Security,
-            "Block lists, threat feeds and look-alike domains."),
         new AssessmentChapter("network-exposure", "Network exposure", AnalysisArea.Security,
             "Open ports and services reachable from the internet."),
-        new AssessmentChapter("addresses", "Addresses and routing", AnalysisArea.Security,
-            "Who owns the addresses, what else runs on them and whether routes are signed."),
-        new AssessmentChapter("registration", "Registration and contact", AnalysisArea.Security,
+        new AssessmentChapter("addresses", "Routing", AnalysisArea.Security,
+            "Whether the routes to the domain's addresses are signed."),
+        new AssessmentChapter("reputation", "Reputation", AnalysisArea.Reputation,
+            "Block lists, threat feeds and look-alike domains."),
+        new AssessmentChapter("registration", "Registration and contact", AnalysisArea.Reputation,
             "Registration data and published contacts."),
+        new AssessmentChapter("certificate-history", "Certificate history", AnalysisArea.Reputation,
+            "Certificates logged for the domain and its subdomains."),
+        new AssessmentChapter("hosting", "Addresses and hosting", AnalysisArea.Reputation,
+            "Who owns the addresses, who hosts them and what else runs on them."),
         new AssessmentChapter("identity", "Identity providers", AnalysisArea.Identity,
             "Sign-in providers and cloud tenants the domain uses."),
         new AssessmentChapter("general", "Other checks", AnalysisArea.General,
@@ -205,9 +209,9 @@ public static class DomainAssessmentCatalog {
         [HealthCheckType.SUBDOMAINS] = "dns-inventory",
         [HealthCheckType.DNSINVENTORY] = "dns-inventory",
         [HealthCheckType.CERT] = "web-tls",
-        [HealthCheckType.DANE] = "web-tls",
+        [HealthCheckType.DANE] = "mail-transport",
         [HealthCheckType.HPKP] = "web-tls",
-        [HealthCheckType.CTTIMELINE] = "web-tls",
+        [HealthCheckType.CTTIMELINE] = "certificate-history",
         [HealthCheckType.HTTP] = "web-security",
         [HealthCheckType.DIRECTORYEXPOSURE] = "web-security",
         [HealthCheckType.SECURITYTXT] = "web-security",
@@ -225,8 +229,8 @@ public static class DomainAssessmentCatalog {
         [HealthCheckType.NTP] = "network-exposure",
         [HealthCheckType.DNSTUNNELING] = "network-exposure",
         [HealthCheckType.RPKI] = "addresses",
-        [HealthCheckType.IPNEIGHBOR] = "addresses",
-        [HealthCheckType.IPENRICHMENT] = "addresses",
+        [HealthCheckType.IPNEIGHBOR] = "hosting",
+        [HealthCheckType.IPENRICHMENT] = "hosting",
         [HealthCheckType.RDAP] = "registration",
         [HealthCheckType.WHOIS] = "registration",
         [HealthCheckType.CONTACT] = "registration",
@@ -251,20 +255,34 @@ public static class DomainAssessmentCatalog {
     }
 
     /// <summary>
-    /// Weighted score of a set of checks (0–100), the same rule used for domain and area scores: scored checks only,
-    /// each counted by its weight. Null when none is scored or a scored check has incomplete evidence.
+    /// Weighted score of a set of checks (0–100), the same rule used for domain and area scores: scored checks with
+    /// complete evidence, each counted by its weight. Null only when no scored check has complete evidence; how much of
+    /// the scored weight it rests on is <see cref="ScoreCoverage"/>.
     /// </summary>
     public static int? CombinedScore(IEnumerable<CheckAssessment> checks) {
         int weight = 0;
         double total = 0;
         foreach (CheckAssessment check in checks) {
-            if (!check.Scored) continue;
-            if (!check.EvidenceComplete || !check.Score.HasValue) return null;
+            if (!check.Scored || !check.EvidenceComplete || !check.Score.HasValue) continue;
             weight += check.Weight;
             total += (double)check.Score.Value * check.Weight;
         }
         if (weight == 0) return null;
         return (int)Math.Round(total / weight, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// Share of the scored weight whose evidence is complete (0–1): 1 when every scored check could be judged. Null when
+    /// no check is scored.
+    /// </summary>
+    public static double? ScoreCoverage(IEnumerable<CheckAssessment> checks) {
+        int weight = 0, complete = 0;
+        foreach (CheckAssessment check in checks) {
+            if (!check.Scored) continue;
+            weight += check.Weight;
+            if (check.EvidenceComplete && check.Score.HasValue) complete += check.Weight;
+        }
+        return weight == 0 ? null : Math.Round((double)complete / weight, 2, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

@@ -19,6 +19,9 @@ public sealed class DomainAssessmentReport {
     /// <summary>Overall score (0–100), or null when no score is available or scored evidence is incomplete.</summary>
     public int? Score { get; set; }
 
+    /// <summary>Share of the scored weight across all domains with complete evidence (0–1); null when no check is scored.</summary>
+    public double? Coverage { get; set; }
+
     /// <summary>Letter grade derived from <see cref="Score"/>.</summary>
     public string Grade { get; set; } = "-";
 
@@ -39,6 +42,9 @@ public sealed class DomainAssessment {
 
     /// <summary>Letter grade derived from <see cref="Score"/>.</summary>
     public string Grade { get; set; } = "-";
+
+    /// <summary>Share of the scored weight with complete evidence (0–1); null when no check is scored.</summary>
+    public double? Coverage { get; set; }
 
     /// <summary>Scores per analysis area (Mail, DNS, Web, ...), in display order.</summary>
     public List<AreaScore> Areas { get; set; } = new();
@@ -67,8 +73,14 @@ public sealed class AreaScore {
     /// <summary>Analysis area.</summary>
     public AnalysisArea Area { get; set; }
 
-    /// <summary>Area score (0–100), or null when unscored or scored evidence in the area is incomplete.</summary>
+    /// <summary>Area score (0–100) over the scored checks with complete evidence; null when none could be judged.</summary>
     public int? Score { get; set; }
+
+    /// <summary>Share of the area's scored weight with complete evidence (0–1); null when nothing in the area is scored.</summary>
+    public double? Coverage { get; set; }
+
+    /// <summary>Scored checks in the area whose evidence is incomplete, so they are left out of <see cref="Score"/>.</summary>
+    public List<string> Incomplete { get; set; } = new();
 
     /// <summary>Checks in the area.</summary>
     public int Checks { get; set; }

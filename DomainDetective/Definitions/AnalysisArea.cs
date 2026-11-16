@@ -16,5 +16,7 @@ public enum AnalysisArea
     /// <summary>Represents the security value.</summary>
     Security,
     /// <summary>Represents the identity value.</summary>
-    Identity = 5
+    Identity = 5,
+    /// <summary>Registration, reputation, certificate history and hosting: the evidence behind the risk profile.</summary>
+    Reputation = 6
 }

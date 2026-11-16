@@ -56,18 +56,17 @@ public static partial class Converters
             case HealthCheckType.SPFFLATTENED:
             case HealthCheckType.MAILCLASSIFICATION:
             case HealthCheckType.ARC:
+            case HealthCheckType.DANE:
                 return AnalysisArea.Mail;
 
             // Web group
             case HealthCheckType.HTTP:
             case HealthCheckType.CERT:
-            case HealthCheckType.DANE:
             case HealthCheckType.SECURITYTXT:
             case HealthCheckType.DIRECTORYEXPOSURE:
             case HealthCheckType.WEBSITE:
             case HealthCheckType.AGENTREADINESS:
             case HealthCheckType.SITEMAP:
-            case HealthCheckType.CTTIMELINE:
             case HealthCheckType.ROBOTS:
             case HealthCheckType.HPKP:
                 return AnalysisArea.Web;
@@ -76,20 +75,24 @@ public static partial class Converters
             case HealthCheckType.MICROSOFT365:
                 return AnalysisArea.Identity;
 
-            // Security/infra group
+            // Registration, reputation, certificate history and hosting: the risk profile's evidence.
             case HealthCheckType.RDAP:
-            case HealthCheckType.RPKI:
-            case HealthCheckType.DNSBL:
             case HealthCheckType.WHOIS:
+            case HealthCheckType.CONTACT:
+            case HealthCheckType.DNSBL:
             case HealthCheckType.THREATINTEL:
             case HealthCheckType.THREATFEED:
+            case HealthCheckType.TYPOSQUATTING:
+            case HealthCheckType.CTTIMELINE:
             case HealthCheckType.IPNEIGHBOR:
             case HealthCheckType.IPENRICHMENT:
+                return AnalysisArea.Reputation;
+
+            // Network exposure and routing
+            case HealthCheckType.RPKI:
             case HealthCheckType.PORTSCAN:
             case HealthCheckType.PORTAVAILABILITY:
             case HealthCheckType.DNSTUNNELING:
-            case HealthCheckType.CONTACT:
-            case HealthCheckType.TYPOSQUATTING:
             case HealthCheckType.SNMP:
             case HealthCheckType.NTP:
                 return AnalysisArea.Security;

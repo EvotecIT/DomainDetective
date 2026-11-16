@@ -45,7 +45,14 @@ public static class DomainAssessmentBuilder {
 
         var domains = new Dictionary<string, DomainAssessment>(StringComparer.OrdinalIgnoreCase);
         var firstSeen = new List<string>();
+        var leftovers = new List<(string Domain, AssessmentEvidenceInfo Info)>();
         foreach (object item in CompositionUtilities.Flatten(items ?? Array.Empty<object>())) {
+            // Findings no check view carried belong to the check they name; they are placed once every check exists.
+            if (item is AssessmentEvidenceInfo evidenceInfo) {
+                string? owner = NormalizeDomain(evidenceInfo.Subject);
+                if (owner != null) leftovers.Add((owner, evidenceInfo));
+                continue;
+            }
             if (item is DomainDetective.Views.DomainRiskProfileInfo riskProfile) {
                 string? profileDomain = NormalizeDomain(riskProfile.Subject);
                 if (profileDomain == null) continue;
@@ -74,6 +81,10 @@ public static class DomainAssessmentBuilder {
         IEnumerable<string> order = options.DomainOrder == DomainOrder.Alphabetical
             ? firstSeen.OrderBy(static d => d, StringComparer.OrdinalIgnoreCase)
             : firstSeen;
+        foreach (var (owner, info) in leftovers) {
+            if (!domains.TryGetValue(owner, out DomainAssessment? target)) continue;
+            PlaceLeftovers(target, info);
+        }
         foreach (string name in order) {
             DomainAssessment domain = domains[name];
             foreach (CheckAssessment check in domain.Checks) Finish(check, maxRows);
@@ -82,8 +93,8 @@ public static class DomainAssessmentBuilder {
         }
 
         int[] scores = report.Domains.Where(static d => d.Score.HasValue).Select(static d => d.Score!.Value).ToArray();
-        bool incomplete = report.Domains.SelectMany(static d => d.Checks).Any(static c => c.Scored && !c.EvidenceComplete);
-        report.Score = scores.Length == 0 || incomplete ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        report.Score = scores.Length == 0 ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        report.Coverage = DomainAssessmentCatalog.ScoreCoverage(report.Domains.SelectMany(static d => d.Checks));
         report.Grade = DomainAssessmentCatalog.GradeFor(report.Score);
         return report;
     }
@@ -245,12 +256,19 @@ public static class DomainAssessmentBuilder {
             })
             .OrderByDescending(static f => f.Severity)
             .ToList();
+        // Checks that only gather data (inventory, enrichment, discovery) never fail the domain: a lookup error in them is
+        // missing evidence, not a finding about the domain.
+        if (!check.Scored && check.Findings.Any(static f => f.Severity == AssessmentSeverity.Error && !f.IsEvidenceGap)) {
+            foreach (CheckFinding finding in check.Findings.Where(static f => f.Severity == AssessmentSeverity.Error)) finding.IsEvidenceGap = true;
+            check.EvidenceComplete = false;
+        }
         check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
         check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
         // Some views report counts without the individual assessments; the outcome must still reflect them.
         if (check.ErrorCount == 0 && check.WarningCount == 0) {
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
+                if (!check.Scored) continue;
                 check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
                 check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
             }
@@ -281,6 +299,7 @@ public static class DomainAssessmentBuilder {
             .ThenBy(static c => c.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
         domain.Score = WeightedScore(domain.Checks);
+        domain.Coverage = DomainAssessmentCatalog.ScoreCoverage(domain.Checks);
         domain.Grade = DomainAssessmentCatalog.GradeFor(domain.Score);
         domain.ErrorChecks = domain.Checks.Count(static c => c.Outcome == CheckOutcome.Error);
         domain.WarningChecks = domain.Checks.Count(static c => c.Outcome == CheckOutcome.Warning);
@@ -291,6 +310,8 @@ public static class DomainAssessmentBuilder {
             .Select(static g => new AreaScore {
                 Area = g.Key,
                 Score = WeightedScore(g),
+                Coverage = DomainAssessmentCatalog.ScoreCoverage(g),
+                Incomplete = g.Where(static c => c.Scored && !c.EvidenceComplete).Select(static c => c.Title).ToList(),
                 Checks = g.Count(),
                 Attention = g.Count(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
             })
@@ -298,6 +319,20 @@ public static class DomainAssessmentBuilder {
     }
 
     private static int? WeightedScore(IEnumerable<CheckAssessment> checks) => DomainAssessmentCatalog.CombinedScore(checks);
+
+    /// <summary>Adds findings no check view carried to the check named by their category; others are dropped.</summary>
+    private static void PlaceLeftovers(DomainAssessment domain, AssessmentEvidenceInfo info) {
+        foreach (Assessment assessment in info.Assessments) {
+            if (string.IsNullOrWhiteSpace(assessment.Message)) continue;
+            string key = (assessment.Category ?? string.Empty).Trim().ToLowerInvariant();
+            CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == key);
+            if (check == null) continue;
+            if (check.Findings.Any(f => f.Code == assessment.Code && f.Message == assessment.Message.Trim())) continue;
+            check.Findings.Add(new CheckFinding {
+                Severity = assessment.Severity, Code = assessment.Code, Message = assessment.Message.Trim(), Target = assessment.Target
+            });
+        }
+    }
 
     private static int AreaIndex(AnalysisArea area) {
         int index = -1;
