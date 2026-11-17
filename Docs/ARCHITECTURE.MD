@@ -268,3 +268,5 @@ page.ApexChart(chart => {
 3. Begin implementation of scoring engine
 4. Create initial visual prototypes
 5. Gather feedback and iterate
+
+<!-- Docs-only CI verification. -->
