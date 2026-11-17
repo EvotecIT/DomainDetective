@@ -26,7 +26,15 @@ env:
   NET8_SOLUTION_FILTER: 'DomainDetective.Net8.slnf'
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-changes.yml
+
   test:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (needs.changes.result == 'success' && needs.changes.outputs.build == 'true')) }}
     name: ${{ matrix.os }} / ${{ matrix.framework }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30

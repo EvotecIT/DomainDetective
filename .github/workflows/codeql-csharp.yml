@@ -27,7 +27,15 @@ env:
   DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-changes.yml
+
   analyze:
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (needs.changes.result == 'success' && needs.changes.outputs.build == 'true')) }}
     name: Analyze CSharp
     runs-on: windows-latest
     timeout-minutes: 60
