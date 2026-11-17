@@ -1,0 +1,47 @@
+name: Select PR build inputs
+
+on:
+  workflow_call:
+    outputs:
+      build:
+        description: Whether the PR changes an input to build or test jobs.
+        value: ${{ jobs.changes.outputs.build }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect build and test inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.select.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Classify the complete PR diff
+        id: select
+        shell: bash
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          build=true
+          # Compare GitHub's synthetic merge to its first parent. A missing
+          # merge, an empty diff or any unreviewed path keeps full validation.
+          if [ -n "$PR_HEAD" ] && [ "$(git rev-parse --verify --quiet HEAD^2 || true)" = "$PR_HEAD" ]; then
+            paths=$(git diff --no-renames --name-only HEAD^1 HEAD)
+            if [ -n "$paths" ]; then
+              build=false
+              while IFS= read -r path; do
+                case "$path" in
+                  AGENTS.md|CONTRIBUTING.md|Docs/ARCHITECTURE.MD|Docs/PROJECT_STRUCTURE.MD) ;;
+                  *) build=true; break ;;
+                esac
+              done <<< "$paths"
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "Build and test inputs: $build" >> "$GITHUB_STEP_SUMMARY"
