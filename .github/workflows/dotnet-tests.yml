@@ -230,8 +230,10 @@ jobs:
 
       - name: Upload test results
         uses: actions/upload-artifact@v7
-        if: always()
+        if: ${{ !cancelled() && (failure() || github.event_name == 'workflow_dispatch') }}
+        continue-on-error: true
         with:
+          retention-days: 1
           name: test-results-${{ matrix.os }}-${{ matrix.framework }}
           path: |
             **/*.trx
@@ -239,7 +241,9 @@ jobs:
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v7
-        if: always()
+        if: ${{ !cancelled() && (failure() || github.event_name == 'workflow_dispatch') }}
+        continue-on-error: true
         with:
+          retention-days: 1
           name: coverage-reports-${{ matrix.os }}-${{ matrix.framework }}
           path: '**/coverage.cobertura.xml'
