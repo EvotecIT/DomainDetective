@@ -57,7 +57,8 @@ public class TestCtTimelineAnalysis
         var expectedBuckets = new Dictionary<string, (int Certificates, int Issuers)>(StringComparer.OrdinalIgnoreCase);
         var certRows = new[]
         {
-            new { Issuer = "Issuer A", Entry = entry1 },
+            // Certificate 1001 dates from its earlier duplicate entry.
+            new { Issuer = "Issuer A", Entry = entryDup },
             new { Issuer = "Issuer A", Entry = entry2 },
             new { Issuer = "Issuer B", Entry = entry3 }
         };
@@ -91,6 +92,57 @@ public class TestCtTimelineAnalysis
         Assert.Equal(CtCertificateValidityStatus.Active, analysis.RecentCertificates[0].ValidityStatus);
     }
 
+    // crt.sh rows for one real issuance: precertificate 29761450106 and its final certificate 29974950817.
+    // crt.sh gives them different ids; they share the issuer and serial number.
+    private const string RealPrecertificateRow = @"{""issuer_ca_id"":286236,""issuer_name"":""C=US, O=Google Trust Services, CN=WE1"",""common_name"":""e6.c.lencr.org"",""name_value"":""e6.c.lencr.org"",""id"":29761450106,""not_before"":""2026-10-03T22:43:41"",""not_after"":""2027-01-01T23:43:37"",""serial_number"":""4a053753581caee2134f96e3eb81d281"",""result_count"":2}";
+    private const string RealFinalCertificateRow = @"{""issuer_ca_id"":286236,""issuer_name"":""C=US, O=Google Trust Services, CN=WE1"",""common_name"":""e6.c.lencr.org"",""name_value"":""e6.c.lencr.org"",""id"":29974950817,""not_before"":""2026-10-03T22:43:41"",""not_after"":""2027-01-01T23:43:37"",""serial_number"":""4a053753581caee2134f96e3eb81d281"",""result_count"":2}";
+
+    [Fact]
+    public async Task CountsPrecertificateAndFinalCertificateAsOneIssuance()
+    {
+        // Both the subdomain and the exact-name query return the same two rows.
+        var json = "[" + RealPrecertificateRow + "," + RealFinalCertificateRow + "]";
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            QueryOverride = (_, _) => Task.FromResult(json)
+        };
+
+        await analysis.AnalyzeAsync("e6.c.lencr.org", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(4, analysis.CertificateObservationCount);
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+        var issuer = Assert.Single(analysis.IssuerCounts);
+        Assert.Equal(1, issuer.Value);
+        Assert.Equal(1, analysis.ActiveCertificateCount + analysis.ExpiredCertificateCount + analysis.NotYetValidCertificateCount);
+        Assert.Equal(1, Assert.Single(analysis.Timeline).UniqueCertificates);
+
+        var sample = Assert.Single(analysis.RecentCertificates);
+        Assert.Equal(new[] { "29761450106", "29974950817" }, sample.EntryIds);
+    }
+
+    [Fact]
+    public async Task UniqueCertificateCapStillMergesEntriesOfRetainedIssuances()
+    {
+        // The final certificate arrives first; another issuance between it and its precertificate hits the cap.
+        const string otherRow = @"{""issuer_name"":""C=US, O=Example CA, CN=R1"",""common_name"":""www.e6.c.lencr.org"",""id"":1,""not_before"":""2026-10-01T00:00:00"",""not_after"":""2026-12-30T00:00:00"",""serial_number"":""01""}";
+        var json = "[" + RealFinalCertificateRow + "," + otherRow + "," + RealPrecertificateRow + "]";
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            MaxUniqueCertificates = 1,
+            QueryOverride = (_, _) => Task.FromResult(json)
+        };
+
+        await analysis.AnalyzeAsync("e6.c.lencr.org", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.ResultsCapped);
+        Assert.Contains(analysis.Assessments, a => a.Code == CtTimelineCodes.ResultsCapped);
+        Assert.Equal(6, analysis.CertificateObservationCount);
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+        var sample = Assert.Single(analysis.RecentCertificates);
+        Assert.Equal(new[] { "29974950817", "29761450106" }, sample.EntryIds);
+    }
+
     [Fact]
     public async Task CapsCtRowsAndProducesCappedAssessment()
     {
@@ -113,6 +165,29 @@ public class TestCtTimelineAnalysis
         Assert.True(analysis.QuerySucceeded);
         Assert.True(analysis.ResultsCapped);
         Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.Contains(analysis.Assessments, a => a.Code == CtTimelineCodes.ResultsCapped);
+    }
+
+    [Fact]
+    public async Task MarksResultsCappedWhenRowLimitSkipsTheExactNameQuery()
+    {
+        // The subdomain query fills the row limit exactly, so the exact-name query is never sent.
+        var urls = new List<string>();
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            MaxCtRowsToProcess = 1,
+            QueryOverride = (url, _) =>
+            {
+                urls.Add(url);
+                return Task.FromResult("[" + RealFinalCertificateRow + "]");
+            }
+        };
+
+        await analysis.AnalyzeAsync("e6.c.lencr.org", new InternalLogger(), CancellationToken.None);
+
+        Assert.Single(urls);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.True(analysis.ResultsCapped);
         Assert.Contains(analysis.Assessments, a => a.Code == CtTimelineCodes.ResultsCapped);
     }
 
