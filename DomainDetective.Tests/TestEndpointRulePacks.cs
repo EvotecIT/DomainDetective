@@ -104,9 +104,11 @@ public sealed class TestEndpointRulePacks {
 
     [Fact]
     public void EveryEnabledBuiltInRuleHasACategory() {
-        foreach (EndpointRulePack pack in EndpointRulePackCatalog.LoadBuiltIns())
-            foreach (EndpointPackRule rule in pack.Rules)
+        foreach (EndpointRulePack pack in EndpointRulePackCatalog.LoadBuiltIns()) {
+            foreach (EndpointPackRule rule in pack.Rules) {
                 Assert.False(string.IsNullOrEmpty(EndpointRuleCategories.Resolve(pack, rule)), pack.Id + "/" + rule.Id);
+            }
+        }
     }
 
     [Fact]
