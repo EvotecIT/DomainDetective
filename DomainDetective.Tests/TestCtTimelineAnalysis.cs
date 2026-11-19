@@ -169,6 +169,29 @@ public class TestCtTimelineAnalysis
     }
 
     [Fact]
+    public async Task MarksResultsCappedWhenRowLimitSkipsTheExactNameQuery()
+    {
+        // The subdomain query fills the row limit exactly, so the exact-name query is never sent.
+        var urls = new List<string>();
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            MaxCtRowsToProcess = 1,
+            QueryOverride = (url, _) =>
+            {
+                urls.Add(url);
+                return Task.FromResult("[" + RealFinalCertificateRow + "]");
+            }
+        };
+
+        await analysis.AnalyzeAsync("e6.c.lencr.org", new InternalLogger(), CancellationToken.None);
+
+        Assert.Single(urls);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.True(analysis.ResultsCapped);
+        Assert.Contains(analysis.Assessments, a => a.Code == CtTimelineCodes.ResultsCapped);
+    }
+
+    [Fact]
     public async Task FallsBackToCertSpotterWhenCrtShFails()
     {
         var now = DateTimeOffset.UtcNow;

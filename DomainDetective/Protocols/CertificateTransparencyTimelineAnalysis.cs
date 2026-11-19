@@ -133,6 +133,14 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             string? lastFailure = null;
             foreach (var url in urls)
             {
+                // Only the row limit skips the remaining queries; past the unique-certificate cap a later query can
+                // still add entries to retained issuances.
+                if (RowLimitReached)
+                {
+                    ResultsCapped = true;
+                    break;
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
@@ -143,12 +151,6 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 {
                     lastFailure = ex.Message;
                     logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
-                }
-
-                // The unique-certificate cap still lets the next query add entries to retained issuances.
-                if (RowLimitReached)
-                {
-                    break;
                 }
             }
 
