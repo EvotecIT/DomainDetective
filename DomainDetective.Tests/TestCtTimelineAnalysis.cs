@@ -92,6 +92,36 @@ public class TestCtTimelineAnalysis
     }
 
     [Fact]
+    public async Task CountsPrecertificateAndFinalCertificateAsOneIssuance()
+    {
+        // crt.sh rows for one real issuance: precertificate 29761450106 and its final certificate 29974950817.
+        // crt.sh gives them different ids; they share the issuer and serial number.
+        const string json = @"[
+  {""issuer_ca_id"":286236,""issuer_name"":""C=US, O=Google Trust Services, CN=WE1"",""common_name"":""e6.c.lencr.org"",""name_value"":""e6.c.lencr.org"",""id"":29761450106,""not_before"":""2026-10-03T22:43:41"",""not_after"":""2027-01-01T23:43:37"",""serial_number"":""4a053753581caee2134f96e3eb81d281"",""result_count"":2},
+  {""issuer_ca_id"":286236,""issuer_name"":""C=US, O=Google Trust Services, CN=WE1"",""common_name"":""e6.c.lencr.org"",""name_value"":""e6.c.lencr.org"",""id"":29974950817,""not_before"":""2026-10-03T22:43:41"",""not_after"":""2027-01-01T23:43:37"",""serial_number"":""4a053753581caee2134f96e3eb81d281"",""result_count"":2}
+]";
+
+        // Both the subdomain and the exact-name query return the same two rows.
+        var analysis = new CertificateTransparencyTimelineAnalysis
+        {
+            QueryOverride = (_, _) => Task.FromResult(json)
+        };
+
+        await analysis.AnalyzeAsync("e6.c.lencr.org", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(4, analysis.CertificateObservationCount);
+        Assert.Equal(1, analysis.UniqueCertificateCount);
+        var issuer = Assert.Single(analysis.IssuerCounts);
+        Assert.Equal(1, issuer.Value);
+        Assert.Equal(1, analysis.ActiveCertificateCount + analysis.ExpiredCertificateCount + analysis.NotYetValidCertificateCount);
+        Assert.Equal(1, Assert.Single(analysis.Timeline).UniqueCertificates);
+
+        var sample = Assert.Single(analysis.RecentCertificates);
+        Assert.Equal(new[] { "29761450106", "29974950817" }, sample.EntryIds);
+    }
+
+    [Fact]
     public async Task CapsCtRowsAndProducesCappedAssessment()
     {
         var now = DateTimeOffset.UtcNow;
