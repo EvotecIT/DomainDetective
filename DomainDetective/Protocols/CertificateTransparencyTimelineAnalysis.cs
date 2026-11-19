@@ -145,7 +145,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
                 }
 
-                if (ResultsCapped)
+                // The unique-certificate cap still lets the next query add entries to retained issuances.
+                if (RowLimitReached)
                 {
                     break;
                 }
@@ -409,19 +410,18 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             var row = ReadCtRow(item);
             UpdateFirstAndLastSeen(row.EntryTimestampUtc);
 
-            if (!TryAddOrMergeCertificate(row, certs))
-            {
-                break;
-            }
+            AddOrMergeCertificate(row, certs);
         }
 
         logger?.WriteVerbose("CT timeline processed {0} row(s), {1} unique certificate(s) for {2}", CertificateObservationCount, certs.Count, Subject);
         return true;
     }
 
+    private bool RowLimitReached => MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess;
+
     private bool TryStartNextCtObservation()
     {
-        if (MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess)
+        if (RowLimitReached)
         {
             ResultsCapped = true;
             return false;
@@ -473,13 +473,14 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
     }
 
-    // Returns false once the unique-certificate cap is reached.
-    private bool TryAddOrMergeCertificate(CtRow row, Dictionary<string, CtCertificateAggregate> certs)
+    // Past the unique-certificate cap, new issuances are skipped but later entries of retained ones (for example
+    // the precertificate of a final certificate already read) are still merged.
+    private void AddOrMergeCertificate(CtRow row, Dictionary<string, CtCertificateAggregate> certs)
     {
         var key = BuildCertificateKey(row);
         if (string.IsNullOrWhiteSpace(key))
         {
-            return true;
+            return;
         }
 
         if (!certs.TryGetValue(key, out var cert))
@@ -487,7 +488,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             if (MaxUniqueCertificates > 0 && certs.Count >= MaxUniqueCertificates)
             {
                 ResultsCapped = true;
-                return false;
+                return;
             }
 
             cert = new CtCertificateAggregate { Key = key };
@@ -495,7 +496,6 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
 
         cert.Merge(row);
-        return true;
     }
 
     // Every count below is per issuance, after the CT entries of one certificate were merged.
