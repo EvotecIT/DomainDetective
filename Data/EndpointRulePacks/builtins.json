@@ -5,6 +5,7 @@
       "id": "localhost",
       "version": "1.0.0",
       "description": "Local names and loopback addresses; evidence is retained.",
+      "category": "infrastructure",
       "rules": [
         {
           "id": "localhost-name",
@@ -48,6 +49,7 @@
       "id": "hosting-stubs",
       "version": "1.0.0",
       "description": "Generic shared-hosting template labels; deployment policy can override them.",
+      "category": "infrastructure",
       "rules": [
         {
           "id": "hosting-label",
@@ -75,6 +77,7 @@
       "id": "m365-pointers",
       "version": "1.0.0",
       "description": "Client provisioning and autodiscovery labels.",
+      "category": "infrastructure",
       "rules": [
         {
           "id": "provisioning-label",
@@ -104,6 +107,7 @@
       "id": "isp-rdns",
       "version": "1.0.0",
       "description": "IP-embedded hostname heuristic; a deployment may disable or constrain it.",
+      "category": "infrastructure",
       "rules": [
         {
           "id": "embedded-ipv4",
@@ -123,6 +127,7 @@
       "id": "cloud-saas",
       "version": "1.0.0",
       "description": "Public cloud and vendor-owned namespaces; no customer-specific domains.",
+      "category": "third-party",
       "rules": [
         {
           "id": "vendor-namespace",
@@ -152,6 +157,7 @@
       "id": "nameshield",
       "version": "1.0.0",
       "description": "Versioned public endpoint seed; validate against current provider data before enforcement.",
+      "category": "vendor-managed",
       "rules": [
         {
           "id": "redirection",
@@ -209,6 +215,7 @@
       "id": "azure-front-door",
       "version": "1.0.0",
       "description": "Public endpoint seed and optional current AzureFrontDoor.Frontend service tags.",
+      "category": "vendor-managed",
       "rules": [
         {
           "id": "front-door",
@@ -343,6 +350,7 @@
         {
           "id": "microsoft-365-service",
           "label": "Microsoft 365 Managed Service",
+          "category": "vendor-managed",
           "reason": "Technical managed-service candidate.",
           "effect": "tag-only",
           "providerId": "microsoft",
@@ -380,6 +388,7 @@
         {
           "id": "cpanel-candidate",
           "label": "cPanel/WHM Generated Service Hostname Candidate",
+          "category": "infrastructure",
           "reason": "A weak label clue, not a provider-management decision.",
           "effect": "tag-only",
           "providerId": "cpanel",

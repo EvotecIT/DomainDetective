@@ -48,6 +48,7 @@ public sealed class EndpointRulePackEvaluator {
             hits.Add(new EndpointRuleHit {
                 PackId = compiled.Pack.Id, PackVersion = compiled.Pack.Version, RuleId = rule.Id, RuleVersion = rule.Version,
                 Label = rule.Label, ProviderId = rule.ProviderId, ServiceId = rule.ServiceId,
+                Category = EndpointRuleCategories.Resolve(compiled.Pack, rule),
                 Effect = compiled.Pack.Effect ?? rule.Effect, Expected = compiled.Pack.Expected,
                 Identity = identity, ObservedAtUtc = observedAtUtc, Signals = evidence,
                 Reason = rule.Reason + " " + string.Join("; ", evidence.Select(s => $"{s.Type}: {s.Observed} matched {s.Matched}"))

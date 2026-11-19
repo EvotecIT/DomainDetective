@@ -29,6 +29,8 @@ public sealed class EndpointRuleHit {
     public string ProviderId { get; init; } = string.Empty;
     /// <summary>Identified service, empty for generic inventory tags.</summary>
     public string ServiceId { get; init; } = string.Empty;
+    /// <summary>Resolved reporting category id (rule, then pack); empty when the rule is uncategorized.</summary>
+    public string Category { get; init; } = string.Empty;
     /// <summary>Actual matched signals and configured purpose.</summary>
     public string Reason { get; init; } = string.Empty;
     /// <summary>Configured presentation effect, never an instruction to delete evidence.</summary>
