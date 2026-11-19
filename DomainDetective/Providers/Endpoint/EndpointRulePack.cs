@@ -71,6 +71,11 @@ public sealed class EndpointPackRule {
     public string Reason { get; set; } = string.Empty;
     /// <summary>Default effect unless the deployment overrides its pack.</summary>
     public EndpointRuleEffect Effect { get; set; }
+    /// <summary>
+    /// Optional reporting category id, such as <see cref="EndpointRuleCategories.VendorManaged"/>; empty inherits the pack's category.
+    /// A category groups rules for presentation only and never changes the effect.
+    /// </summary>
+    public string Category { get; set; } = string.Empty;
     /// <summary>Every matcher in this collection must pass.</summary>
     public List<EndpointRuleMatcher> AllOf { get; set; } = new();
     /// <summary>At least one matcher must pass when this collection is nonempty.</summary>
@@ -95,6 +100,28 @@ public sealed class EndpointPackRule {
     public bool MatchRedirectTargets { get; set; }
 }
 
+/// <summary>
+/// Well-known category ids used by the built-in packs. Categories are open: a deployment may use any lower-case id,
+/// and consumers decide labels, ordering and what an uncategorized endpoint means.
+/// </summary>
+public static class EndpointRuleCategories {
+    /// <summary>A platform or provider manages the endpoint and its certificate, for example a redirection service or CDN.</summary>
+    public const string VendorManaged = "vendor-managed";
+    /// <summary>The endpoint belongs to a third-party or SaaS vendor rather than the organization.</summary>
+    public const string ThirdParty = "third-party";
+    /// <summary>Infrastructure or DNS plumbing that hosts no distinct application: local names, hosting stubs, provisioning pointers, reverse DNS.</summary>
+    public const string Infrastructure = "infrastructure";
+    /// <summary>Names used for security-awareness or phishing simulation; never built in, because such domains are organization-specific.</summary>
+    public const string SecurityAwareness = "security-awareness";
+
+    /// <summary>Returns the rule's own category, otherwise the pack's, otherwise an empty string.</summary>
+    public static string Resolve(EndpointRulePack pack, EndpointPackRule rule) {
+        if (pack == null) throw new ArgumentNullException(nameof(pack));
+        if (rule == null) throw new ArgumentNullException(nameof(rule));
+        return !string.IsNullOrWhiteSpace(rule.Category) ? rule.Category.Trim() : pack.Category?.Trim() ?? string.Empty;
+    }
+}
+
 /// <summary>A portable data pack. Deployment overlays replace rules by id without mutating built-ins.</summary>
 public sealed class EndpointRulePack {
     /// <summary>Stable pack identifier.</summary>
@@ -109,6 +136,8 @@ public sealed class EndpointRulePack {
     public bool Expected { get; set; }
     /// <summary>Optional override of the contained rules' default effects.</summary>
     public EndpointRuleEffect? Effect { get; set; }
+    /// <summary>Default category id for rules that do not set their own; an overlay that omits it keeps the built-in value.</summary>
+    public string? Category { get; set; }
     /// <summary>Versioned rule definitions or rule overlays.</summary>
     public List<EndpointPackRule> Rules { get; set; } = new();
 }

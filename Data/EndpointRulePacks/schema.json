@@ -25,6 +25,14 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "category": {
+      "description": "Reporting category id. Built-ins use vendor-managed, third-party and infrastructure; deployments may add their own, such as security-awareness. Presentation only; it never changes the effect.",
+      "anyOf": [
+        { "const": "" },
+        { "$ref": "#/$defs/id" }
+      ],
+      "examples": ["vendor-managed", "third-party", "infrastructure", "security-awareness"]
+    },
     "effect": {
       "enum": [
         "tag-only",
@@ -110,6 +118,10 @@
         "effect": {
           "$ref": "#/$defs/effect",
           "default": "tag-only"
+        },
+        "category": {
+          "$ref": "#/$defs/category",
+          "description": "Overrides the pack category for this rule."
         },
         "allOf": {
           "type": "array",
@@ -197,6 +209,10 @@
         },
         "effect": {
           "$ref": "#/$defs/effect"
+        },
+        "category": {
+          "$ref": "#/$defs/category",
+          "description": "Default category for rules without their own; an overlay that omits it keeps the built-in value."
         },
         "rules": {
           "type": "array",

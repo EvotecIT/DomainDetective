@@ -14,16 +14,17 @@ public sealed class TestEndpointRulePacks {
     private static EndpointAttributionInput Input(string host = "www.example.test", int port = 443) => new() { HostName = host, Port = port, Service = "tls" };
 
     [Theory]
-    [InlineData("localhost.example.test", "localhost", EndpointRuleEffect.ExcludeFromOwnerViews)]
-    [InlineData("webmail.example.test", "hosting-stubs", EndpointRuleEffect.ExcludeFromOwnerViews)]
-    [InlineData("enterpriseenrollment.example.test", "m365-pointers", EndpointRuleEffect.ExcludeFromOwnerViews)]
-    [InlineData("address-192-0-2-44.isp.example.test", "isp-rdns", EndpointRuleEffect.ExcludeFromOwnerViews)]
-    [InlineData("endpoint.pphosted.com", "cloud-saas", EndpointRuleEffect.TagOnly)]
-    public void BuiltInDataClassifiesGenericTagsWithoutRemovingItsObservation(string host, string pack, EndpointRuleEffect effect) {
+    [InlineData("localhost.example.test", "localhost", EndpointRuleEffect.ExcludeFromOwnerViews, EndpointRuleCategories.Infrastructure)]
+    [InlineData("webmail.example.test", "hosting-stubs", EndpointRuleEffect.ExcludeFromOwnerViews, EndpointRuleCategories.Infrastructure)]
+    [InlineData("enterpriseenrollment.example.test", "m365-pointers", EndpointRuleEffect.ExcludeFromOwnerViews, EndpointRuleCategories.Infrastructure)]
+    [InlineData("address-192-0-2-44.isp.example.test", "isp-rdns", EndpointRuleEffect.ExcludeFromOwnerViews, EndpointRuleCategories.Infrastructure)]
+    [InlineData("endpoint.pphosted.com", "cloud-saas", EndpointRuleEffect.TagOnly, EndpointRuleCategories.ThirdParty)]
+    public void BuiltInDataClassifiesGenericTagsWithoutRemovingItsObservation(string host, string pack, EndpointRuleEffect effect, string category) {
         var identity = Identity(host);
         var hits = new EndpointRulePackEvaluator().Evaluate(Input(host), identity, Observed);
         EndpointRuleHit hit = Assert.Single(hits, h => h.PackId == pack);
         Assert.Equal(effect, hit.Effect);
+        Assert.Equal(category, hit.Category);
         Assert.Same(identity, hit.Identity);
         Assert.Equal("1.0.0", hit.PackVersion);
         Assert.Equal(Observed, hit.ObservedAtUtc);
@@ -52,6 +53,7 @@ public sealed class TestEndpointRulePacks {
         EndpointRuleHit hit = Assert.Single(evaluator.Evaluate(input, Identity(), Observed), h => h.PackId == "nameshield");
         Assert.Equal(EndpointRuleEffect.TagOnly, hit.Effect);
         Assert.False(hit.Expected);
+        Assert.Equal(EndpointRuleCategories.VendorManaged, hit.Category);
         input.CertificateIssuer = "A different issuer";
         Assert.DoesNotContain(evaluator.Evaluate(input, Identity(), Observed), h => h.PackId == "nameshield");
         input.CertificateIssuer = "DigiCert Inc";
@@ -73,7 +75,40 @@ public sealed class TestEndpointRulePacks {
         EndpointRuleHit hit = Assert.Single(evaluator.Evaluate(input, Identity(), Observed), h => h.PackId == "nameshield");
         Assert.True(hit.Expected);
         Assert.Equal(EndpointRuleEffect.Quarantine, hit.Effect);
+        Assert.Equal(EndpointRuleCategories.VendorManaged, hit.Category);
         Assert.False(Assert.Single(EndpointRulePackCatalog.LoadBuiltIns(), p => p.Id == "nameshield").Expected);
+    }
+
+    [Fact]
+    public void CategoryResolvesRuleThenPackAndOverlaysCanRecategorizeWithoutChangingEffect() {
+        var options = new EndpointRulePackOptions();
+        options.Packs.Add(new EndpointRulePack { Id = "hosting-stubs", Category = "shared-hosting" });
+        options.Packs.Add(new EndpointRulePack { Id = "decoys", Version = "1.0.0", Category = EndpointRuleCategories.SecurityAwareness,
+            Rules = {
+                new EndpointPackRule { Id = "simulation", Label = "Phishing simulation", AnyOf = { new EndpointRuleMatcher { Type = EndpointMatcherType.HostnameSuffix, Values = { "decoy.example.test" } } } },
+                new EndpointPackRule { Id = "training", Label = "Training portal", Category = "training", AnyOf = { new EndpointRuleMatcher { Type = EndpointMatcherType.LabelPrefix, Values = { "training." } } } }
+            } });
+        var evaluator = new EndpointRulePackEvaluator(options);
+
+        EndpointRuleHit stub = Assert.Single(evaluator.Evaluate(Input("webmail.example.test"), Identity("webmail.example.test"), Observed), h => h.PackId == "hosting-stubs");
+        Assert.Equal("shared-hosting", stub.Category);
+        Assert.Equal(EndpointRuleEffect.ExcludeFromOwnerViews, stub.Effect);
+        Assert.Equal(EndpointRuleCategories.SecurityAwareness, Assert.Single(evaluator.Evaluate(Input("psrp.decoy.example.test"), Identity("psrp.decoy.example.test"), Observed)).Category);
+        Assert.Equal("training", Assert.Single(evaluator.Evaluate(Input("training.example.test"), Identity("training.example.test"), Observed), h => h.PackId == "decoys").Category);
+        Assert.Equal(EndpointRuleCategories.Infrastructure, Assert.Single(EndpointRulePackCatalog.LoadBuiltIns(), p => p.Id == "hosting-stubs").Category);
+
+        var overlayWithoutCategory = new EndpointRulePackOptions();
+        overlayWithoutCategory.Packs.Add(new EndpointRulePack { Id = "localhost", Effect = EndpointRuleEffect.Quarantine });
+        Assert.Equal(EndpointRuleCategories.Infrastructure, Assert.Single(EndpointRulePackCatalog.Resolve(overlayWithoutCategory), p => p.Id == "localhost").Category);
+    }
+
+    [Fact]
+    public void EveryEnabledBuiltInRuleHasACategory() {
+        foreach (EndpointRulePack pack in EndpointRulePackCatalog.LoadBuiltIns()) {
+            foreach (EndpointPackRule rule in pack.Rules) {
+                Assert.False(string.IsNullOrEmpty(EndpointRuleCategories.Resolve(pack, rule)), pack.Id + "/" + rule.Id);
+            }
+        }
     }
 
     [Fact]
@@ -148,6 +183,8 @@ public sealed class TestEndpointRulePacks {
 
     [Theory]
     [InlineData("{\"packs\":[{\"id\":\"custom\",\"version\":\"1.0\"}]}")]
+    [InlineData("{\"packs\":[{\"id\":\"custom\",\"version\":\"1.0.0\",\"category\":\"Vendor Managed\"}]}")]
+    [InlineData("{\"packs\":[{\"id\":\"custom\",\"version\":\"1.0.0\",\"rules\":[{\"id\":\"r\",\"label\":\"R\",\"category\":\"-bad\",\"anyOf\":[{\"type\":\"hostname-suffix\",\"values\":[\"example.test\"]}]}]}]}")]
     [InlineData("{\"packs\":[{\"id\":\"custom\",\"version\":\"1.0.0\",\"rules\":[{\"id\":\"invalid\",\"label\":\"Invalid\",\"anyOf\":[{\"type\":\"ip-cidr\",\"values\":[\"999.0.0.0/24\"]}]}]}]}")]
     public void InvalidDeploymentDataFailsBeforeInventoryEvaluation(string json) {
         Assert.Throws<ArgumentException>(() => EndpointRulePackCatalog.Parse(json));
