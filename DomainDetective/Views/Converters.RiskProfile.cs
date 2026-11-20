@@ -15,7 +15,7 @@ public static partial class Converters {
         DomainRiskProfile profile = DomainRiskProfileBuilder.Build(health, nowUtc);
         return new DomainRiskProfileInfo {
             Subject = health.VerificationDomain ?? profile.Domain,
-            Area = AnalysisArea.Security,
+            Area = AnalysisArea.Reputation,
             Profile = profile,
             Summary = profile.Rated
                 ? string.Format(CultureInfo.InvariantCulture, "Risk {0} ({1}); confidence {2} ({3:0.00})", profile.RiskLevel, profile.RiskScore, profile.Confidence, profile.ConfidenceScore)

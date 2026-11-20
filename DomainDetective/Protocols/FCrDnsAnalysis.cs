@@ -34,6 +34,12 @@ public class FCrDnsAnalysis
 
         /// <summary>True when a forward lookup of a PTR name returned at least one address.</summary>
         public bool ForwardAnswered { get; set; }
+
+        /// <summary>
+        /// True when no PTR record was found because the PTR lookup itself failed, so the missing record is unknown rather
+        /// than confirmed.
+        /// </summary>
+        public bool PtrLookupFailed { get; set; }
     }
 
     /// <summary>Collection of results for each IP.</summary>
@@ -95,7 +101,8 @@ public class FCrDnsAnalysis
                 IpAddress = item.IpAddress,
                 PtrRecords = ptrs.Select(p => p.TrimEnd('.')).ToList(),
                 ForwardConfirmed = match,
-                ForwardAnswered = answered || match
+                ForwardAnswered = answered || match,
+                PtrLookupFailed = item.PtrLookupFailed && ptrs.Count == 0
             });
         }
     }

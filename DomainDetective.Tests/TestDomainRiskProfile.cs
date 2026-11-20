@@ -353,4 +353,54 @@ public class TestDomainRiskProfile {
         Assert.Contains("1 of 2 addresses", network.Evidence.Single(e => e.Id == "network.asn").Note);
         Assert.Contains(profile.Gaps, g => g.EvidenceId == "network.asn");
     }
+
+    [Theory]
+    [InlineData(DnsClientX.DnsResponseCode.NXDomain, 1, EvidenceState.Observed)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, 0, EvidenceState.Failed)]
+    public async System.Threading.Tasks.Task OnlyAConclusiveAnswerConfirmsAMissingPtr(DnsClientX.DnsResponseCode ptrStatus, int withoutFcrDns, EvidenceState ptrState) {
+        using var health = new DomainHealthCheck();
+        health.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            name = name.TrimEnd('.');
+            var answers = Array.Empty<DnsClientX.DnsAnswer>();
+            var status = DnsClientX.DnsResponseCode.NoError;
+            if (name == "example.test" && type == DnsClientX.DnsRecordType.MX) {
+                answers = new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "10 mx.example.test." } };
+            } else if (name == "mx.example.test" && type == DnsClientX.DnsRecordType.A) {
+                answers = new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.10" } };
+            } else if (type == DnsClientX.DnsRecordType.PTR) {
+                status = ptrStatus;
+            }
+            return System.Threading.Tasks.Task.FromResult(new DnsClientX.DnsResponse { Status = status, Answers = answers });
+        };
+
+        using var guard = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await health.Verify("example.test", new[] { HealthCheckType.FCRDNS }, cancellationToken: guard.Token);
+        DomainRiskEvidence evidence = DomainRiskProfileBuilder.CollectEvidence(health);
+
+        Assert.Equal(withoutFcrDns, evidence.MailHostsWithoutFcrDns);
+        Assert.Equal(ptrState, evidence.PtrState);
+    }
+
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(3, true)]
+    public async System.Threading.Tasks.Task MoreMailHostsThanTheLimitLeaveTheNetworkPartial(int mxHosts, bool capped) {
+        var analysis = new IpEnrichmentAnalysis {
+            IncludeMxHostAddresses = true,
+            IncludeNsHostAddresses = false,
+            MaxHostsPerKind = 2,
+            QueryOverride = (name, type, _) => {
+                name = name.TrimEnd('.');
+                if (name == "example.test" && type == DnsClientX.DnsRecordType.MX) {
+                    return System.Threading.Tasks.Task.FromResult(Enumerable.Range(1, mxHosts)
+                        .Select(i => new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = $"10 mx{i}.example.test." }).ToArray());
+                }
+                return System.Threading.Tasks.Task.FromResult(Array.Empty<DnsClientX.DnsAnswer>());
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.test", Array.Empty<string>(), new InternalLogger());
+
+        Assert.Equal(capped, analysis.HostsCapped);
+    }
 }

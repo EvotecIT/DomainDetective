@@ -66,7 +66,11 @@ public static class DomainAssessmentBuilder {
                     domains[profileDomain] = owner;
                     firstSeen.Add(profileDomain);
                 }
-                owner.RiskProfile = riskProfile.Profile;
+                // Several runs for one domain (one check at a time, say) each bring a profile; keep the one that saw the
+                // most evidence rather than whichever came last.
+                if (owner.RiskProfile == null || riskProfile.Profile.EvidenceScore >= owner.RiskProfile.EvidenceScore) {
+                    owner.RiskProfile = riskProfile.Profile;
+                }
                 continue;
             }
             DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(item.GetType());

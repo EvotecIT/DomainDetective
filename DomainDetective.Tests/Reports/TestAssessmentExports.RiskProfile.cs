@@ -107,6 +107,18 @@ public partial class TestAssessmentExports {
     }
 
     [Fact]
+    public void TheBuilderKeepsTheProfileThatSawTheMostEvidence() {
+        var fuller = new DomainRiskProfileInfo { Subject = "example.test", Profile = RiskProfile("example.test") };
+        fuller.Profile.EvidenceScore = 0.9;
+        var partial = new DomainRiskProfileInfo { Subject = "example.test", Profile = RiskProfile("example.test") };
+        partial.Profile.EvidenceScore = 0.2;
+
+        DomainAssessmentReport report = DomainAssessmentBuilder.Build(new object[] { fuller, partial });
+
+        Assert.Same(fuller.Profile, Assert.Single(report.Domains).RiskProfile);
+    }
+
+    [Fact]
     public void TheProfileSurvivesTheAssessmentJson() {
         var report = AssessmentExportFixture.Create();
         report.Domains[0].RiskProfile = RiskProfile(report.Domains[0].Domain);

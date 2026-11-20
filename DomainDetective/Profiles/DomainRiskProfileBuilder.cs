@@ -253,15 +253,19 @@ public static class DomainRiskProfileBuilder {
 
         if (Ran(health, HealthCheckType.FCRDNS) && !Failed(health, HealthCheckType.FCRDNS) && health.FcrDnsAnalysis != null) {
             var fcrdns = health.FcrDnsAnalysis.Results;
-            // A PTR name whose forward lookup returned nothing may be a failed lookup, not a mismatch: it lowers
-            // coverage, and only a forward answer that misses the address counts against the domain.
-            int settled = fcrdns.Count(static r => r.ForwardAnswered || r.PtrRecords.Count == 0);
+            // A failed PTR lookup, or a PTR name whose forward lookup returned nothing, may be a lookup failure rather than
+            // a defect: it lowers coverage. Only a conclusive missing PTR or a forward answer that misses the address
+            // counts against the domain.
+            int settled = fcrdns.Count(SettledPtr);
             evidence.PtrState = fcrdns.Count == 0 ? EvidenceState.Clean : EvidenceCoverage.From(fcrdns.Count, settled, found: true);
-            evidence.MailHostsWithoutFcrDns = fcrdns.Count(static r => !r.ForwardConfirmed && (r.ForwardAnswered || r.PtrRecords.Count == 0));
+            evidence.MailHostsWithoutFcrDns = fcrdns.Count(static r => !r.ForwardConfirmed && SettledPtr(r));
         } else {
             evidence.PtrState = NotAnswered(health, HealthCheckType.FCRDNS);
         }
     }
+
+    private static bool SettledPtr(FCrDnsAnalysis.FCrDnsResult result) =>
+        result.ForwardAnswered || result.PtrRecords.Count == 0 && !result.PtrLookupFailed;
 
     private static void Network(DomainHealthCheck health, DomainRiskEvidence evidence) {
         IpEnrichmentAnalysis? enrichment = health.IpEnrichmentAnalysis;
@@ -270,8 +274,8 @@ public static class DomainRiskProfileBuilder {
             evidence.NetworkState = NotAnswered(health, HealthCheckType.IPENRICHMENT);
             return;
         }
-        // When enrichment stopped at its address limit, the addresses it dropped were never looked at.
-        evidence.NetworkState = NetworkState(enrichment.QuerySucceeded, enrichment.ResultsCapped);
+        // When enrichment stopped at its address or host limit, the addresses it dropped were never looked at.
+        evidence.NetworkState = NetworkState(enrichment.QuerySucceeded, enrichment.ResultsCapped || enrichment.HostsCapped);
         foreach (IpEnrichmentRow row in enrichment.Rows ?? Array.Empty<IpEnrichmentRow>()) {
             if (evidence.Addresses.Any(a => string.Equals(a.IpAddress, row.IpAddress, StringComparison.OrdinalIgnoreCase))) continue;
             evidence.Addresses.Add(new ProfileAddress {

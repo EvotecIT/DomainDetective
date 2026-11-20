@@ -143,6 +143,12 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
     /// <summary>True when processing was capped to protect performance.</summary>
     public bool ResultsCapped { get; private set; }
 
+    /// <summary>
+    /// True when a domain had more MX or NS hosts than <see cref="MaxHostsPerKind"/>, so the addresses of the remaining
+    /// hosts were never looked at.
+    /// </summary>
+    public bool HostsCapped { get; private set; }
+
     /// <summary>True when enrichment completed successfully (even if partial data was returned).</summary>
     public bool QuerySucceeded { get; private set; }
 
@@ -366,6 +372,10 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
         {
             logger?.WriteInformationCode(IpEnrichmentCodes.ResultsCapped, "IP enrichment results capped at {0} unique IP(s).", MaxUniqueIpsToEnrich);
         }
+        if (HostsCapped)
+        {
+            logger?.WriteInformationCode(IpEnrichmentCodes.ResultsCapped, "IP enrichment resolved only the first {0} MX or NS host(s).", MaxHostsPerKind);
+        }
         if (rdapFailures > 0)
         {
             logger?.WriteWarningCode(IpEnrichmentCodes.RdapLookupFailed, "{0} RDAP lookup(s) failed.", rdapFailures);
@@ -390,6 +400,7 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
     {
         Subject = null;
         ResultsCapped = false;
+        HostsCapped = false;
         QuerySucceeded = false;
         FailureReason = null;
         UniqueIpCount = 0;
@@ -441,14 +452,14 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
             var host = type == DnsRecordType.MX ? ParseMxTarget(raw) : raw.TrimEnd('.');
             if (string.IsNullOrWhiteSpace(host)) continue;
             if (host == ".") continue;
-            if (!hosts.Contains(host, StringComparer.OrdinalIgnoreCase))
-            {
-                hosts.Add(host);
-            }
+            if (hosts.Contains(host, StringComparer.OrdinalIgnoreCase)) continue;
+            // Capped only when a further distinct host exists; exactly the limit is still the whole set.
             if (MaxHostsPerKind > 0 && hosts.Count >= MaxHostsPerKind)
             {
+                HostsCapped = true;
                 break;
             }
+            hosts.Add(host);
         }
 
         foreach (var host in hosts)
