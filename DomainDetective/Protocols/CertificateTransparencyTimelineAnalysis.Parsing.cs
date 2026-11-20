@@ -79,27 +79,34 @@ public sealed partial class CertificateTransparencyTimelineAnalysis
         }
     }
 
-    private static string BuildCertificateKey(
-        string? id,
-        string? issuerName,
-        string? serial,
-        DateTimeOffset? notBefore,
-        DateTimeOffset? notAfter,
-        string? commonName,
-        string? nameValue)
+    // A precertificate and its final certificate are two CT entries, with two provider ids, for one issuance.
+    // Key the issuance by what both entries share: the TBS hash without the poison and SCT extensions, then the
+    // issuer and serial number. The provider id only identifies a single entry, so it is a fallback.
+    private static string BuildCertificateKey(CtRow row)
     {
-        var keyId = (id ?? string.Empty).Trim();
+        var tbs = CtCertificateRecord.NormalizeHex(row.TbsSha256);
+        if (!string.IsNullOrEmpty(tbs))
+        {
+            return "tbs:" + tbs;
+        }
+
+        var issuer = (row.IssuerName ?? string.Empty).Trim();
+        var serial = NormalizeSerial(row.SerialNumber);
+        if (issuer.Length > 0 && serial.Length > 0)
+        {
+            return "serial:" + issuer + "|" + serial;
+        }
+
+        var keyId = (row.Id ?? string.Empty).Trim();
         if (keyId.Length > 0)
         {
             return "id:" + keyId;
         }
 
-        var issuer = (issuerName ?? string.Empty).Trim();
-        var ser = (serial ?? string.Empty).Trim();
-        var nb = notBefore?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
-        var na = notAfter?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
-        var cn = (commonName ?? string.Empty).Trim();
-        var nv = (nameValue ?? string.Empty).Trim();
+        var nb = row.NotBeforeUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
+        var na = row.NotAfterUtc?.ToString("O", CultureInfo.InvariantCulture) ?? string.Empty;
+        var cn = (row.CommonName ?? string.Empty).Trim();
+        var nv = (row.NameValue ?? string.Empty).Trim();
 
         // Fallback key: issuer + serial + validity window + CN + SAN blob (capped)
         if (nv.Length > 512)
@@ -111,7 +118,15 @@ public sealed partial class CertificateTransparencyTimelineAnalysis
             cn = cn.Substring(0, 256);
         }
 
-        return $"{issuer}|{ser}|{nb}|{na}|{cn}|{nv}";
+        return $"{issuer}|{serial}|{nb}|{na}|{cn}|{nv}";
+    }
+
+    // Serial numbers are integers: ignore separators, case and leading zeros so "00:4A:05" and "4a05" match.
+    private static string NormalizeSerial(string? serial)
+    {
+        var hex = CtCertificateRecord.NormalizeHex(serial) ?? string.Empty;
+        var trimmed = hex.TrimStart('0');
+        return trimmed.Length == 0 && hex.Length > 0 ? "0" : trimmed;
     }
 
     private static string? GetIssuerName(JsonElement item)

@@ -23,7 +23,15 @@ env:
     DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
 
 jobs:
+    changes:
+      if: github.event_name == 'pull_request'
+      permissions:
+        contents: read
+      uses: ./.github/workflows/ci-changes.yml
+
     refresh-psd1:
+        needs: changes
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || (needs.changes.result == 'success' && needs.changes.outputs.build == 'true')) }}
         name: 'Refresh PSD1'
         runs-on: windows-latest
         timeout-minutes: 20
@@ -115,6 +123,7 @@ jobs:
 
     test-windows-ps5:
         needs: refresh-psd1
+        if: ${{ !cancelled() && needs.refresh-psd1.result == 'success' }}
         name: 'Windows PowerShell 5.1'
         runs-on: windows-latest
         timeout-minutes: 20
@@ -188,6 +197,7 @@ jobs:
 
     test-windows-ps7:
         needs: refresh-psd1
+        if: ${{ !cancelled() && needs.refresh-psd1.result == 'success' }}
         name: 'Windows PowerShell 7'
         runs-on: windows-latest
         timeout-minutes: 30
@@ -264,6 +274,7 @@ jobs:
               shell: pwsh
     test-ubuntu:
         needs: refresh-psd1
+        if: ${{ !cancelled() && needs.refresh-psd1.result == 'success' }}
         name: 'Ubuntu PowerShell 7'
         runs-on: ubuntu-latest
         timeout-minutes: 20
@@ -333,6 +344,7 @@ jobs:
 
     test-macos:
         needs: refresh-psd1
+        if: ${{ !cancelled() && needs.refresh-psd1.result == 'success' }}
         name: 'macOS PowerShell 7'
         runs-on: macos-latest
         timeout-minutes: 20

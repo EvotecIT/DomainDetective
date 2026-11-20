@@ -18,6 +18,17 @@ Each rule combines every `allOf` matcher with at least one `anyOf` matcher when 
 
 Provider packs default to `tag-only`. An explicit deployment `expected` value is metadata for organizational policy, not a result of technical detection. A consumer may remove healthy expected endpoints from a migration queue, but must still raise expiry and certificate/hostname/chain-validation failures. `exclude-from-owner-views` and `quarantine` describe reversible projections over retained observations.
 
+A rule or pack may carry a `category`: a lower-case id that groups rules for reporting. A rule's own category wins over its pack's, and an overlay that omits the pack category keeps the built-in one. Categories never change the effect. The built-ins use `infrastructure` (local names, loopback, hosting stubs, provisioning pointers, reverse DNS, cPanel service names), `third-party` (vendor namespaces) and `vendor-managed` (NameShield, Azure Front Door, CDN, Traffic Manager and Microsoft 365 managed services). `EndpointRuleCategories` holds these ids plus `security-awareness`, which is never built in because phishing-simulation domains belong to one organization. A deployment may define further ids. Each hit reports the resolved `Category`; consumers decide the labels, the order when an endpoint matches several categories, and what an uncategorized endpoint means.
+
+```json
+{ "packs": [
+  { "id": "awareness-decoys", "version": "1.0.0", "category": "security-awareness",
+    "rules": [ { "id": "simulation", "label": "Phishing simulation", "effect": "exclude-from-owner-views",
+      "anyOf": [ { "type": "hostname-suffix", "values": [ "decoy.example.test" ] } ] } ] },
+  { "id": "hosting-stubs", "category": "shared-hosting" }
+] }
+```
+
 Hits retain pack/rule versions, actual signals, source identity, fingerprint, endpoint, profile, vantage and observation time. `Summarize` reports every enabled rule, including zero-hit rules; it counts distinct observations, endpoints and hosts independently. Duplicate hit inputs are idempotent. Exclusion totals are unique across rules, and `OverlappingHits` records the extra hits instead of inflating inventory totals. Summarize one explicit population/snapshot at a time.
 
 The existing `EndpointAttributionDetector` scorer consumes the same provider data. Its confidence/candidate semantics remain distinct from exact pack predicates and consumer policy. Front Door, CDN and Traffic Manager retain different service identities even when a deployment groups them for reporting.

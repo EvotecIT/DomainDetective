@@ -146,9 +146,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
 
         var now = DateTimeOffset.UtcNow;
-        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var certs = new Dictionary<string, CtCertificateAggregate>(StringComparer.OrdinalIgnoreCase);
-        var bucketAgg = new Dictionary<int, CtBucketAggregate>();
 
         try
         {
@@ -158,7 +156,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             {
                 try
                 {
-                    anyPayloadParsed = await QueryProviderAsync(Provider, now, issuerCounts, certs, bucketAgg, logger, cancellationToken).ConfigureAwait(false);
+                    anyPayloadParsed = await QueryProviderAsync(Provider, certs, logger, cancellationToken).ConfigureAwait(false);
                     Source = Provider.ProviderId;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -167,9 +165,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     // provider failure and crt.sh is tried instead.
                     // Start the fallback from a clean slate so a half-read provider answer is not mixed in.
                     ResetCounters();
-                    issuerCounts.Clear();
                     certs.Clear();
-                    bucketAgg.Clear();
                     ProviderFailureReason = ex.Message;
                     lastFailure = $"{Provider.ProviderId}: {ex.Message}";
                     logger?.WriteVerbose("CT provider {0} failed for {1}: {2}", Provider.ProviderId, Subject, ex.Message);
@@ -192,11 +188,19 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             int failedQueries = 0;
             foreach (var url in urls)
             {
+                // Only the row limit skips the remaining queries; past the unique-certificate cap a later query can
+                // still add entries to retained issuances.
+                if (RowLimitReached)
+                {
+                    ResultsCapped = true;
+                    break;
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                    bool parsed = ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                    bool parsed = ParseCtJson(json, certs, logger);
                     if (parsed && Source.Length == 0) Source = "crt.sh";
                     // An empty body answers nothing for this query.
                     if (!parsed) failedQueries++;
@@ -207,11 +211,6 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     failedQueries++;
                     lastFailure = ex.Message;
                     logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
-                }
-
-                if (ResultsCapped)
-                {
-                    break;
                 }
             }
 
@@ -229,7 +228,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     try
                     {
                         var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
-                        bool parsed = ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
+                        bool parsed = ParseCtJson(fallbackJson, certs, logger);
                         if (parsed) Source = "certspotter";
                         anyPayloadParsed |= parsed;
                     }
@@ -281,10 +280,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             return;
         }
 
-        IssuerCounts = issuerCounts;
-        UniqueCertificateCount = certs.Count;
-        Timeline = BuildTimeline(bucketAgg);
-        RecentCertificates = BuildRecent(certs.Values, MaxRecentCertificates);
+        ApplyCertificateStatistics(now, certs.Values);
 
         if (!QuerySucceeded)
         {
@@ -441,7 +437,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             string? id,
             DateTimeOffset? entryTimestampUtc,
             DateTimeOffset? notBeforeUtc,
-            DateTimeOffset? notAfterUtc)
+            DateTimeOffset? notAfterUtc,
+            string? tbsSha256)
         {
             IssuerName = issuerName;
             CommonName = commonName;
@@ -451,6 +448,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             EntryTimestampUtc = entryTimestampUtc;
             NotBeforeUtc = notBeforeUtc;
             NotAfterUtc = notAfterUtc;
+            TbsSha256 = tbsSha256;
         }
 
         public string? IssuerName { get; }
@@ -461,14 +459,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         public DateTimeOffset? EntryTimestampUtc { get; }
         public DateTimeOffset? NotBeforeUtc { get; }
         public DateTimeOffset? NotAfterUtc { get; }
+        public string? TbsSha256 { get; }
     }
 
     private bool ParseCtJson(
         string json,
-        DateTimeOffset nowUtc,
-        Dictionary<string, int> issuerCounts,
         Dictionary<string, CtCertificateAggregate> certs,
-        Dictionary<int, CtBucketAggregate> bucketAgg,
         InternalLogger? logger)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -484,7 +480,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
         foreach (var item in doc.RootElement.EnumerateArray())
         {
-            if (!ProcessRow(ReadCtRow(item), nowUtc, issuerCounts, certs, bucketAgg))
+            if (!ProcessRow(ReadCtRow(item), certs))
             {
                 break;
             }
@@ -494,13 +490,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         return true;
     }
 
-    // Returns false once a processing cap is reached.
-    private bool ProcessRow(
-        CtRow row,
-        DateTimeOffset nowUtc,
-        Dictionary<string, int> issuerCounts,
-        Dictionary<string, CtCertificateAggregate> certs,
-        Dictionary<int, CtBucketAggregate> bucketAgg)
+    // Returns false once the row limit is reached. Statistics are computed afterwards from the merged certificates.
+    private bool ProcessRow(CtRow row, Dictionary<string, CtCertificateAggregate> certs)
     {
         if (!TryStartNextCtObservation())
         {
@@ -508,22 +499,13 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
 
         UpdateFirstAndLastSeen(row.EntryTimestampUtc);
-
-        var key = BuildCertificateKey(row.Id, row.IssuerName, row.SerialNumber, row.NotBeforeUtc, row.NotAfterUtc, row.CommonName, row.NameValue);
-        if (string.IsNullOrWhiteSpace(key) || certs.ContainsKey(key))
-        {
-            return true;
-        }
-
-        return TryAddUniqueCertificate(key, row, nowUtc, issuerCounts, certs, bucketAgg);
+        AddOrMergeCertificate(row, certs);
+        return true;
     }
 
     private async Task<bool> QueryProviderAsync(
         ICtCertificateTransparencyProvider provider,
-        DateTimeOffset nowUtc,
-        Dictionary<string, int> issuerCounts,
         Dictionary<string, CtCertificateAggregate> certs,
-        Dictionary<int, CtBucketAggregate> bucketAgg,
         InternalLogger? logger,
         CancellationToken cancellationToken)
     {
@@ -547,7 +529,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     record.Sha256Fingerprint ?? record.ProviderCertificateId,
                     issued,
                     record.NotBeforeUtc,
-                    record.NotAfterUtc);
+                    record.NotAfterUtc,
+                    record.TbsSha256);
                 if (record.EntryTimestampUtc.HasValue && record.EntryTimestampUtc != issued)
                 {
                     // A later re-observation moves "last seen" only; it says nothing about when the domain was first seen.
@@ -556,7 +539,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                         LastSeenUtc = record.EntryTimestampUtc.Value;
                     }
                 }
-                if (!ProcessRow(row, nowUtc, issuerCounts, certs, bucketAgg))
+                if (!ProcessRow(row, certs))
                 {
                     logger?.WriteVerbose("CT timeline from {0} capped for {1}", provider.ProviderId, Subject);
                     return true;
@@ -593,9 +576,11 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         return subject;
     }
 
+    private bool RowLimitReached => MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess;
+
     private bool TryStartNextCtObservation()
     {
-        if (MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess)
+        if (RowLimitReached)
         {
             ResultsCapped = true;
             return false;
@@ -625,7 +610,8 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             id: id,
             entryTimestampUtc: entryTs,
             notBeforeUtc: notBefore,
-            notAfterUtc: notAfter);
+            notAfterUtc: notAfter,
+            tbsSha256: GetString(item, "tbs_sha256"));
     }
 
     private void UpdateFirstAndLastSeen(DateTimeOffset? entryTimestampUtc)
@@ -646,50 +632,58 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
     }
 
-    private bool TryAddUniqueCertificate(
-        string key,
-        CtRow row,
-        DateTimeOffset nowUtc,
-        Dictionary<string, int> issuerCounts,
-        Dictionary<string, CtCertificateAggregate> certs,
-        Dictionary<int, CtBucketAggregate> bucketAgg)
+    // Past the unique-certificate cap, new issuances are skipped but later entries of retained ones (for example
+    // the precertificate of a final certificate already read) are still merged.
+    private void AddOrMergeCertificate(CtRow row, Dictionary<string, CtCertificateAggregate> certs)
     {
-        if (MaxUniqueCertificates > 0 && certs.Count >= MaxUniqueCertificates)
+        var key = BuildCertificateKey(row);
+        if (string.IsNullOrWhiteSpace(key))
         {
-            ResultsCapped = true;
-            return false;
+            return;
         }
 
-        var isWildcard = DetectWildcard(row.CommonName, row.NameValue);
-        var status = GetValidityStatus(nowUtc, row.NotBeforeUtc, row.NotAfterUtc);
-
-        certs[key] = new CtCertificateAggregate
+        if (!certs.TryGetValue(key, out var cert))
         {
-            Key = key,
-            IssuerName = row.IssuerName ?? string.Empty,
-            CommonName = row.CommonName ?? string.Empty,
-            EntryTimestampUtc = row.EntryTimestampUtc,
-            NotBeforeUtc = row.NotBeforeUtc,
-            NotAfterUtc = row.NotAfterUtc,
-            ValidityStatus = status,
-            Wildcard = isWildcard
-        };
+            if (MaxUniqueCertificates > 0 && certs.Count >= MaxUniqueCertificates)
+            {
+                ResultsCapped = true;
+                return;
+            }
 
-        UpdateIssuerCounts(issuerCounts, row.IssuerName);
-
-        if (isWildcard)
-        {
-            WildcardCertificateCount++;
+            cert = new CtCertificateAggregate { Key = key };
+            certs[key] = cert;
         }
 
-        IncrementValidityCounters(status);
+        cert.Merge(row);
+    }
 
-        if (row.EntryTimestampUtc.HasValue)
+    // Every count below is per issuance, after the CT entries of one certificate were merged.
+    private void ApplyCertificateStatistics(DateTimeOffset nowUtc, IReadOnlyCollection<CtCertificateAggregate> certs)
+    {
+        var issuerCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var bucketAgg = new Dictionary<int, CtBucketAggregate>();
+
+        foreach (var cert in certs)
         {
-            return UpdateIssuedCountersAndTimeline(nowUtc, row.EntryTimestampUtc.Value, row.IssuerName, bucketAgg);
+            cert.ValidityStatus = GetValidityStatus(nowUtc, cert.NotBeforeUtc, cert.NotAfterUtc);
+            UpdateIssuerCounts(issuerCounts, cert.IssuerName);
+            IncrementValidityCounters(cert.ValidityStatus);
+
+            if (cert.Wildcard)
+            {
+                WildcardCertificateCount++;
+            }
+
+            if (cert.EntryTimestampUtc.HasValue)
+            {
+                UpdateIssuedCountersAndTimeline(nowUtc, cert.EntryTimestampUtc.Value, cert.IssuerName, bucketAgg);
+            }
         }
 
-        return true;
+        IssuerCounts = issuerCounts;
+        UniqueCertificateCount = certs.Count;
+        Timeline = BuildTimeline(bucketAgg);
+        RecentCertificates = BuildRecent(certs, MaxRecentCertificates);
     }
 
     private static void UpdateIssuerCounts(Dictionary<string, int> issuerCounts, string? issuerName)
@@ -719,7 +713,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         }
     }
 
-    private bool UpdateIssuedCountersAndTimeline(
+    private void UpdateIssuedCountersAndTimeline(
         DateTimeOffset nowUtc,
         DateTimeOffset entryTimestampUtc,
         string? issuerName,
@@ -738,17 +732,11 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         var ym = YearMonthKey(entryTimestampUtc);
         if (ym <= 0)
         {
-            return true;
+            return;
         }
 
         if (!bucketAgg.TryGetValue(ym, out var b))
         {
-            if (MaxTimelineBuckets > 0 && bucketAgg.Count >= MaxTimelineBuckets)
-            {
-                ResultsCapped = true;
-                return false;
-            }
-
             b = new CtBucketAggregate(ym);
             bucketAgg[ym] = b;
         }
@@ -759,8 +747,6 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         {
             b.Issuers.Add(issuerKey);
         }
-
-        return true;
     }
 
     private static CtCertificateValidityStatus GetValidityStatus(DateTimeOffset nowUtc, DateTimeOffset? notBefore, DateTimeOffset? notAfter)
@@ -793,15 +779,22 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         return CtCertificateValidityStatus.Unknown;
     }
 
-    private static IReadOnlyList<CtTimelineBucket> BuildTimeline(Dictionary<int, CtBucketAggregate> agg)
+    // Keeps the most recent MaxTimelineBuckets months.
+    private IReadOnlyList<CtTimelineBucket> BuildTimeline(Dictionary<int, CtBucketAggregate> agg)
     {
         if (agg.Count == 0)
         {
             return Array.Empty<CtTimelineBucket>();
         }
 
-        return agg.Values
-            .OrderBy(x => x.YearMonthKey)
+        IEnumerable<CtBucketAggregate> buckets = agg.Values.OrderBy(x => x.YearMonthKey);
+        if (MaxTimelineBuckets > 0 && agg.Count > MaxTimelineBuckets)
+        {
+            ResultsCapped = true;
+            buckets = buckets.Skip(agg.Count - MaxTimelineBuckets);
+        }
+
+        return buckets
             .Select(x => new CtTimelineBucket
             {
                 Year = x.Year,
@@ -829,22 +822,59 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 NotAfterUtc = c.NotAfterUtc,
                 IssuerName = c.IssuerName,
                 CommonName = c.CommonName,
+                SerialNumber = c.SerialNumber,
                 ValidityStatus = c.ValidityStatus,
-                Wildcard = c.Wildcard
+                Wildcard = c.Wildcard,
+                EntryIds = c.EntryIds.ToArray()
             })
             .ToList();
     }
 
+    // One issuance, merged from every CT entry that records it (for example a precertificate and its final certificate).
     private sealed class CtCertificateAggregate
     {
         public string Key { get; init; } = string.Empty;
-        public string IssuerName { get; init; } = string.Empty;
-        public string CommonName { get; init; } = string.Empty;
-        public DateTimeOffset? EntryTimestampUtc { get; init; }
-        public DateTimeOffset? NotBeforeUtc { get; init; }
-        public DateTimeOffset? NotAfterUtc { get; init; }
-        public CtCertificateValidityStatus ValidityStatus { get; init; }
-        public bool Wildcard { get; init; }
+        public string IssuerName { get; private set; } = string.Empty;
+        public string CommonName { get; private set; } = string.Empty;
+        public string SerialNumber { get; private set; } = string.Empty;
+        public DateTimeOffset? EntryTimestampUtc { get; private set; }
+        public DateTimeOffset? NotBeforeUtc { get; private set; }
+        public DateTimeOffset? NotAfterUtc { get; private set; }
+        public CtCertificateValidityStatus ValidityStatus { get; set; }
+        public bool Wildcard { get; private set; }
+        public List<string> EntryIds { get; } = new();
+
+        public void Merge(CtRow row)
+        {
+            if (IssuerName.Length == 0 && !string.IsNullOrWhiteSpace(row.IssuerName))
+            {
+                IssuerName = row.IssuerName!;
+            }
+            if (CommonName.Length == 0 && !string.IsNullOrWhiteSpace(row.CommonName))
+            {
+                CommonName = row.CommonName!;
+            }
+            if (SerialNumber.Length == 0 && !string.IsNullOrWhiteSpace(row.SerialNumber))
+            {
+                SerialNumber = row.SerialNumber!.Trim();
+            }
+
+            // The issuance dates from its first CT entry; the precertificate is usually logged before the final certificate.
+            if (row.EntryTimestampUtc.HasValue && (!EntryTimestampUtc.HasValue || row.EntryTimestampUtc.Value < EntryTimestampUtc.Value))
+            {
+                EntryTimestampUtc = row.EntryTimestampUtc;
+            }
+
+            NotBeforeUtc ??= row.NotBeforeUtc;
+            NotAfterUtc ??= row.NotAfterUtc;
+            Wildcard |= DetectWildcard(row.CommonName, row.NameValue);
+
+            var id = (row.Id ?? string.Empty).Trim();
+            if (id.Length > 0 && !EntryIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                EntryIds.Add(id);
+            }
+        }
     }
 
     private sealed class CtBucketAggregate
@@ -908,8 +938,15 @@ public sealed class CtCertificateSample
     public string IssuerName { get; init; } = string.Empty;
     /// <summary>Gets or sets the common name value.</summary>
     public string CommonName { get; init; } = string.Empty;
+    /// <summary>Serial number as reported by the CT source, when it reports one.</summary>
+    public string SerialNumber { get; init; } = string.Empty;
     /// <summary>Gets or sets the validity status value.</summary>
     public CtCertificateValidityStatus ValidityStatus { get; init; }
     /// <summary>Gets or sets the wildcard value.</summary>
     public bool Wildcard { get; init; }
+    /// <summary>
+    /// CT source ids of the entries that record this issuance. A precertificate and its final certificate are two
+    /// entries of one certificate, so they share one sample and are counted once.
+    /// </summary>
+    public IReadOnlyList<string> EntryIds { get; init; } = Array.Empty<string>();
 }

@@ -465,7 +465,7 @@ public sealed class CtCertificateRecord
         names.Add(value);
     }
 
-    private static string? NormalizeHex(string? value)
+    internal static string? NormalizeHex(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

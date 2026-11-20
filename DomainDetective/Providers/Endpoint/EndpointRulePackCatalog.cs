@@ -39,6 +39,7 @@ public static class EndpointRulePackCatalog {
             if (packs.TryGetValue(copy.Id, out EndpointRulePack? original)) {
                 if (string.IsNullOrWhiteSpace(copy.Version)) copy.Version = original.Version;
                 if (string.IsNullOrWhiteSpace(copy.Description)) copy.Description = original.Description;
+                copy.Category ??= original.Category;
                 var rules = original.Rules.ToDictionary(r => r.Id, StringComparer.OrdinalIgnoreCase);
                 var ruleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (EndpointPackRule rule in copy.Rules ?? throw new ArgumentException("Rules cannot be null.")) {
@@ -58,6 +59,7 @@ public static class EndpointRulePackCatalog {
         if (!pack.Enabled) return;
         Require(Version.TryParse(pack.Version, out Version? version) && version.Build >= 0 && version.Revision < 0, "A pack needs a three-part version.");
         Require(pack.Effect == null || Enum.IsDefined(typeof(EndpointRuleEffect), pack.Effect.Value), "Invalid pack effect.");
+        Require(string.IsNullOrEmpty(pack.Category) || ValidId(pack.Category), "A pack category needs a lower-case stable id.");
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (EndpointPackRule rule in pack.Rules ?? throw new ArgumentException("Rules cannot be null.")) {
             Require(rule != null && ValidId(rule.Id) && ids.Add(rule.Id), "A pack has a missing or duplicate rule id.");
@@ -65,6 +67,7 @@ public static class EndpointRulePackCatalog {
             Require(Version.TryParse(rule.Version, out Version? revision) && revision.Build >= 0 && revision.Revision < 0, "A rule needs a three-part version.");
             Require(!string.IsNullOrWhiteSpace(rule.Label), "An enabled rule needs a label.");
             Require(Enum.IsDefined(typeof(EndpointRuleEffect), rule.Effect), "Invalid rule effect.");
+            Require(string.IsNullOrEmpty(rule.Category) || ValidId(rule.Category), "A rule category needs a lower-case stable id.");
             Require(rule.AllOf != null && rule.AnyOf != null && rule.AllOf.Count + rule.AnyOf.Count > 0, "An enabled rule needs match criteria.");
             Require(rule.Ports != null && rule.Ports.All(p => p is > 0 and <= 65535), "Invalid rule port.");
             Require(rule.Services != null && rule.Services.All(s => !string.IsNullOrWhiteSpace(s)), "Invalid rule service.");
