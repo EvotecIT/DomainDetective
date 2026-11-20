@@ -380,6 +380,15 @@ public static class DomainRiskProfileEvaluator {
         // Every CT item shares the answer's coverage: a capped or partly failed history is partial throughout.
         EvidenceState answered = EvidenceCoverage.Limit(noCertificates ? EvidenceState.Clean : read ? EvidenceState.Observed : e.CtState, e.CtCapped);
         EvidenceState firstSeen = read && !FirstSeenIsHistory(e) ? EvidenceState.Partial : answered;
+        // Certificates returned without an issuance date stay undated, and the rate covers only the dated ones.
+        bool undated = read && e.UniqueCertificates > 0 && e.UndatedCertificates > 0;
+        EvidenceState velocity = undated
+            ? EvidenceCoverage.From(e.UniqueCertificates, Math.Max(0, e.UniqueCertificates - e.UndatedCertificates), found: true, capped: e.CtCapped)
+            : answered;
+        string? velocityNote = undated
+            ? e.UndatedCertificates.ToString(CultureInfo.InvariantCulture) + " of " + e.UniqueCertificates.ToString(CultureInfo.InvariantCulture) +
+              " certificates had no issuance date"
+            : null;
         string? firstSeenNote = !read ? null
             : e.CtCapped ? "part of the CT history was not read (capped or a query failed); the earliest entry may be missing"
             : e.CtSource == "certspotter" ? "recent issuances only; the full history was unavailable, so this is not the first certificate"
@@ -389,7 +398,7 @@ public static class DomainRiskProfileEvaluator {
             Item("certificates.first-seen", "First seen", firstSeen, 0.4, source, "cttimeline", firstSeenNote),
             Item("certificates.last-seen", "Last seen", answered, 0.2, source, "cttimeline"),
             Item("certificates.issuers", "Issuers", answered, 0.2, source, "cttimeline"),
-            Item("certificates.velocity", "Issuance rate", answered, 0.2, source, "cttimeline")
+            Item("certificates.velocity", "Issuance rate", velocity, 0.2, source, "cttimeline", velocityNote)
         };
         var facts = new List<ProfileFact>();
         if (e.CtFirstSeenUtc.HasValue) {

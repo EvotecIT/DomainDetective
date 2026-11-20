@@ -223,6 +223,7 @@ public static class DomainRiskProfileBuilder {
         evidence.UniqueCertificates = ct.UniqueCertificateCount;
         evidence.IssuedLast7Days = ct.IssuedLast7Days;
         evidence.IssuedLast30Days = ct.IssuedLast30Days;
+        evidence.UndatedCertificates = ct.UndatedCertificateCount;
         foreach (var issuer in ct.IssuerCounts) evidence.Issuers[issuer.Key] = issuer.Value;
     }
 

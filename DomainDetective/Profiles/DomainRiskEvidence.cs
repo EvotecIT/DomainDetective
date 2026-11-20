@@ -64,6 +64,8 @@ public sealed class DomainRiskEvidence {
     public int IssuedLast7Days { get; set; }
     /// <summary>Certificates first logged in the last 30 days.</summary>
     public int IssuedLast30Days { get; set; }
+    /// <summary>Certificates the CT source returned without any issuance date, so the issuance rate cannot count them.</summary>
+    public int UndatedCertificates { get; set; }
 
     /// <summary>DNS inventory state.</summary>
     public EvidenceState InventoryState { get; set; } = EvidenceState.NotQueried;

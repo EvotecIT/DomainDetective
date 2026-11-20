@@ -39,6 +39,23 @@ public class TestAssessmentEvidenceCompletion {
         Assert.Equal(0, domain.PassedChecks);
     }
 
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(0, 0)]
+    public void ACountOnlyErrorIsKeptBesideALookupGapWithoutCountingTheGapTwice(int countOnlyErrors, int expectedErrors) {
+        // One warning that is a failed lookup (a gap) and, when present, an error the view only counts.
+        var view = new CaaInfo {
+            Check = HealthCheckType.CAA, Subject = "example.test", WarningCount = 1, ErrorCount = countOnlyErrors,
+            Assessments = new[] { new Assessment { Severity = AssessmentSeverity.Warning, Code = "CAA.QueryFailed", Message = "The CAA query failed." } }
+        };
+
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.Equal(expectedErrors, check.ErrorCount);
+        Assert.Equal(0, check.WarningCount);
+        Assert.Equal(expectedErrors > 0 ? CheckOutcome.Error : CheckOutcome.Incomplete, check.Outcome);
+    }
+
     [Fact]
     public void IndeterminateDnssecDoesNotClaimValidationInTheProfile() {
         var view = new DnssecStatusInfo { Check = HealthCheckType.DNSSEC, Subject = "example.test", ValidationStatus = DnssecValidationStatus.Indeterminate };

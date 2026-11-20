@@ -56,6 +56,19 @@ public class FCrDnsAnalysis
         return await DnsConfiguration.QueryDNS(name, type);
     }
 
+    // A forward lookup with whether it answered conclusively; an empty array alone cannot tell "no record" from a failure.
+    private async Task<(DnsAnswer[] Answers, bool Conclusive)> QueryForward(string name, DnsRecordType type)
+    {
+        if (QueryDnsOverride != null)
+        {
+            return (await QueryDnsOverride(name, type), true);
+        }
+        DnsResponse response = await DnsConfiguration.QueryDNSResponse(name, type);
+        bool conclusive = string.IsNullOrEmpty(response.Error)
+            && (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
+        return (response.Answers ?? Array.Empty<DnsAnswer>(), conclusive);
+    }
+
     /// <summary>
     /// Validates that each PTR record in <paramref name="reverseResults"/> resolves back to its IP.
     /// </summary>
@@ -82,12 +95,15 @@ public class FCrDnsAnalysis
 
             bool match = false;
             bool answered = false;
+            bool isIpv6 = IPAddress.TryParse(item.IpAddress, out var address) && address.AddressFamily == AddressFamily.InterNetworkV6;
             foreach (var ptr in ptrs)
             {
                 var normalizedPtr = ptr.TrimEnd('.');
-                var a = await QueryDns(normalizedPtr, DnsRecordType.A);
-                var aaaa = await QueryDns(normalizedPtr, DnsRecordType.AAAA);
-                answered |= a.Length > 0 || aaaa.Length > 0;
+                var (a, aConclusive) = await QueryForward(normalizedPtr, DnsRecordType.A);
+                var (aaaa, aaaaConclusive) = await QueryForward(normalizedPtr, DnsRecordType.AAAA);
+                // Only the lookup for the address's own family can confirm it: when that lookup failed, an answer of the
+                // other family does not settle a mismatch.
+                answered |= (isIpv6 ? aaaaConclusive : aConclusive) && (a.Length > 0 || aaaa.Length > 0);
                 logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
                 if (a.Concat(aaaa).Any(r => r.Data == item.IpAddress))
                 {

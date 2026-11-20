@@ -277,13 +277,16 @@ public static class DomainAssessmentBuilder {
         }
         check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
         check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
-        // Some views report counts without the individual assessments; the outcome must still reflect them.
-        if (check.ErrorCount == 0 && check.WarningCount == 0 && !check.Findings.Any(static f => f.Severity >= AssessmentSeverity.Warning)) {
+        // Some views report counts without the individual assessments; the outcome must still reflect them. A gap finding on
+        // the same check does not hide them: only the counts that became gaps (either way above) are taken off.
+        if (check.ErrorCount == 0 && check.WarningCount == 0) {
+            bool BecameGap(object view, Assessment a) => DomainAssessmentViewReader.IsEvidenceGap(view, a)
+                || !ownGapRule && a.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(a.Code, a.Message);
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
                 if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) continue;
-                check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
-                check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
+                check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && BecameGap(view, a)));
+                check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && BecameGap(view, a)));
             }
         }
         // No CAA record at all means any certificate authority may issue: report that plainly, neither as a pass that
@@ -391,9 +394,11 @@ public static class DomainAssessmentBuilder {
     // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.
     private static readonly string[] ObservedFailureCodes = { "TlsFailed", "DownloadFailed", "Download.Failed", "HttpStatus", "StatusCode" };
 
-    private static bool DescribesFailedLookup(CheckFinding finding) {
-        string code = finding.Code ?? string.Empty;
-        string message = finding.Message ?? string.Empty;
+    private static bool DescribesFailedLookup(CheckFinding finding) => DescribesFailedLookup(finding.Code, finding.Message);
+
+    private static bool DescribesFailedLookup(string? findingCode, string? findingMessage) {
+        string code = findingCode ?? string.Empty;
+        string message = findingMessage ?? string.Empty;
         // A failed TLS handshake or a logo that will not download is what the domain publishes, not a lookup we lost.
         foreach (string observed in ObservedFailureCodes) {
             if (code.IndexOf(observed, StringComparison.OrdinalIgnoreCase) >= 0) return false;

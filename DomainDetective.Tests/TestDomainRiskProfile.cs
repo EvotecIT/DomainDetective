@@ -382,6 +382,45 @@ public class TestDomainRiskProfile {
     }
 
     [Theory]
+    [InlineData(0, EvidenceState.Observed)]
+    [InlineData(1, EvidenceState.Partial)]
+    [InlineData(3, EvidenceState.Failed)]
+    public void CertificatesWithoutAnIssuanceDateLeaveTheIssuanceRateIncomplete(int undated, EvidenceState expected) {
+        DomainRiskEvidence evidence = Answered();
+        evidence.UniqueCertificates = 3;
+        evidence.UndatedCertificates = undated;
+        DomainRiskProfile dated = DomainRiskProfileEvaluator.Evaluate(Answered(), Now);
+
+        DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence, Now);
+
+        EvidenceItem velocity = profile.Facets.Single(f => f.Kind == ProfileFacetKind.Certificates).Evidence.Single(e => e.Id == "certificates.velocity");
+        Assert.Equal(expected, velocity.State);
+        if (undated > 0) Assert.True(profile.EvidenceScore < dated.EvidenceScore);
+    }
+
+    [Theory]
+    [InlineData(DnsClientX.DnsResponseCode.NoError, true)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, false)]
+    public async System.Threading.Tasks.Task AnIpv6MismatchIsSettledOnlyWhenTheAaaaLookupAnswered(DnsClientX.DnsResponseCode aaaaStatus, bool settled) {
+        var analysis = new FCrDnsAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => System.Threading.Tasks.Task.FromResult(new DnsClientX.DnsResponse {
+            Status = type == DnsClientX.DnsRecordType.AAAA ? aaaaStatus : DnsClientX.DnsResponseCode.NoError,
+            // The PTR name has an IPv4 address only, so the A answer alone must not decide an IPv6 mismatch.
+            Answers = type == DnsClientX.DnsRecordType.A
+                ? new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.10" } }
+                : Array.Empty<DnsClientX.DnsAnswer>()
+        });
+        var reverse = new ReverseDnsAnalysis.ReverseDnsResult { IpAddress = "2001:db8::10" };
+        reverse.PtrRecords.Add("mail.example.test");
+
+        await analysis.Analyze(new[] { reverse });
+
+        FCrDnsAnalysis.FCrDnsResult result = Assert.Single(analysis.Results);
+        Assert.False(result.ForwardConfirmed);
+        Assert.Equal(settled, result.ForwardAnswered);
+    }
+
+    [Theory]
     [InlineData(2, false)]
     [InlineData(3, true)]
     public async System.Threading.Tasks.Task MoreMailHostsThanTheLimitLeaveTheNetworkPartial(int mxHosts, bool capped) {

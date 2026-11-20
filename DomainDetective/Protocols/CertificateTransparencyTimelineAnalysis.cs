@@ -119,6 +119,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     /// <summary>CT timeline buckets (monthly) based on entry timestamps.</summary>
     public IReadOnlyList<CtTimelineBucket> Timeline { get; private set; } = Array.Empty<CtTimelineBucket>();
 
+    /// <summary>
+    /// Unique certificates returned without any issuance date. They stay undated and are left out of the issuance counts
+    /// and the timeline, so those counts cover only the dated certificates.
+    /// </summary>
+    public int UndatedCertificateCount { get; private set; }
+
     /// <summary>Most recent unique certificates (sample) sorted by entry timestamp descending.</summary>
     public IReadOnlyList<CtCertificateSample> RecentCertificates { get; private set; } = Array.Empty<CtCertificateSample>();
 
@@ -384,6 +390,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         WildcardCertificateCount = 0;
         IssuedLast7Days = 0;
         IssuedLast30Days = 0;
+        UndatedCertificateCount = 0;
         ResultsCapped = false;
         PartialResults = false;
         Timeline = Array.Empty<CtTimelineBucket>();
@@ -677,6 +684,10 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             if (cert.EntryTimestampUtc.HasValue)
             {
                 UpdateIssuedCountersAndTimeline(nowUtc, cert.EntryTimestampUtc.Value, cert.IssuerName, bucketAgg);
+            }
+            else
+            {
+                UndatedCertificateCount++;
             }
         }
 
