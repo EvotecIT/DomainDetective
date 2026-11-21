@@ -87,8 +87,7 @@ public static partial class AssessmentHtmlReport {
         document.Head.Title = report.Title;
         document.Head.Author = options.Brand;
         document.Head.Revised = report.GeneratedAtUtc.UtcDateTime;
-        document.Head.AddCssInline(TrustedCss.FromTrustedSource(
-            "#dd-summary-controls .hfx-as-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr))}"));
+        document.Head.AddCssInline(TrustedCss.FromTrustedSource(DesignCss));
 
         var ids = new CheckIds(report);
         document.Body.AssessmentReport(shell => {
@@ -155,14 +154,8 @@ public static partial class AssessmentHtmlReport {
         section.AssessmentPosture(posture => {
             posture.Headline(ReportVerdict(report, errors, warnings), ReportVerdictDetail(report, checks));
             if (report.Score.HasValue) posture.Score(report.Score.Value, "of 100").Grade(report.Grade);
-            var unscoredAreas = new List<string>();
             foreach (AnalysisArea area in DomainAssessmentCatalog.AreaOrder) {
-                if (checks.Any(c => c.Area == area && c.Scored && !c.EvidenceComplete)) {
-                    unscoredAreas.Add(AreaLabel(area));
-                    continue;
-                }
-                int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-                if (scores.Length > 0) posture.Meter(AreaLabel(area), (int)Math.Round(scores.Average()));
+                if (DomainAssessmentCatalog.AreaScore(report, area).Score is { } areaScore) posture.Meter(AreaLabel(area), areaScore);
             }
             // An area without a meter must say why, or it reads as if it was never checked.
             posture.ScoreNote(ScoreNote(report));
@@ -172,15 +165,17 @@ public static partial class AssessmentHtmlReport {
             posture.Severity(Severity.Good, passed, "Passed");
             posture.Severity(Severity.Informational, info, "Informational");
             // Neutral, not amber: an evidence gap is not a warning about the domain.
-            if (incomplete > 0) posture.Severity(Severity.Skipped, incomplete, "Incomplete evidence");
-            posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), report.Domains.Count == 1 ? "domain" : "domains");
+            if (incomplete > 0) posture.Severity(Severity.Skipped, incomplete, "Couldn't check");
+            if (report.Domains.Count > 1) posture.Tile(report.Domains.Count.ToString(CultureInfo.InvariantCulture), "domains");
             posture.Tile(checks.Count.ToString(CultureInfo.InvariantCulture), "checks run");
         });
 
         var attention = DoFirstGroups(report).ToList();
 
         section.ReportPanel(panel => {
-            panel.Title("Do these first").Subtitle("Shared findings across domains, ordered by severity and how many domains are affected.").Settings(s => s.Flush());
+            panel.Title("Do these first").Subtitle(report.Domains.Count == 1
+                ? "What to fix, most important first. Checks that couldn't run are listed with their area, not here."
+                : "Shared findings across domains, ordered by severity and how many domains are affected.").Settings(s => s.Flush());
             if (attention.Count == 0) {
                 panel.AssessmentStats(stats => stats.Stat("0", "Nothing needs attention", Severity.Good));
                 return;
@@ -206,81 +201,8 @@ public static partial class AssessmentHtmlReport {
 
         RenderAreas(section, report, ids);
         RenderControls(section, report, ids);
+        if (report.Domains.Count > 1) RenderRiskByDomain(section, report, ids);
         if (report.Domains.Count > 1) RenderCoverage(section, report, ids);
-    }
-
-    /// <summary>
-    /// One card per area: its score, how many checks pass, and in one line what needs attention. For one domain a card
-    /// opens the domain's checks; for several it averages the domain scores.
-    /// </summary>
-    private static void RenderAreas(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
-        var areas = DomainAssessmentCatalog.AreaOrder
-            .Select(area => (Area: area, Checks: report.Domains.SelectMany(d => d.Checks.Where(c => c.Area == area)).ToList()))
-            .Where(static a => a.Checks.Count > 0)
-            .ToList();
-        if (areas.Count == 0) return;
-        section.ReportPanel(panel => panel
-            .Title("Area by area")
-            .Subtitle(report.Domains.Count == 1 ? "Open an area for its checks." : "Scores are the average across domains.")
-            .Settings(s => s.Flush())
-            .AssessmentScopes(list => {
-                list.Settings(s => s.Layout(AssessmentScopeLayout.Cards));
-                foreach (var (area, areaChecks) in areas) {
-                    int[] scores = report.Domains.SelectMany(d => d.Areas).Where(a => a.Area == area && a.Score.HasValue).Select(static a => a.Score!.Value).ToArray();
-                    int? score = scores.Length == 0 || areaChecks.Any(static c => c.Scored && !c.EvidenceComplete) ? null : (int)Math.Round(scores.Average());
-                    int errors = areaChecks.Count(static c => c.Outcome == CheckOutcome.Error);
-                    int warnings = areaChecks.Count(static c => c.Outcome == CheckOutcome.Warning);
-                    int incomplete = areaChecks.Count(static c => !c.EvidenceComplete);
-                    int passed = areaChecks.Count(static c => c.Scored && c.Outcome == CheckOutcome.Pass);
-                    int informational = areaChecks.Count(static c => c.Outcome == CheckOutcome.Info);
-                    Severity tone = errors > 0 ? Severity.High : warnings > 0 ? Severity.Elevated : incomplete > 0 ? Severity.Skipped : score.HasValue ? Severity.Good : Severity.Informational;
-                    list.Scope(AreaLabel(area), tone, item => {
-                        item.Status(errors > 0 ? "Errors" : warnings > 0 ? "Needs attention" : incomplete > 0 ? "Incomplete" : score.HasValue ? "Passing" : "Informational");
-                        // An unscored area says so in the score box, muted, instead of an empty "-"; the note says why.
-                        bool unscored = !score.HasValue && areaChecks.Any(static c => c.Scored && !c.EvidenceComplete);
-                        item.Metric("Score", score?.ToString(CultureInfo.InvariantCulture) ?? "Not scored", score.HasValue ? GradeSeverity(score) : Severity.Skipped);
-                        item.Metric("Checks", areaChecks.Count.ToString(CultureInfo.InvariantCulture));
-                        if (informational > 0) item.Metric("Informational", informational.ToString(CultureInfo.InvariantCulture), Severity.Informational);
-                        item.Progress(passed, errors + warnings + areaChecks.Count(static c => c.Outcome == CheckOutcome.Incomplete));
-                        item.Note(AreaNote(report, areaChecks));
-                        if (report.Domains.Count == 1) item.Link("Open checks", ids.Domain(report.Domains[0]));
-                    });
-                }
-            }));
-    }
-
-    /// <summary>
-    /// One tile per key control. For one domain the tile shows the control's headline number and opens the check; for
-    /// several it shows how many domains pass.
-    /// </summary>
-    private static void RenderControls(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
-        var present = ControlChecks(report).ToList();
-        if (present.Count == 0) return;
-        section.ReportPanel(panel => panel
-            .Title("Controls")
-            .Anchor("dd-summary-controls")
-            .Subtitle(report.Domains.Count == 1 ? "The number that matters most for each control. Open one for the detail." : "Domains where each control passes.")
-            .Settings(s => s.Flush())
-            .AssessmentStats(stats => {
-                foreach (var control in present) {
-                    string key = control.Key;
-                    if (report.Domains.Count == 1) {
-                        DomainAssessment domain = report.Domains[0];
-                        CheckAssessment check = domain.Checks.First(c => c.Key == key);
-                        string value = Headline(check)?.Value ?? OutcomeLabel(check.Outcome);
-                        stats.Stat(value, check.Title, OutcomeSeverity(check.Outcome), ids.Check(domain, check));
-                    } else {
-                        var results = report.Domains.Select(d => d.Checks.FirstOrDefault(c => c.Key == key)).Where(static c => c != null).ToList();
-                        int passing = results.Count(static c => c!.Scored && c.Outcome == CheckOutcome.Pass);
-                        string title = results[0]!.Title;
-                        Severity tone = results.Any(static c => c!.Outcome == CheckOutcome.Error) ? Severity.High
-                            : results.Any(static c => c!.Outcome == CheckOutcome.Warning) ? Severity.Elevated
-                            : results.Any(static c => !c!.EvidenceComplete || c.Outcome == CheckOutcome.Incomplete) ? Severity.Skipped
-                            : passing == results.Count ? Severity.Good : Severity.Informational;
-                        stats.Stat($"{passing.ToString(CultureInfo.InvariantCulture)} / {results.Count.ToString(CultureInfo.InvariantCulture)}", title, tone);
-                    }
-                }
-            }));
     }
 
     private static void RenderCoverage(AssessmentReportSection section, DomainAssessmentReport report, CheckIds ids) {
@@ -324,6 +246,9 @@ public static partial class AssessmentHtmlReport {
             .Title("How this report is scored")
             .AssessmentFacts(facts => {
                 foreach (var fact in ScoringFacts) facts.Fact(fact.Key, fact.Value);
+                if (report.Domains.Any(static d => d.RiskProfile != null)) {
+                    facts.Fact("Risk profile", RiskScaleNote + " Rules " + report.Domains.First(static d => d.RiskProfile != null).RiskProfile!.RuleVersion + ".", true);
+                }
                 facts.Fact("Generated", FormatTime(report.GeneratedAtUtc));
             }));
         if (report.UnassignedInputs.Count > 0) {

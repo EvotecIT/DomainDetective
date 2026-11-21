@@ -21,6 +21,12 @@ public sealed class DomainScanResult
     public WebResult Web { get; init; } = new();
     /// <summary>Gets or sets the reputation value.</summary>
     public ReputationResult Reputation { get; init; } = new();
+    /// <summary>Addresses behind the domain with network and hosting attribution.</summary>
+    public NetworkResult Network { get; init; } = new();
+    /// <summary>Certificate transparency history.</summary>
+    public CertificateHistoryResult Certificates { get; init; } = new();
+    /// <summary>Risk score and confidence from the risk profile, when its source checks ran.</summary>
+    public RiskResult? Risk { get; set; }
 
     /// <summary>Gets the notes value.</summary>
     public List<string> Notes { get; } = new();
@@ -105,6 +111,74 @@ public sealed class WebResult
     public bool? DaneTlsa { get; set; }
     /// <summary>Gets or sets the smimea value.</summary>
     public bool? Smimea { get; set; }
+    /// <summary>Technologies detected on the website, when the web scan ran.</summary>
+    public List<string> Technologies { get; set; } = new();
+}
+
+/// <summary>Addresses, networks and hosting providers behind the domain.</summary>
+public sealed class NetworkResult
+{
+    /// <summary>Enriched addresses.</summary>
+    public List<AddressInfo> Addresses { get; set; } = new();
+    /// <summary>Distinct autonomous systems, for example "AS13335 CLOUDFLARENET".</summary>
+    public List<string> Asns { get; set; } = new();
+    /// <summary>Distinct hosting and CDN providers.</summary>
+    public List<string> HostingProviders { get; set; } = new();
+}
+
+/// <summary>One address behind the domain.</summary>
+public sealed class AddressInfo
+{
+    /// <summary>Address.</summary>
+    public string Ip { get; set; } = string.Empty;
+    /// <summary>Where it was found: apex, MX or NS.</summary>
+    public string Source { get; set; } = string.Empty;
+    /// <summary>Autonomous system number.</summary>
+    public int? Asn { get; set; }
+    /// <summary>Autonomous system or network name.</summary>
+    public string? AsName { get; set; }
+    /// <summary>Network in CIDR notation.</summary>
+    public string? Cidr { get; set; }
+    /// <summary>Country code: the RDAP registration country unless GeoIP data is configured.</summary>
+    public string? Country { get; set; }
+    /// <summary>Hosting or CDN provider from published ranges.</summary>
+    public string? Hosting { get; set; }
+    /// <summary>True for a CDN or edge proxy.</summary>
+    public bool IsCdn { get; set; }
+}
+
+/// <summary>Certificate transparency history.</summary>
+public sealed class CertificateHistoryResult
+{
+    /// <summary>Earliest CT entry for the domain or its subdomains.</summary>
+    public DateTimeOffset? FirstSeenUtc { get; set; }
+    /// <summary>Latest CT entry.</summary>
+    public DateTimeOffset? LastSeenUtc { get; set; }
+    /// <summary>Issuers, most certificates first.</summary>
+    public List<string> Issuers { get; set; } = new();
+    /// <summary>Unique certificates seen.</summary>
+    public int? Certificates { get; set; }
+    /// <summary>CT source: ddct-api, crt.sh or certspotter.</summary>
+    public string? Source { get; set; }
+}
+
+/// <summary>Risk score and confidence.</summary>
+public sealed class RiskResult
+{
+    /// <summary>Risk from 0 to 100.</summary>
+    public int Score { get; set; }
+    /// <summary>None, Low, Medium, High or Critical; NotRated when too little evidence was collected.</summary>
+    public string Level { get; set; } = string.Empty;
+    /// <summary>False when too little evidence was collected to give a level.</summary>
+    public bool Rated { get; set; }
+    /// <summary>Confidence from 0 to 1.</summary>
+    public double Confidence { get; set; }
+    /// <summary>Low, Medium or High.</summary>
+    public string ConfidenceLevel { get; set; } = string.Empty;
+    /// <summary>What moved the score, with signed points.</summary>
+    public List<string> Signals { get; set; } = new();
+    /// <summary>What would raise confidence.</summary>
+    public List<string> Gaps { get; set; } = new();
 }
 
 /// <summary>Reputation and registry-related results.</summary>

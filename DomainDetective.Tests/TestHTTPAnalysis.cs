@@ -210,7 +210,7 @@ namespace DomainDetective.Tests {
 
 #if NET8_0_OR_GREATER
         [Fact]
-        public async Task LogsWarningWhenHttp3Downgraded() {
+        public async Task NotesHttp3DowngradeWithoutAWarning() {
             Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
             using var listener = new HttpListener();
             var port = GetFreePort();
@@ -227,10 +227,14 @@ namespace DomainDetective.Tests {
             try {
                 var logger = new InternalLogger();
                 var warnings = new List<LogEventArgs>();
+                var notes = new List<LogEventArgs>();
                 logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                logger.OnInformationMessage += (_, e) => notes.Add(e);
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, logger);
-                Assert.Contains(warnings, w => w.FullMessage.Contains("HTTP/3"));
+                // HTTP/3 is optional: answering over HTTP/2 is noted, not warned about.
+                Assert.Contains(notes, w => w.FullMessage.Contains("HTTP/3"));
+                Assert.DoesNotContain(warnings, w => w.FullMessage.Contains("HTTP/3"));
             } finally {
                 listener.Stop();
                 await serverTask;

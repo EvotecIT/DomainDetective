@@ -39,6 +39,23 @@ public class TestAssessmentEvidenceCompletion {
         Assert.Equal(0, domain.PassedChecks);
     }
 
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(0, 0)]
+    public void ACountOnlyErrorIsKeptBesideALookupGapWithoutCountingTheGapTwice(int countOnlyErrors, int expectedErrors) {
+        // One warning that is a failed lookup (a gap) and, when present, an error the view only counts.
+        var view = new CaaInfo {
+            Check = HealthCheckType.CAA, Subject = "example.test", WarningCount = 1, ErrorCount = countOnlyErrors,
+            Assessments = new[] { new Assessment { Severity = AssessmentSeverity.Warning, Code = "CAA.QueryFailed", Message = "The CAA query failed." } }
+        };
+
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.Equal(expectedErrors, check.ErrorCount);
+        Assert.Equal(0, check.WarningCount);
+        Assert.Equal(expectedErrors > 0 ? CheckOutcome.Error : CheckOutcome.Incomplete, check.Outcome);
+    }
+
     [Fact]
     public void IndeterminateDnssecDoesNotClaimValidationInTheProfile() {
         var view = new DnssecStatusInfo { Check = HealthCheckType.DNSSEC, Subject = "example.test", ValidationStatus = DnssecValidationStatus.Indeterminate };
@@ -46,18 +63,22 @@ public class TestAssessmentEvidenceCompletion {
     }
 
     [Fact]
-    public void PartialScoredEvidenceCannotProduceAPerfectDomainOrOverallGrade() {
+    public void PartialScoredEvidenceIsScoredOnlyOnWhatWasJudgedAndSaysSo() {
         var report = DomainAssessmentBuilder.Build(new object[] {
             new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", SpfRecordExists = true },
             new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" }
         });
         var domain = Assert.Single(report.Domains);
         Assert.Equal(100, Assert.Single(domain.Checks, check => check.Check == HealthCheckType.SPF).Score);
-        Assert.Null(domain.Score);
-        Assert.Null(report.Score);
-        Assert.Equal("-", domain.Grade);
-        Assert.Equal("-", report.Grade);
-        Assert.Null(Assert.Single(domain.Areas).Score);
+        // The MX check could not be judged: it is left out of the score, and the coverage says how much is missing.
+        Assert.Null(Assert.Single(domain.Checks, check => check.Check == HealthCheckType.MX).Score);
+        Assert.Equal(100, domain.Score);
+        Assert.Equal(0.5, domain.Coverage);
+        Assert.Equal(0.5, report.Coverage);
+        AreaScore area = Assert.Single(domain.Areas);
+        Assert.Equal(0.5, area.Coverage);
+        Assert.Equal(new[] { "MX" }, area.Incomplete);
+        Assert.Equal("Grade A from 50% of the scored check weight; 1 scored check could not be judged and is left out.", AssessmentReportWording.ScoreNote(report));
     }
 
     [Theory]
@@ -103,15 +124,16 @@ public class TestAssessmentEvidenceCompletion {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void IncompleteChecksRemainInTheAttentionListAndDefaultExplorer(bool includeWarning) {
+    public void ChecksThatCouldNotRunStayOutOfTheAttentionListButInTheExplorer(bool includeWarning) {
         var views = new List<object> { new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Status = "Incomplete" } };
         if (includeWarning) views.Add(new SpfRecordInfo { Check = HealthCheckType.SPF, Subject = "example.test", Assessments = new[] {
             new Assessment { Severity = AssessmentSeverity.Warning, Message = "Published SPF needs correction.", Code = "SPF.Fixture.Warning" }
         } });
-        var html = Render(views.ToArray());
-        Assert.DoesNotContain("Nothing needs attention", html);
-        Assert.Contains($"title=\"checks need attention\">{(includeWarning ? 2 : 1)}</span>", html);
-        Assert.Contains("\"values\":[\"Error\",\"Warning\",\"Incomplete\"]", html);
+        var html = System.Net.WebUtility.HtmlDecode(Render(views.ToArray()));
+        // A check that couldn't run is not something to fix; it is shown as such, and only real findings are counted.
+        if (includeWarning) Assert.Contains("title=\"checks need attention\">1</span>", html);
+        else Assert.Contains("Nothing needs attention", html);
+        Assert.Contains("Couldn't check", html);
     }
 
     [Theory]
