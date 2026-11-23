@@ -420,6 +420,23 @@ public class TestDomainRiskProfile {
         Assert.Equal(settled, result.ForwardAnswered);
     }
 
+    [Fact]
+    public async System.Threading.Tasks.Task AnIpv6AddressWrittenInFullIsConfirmedByTheShortenedAnswer() {
+        var analysis = new FCrDnsAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => System.Threading.Tasks.Task.FromResult(new DnsClientX.DnsResponse {
+            Status = DnsClientX.DnsResponseCode.NoError,
+            Answers = type == DnsClientX.DnsRecordType.AAAA
+                ? new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "2001:db8::10" } }
+                : Array.Empty<DnsClientX.DnsAnswer>()
+        });
+        var reverse = new ReverseDnsAnalysis.ReverseDnsResult { IpAddress = "2001:0db8:0:0:0:0:0:10" };
+        reverse.PtrRecords.Add("mail.example.test");
+
+        await analysis.Analyze(new[] { reverse });
+
+        Assert.True(Assert.Single(analysis.Results).ForwardConfirmed);
+    }
+
     [Theory]
     [InlineData(2, false)]
     [InlineData(3, true)]

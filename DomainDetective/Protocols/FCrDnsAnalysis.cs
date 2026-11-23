@@ -105,7 +105,7 @@ public class FCrDnsAnalysis
                 // other family does not settle a mismatch.
                 answered |= (isIpv6 ? aaaaConclusive : aConclusive) && (a.Length > 0 || aaaa.Length > 0);
                 logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
-                if (a.Concat(aaaa).Any(r => r.Data == item.IpAddress))
+                if (a.Concat(aaaa).Any(r => SameAddress(r.Data, address, item.IpAddress)))
                 {
                     match = true;
                     break;
@@ -122,4 +122,10 @@ public class FCrDnsAnalysis
             });
         }
     }
+
+    // 2001:db8::1 and 2001:0db8:0:0:0:0:0:1 are the same address, so compare parsed addresses when both sides parse.
+    private static bool SameAddress(string? answer, IPAddress? expected, string? raw) =>
+        expected != null && IPAddress.TryParse(answer?.Trim(), out var parsed)
+            ? parsed.Equals(expected)
+            : string.Equals(answer, raw, StringComparison.OrdinalIgnoreCase);
 }
