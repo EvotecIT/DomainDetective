@@ -83,7 +83,7 @@ public class TestWizardPartialResults {
         try {
             OutputFormatters.FormatAsSelectedSummary(health, new[] { HealthCheckType.DKIM }, new HashSet<HealthCheckType> { HealthCheckType.DKIM });
             Assert.Contains("selector-fixture", output.ToString());
-            Assert.Contains("no key", output.ToString());
+            Assert.Contains("No public key published", output.ToString());
             Assert.DoesNotContain("See check details", output.ToString());
             _output.WriteLine(output.ToString());
         } finally { AnsiConsole.Console = previous; }

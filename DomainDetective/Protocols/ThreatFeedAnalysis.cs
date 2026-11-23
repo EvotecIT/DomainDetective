@@ -78,12 +78,14 @@ public class ThreatFeedAnalysis : IHasAssessments {
     }
 
 
-    private static bool ParseAbuseIpDb(string json) {
+    // Null when the answer carries no abuse score: nothing was learned, which is not the same as a clean address.
+    private static bool? ParseAbuseIpDb(string json) {
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("data", out var data)) {
-            return false;
+        if (!doc.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty("abuseConfidenceScore", out var score)
+            || score.ValueKind != JsonValueKind.Number) {
+            return null;
         }
-        return data.TryGetProperty("abuseConfidenceScore", out var score) && score.GetInt32() > 0;
+        return score.GetInt32() > 0;
     }
 
     /// <summary>Queries all enabled threat feeds.</summary>
@@ -95,12 +97,17 @@ public class ThreatFeedAnalysis : IHasAssessments {
 
         var vtListed = false;
         var abuseListed = false;
+        var vtState = ThreatIntelQueryState.NotQueried;
+        var abuseState = ThreatIntelQueryState.NotQueried;
 
         if (virusTotalApiKey != null && !string.IsNullOrWhiteSpace(virusTotalApiKey)) {
             try {
                 var result = await QueryVirusTotal(ip, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
-            } catch (Exception ex) {
+                vtState = result?.Attributes?.LastAnalysisStats == null ? ThreatIntelQueryState.Failed
+                    : vtListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
+                vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
@@ -109,15 +116,18 @@ public class ThreatFeedAnalysis : IHasAssessments {
         if (abuseIpDbApiKey != null && !string.IsNullOrWhiteSpace(abuseIpDbApiKey)) {
             try {
                 var json = await QueryAbuseIpDb(ip, abuseIpDbApiKey, ct);
-                abuseListed = ParseAbuseIpDb(json);
-            } catch (Exception ex) {
+                bool? abuse = ParseAbuseIpDb(json);
+                abuseListed = abuse == true;
+                abuseState = !abuse.HasValue ? ThreatIntelQueryState.Failed : abuseListed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
+                abuseState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.AbuseIpdbQueryFailed, "AbuseIPDB query failed: {0}", ex.Message);
                 FailureReason = $"AbuseIPDB query failed: {ex.Message}";
             }
         }
 
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed, State = vtState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed, State = abuseState });
 
         if (!vtListed && !abuseListed)
         {

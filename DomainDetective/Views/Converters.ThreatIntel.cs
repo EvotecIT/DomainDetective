@@ -11,7 +11,7 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-        var findings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed }).ToList() ?? new List<ThreatListing>();
+        var findings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed, State = l.State.ToString() }).ToList() ?? new List<ThreatListing>();
         var flagged = findings.Count(f => f.Listed);
         return new ThreatIntelInfo
         {
@@ -85,5 +85,7 @@ public class ThreatListing
     public string Source { get; set; } = null!;
     /// <summary>Gets or sets the listed value.</summary>
     public bool Listed { get; set; }
+    /// <summary>Whether the source was queried: NotQueried, Clean, Listed or Failed.</summary>
+    public string State { get; set; } = string.Empty;
 }
 

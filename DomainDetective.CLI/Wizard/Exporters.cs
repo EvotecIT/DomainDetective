@@ -50,7 +50,31 @@ public static class Exporters
             sb.Append($"<li>HSTS: {Flag(res.Web.Hsts)}</li>");
             if (res.Web.Tls is not null)
                 sb.Append($"<li>TLS: {Escape(res.Web.Tls.Subject ?? "")} / {Escape(res.Web.Tls.Issuer ?? "")} / NotAfter {res.Web.Tls.NotAfter:u}</li>");
+            if (res.Web.Technologies.Count > 0)
+                sb.Append($"<li>Technologies: {Escape(string.Join(", ", res.Web.Technologies))}</li>");
             sb.Append("</ul></div>");
+
+            if (res.Risk is not null)
+            {
+                sb.AppendLine("<div class='card'><h2>Risk</h2><ul>");
+                sb.Append(res.Risk.Rated
+                    ? $"<li>Risk: {Escape(res.Risk.Level)} ({res.Risk.Score})</li>"
+                    : "<li>Risk: not rated, too little evidence</li>");
+                sb.Append($"<li>Confidence: {Escape(res.Risk.ConfidenceLevel)} ({res.Risk.Confidence.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)})</li>");
+                foreach (var signal in res.Risk.Signals) sb.Append($"<li>{Escape(signal)}</li>");
+                foreach (var gap in res.Risk.Gaps) sb.Append($"<li>To raise confidence: {Escape(gap)}</li>");
+                sb.Append("</ul></div>");
+            }
+
+            if (res.Network.Addresses.Count > 0 || res.Certificates.FirstSeenUtc.HasValue)
+            {
+                sb.AppendLine("<div class='card'><h2>Network and certificates</h2><ul>");
+                if (res.Network.Asns.Count > 0) sb.Append($"<li>Networks: {Escape(string.Join(", ", res.Network.Asns))}</li>");
+                if (res.Network.HostingProviders.Count > 0) sb.Append($"<li>Hosting: {Escape(string.Join(", ", res.Network.HostingProviders))}</li>");
+                if (res.Certificates.FirstSeenUtc.HasValue) sb.Append($"<li>CT first seen: {res.Certificates.FirstSeenUtc.Value:u}</li>");
+                if (res.Certificates.Issuers.Count > 0) sb.Append($"<li>Issuers: {Escape(string.Join(", ", res.Certificates.Issuers.Take(5)))}</li>");
+                sb.Append("</ul></div>");
+            }
 
             sb.AppendLine("<div class='card'><h2>Reputation</h2><ul>");
             sb.Append($"<li>Registrar: {Escape(res.Reputation.WhoisRegistrar ?? "")}</li>");

@@ -126,7 +126,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         {
             ProviderId = ProviderId,
             Certificates = [
-                CtCertificateRecord.FromLoggedDer(
+                WithFirstObservation(CtCertificateRecord.FromLoggedDer(
                     ProviderId,
                     der,
                     verifiedCertificate: null,
@@ -134,7 +134,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                     entryTimestampUtc: latest.LastCtObservedAtUtc ?? latest.FirstCtObservedAtUtc,
                     tbsSha256: latest.TbsSha256,
                     isPrecertificate: latest.IsPrecertificate,
-                    detailLevel: CtCertificateRecordDetailLevel.Full)
+                    detailLevel: CtCertificateRecordDetailLevel.Full), latest.FirstCtObservedAtUtc)
             ],
             DiscoveredNames = certificates
                 .Select(static item => CertificateTransparencyNameUtility.Normalize(item.MatchedName))
@@ -353,7 +353,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         foreach (DdctCertificateSearchDto item in selectedCertificates)
         {
             byte[] der = await DownloadCertificateDerAsync(item.Sha256Fingerprint, cancellationToken).ConfigureAwait(false);
-            certificates.Add(CtCertificateRecord.FromLoggedDer(
+            certificates.Add(WithFirstObservation(CtCertificateRecord.FromLoggedDer(
                 ProviderId,
                 der,
                 verifiedCertificate: null,
@@ -361,7 +361,7 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
                 entryTimestampUtc: item.LastCtObservedAtUtc ?? item.FirstCtObservedAtUtc,
                 tbsSha256: item.TbsSha256,
                 isPrecertificate: item.IsPrecertificate,
-                detailLevel: CtCertificateRecordDetailLevel.Full));
+                detailLevel: CtCertificateRecordDetailLevel.Full), item.FirstCtObservedAtUtc));
         }
 
         return new CtCertificateQueryResult
@@ -444,6 +444,16 @@ public sealed class DdctApiCertificateTransparencyProvider : ICtCertificateTrans
         using Stream stream = await ReadContentStreamAsync(response.Content, cancellationToken).ConfigureAwait(false);
         T? payload = await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
         return payload ?? throw new InvalidOperationException("DDCT API returned an empty JSON payload.");
+    }
+
+    // DDCT tracks the first and the latest CT observation. The entry timestamp keeps the latest one; issuance-based
+    // views (first seen, recent issuance) read the first.
+    private static CtCertificateRecord WithFirstObservation(CtCertificateRecord record, DateTimeOffset? firstObservedUtc)
+    {
+        record.FirstEntryTimestampUtc = firstObservedUtc;
+        // Without a first observation the issuance date is unknown; the latest observation must not stand in for it.
+        record.TracksFirstObservation = true;
+        return record;
     }
 
     private async Task<byte[]> DownloadCertificateDerAsync(string sha256Fingerprint, CancellationToken cancellationToken)

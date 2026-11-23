@@ -1,0 +1,181 @@
+using System.IO.Compression;
+using System.Net;
+using DomainDetective.Profiles;
+using DomainDetective.Reports;
+using DomainDetective.Reports.Html;
+using DomainDetective.Reports.Markdown;
+using DomainDetective.Reports.Office;
+using DomainDetective.Views;
+using Wording = DomainDetective.Reports.AssessmentReportWording;
+
+namespace DomainDetective.Tests.Reports;
+
+public partial class TestAssessmentExports {
+    // Made-up evidence: listed by one feed, registered 12 days ago, VirusTotal never queried.
+    private static DomainRiskProfile RiskProfile(string domain) {
+        var now = new DateTimeOffset(2026, 10, 21, 17, 32, 0, TimeSpan.Zero);
+        var evidence = new DomainRiskEvidence {
+            Domain = domain,
+            DomainBlocklistState = EvidenceState.Clean,
+            HostBlocklistState = EvidenceState.Clean,
+            RegistrationSource = "RDAP",
+            CreatedState = EvidenceState.Observed, CreatedUtc = now.AddDays(-12),
+            ExpiryState = EvidenceState.Observed, ExpiresUtc = now.AddYears(1),
+            StatusState = EvidenceState.Observed, RegistrarState = EvidenceState.Observed, Registrar = "Example Registrar",
+            CtState = EvidenceState.Observed, CtSource = "crt.sh", CtFirstSeenUtc = now.AddDays(-11), UniqueCertificates = 2,
+            InventoryState = EvidenceState.Observed, NameServerState = EvidenceState.Observed,
+            DnssecState = EvidenceState.Observed, Dnssec = DnssecValidationStatus.Insecure, PtrState = EvidenceState.Observed,
+            NetworkState = EvidenceState.NotQueried
+        };
+        evidence.Issuers["Example CA"] = 2;
+        evidence.Feeds.Add(new ThreatFeedEvidence { Id = "gsb", Name = "Google Safe Browsing", Weight = 0.25, State = EvidenceState.Observed, Listed = true });
+        evidence.Feeds.Add(new ThreatFeedEvidence { Id = "virustotal", Name = "VirusTotal", Weight = 0.20, State = EvidenceState.NotQueried, Action = "Add a VirusTotal API key" });
+        return DomainRiskProfileEvaluator.Evaluate(evidence, now);
+    }
+
+    [Fact]
+    public void EveryFormatPrintsTheSameRiskVerdictSignalsAndGaps() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create(2);
+            foreach (DomainAssessment domain in report.Domains) domain.RiskProfile = RiskProfile(domain.Domain);
+            DomainRiskProfile profile = report.Domains[0].RiskProfile!;
+            string html = WebUtility.HtmlDecode(AssessmentHtmlReport.Render(report));
+            string markdown = AssessmentMarkdownReport.Render(report);
+            string wordPath = Path.Combine(directory, "assessment.docx"), excelPath = Path.Combine(directory, "assessment.xlsx");
+            AssessmentWordReport.Generate(wordPath, report);
+            AssessmentExcelReport.Generate(excelPath, report);
+            using var word = ZipFile.OpenRead(wordPath);
+            using var excel = ZipFile.OpenRead(excelPath);
+            string[] outputs = { html, WordText(Load(word, "word/document.xml")), WorkbookText(excel), markdown };
+
+            // HTML leads with the verdict word and its reason; the paper and data formats print the full sentence.
+            Assert.Contains(Wording.RiskWord(profile), outputs[0]);
+            Assert.Contains(Wording.RiskReason(profile), outputs[0]);
+            foreach (string output in outputs.Skip(1)) Assert.Contains(Wording.RiskVerdict(profile), output);
+            foreach (string output in outputs) {
+                foreach (RiskSignal signal in Wording.ShownSignals(profile)) Assert.Contains(signal.Reason, output);
+            }
+            // The page, paper and Markdown formats also rank the domains and print what would raise confidence.
+            foreach (string output in new[] { outputs[0], outputs[1], outputs[3] }) {
+                Assert.Contains("Risk by domain", output);
+                Assert.Contains("Add a VirusTotal API key", output);
+            }
+            Assert.Contains("data-dd-risk-profile=\"" + report.Domains[0].Domain + "\"", AssessmentHtmlReport.Render(report));
+        });
+    }
+
+    [Fact]
+    public void ExcelGetsOneRowPerSignalAndPerEvidenceItem() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create();
+            report.Domains[0].RiskProfile = RiskProfile(report.Domains[0].Domain);
+            string path = Path.Combine(directory, "assessment.xlsx");
+            AssessmentExcelReport.Generate(path, report);
+            using var excel = ZipFile.OpenRead(path);
+            string workbook = Load(excel, "xl/workbook.xml").ToString();
+
+            // One risk sheet holds the verdict, one row per signal and one row per evidence item.
+            Assert.Contains("Risk profile", workbook);
+            Assert.DoesNotContain("Risk signals", workbook);
+            string text = WorkbookText(excel);
+            DomainRiskProfile profile = report.Domains[0].RiskProfile!;
+            foreach (RiskSignal signal in profile.Signals) Assert.Contains(signal.Reason, text);
+            foreach (EvidenceItem item in profile.Facets.SelectMany(f => f.Evidence)) Assert.Contains(item.Label, text);
+            // Internal rule identifiers stay out of the workbook.
+            Assert.DoesNotContain("reputation.listed.gsb", text);
+        });
+    }
+
+    [Fact]
+    public void ReportsWithoutAProfileAreUnchanged() {
+        var report = AssessmentExportFixture.Create();
+        Assert.DoesNotContain("Risk profile", AssessmentMarkdownReport.Render(report));
+        Assert.DoesNotContain("data-dd-risk-profile", AssessmentHtmlReport.Render(report));
+    }
+
+    [Fact]
+    public void TheBuilderAttachesTheProfileViewToItsDomainWithoutAddingACheck() {
+        var view = new DomainRiskProfileInfo { Subject = "Example.TEST.", Profile = RiskProfile("example.test") };
+
+        DomainAssessmentReport report = DomainAssessmentBuilder.Build(new object[] { view });
+
+        DomainAssessment domain = Assert.Single(report.Domains);
+        Assert.Equal("example.test", domain.Domain);
+        Assert.Same(view.Profile, domain.RiskProfile);
+        Assert.Empty(domain.Checks);
+        Assert.Empty(report.UnassignedInputs);
+    }
+
+    [Fact]
+    public void TheBuilderKeepsTheProfileThatSawTheMostEvidence() {
+        var fuller = new DomainRiskProfileInfo { Subject = "example.test", Profile = RiskProfile("example.test") };
+        fuller.Profile.EvidenceScore = 0.9;
+        var partial = new DomainRiskProfileInfo { Subject = "example.test", Profile = RiskProfile("example.test") };
+        partial.Profile.EvidenceScore = 0.2;
+
+        DomainAssessmentReport report = DomainAssessmentBuilder.Build(new object[] { fuller, partial });
+
+        Assert.Same(fuller.Profile, Assert.Single(report.Domains).RiskProfile);
+    }
+
+    [Fact]
+    public void TheProfileSurvivesTheAssessmentJson() {
+        var report = AssessmentExportFixture.Create();
+        report.Domains[0].RiskProfile = RiskProfile(report.Domains[0].Domain);
+
+        DomainAssessmentReport? copy = DomainAssessmentJson.Deserialize(DomainAssessmentJson.Serialize(report));
+
+        DomainRiskProfile? profile = copy?.Domains[0].RiskProfile;
+        Assert.NotNull(profile);
+        Assert.Equal(report.Domains[0].RiskProfile!.RiskScore, profile!.RiskScore);
+        Assert.Equal(report.Domains[0].RiskProfile!.RiskLevel, profile.RiskLevel);
+        Assert.Equal(report.Domains[0].RiskProfile!.Signals.Count, profile.Signals.Count);
+    }
+
+    [Fact]
+    public void TheWorkbookRiskColumnSaysNotRatedBelowTheRatingFloor() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create();
+            var evidence = new DomainRiskEvidence { Domain = report.Domains[0].Domain, InventoryState = EvidenceState.Observed };
+            DomainRiskProfile profile = DomainRiskProfileEvaluator.Evaluate(evidence);
+            Assert.False(profile.Rated);
+            report.Domains[0].RiskProfile = profile;
+            string path = Path.Combine(directory, "unrated.xlsx");
+            AssessmentExcelReport.Generate(path, report);
+            using var excel = ZipFile.OpenRead(path);
+            string[] strings = SpreadsheetStrings(excel);
+
+            Assert.Contains("Not rated", strings);
+            Assert.DoesNotContain(Wording.RiskLevelLabel(profile.RiskLevel), strings.Where(s => s == "None" || s == "Low"));
+        });
+    }
+
+    [Fact]
+    public void EveryFormatShowsTheSameMultiDomainAreaScore() {
+        InDirectory(directory => {
+            var report = AssessmentExportFixture.Create(2);
+            // Domain one judged one Mail check at 100; domain two judged several at 0. Pooling checks would not give 50.
+            report.Domains[0].Areas.Single(a => a.Area == AnalysisArea.Mail).Score = 100;
+            report.Domains[1].Areas.Single(a => a.Area == AnalysisArea.Mail).Score = 0;
+            foreach (var check in report.Domains[0].Checks.Where(c => c.Area == AnalysisArea.Mail).Skip(1)) { check.EvidenceComplete = false; check.Score = null; }
+            (int? score, _) = DomainAssessmentCatalog.AreaScore(report, AnalysisArea.Mail);
+            Assert.Equal(50, score);
+
+            var html = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(AssessmentHtmlReport.Render(report));
+            var mail = html.QuerySelectorAll(".dd-area").Single(row => row.QuerySelector(".dd-area-name b")?.TextContent == "Mail");
+            Assert.Equal("50", mail.QuerySelector(".dd-area-score b")!.TextContent);
+            Assert.Contains("| Mail | ", AssessmentMarkdownReport.Render(report));
+            Assert.Matches(@"\| Mail \| [^|]+ \| 50", AssessmentMarkdownReport.Render(report));
+
+            string wordPath = Path.Combine(directory, "areas.docx"), excelPath = Path.Combine(directory, "areas.xlsx");
+            AssessmentWordReport.Generate(wordPath, report);
+            AssessmentExcelReport.Generate(excelPath, report);
+            using var word = ZipFile.OpenRead(wordPath);
+            var mailRow = Load(word, "word/document.xml").Descendants(Word + "tr")
+                .First(row => row.Elements(Word + "tc").FirstOrDefault()?.Value == "Mail" && row.Elements(Word + "tc").Count() >= 3);
+            Assert.StartsWith("50", mailRow.Elements(Word + "tc").ElementAt(2).Value);
+            using var excel = ZipFile.OpenRead(excelPath);
+            Assert.Contains("50", WorkbookText(excel));
+        });
+    }
+}

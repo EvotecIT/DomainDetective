@@ -47,6 +47,9 @@ Versioned technical classification data, deployment overlays, traceable hits and
 ### 15. [Certificate probe profiles](certificate-probe-profiles.md)
 Direct TLS, SMTP STARTTLS and FTP TLS collection with independent endpoint/profile/vantage identities.
 
+### 16. [DOMAIN_RISK_PROFILE.MD](DOMAIN_RISK_PROFILE.MD)
+Risk score and confidence per domain from registration, reputation, CT, DNS and network evidence; hosting and CDN ranges; CT from DDCT.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
 **[../TODO.md](../TODO.md)**

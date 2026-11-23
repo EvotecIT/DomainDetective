@@ -167,9 +167,9 @@ namespace DomainDetective.Tests.Reports {
             Assert.Contains("of them with errors.", html);
             Assert.Contains("hfx-as-ring is-grade", html);
             Assert.Contains("Do these first", html);
-            // One card per area, each saying in one line what needs attention.
+            // One row per area, each saying in one line what to look at.
             Assert.Contains("Area by area", html);
-            Assert.Contains("Needs attention: DMARC", html);
+            Assert.Contains("Look at DMARC", html);
             Assert.True(html.IndexOf("Do these first", StringComparison.Ordinal) < html.IndexOf("Area by area", StringComparison.Ordinal));
         }
 
@@ -391,6 +391,22 @@ namespace DomainDetective.Tests.Reports {
 
             Assert.DoesNotContain("<script>alert(1)</script>", html, StringComparison.Ordinal);
             Assert.DoesNotContain("<img src=x onerror", html, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("NS.Glue.Incomplete", "Parent zone missing glue records for in-bailiwick NS", false)]
+        [InlineData("DKIM.Key.Invalid", "Published DKIM public key could not be validated", false)]
+        [InlineData("DNSAMPLIFICATION.Probe.Failed", "DNS amplification probe failed: The UDP query timed out.", true)]
+        [InlineData("DNSBL.Provider.Error", "DNSBL provider dbl.example was not checked: A: Provider returned error response 127.255.255.254.", true)]
+        public void OnlyALookupThatDidNotFinishIsACheckThatCouldNotRun(string code, string message, bool couldNotRun) {
+            var view = new NsInfo {
+                Check = HealthCheckType.NS, Subject = "example.org",
+                Assessments = new[] { new Assessment { Severity = AssessmentSeverity.Warning, Code = code, Message = message } }
+            };
+            CheckAssessment check = DomainAssessmentBuilder.Build(new object[] { view }).Domains.Single().Checks.Single();
+
+            Assert.Equal(couldNotRun, check.Findings.Single().IsEvidenceGap);
+            Assert.Equal(couldNotRun ? CheckOutcome.Incomplete : CheckOutcome.Warning, check.Outcome);
         }
     }
 }

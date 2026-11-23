@@ -44,11 +44,13 @@ public static partial class AssessmentMarkdownReport {
         if (!report.Score.HasValue) document.P(InlineText(Wording.ScoreNote(report)));
         WriteActions(document, report, options);
         WriteAreas(document, report);
+        WriteRiskSummary(document, report);
         foreach (DomainAssessment domain in report.Domains) {
             document.H2(InlineText(domain.Domain));
             document.P(InlineText(Wording.DomainVerdict(domain)));
             document.P(InlineText(domain.Score.HasValue
                 ? domain.Grade + " · " + domain.Score.Value.ToString(CultureInfo.InvariantCulture) + " / 100" : "Not scored"));
+            WriteRiskProfile(document, domain);
             document.H3("Needs attention");
             CheckAssessment[] attention = Wording.FixOrder(domain.Checks).ToArray();
             if (attention.Length == 0) { document.P("Nothing needs attention."); }
@@ -59,7 +61,8 @@ public static partial class AssessmentMarkdownReport {
             });
         }
         document.H2("How scoring works");
-        AddTable(document, new[] { "Measure", "How it works" }, Wording.ScoringFacts.Select(static fact => new[] { fact.Key, fact.Value }));
+        AddTable(document, new[] { "Measure", "How it works" }, Wording.ScoringFacts.Select(static fact => new[] { fact.Key, fact.Value })
+            .Concat(report.Domains.Any(static d => d.RiskProfile != null) ? new[] { new[] { "Risk profile", Wording.RiskScaleNote } } : System.Array.Empty<string[]>()));
         return document.ToMarkdown(new MarkdownSaveOptions { TextEscapingMode = MarkdownTextEscapingMode.LiteralBackslash });
     }
 

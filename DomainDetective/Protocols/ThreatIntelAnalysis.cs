@@ -177,27 +177,57 @@ public class ThreatIntelAnalysis : IHasAssessments
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("results", out var res))
         {
-            return false;
+            // An error or meta-only body answers nothing; treat it as a failed query, not a clean one.
+            throw new System.IO.InvalidDataException("PhishTank response has no results.");
         }
-        var valid = res.TryGetProperty("valid", out var v) && v.GetString() == "true";
-        var inDb = res.TryGetProperty("in_database", out var db) && db.GetString() == "true";
-        return valid && inDb;
+        // Without an explicit in_database answer (and a valid flag for an entry it holds) nothing was answered.
+        bool inDb = PhishTankFlag(res, "in_database") ?? throw new System.IO.InvalidDataException("PhishTank response has no in_database answer.");
+        if (!inDb) return false;
+        return PhishTankFlag(res, "valid") ?? throw new System.IO.InvalidDataException("PhishTank response has no valid answer.");
     }
 
-    // URLHaus host lookup (no API key required)
+    // PhishTank writes its flags as JSON booleans or as "true"/"false" strings.
+    private static bool? PhishTankFlag(JsonElement results, string name)
+    {
+        if (results.ValueKind != JsonValueKind.Object || !results.TryGetProperty(name, out JsonElement value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when string.Equals(value.GetString(), "true", StringComparison.OrdinalIgnoreCase) => true,
+            JsonValueKind.String when string.Equals(value.GetString(), "false", StringComparison.OrdinalIgnoreCase) => false,
+            _ => null
+        };
+    }
+
+    /// <summary>Override URLhaus host lookup (for tests). Returns provider JSON.</summary>
+    public Func<string, Task<string>>? UrlHausOverride { private get; set; }
+
+    // URLHaus host lookup (no API key required). A failed request or an unexpected answer throws, so it is recorded as a
+    // failed query rather than a clean one.
     private async Task<bool> QueryUrlHausListed(string domainName, CancellationToken ct)
     {
-        try {
+        {
             if (_cacheUrlHaus.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
                 return e.listed;
             }
-            using var content = new System.Net.Http.FormUrlEncodedContent(new[] { new KeyValuePair<string,string>("host", domainName) });
-            using var resp = await _client.PostAsync("https://urlhaus-api.abuse.ch/v1/host/", content, ct);
-            var json = await ReadAsStringAsync(resp);
+            string json;
+            if (UrlHausOverride != null) {
+                json = await UrlHausOverride(domainName);
+            } else {
+                using var content = new System.Net.Http.FormUrlEncodedContent(new[] { new KeyValuePair<string,string>("host", domainName) });
+                using var resp = await _client.PostAsync("https://urlhaus-api.abuse.ch/v1/host/", content, ct);
+                resp.EnsureSuccessStatusCode();
+                json = await ReadAsStringAsync(resp);
+            }
             using var doc = JsonDocument.Parse(json);
             bool listed = false;
             _urlHausLastSeenUtc = null;
-            if (doc.RootElement.TryGetProperty("query_status", out var status) && status.GetString() == "ok") {
+            string? queryStatus = doc.RootElement.TryGetProperty("query_status", out var statusElement) ? statusElement.GetString() : null;
+            if (queryStatus != "ok" && queryStatus != "no_results") {
+                throw new InvalidOperationException("URLhaus returned query_status '" + (queryStatus ?? "missing") + "'.");
+            }
+            if (queryStatus == "ok") {
                 if (doc.RootElement.TryGetProperty("url_count", out var count) && count.GetInt32() > 0) listed = true;
                 // Try to extract most recent timestamp from urls[] entries
                 if (doc.RootElement.TryGetProperty("urls", out var urls) && urls.ValueKind == JsonValueKind.Array) {
@@ -215,34 +245,42 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
             _cacheUrlHaus[domainName] = (DateTime.UtcNow, listed);
             return listed;
-        } catch {
-            return false;
         }
     }
 
     /// <summary>Override for OpenPhish JSON/CSV checks (for tests). Returns provider JSON.</summary>
     public Func<string, Task<string>>? OpenPhishOverride { private get; set; }
-    private async Task<bool> QueryOpenPhishListed(string domainName, CancellationToken ct)
+    // Accepts JSON { "listed": true|false } or the plain words "listed" / "not listed". Anything else is not an answer,
+    // so it throws and is recorded as a failed query rather than a clean one.
+    private static bool ParseOpenPhish(string? text) {
+        string trimmed = (text ?? string.Empty).Trim();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal)) {
+            using var doc = JsonDocument.Parse(trimmed);
+            if (doc.RootElement.TryGetProperty("listed", out var l) && (l.ValueKind == JsonValueKind.True || l.ValueKind == JsonValueKind.False)) {
+                return l.GetBoolean();
+            }
+            throw new InvalidOperationException("OpenPhish answer has no 'listed' value.");
+        }
+        if (string.Equals(trimmed, "listed", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(trimmed, "not listed", StringComparison.OrdinalIgnoreCase)) return false;
+        throw new InvalidOperationException("OpenPhish answer was not recognized.");
+    }
+
+    // Null when no OpenPhish source is configured: the feed was not queried. A failing source throws.
+    private async Task<bool?> QueryOpenPhishListed(string domainName, CancellationToken ct)
     {
-        try {
+        {
             if (_cacheOpenPhish.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
                 return e.listed;
             }
             if (OpenPhishOverride != null) {
                 var text = await OpenPhishOverride(domainName);
-                // Expect simple responses: "listed" or JSON with { listed: true }
-                bool listed = false;
-                try {
-                    using var doc = JsonDocument.Parse(text);
-                    if (doc.RootElement.TryGetProperty("listed", out var l)) listed = l.GetBoolean();
-                } catch {
-                    listed = text.IndexOf("listed", StringComparison.OrdinalIgnoreCase) >= 0;
-                }
+                bool listed = ParseOpenPhish(text);
                 _cacheOpenPhish[domainName] = (DateTime.UtcNow, listed);
                 return listed;
             }
-        } catch { }
-        return false; // disabled by default to avoid heavy feed downloads
+        }
+        return null; // no feed source configured; downloading the full feed is left to the caller
     }
 
 
@@ -262,6 +300,11 @@ public class ThreatIntelAnalysis : IHasAssessments
         var vtListed = false;
         var urlHausListed = false;
         var openPhishListed = false;
+        var googleState = ThreatIntelQueryState.NotQueried;
+        var phishState = ThreatIntelQueryState.NotQueried;
+        var vtState = ThreatIntelQueryState.NotQueried;
+        var urlHausState = ThreatIntelQueryState.NotQueried;
+        var openPhishState = ThreatIntelQueryState.NotQueried;
 
         if (googleApiKey != null && !string.IsNullOrWhiteSpace(googleApiKey))
         {
@@ -269,9 +312,11 @@ public class ThreatIntelAnalysis : IHasAssessments
             {
                 var json = await QueryGoogle(domainName, googleApiKey, ct);
                 googleListed = ParseGoogle(json);
+                googleState = StateFor(googleListed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
+                googleState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.GsbQueryFailed, "Google Safe Browsing query failed: {0}", ex.Message);
                 FailureReason = $"Google Safe Browsing query failed: {ex.Message}";
             }
@@ -283,9 +328,11 @@ public class ThreatIntelAnalysis : IHasAssessments
             {
                 var json = await QueryPhishTank(domainName, phishTankApiKey, ct);
                 phishListed = ParsePhishTank(json);
+                phishState = StateFor(phishListed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
+                phishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.PhishTankQueryFailed, "PhishTank query failed: {0}", ex.Message);
                 FailureReason = $"PhishTank query failed: {ex.Message}";
             }
@@ -298,13 +345,16 @@ public class ThreatIntelAnalysis : IHasAssessments
                 var result = await QueryVirusTotal(domainName, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
                 RiskScore = result?.Attributes?.Reputation;
+                // A response without analysis statistics answers nothing, so it is a failed query, not a clean one.
+                vtState = result?.Attributes?.LastAnalysisStats == null ? ThreatIntelQueryState.Failed : StateFor(vtListed);
                 if (RiskScore.HasValue && RiskScore.Value >= 70)
                 {
                     logger?.WriteWarningCode(ThreatIntelCodes.VirusTotalRiskHigh, "VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
+                vtState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
@@ -315,7 +365,9 @@ public class ThreatIntelAnalysis : IHasAssessments
         {
             try {
                 urlHausListed = await QueryUrlHausListed(domainName, ct);
-            } catch (Exception ex) {
+                urlHausState = StateFor(urlHausListed);
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
+                urlHausState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.UrlHausQueryFailed, "URLHaus query failed: {0}", ex.Message);
                 FailureReason = $"URLHaus query failed: {ex.Message}";
             }
@@ -325,19 +377,22 @@ public class ThreatIntelAnalysis : IHasAssessments
         if (EnableOpenPhish)
         {
             try {
-                openPhishListed = await QueryOpenPhishListed(domainName, ct);
-            } catch (Exception ex) {
+                bool? openPhish = await QueryOpenPhishListed(domainName, ct);
+                openPhishListed = openPhish == true;
+                openPhishState = openPhish.HasValue ? StateFor(openPhishListed) : ThreatIntelQueryState.NotQueried;
+            } catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) {
+                openPhishState = ThreatIntelQueryState.Failed;
                 logger?.WriteErrorCode(ThreatIntelCodes.OpenPhishQueryFailed, "OpenPhish query failed: {0}", ex.Message);
                 FailureReason = $"OpenPhish query failed: {ex.Message}";
             }
         }
 
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.GoogleSafeBrowsing, IsListed = googleListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
-        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.UrlHaus, IsListed = urlHausListed });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.GoogleSafeBrowsing, IsListed = googleListed, State = googleState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed, State = phishState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed, State = vtState });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.UrlHaus, IsListed = urlHausListed, State = urlHausState });
         if (EnableOpenPhish)
-            Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.OpenPhish, IsListed = openPhishListed });
+            Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.OpenPhish, IsListed = openPhishListed, State = openPhishState });
 
         // Compute composite score and confidence
         ComputeComposite(domainName, googleListed, phishListed, vtListed, urlHausListed, openPhishListed, RiskScore);
@@ -345,6 +400,8 @@ public class ThreatIntelAnalysis : IHasAssessments
             logger?.WriteInformationCode(ThreatIntelCodes.NoListings, "No threat intelligence listings for {0}", domainName);
         }
     }
+
+    private static ThreatIntelQueryState StateFor(bool listed) => listed ? ThreatIntelQueryState.Listed : ThreatIntelQueryState.Clean;
 
     /// <summary>Gets the assessments value.</summary>
     public List<Assessment> Assessments { get; } = new();

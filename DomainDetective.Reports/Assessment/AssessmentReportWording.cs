@@ -6,7 +6,7 @@ using System.Linq;
 namespace DomainDetective.Reports;
 
 /// <summary>The format-independent vocabulary and reading order of an assessment.</summary>
-public static class AssessmentReportWording {
+public static partial class AssessmentReportWording {
     /// <summary>What needs attention in an area, in one line.</summary>
     public static string AreaLine(DomainAssessmentReport report, List<CheckAssessment> checks) {
         var titles = FixOrder(checks).Select(static c => c.Title).Distinct(StringComparer.Ordinal).ToList();
@@ -62,7 +62,7 @@ public static class AssessmentReportWording {
         int incomplete = checks.Count(static c => !c.EvidenceComplete);
         string what = $"{Plural(checks.Count, "check")} in {Plural(areas, "area")}: {passed.ToString(CultureInfo.InvariantCulture)} passed";
         if (info > 0) what += $", {info.ToString(CultureInfo.InvariantCulture)} informational";
-        if (incomplete > 0) what += $", {incomplete.ToString(CultureInfo.InvariantCulture)} with incomplete evidence";
+        if (incomplete > 0) what += $", {incomplete.ToString(CultureInfo.InvariantCulture)} couldn't be checked";
         return what + (report.Domains.Count > 1 && report.Score.HasValue ? ". The overall grade averages the domain scores." : ".");
     }
 
@@ -101,13 +101,16 @@ public static class AssessmentReportWording {
     /// </summary>
     public static string DomainVerdict(DomainAssessment domain) {
         string? strengths = DomainStrengths(domain);
+        // Name the checks only: a finding cut short to fit a sentence reads as broken text, and each is printed in full
+        // where the check is listed.
         string[] fixes = FixOrder(domain.Checks)
+            .Select(static c => c.Title)
+            .Distinct(StringComparer.Ordinal)
             .Take(3)
-            .Select(c => c.Title + (TopFinding(c) is { } finding ? " (" + Shorten(finding.TrimEnd('.'), 48) + ")" : string.Empty))
             .ToArray();
         string first = strengths == null ? string.Empty : strengths + " ";
         string second = fixes.Length == 0 ? domain.Checks.Any(c => !c.EvidenceComplete)
-            ? IncompleteEvidence(domain.Checks) : "Every scored check passed." : "Fix first: " + string.Join("; ", fixes) + ".";
+            ? IncompleteEvidence(domain.Checks) : "Every scored check passed." : "Fix first: " + JoinList(fixes.ToList()) + ".";
         return first + second;
     }
 
@@ -132,8 +135,8 @@ public static class AssessmentReportWording {
     /// <see cref="DomainAssessmentCatalog.SecurityPriority"/>), then errors before warnings, then by what costs the score
     /// most (points lost times the check's weight).
     /// </summary>
-    public static bool NeedsAttention(CheckAssessment check) => !check.EvidenceComplete
-        || check.Outcome is CheckOutcome.Error or CheckOutcome.Warning or CheckOutcome.Incomplete;
+    // Only something found about the domain needs attention; a check that couldn't run is reported separately.
+    public static bool NeedsAttention(CheckAssessment check) => check.Outcome is CheckOutcome.Error or CheckOutcome.Warning;
 
     /// <summary>Shared assessment wording and selection for FixOrder.</summary>
     public static IEnumerable<CheckAssessment> FixOrder(IEnumerable<CheckAssessment> checks) => checks
@@ -154,7 +157,8 @@ public static class AssessmentReportWording {
 
     /// <summary>The first non-informational finding in the check's display order.</summary>
     public static string? TopFinding(CheckAssessment check)
-        => check.Findings.FirstOrDefault(static f => f.Severity != AssessmentSeverity.Info)?.Message;
+        => check.Findings.FirstOrDefault(static f => f.Severity != AssessmentSeverity.Info && !f.IsEvidenceGap)?.Message
+           ?? check.Findings.FirstOrDefault(static f => f.IsEvidenceGap)?.Message;
 
 
     /// <summary>Shortens a sentence fragment with an ellipsis.</summary>
@@ -181,13 +185,13 @@ public static class AssessmentReportWording {
     public static string OutcomeLabel(CheckOutcome outcome) => outcome switch {
         CheckOutcome.Error => "Error",
         CheckOutcome.Warning => "Warning",
-        CheckOutcome.Incomplete => "Incomplete",
+        CheckOutcome.Incomplete => "Couldn't check",
         CheckOutcome.Pass => "Pass",
         _ => "Info"
     };
 
     /// <summary>The finding label distinguishes unavailable evidence from an observed error or warning.</summary>
-    public static string FindingLabel(CheckFinding finding) => finding.IsEvidenceGap ? "Incomplete" : finding.Severity switch {
+    public static string FindingLabel(CheckFinding finding) => finding.IsEvidenceGap ? "Couldn't check" : finding.Severity switch {
         AssessmentSeverity.Error => "Error",
         AssessmentSeverity.Warning => "Warning",
         _ => "Info"
@@ -198,6 +202,7 @@ public static class AssessmentReportWording {
     public static string AreaLabel(AnalysisArea area) => area switch {
         AnalysisArea.DNS => "DNS",
         AnalysisArea.General => "Other",
+        AnalysisArea.Reputation => "Reputation",
         _ => area.ToString()
     };
 
@@ -222,11 +227,11 @@ public static class AssessmentReportWording {
     public static string ScoreNote(DomainAssessmentReport report) {
         var checks = report.Domains.SelectMany(d => d.Checks).ToList();
         if (checks.Any(c => c.Scored && !c.EvidenceComplete)) {
-            var areas = DomainAssessmentCatalog.AreaOrder.Where(area => checks.Any(c => c.Area == area && c.Scored && !c.EvidenceComplete)).Select(AreaLabel).ToList();
             int incomplete = checks.Count(static c => c.Scored && !c.EvidenceComplete);
-            string evidence = incomplete == 1
-                ? $"{Plural(incomplete, "scored check")} has incomplete evidence." : "some scored checks have incomplete evidence.";
-            return $"No overall grade: {evidence} Not scored: {JoinList(areas)}.";
+            string left = incomplete == 1 ? "1 scored check could not be judged" : $"{incomplete.ToString(CultureInfo.InvariantCulture)} scored checks could not be judged";
+            return report.Score.HasValue
+                ? $"Grade {report.Grade} from {CoveragePercent(report.Coverage)} of the scored check weight; {left} and {(incomplete == 1 ? "is" : "are")} left out."
+                : $"No grade yet: {left}.";
         }
         return ScoreNote(report.Score, checks.Count(c => c.Outcome == CheckOutcome.Error), checks.Count(c => c.Outcome == CheckOutcome.Warning));
     }
@@ -268,8 +273,8 @@ public static class AssessmentReportWording {
 
     /// <summary>The action's area and count of additional warning/error findings.</summary>
     public static string DoFirstSource(CheckAssessment check) {
-        int more = check.ErrorCount + check.WarningCount - 1;
-        return more > 0 ? $"{AreaLabel(check.Area)} · and {Plural(more, "more finding")}" : AreaLabel(check.Area);
+        int total = check.ErrorCount + check.WarningCount;
+        return total > 1 ? $"{AreaLabel(check.Area)} · {Plural(total, "finding")}" : AreaLabel(check.Area);
     }
 
     private static string IncompleteEvidence(IEnumerable<CheckAssessment> checks) {
@@ -279,12 +284,12 @@ public static class AssessmentReportWording {
 
     /// <summary>The complete area note, including the evidence qualification used by HTML.</summary>
     public static string AreaNote(DomainAssessmentReport report, List<CheckAssessment> checks) =>
-        (checks.Any(c => c.Scored && !c.EvidenceComplete) ? "Incomplete evidence. " : string.Empty) + AreaLine(report, checks);
+        (checks.Any(c => c.Scored && !c.EvidenceComplete) ? "Some checks couldn't run. " : string.Empty) + AreaLine(report, checks);
 
     /// <summary>The scoring facts printed in the HTML About section and paper appendix.</summary>
     public static IReadOnlyList<KeyValuePair<string, string>> ScoringFacts { get; } = Array.AsReadOnly(new[] {
         new KeyValuePair<string,string>("Check score", "100 when a check passes; 15 points off per warning (not below 50); with errors, 40 for the first, 10 less for each further error and 5 less per warning (not below 0)."),
-        new KeyValuePair<string,string>("Domain score", "Weighted average of scored checks. DMARC counts three times, SPF, DKIM, MX and DNSSEC twice."),
+        new KeyValuePair<string,string>("Domain score", "Weighted average of the scored checks that could be judged. DMARC counts three times, SPF, DKIM, MX and DNSSEC twice. A check whose evidence is incomplete is left out unless it already shows errors or warnings, and the share of the check weight judged is shown with the score."),
         new KeyValuePair<string,string>("Informational checks", "Inventory and discovery checks (subdomains, DNS inventory, CT timeline, Microsoft 365, ...) are shown but not scored."),
         new KeyValuePair<string,string>("Grade", "A from 90, B from 80, C from 70, D from 60, otherwise F.")
     });

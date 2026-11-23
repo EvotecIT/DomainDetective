@@ -12,7 +12,8 @@ Standalone ARC and message-header inputs use the message evidence renderers for 
 - **Same states as the HTML:**
   - Error is high (red).
   - Warning is elevated (amber).
-  - Incomplete evidence is neutral grey, never amber, and an area or check without a score says "Not scored".
+  - A check that couldn't run (a lookup or probe that failed) is "Couldn't check" in neutral grey, never amber. It is never a thing to fix and never counts as a warning.
+  - Area and domain scores count the checks that could be judged and show the share they rest on ("83% of checks judged"). Only an area where nothing could be judged says "Not scored".
   - Pass is green. Zero figures are muted, not green.
 - **Paper style:** OfficeIMO `WordPaperStyle`. Defaults: Aptos / Aptos Display, ink 202428, hairline tables. Accent: the report's teal (0F766E) for the cover rule and eyebrows only. Status colours come from the same semantic tones as the HTML report.
 - **Typography:** body 10.5 pt; tables 9 pt; identifiers (hostnames, record values, codes) in a monospace face, wrapped with `WordPaperText` identifier wrapping so they break at dots and hyphens, not mid-label.
@@ -65,25 +66,29 @@ Order:
    - "How scoring works": the same facts as the HTML About section.
    - Raw records (SPF/DMARC/MTA-STS text) in monospace key-value tables.
    - Captured facts and lists from checks without a detailed block, including informational and passing checks. Hiding informational findings does not hide their evidence.
+   - Table evidence up to 12 rows and 9 columns prints in full; a larger table is listed with its size and points to the Excel workbook, which has every row. Long finding and fact lists in the domain chapters say how many were left out the same way.
 
 The opening summary, Contents, Do these first, Area by area and Controls flow together. A one-domain report starts Do these first on page 1. Break before each domain chapter and the appendix; the appendix subsections flow. The score note appears only in How scoring works. Paper-table sizing reserves each header's longest unbreakable word plus padding. Key numbers use the body font.
 
 ## 2. DD Excel
 
-One workbook, OfficeIMO.Excel, paper-like formatting:
-- frozen header row, autofilter, column widths fitted;
-- outcome cells toned with text colour only;
-- no merged cells.
-- long prose and records wrap in bounded columns; print layout is landscape and one page wide.
+One workbook, OfficeIMO.Excel:
+- every list is a native Excel table with banded rows and a filter; the header row and identifying columns are frozen;
+- outcome cells have a pale fill behind the tone colour (error red, warning amber, pass green, couldn't check grey);
+- scores are numbers with a 0–100 data bar; an unscored cell is empty, and the sheet header says why;
+- a one-domain workbook names the domain in each sheet title instead of repeating a Domain column;
+- column widths are set deliberately and only finding text wraps;
+- sheet tabs are coloured by group.
 
 Sheets:
 
-1. **Summary**: verdict and detail as two text rows, then the area table from §1.4.
+1. **Summary**: the verdict, tiles (score with coverage, needs attention, errors, couldn't check, risk, confidence), the area table with score bars and coverage, the top actions, and an outcome chart.
 2. **Do these first**: one row per domain and check for filtering, retaining the shared action wording.
-3. **Checks**: one row per domain × check, the same columns as the HTML Explore "Checks" dataset (Domain, Area, Check, Outcome, Key number, Score, Errors, Warnings, Top finding, Key numbers, Summary). It reads from the same dataset definition if possible.
+3. **Checks**: one row per domain × check: Domain (several domains only), Area, Check (linked to its evidence), Outcome, Score, and one plain-words "What was found" column.
 4. **Findings**: the same columns as the Explore "Findings" dataset.
 5. **Evidence**: captured facts, raw records and list items, attributed to their domain and check. Collection-time omissions remain explicit.
-6. **Table evidence**: one sheet per check type with table evidence (MX hosts, name servers, DKIM selectors, mail TLS servers and so on). The first column is Domain. Sheet names use the check title, for example "Evidence · DKIM" and "Evidence · MX". OfficeIMO sanitizes forbidden characters, truncates to 31 characters, and reserves suffix space for case-insensitive duplicate names such as " (2)" in first-appearance order.
+   Table evidence (MX hosts, name servers, DKIM selectors and so on) sits on the same sheet, grouped by check under a heading row with collapsible row groups, instead of one sheet per check.
+6. **Risk profile**: when a domain has one, its verdict, signals, evidence coverage and facts.
 
 ## 3. DD Markdown
 

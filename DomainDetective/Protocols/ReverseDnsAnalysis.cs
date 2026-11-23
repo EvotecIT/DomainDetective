@@ -80,7 +80,15 @@ namespace DomainDetective {
             public bool IsValid => string.Equals(PtrRecord, ExpectedHost, StringComparison.Ordinal);
             /// <summary>True when any PTR hostname resolves back to <see cref="IpAddress"/>.</summary>
             public bool FcrDnsValid { get; set; }
+            /// <summary>
+            /// True when the PTR lookup returned no records and no conclusive answer (for example SERVFAIL or a timeout),
+            /// so a missing PTR record is unknown rather than confirmed.
+            /// </summary>
+            public bool PtrLookupFailed { get; set; }
         }
+
+        private static bool IsConclusive(DnsResponse response) =>
+            string.IsNullOrEmpty(response.Error) && (response.Status == DnsResponseCode.NoError || response.Status == DnsResponseCode.NXDomain);
 
         /// <summary>Gets the collection of PTR results.</summary>
         public List<ReverseDnsResult> Results { get; private set; } = new();
@@ -150,10 +158,12 @@ namespace DomainDetective {
                 var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == AddressFamily.InterNetworkV6 ? ".ip6.arpa" : ".in-addr.arpa");
                 DnsAnswer[] ptrAnswers;
                 bool truncated = false;
+                bool lookupFailed = false;
                 if (ip.AddressFamily == AddressFamily.InterNetworkV6) {
-                    var resp = await QueryDnsFull(ptrName, DnsRecordType.PTR, cancellationToken);
+                    var resp = (await QueryDnsFull(ptrName, DnsRecordType.PTR, cancellationToken)).ToArray();
                     truncated = resp.Any(r => r.IsTruncated);
                     ptrAnswers = resp.SelectMany(r => r.Answers).ToArray();
+                    lookupFailed = !resp.Any(IsConclusive);
                     if (truncated) {
                         if (QueryDnsOverride != null) {
                             ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR).WaitWithCancellation(cancellationToken);
@@ -162,12 +172,18 @@ namespace DomainDetective {
                             ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR, cancellationToken: cancellationToken);
                         }
                         if (ptrAnswers.Length == 0) {
+                            lookupFailed = true;
                             logger?.WriteWarningCode(ReverseDnsCodes.TruncatedNoRecords, $"PTR query for {ip} was truncated and returned no records after TCP retry");
                         }
                     }
-                } else {
+                } else if (QueryDnsOverride != null) {
                     ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR, cancellationToken);
+                } else {
+                    var response = await DnsConfiguration.QueryDNSResponse(ptrName, DnsRecordType.PTR, cancellationToken: cancellationToken);
+                    ptrAnswers = response.Answers ?? Array.Empty<DnsAnswer>();
+                    lookupFailed = !IsConclusive(response);
                 }
+                lookupFailed &= ptrAnswers.Length == 0;
 
                 var ptrs = new List<string>();
                 foreach (var ans in ptrAnswers) {
@@ -186,7 +202,8 @@ namespace DomainDetective {
                 var result = new ReverseDnsResult {
                     IpAddress = ip.ToString(),
                     PtrRecord = ptr,
-                    ExpectedHost = NormalizeHost(host)
+                    ExpectedHost = NormalizeHost(host),
+                    PtrLookupFailed = lookupFailed
                 };
                 result.PtrRecords.AddRange(ptrs);
 

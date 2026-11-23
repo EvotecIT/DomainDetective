@@ -9,9 +9,9 @@ namespace DomainDetective.Tests.Reports;
 
 public class TestAssessmentReportWording {
     [Theory]
-    [InlineData(CheckOutcome.Warning, "elevated")]
-    [InlineData(CheckOutcome.Error, "high")]
-    [InlineData(CheckOutcome.Incomplete, "skipped")]
+    [InlineData(CheckOutcome.Warning, "dd-tone-warn")]
+    [InlineData(CheckOutcome.Error, "dd-tone-bad")]
+    [InlineData(CheckOutcome.Incomplete, "dd-tone-neutral")]
     public void MultiDomainControlsUseTheWorstStatus(CheckOutcome outcome, string tone) {
         var report = AssessmentExportFixture.Create(3);
         foreach (var domain in report.Domains) {
@@ -20,20 +20,21 @@ public class TestAssessmentReportWording {
             certificate.EvidenceComplete = outcome != CheckOutcome.Incomplete;
         }
         var document = new HtmlParser().ParseDocument(AssessmentHtmlReport.Render(report));
-        var tile = document.QuerySelectorAll(".hfx-as-stat").Single(item => item.QuerySelector("span")?.TextContent == "Certificate");
-        Assert.Equal(tone, tile.QuerySelector("b")!.GetAttribute("data-tone"));
+        var tile = document.QuerySelectorAll(".dd-control").Single(item => item.QuerySelector(".dd-control-name")?.TextContent == "Certificate");
+        Assert.Contains(tone, tile.ClassList);
     }
 
     [Fact]
-    public void InformationalAreaHasNeutralProgressAndScoredAreasUsePostureTones() {
+    public void InformationalAreaHasNoBarAndScoredAreasUseTheirStatusTone() {
         var document = new HtmlParser().ParseDocument(AssessmentHtmlReport.Render(AssessmentExportFixture.Create()));
-        var scopes = document.QuerySelectorAll(".hfx-as-scope");
-        var other = scopes.Single(scope => scope.QuerySelector(".hfx-as-scope-title")?.TextContent == "Other");
-        Assert.Equal("info", other.GetAttribute("data-sev"));
-        Assert.Contains("is-empty", other.QuerySelector(".hfx-as-progress")!.ClassList);
-        Assert.Null(other.QuerySelector(".hfx-as-progress .is-pass"));
-        var web = scopes.Single(scope => scope.QuerySelector(".hfx-as-scope-title")?.TextContent == "Web");
-        Assert.Equal("elevated", web.QuerySelectorAll("[data-tone]").Single(value => value.TextContent == "85").GetAttribute("data-tone"));
+        var rows = document.QuerySelectorAll(".dd-area");
+        var other = rows.Single(row => row.QuerySelector(".dd-area-name b")?.TextContent == "Other");
+        Assert.Contains("dd-tone-info", other.ClassList);
+        Assert.Null(other.QuerySelector(".dd-bar"));
+        var web = rows.Single(row => row.QuerySelector(".dd-area-name b")?.TextContent == "Web");
+        Assert.Contains("dd-tone-warn", web.ClassList);
+        Assert.Equal("85", web.QuerySelector(".dd-area-score b")!.TextContent);
+        Assert.NotNull(web.QuerySelector(".dd-bar .dd-warn"));
     }
 
     [Theory]
@@ -55,8 +56,8 @@ public class TestAssessmentReportWording {
     }
 
     [Theory]
-    [InlineData(CheckOutcome.Pass, "The 1 check passes.")]
-    [InlineData(CheckOutcome.Info, "Informational check only.")]
+    [InlineData(CheckOutcome.Pass, "1 check: 1 pass")]
+    [InlineData(CheckOutcome.Info, "1 check: 1 informational")]
     public void HtmlArtifactUsesSingletonAreaWording(CheckOutcome outcome, string expected) {
         var report = CreateArea(1, outcome);
         string html = WebUtility.HtmlDecode(AssessmentHtmlReport.Render(report));
@@ -73,8 +74,8 @@ public class TestAssessmentReportWording {
     }
 
     [Theory]
-    [InlineData(1, "No overall grade: 1 scored check has incomplete evidence. Not scored: Security.")]
-    [InlineData(2, "No overall grade: some scored checks have incomplete evidence. Not scored: Security.")]
+    [InlineData(1, "No grade yet: 1 scored check could not be judged.")]
+    [InlineData(2, "No grade yet: 2 scored checks could not be judged.")]
     public void IncompleteScoreNoteUsesCountAgreementInHtmlAndMarkdown(int count, string expected) {
         var report = CreateArea(count, CheckOutcome.Incomplete);
         // HTML renders its score caption alongside a score or completed-area meter. Keep a completed area in this
@@ -92,8 +93,8 @@ public class TestAssessmentReportWording {
 
     [Theory]
     [InlineData(0, "Mail")]
-    [InlineData(1, "Mail · and 1 more finding")]
-    [InlineData(3, "Mail · and 3 more findings")]
+    [InlineData(1, "Mail · 2 findings")]
+    [InlineData(3, "Mail · 4 findings")]
     public void ActionSourceUsesCountAgreement(int additionalFindings, string expected) {
         var check = new CheckAssessment { Area = AnalysisArea.Mail, ErrorCount = 1, WarningCount = additionalFindings };
         Assert.Equal(expected, Wording.DoFirstSource(check));

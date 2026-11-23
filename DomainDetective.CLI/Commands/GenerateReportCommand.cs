@@ -151,6 +151,10 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
 	                        HealthCheckType.DNSAMPLIFICATION,
 	                        HealthCheckType.DNSOVERTLS,
 	                        HealthCheckType.IPENRICHMENT,
+	                        // Registration and reputation evidence for the risk profile.
+	                        HealthCheckType.RDAP,
+	                        HealthCheckType.THREATINTEL,
+	                        HealthCheckType.FCRDNS,
 	                    };
                     if (settings.IncludeDnsTrace) {
                         reportChecks.Add(HealthCheckType.DNSTRACE);

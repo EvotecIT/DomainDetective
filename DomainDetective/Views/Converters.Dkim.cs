@@ -57,7 +57,9 @@ public static partial class Converters
                 Status = status,
                 WarningCount = warnCount,
                 ErrorCount = errCount,
-                Summary = $"{(result.PublicKeyExists ? result.KeyLength.ToString() : "no key")} bits; alg {result.HashAlgorithm ?? "?"}",
+                Summary = result.PublicKeyExists
+                    ? $"{result.KeyLength}-bit key" + (string.IsNullOrWhiteSpace(result.HashAlgorithm) ? string.Empty : $", {result.HashAlgorithm}")
+                    : "No public key published",
                 Recommendations = recs,
                 Positives = RecommendationEngine.FromPositives(a),
                 References = BuildReferences(analysis.RfcReferences, recs),

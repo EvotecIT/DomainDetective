@@ -29,6 +29,9 @@ public static partial class Converters
             Subject = analysis.Subject,
             QuerySucceeded = analysis.QuerySucceeded,
             FailureReason = analysis.FailureReason,
+            Source = analysis.Source,
+            ProviderFailureReason = analysis.ProviderFailureReason,
+            PartialResults = analysis.PartialResults,
             CertificateObservationCount = analysis.CertificateObservationCount,
             UniqueCertificateCount = analysis.UniqueCertificateCount,
             FirstSeenUtc = analysis.FirstSeenUtc,
@@ -69,6 +72,12 @@ public sealed class CtTimelineInfo
     public bool QuerySucceeded { get; set; }
     /// <summary>Gets or sets the failure reason value.</summary>
     public string? FailureReason { get; set; }
+    /// <summary>Source that supplied the timeline: ddct-api, crt.sh or certspotter.</summary>
+    public string? Source { get; set; }
+    /// <summary>Why the configured CT provider was not used, when another source answered instead.</summary>
+    public string? ProviderFailureReason { get; set; }
+    /// <summary>True when one CT query failed while another answered, so the history is partial.</summary>
+    public bool PartialResults { get; set; }
     /// <summary>Gets or sets the certificate observation count value.</summary>
     public int CertificateObservationCount { get; set; }
     /// <summary>Gets or sets the unique certificate count value.</summary>

@@ -56,7 +56,7 @@ public class TestPolicyDiscoveryReportParity {
             DomainDetective.Reports.Office.AssessmentWordReport.Generate(wordPath, DomainAssessmentBuilder.Build(items), new DomainDetective.Reports.Office.AssessmentWordOptions { ShowInfoFindings = false });
             AssessmentExcelReport.Generate(excelPath, DomainDetective.Reports.DomainAssessmentBuilder.Build(items));
             var markdown = DomainDetective.Reports.Markdown.AssessmentMarkdownReport.Render(assessment);
-            Assert.Contains("Incomplete", markdown);
+            Assert.Contains("Couldn't check", markdown);
             Assert.DoesNotContain("| Warning |", markdown);
             // The producer's diagnostic is retained, but its rendered message has a neutral tone.
             using (var archive = ZipFile.OpenRead(wordPath)) {

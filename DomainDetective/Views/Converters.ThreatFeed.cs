@@ -13,7 +13,7 @@ public static partial class Converters
         Summarize(assessments, out var warnCount, out var errCount, out var status);
         var recs = hasAssess ? RecommendationEngine.FromProblems(assessments) : new List<RecommendationAdvice>();
         var positives = hasAssess ? RecommendationEngine.FromPositives(assessments) : new List<RecommendationAdvice>();
-        var listings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed }).ToList() ?? new List<ThreatListing>();
+        var listings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed, State = l.State.ToString() }).ToList() ?? new List<ThreatListing>();
         return new ThreatFeedInfo
         {
             Check = HealthCheckType.THREATFEED,

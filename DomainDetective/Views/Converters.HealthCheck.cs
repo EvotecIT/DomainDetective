@@ -42,6 +42,15 @@ public static partial class Converters {
                 items.Add(new CheckFailureInfo(check, conversionFailure));
             }
         }
+        // The risk profile combines several checks, so it follows them when the selection includes one of its sources.
+        IEnumerable<HealthCheckType> selected = checks ?? health.LastVerifiedChecks;
+        if (selected.Any(DomainDetective.Profiles.DomainRiskProfileBuilder.SourceChecks.Contains)) {
+            try {
+                if (ConvertRiskProfile(health) is { } profile) items.Add(profile);
+            } catch (Exception ex) when (ex is not OutOfMemoryException) {
+                errors?.Add("Risk profile: " + ex.GetType().Name + ": " + ex.Message);
+            }
+        }
         return items;
     }
 

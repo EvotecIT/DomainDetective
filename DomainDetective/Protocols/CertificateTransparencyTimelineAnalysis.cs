@@ -38,6 +38,21 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     /// </summary>
     public Func<string, CancellationToken, Task<string>>? QueryOverride { get; set; }
 
+    /// <summary>
+    /// Optional CT provider queried before crt.sh, for example <c>DdctApiCertificateTransparencyProvider</c> for a
+    /// DDCT instance. When it fails, the analysis falls back to crt.sh and Cert Spotter and records why.
+    /// </summary>
+    public ICtCertificateTransparencyProvider? Provider { get; set; }
+
+    /// <summary>Maximum number of pages read from <see cref="Provider"/>.</summary>
+    public int ProviderMaxPages { get; set; } = 20;
+
+    /// <summary>Source that supplied the timeline: the provider id (for example <c>ddct-api</c>), <c>crt.sh</c> or <c>certspotter</c>.</summary>
+    public string Source { get; private set; } = string.Empty;
+
+    /// <summary>Why <see cref="Provider"/> was not used, when it failed and another source answered.</summary>
+    public string? ProviderFailureReason { get; private set; }
+
     /// <summary>True when CT query succeeded and parsing completed.</summary>
     public bool QuerySucceeded { get; private set; }
 
@@ -83,6 +98,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
     /// <summary>True when processing was capped to protect performance.</summary>
     public bool ResultsCapped { get; private set; }
 
+    /// <summary>
+    /// True when one of the CT queries failed while another answered (for example the subdomain query failed but the
+    /// exact-name query succeeded). The timeline then covers only part of the history, like a capped answer.
+    /// </summary>
+    public bool PartialResults { get; private set; }
+
     /// <summary>Maximum number of CT rows to process across all queries.</summary>
     public int MaxCtRowsToProcess { get; set; } = 10_000;
 
@@ -97,6 +118,12 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
     /// <summary>CT timeline buckets (monthly) based on entry timestamps.</summary>
     public IReadOnlyList<CtTimelineBucket> Timeline { get; private set; } = Array.Empty<CtTimelineBucket>();
+
+    /// <summary>
+    /// Unique certificates returned without any issuance date. They stay undated and are left out of the issuance counts
+    /// and the timeline, so those counts cover only the dated certificates.
+    /// </summary>
+    public int UndatedCertificateCount { get; private set; }
 
     /// <summary>Most recent unique certificates (sample) sorted by entry timestamp descending.</summary>
     public IReadOnlyList<CtCertificateSample> RecentCertificates { get; private set; } = Array.Empty<CtCertificateSample>();
@@ -118,7 +145,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         Subject = DomainHelper.ValidateIdn(domain);
 
         var urls = BuildQueryUrls(Subject!);
-        if (urls.Count == 0)
+        if (urls.Count == 0 && Provider == null)
         {
             QuerySucceeded = true;
             return;
@@ -131,6 +158,40 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         {
             var anyPayloadParsed = false;
             string? lastFailure = null;
+            if (Provider != null)
+            {
+                try
+                {
+                    anyPayloadParsed = await QueryProviderAsync(Provider, certs, logger, cancellationToken).ConfigureAwait(false);
+                    Source = Provider.ProviderId;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    // HttpClient reports its own timeout as a cancellation; unless the caller cancelled, that is a
+                    // provider failure and crt.sh is tried instead.
+                    // Start the fallback from a clean slate so a half-read provider answer is not mixed in.
+                    ResetCounters();
+                    certs.Clear();
+                    ProviderFailureReason = ex.Message;
+                    lastFailure = $"{Provider.ProviderId}: {ex.Message}";
+                    logger?.WriteVerbose("CT provider {0} failed for {1}: {2}", Provider.ProviderId, Subject, ex.Message);
+                }
+                if (anyPayloadParsed && certs.Count == 0)
+                {
+                    // DDCT holds only the names it monitors, so "no certificates" there is not an answer for the
+                    // domain: ask crt.sh instead of reading it as an empty history.
+                    anyPayloadParsed = false;
+                    Source = string.Empty;
+                    ResetCounters();
+                    logger?.WriteVerbose("CT provider {0} returned no certificates for {1}; querying crt.sh", Provider.ProviderId, Subject);
+                }
+                if (anyPayloadParsed)
+                {
+                    urls.Clear();
+                }
+            }
+
+            int failedQueries = 0;
             foreach (var url in urls)
             {
                 // Only the row limit skips the remaining queries; past the unique-certificate cap a later query can
@@ -145,13 +206,24 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                 try
                 {
                     var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                    anyPayloadParsed |= ParseCtJson(json, certs, logger);
+                    bool parsed = ParseCtJson(json, certs, logger);
+                    if (parsed && Source.Length == 0) Source = "crt.sh";
+                    // An empty body answers nothing for this query.
+                    if (!parsed) failedQueries++;
+                    anyPayloadParsed |= parsed;
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
+                    failedQueries++;
                     lastFailure = ex.Message;
                     logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
                 }
+            }
+
+            // Some crt.sh queries answered and some did not: what was read is real, but it is not the whole history.
+            if (anyPayloadParsed && failedQueries > 0)
+            {
+                PartialResults = true;
             }
 
             if (!anyPayloadParsed && UseCertSpotterFallback)
@@ -162,9 +234,11 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
                     try
                     {
                         var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
-                        anyPayloadParsed |= ParseCtJson(fallbackJson, certs, logger);
+                        bool parsed = ParseCtJson(fallbackJson, certs, logger);
+                        if (parsed) Source = "certspotter";
+                        anyPayloadParsed |= parsed;
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                     {
                         lastFailure = lastFailure == null ? ex.Message : $"{lastFailure}; fallback failed: {ex.Message}";
                         logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
@@ -179,7 +253,7 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
             QuerySucceeded = true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
@@ -297,6 +371,14 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         Subject = null;
         QuerySucceeded = false;
         FailureReason = null;
+        Source = string.Empty;
+        ProviderFailureReason = null;
+        ResetCounters();
+        Assessments.Clear();
+    }
+
+    private void ResetCounters()
+    {
         CertificateObservationCount = 0;
         UniqueCertificateCount = 0;
         FirstSeenUtc = null;
@@ -308,10 +390,11 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
         WildcardCertificateCount = 0;
         IssuedLast7Days = 0;
         IssuedLast30Days = 0;
+        UndatedCertificateCount = 0;
         ResultsCapped = false;
+        PartialResults = false;
         Timeline = Array.Empty<CtTimelineBucket>();
         RecentCertificates = Array.Empty<CtCertificateSample>();
-        Assessments.Clear();
     }
 
     private List<string> BuildQueryUrls(string domain)
@@ -404,19 +487,100 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
 
         foreach (var item in doc.RootElement.EnumerateArray())
         {
-            if (!TryStartNextCtObservation())
+            if (!ProcessRow(ReadCtRow(item), certs))
             {
                 break;
             }
-
-            var row = ReadCtRow(item);
-            UpdateFirstAndLastSeen(row.EntryTimestampUtc);
-
-            AddOrMergeCertificate(row, certs);
         }
 
         logger?.WriteVerbose("CT timeline processed {0} row(s), {1} unique certificate(s) for {2}", CertificateObservationCount, certs.Count, Subject);
         return true;
+    }
+
+    // Returns false once the row limit is reached. Statistics are computed afterwards from the merged certificates.
+    private bool ProcessRow(CtRow row, Dictionary<string, CtCertificateAggregate> certs)
+    {
+        if (!TryStartNextCtObservation())
+        {
+            return false;
+        }
+
+        UpdateFirstAndLastSeen(row.EntryTimestampUtc);
+        AddOrMergeCertificate(row, certs);
+        return true;
+    }
+
+    private async Task<bool> QueryProviderAsync(
+        ICtCertificateTransparencyProvider provider,
+        Dictionary<string, CtCertificateAggregate> certs,
+        InternalLogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var query = CtCertificateQuery.ForDomainTreeCertificates(Subject!, requireFullCertificate: false);
+        bool morePages = false;
+        await foreach (var page in provider.QueryPagesAsync(query, null, ProviderMaxPages, cancellationToken).ConfigureAwait(false))
+        {
+            // The provider's own "more" flag decides; without a token the pager stops, but the history is still partial.
+            morePages = page.HasMore;
+            foreach (var record in page.Certificates)
+            {
+                // Issuance is dated by the first CT observation; a later re-observation only moves "last seen".
+                DateTimeOffset? issued = record.TracksFirstObservation
+                    ? record.FirstEntryTimestampUtc
+                    : record.FirstEntryTimestampUtc ?? record.EntryTimestampUtc;
+                var row = new CtRow(
+                    record.Issuer,
+                    CommonNameFrom(record.Subject) ?? record.DnsNames.FirstOrDefault(),
+                    record.DnsNames.Count > 0 ? string.Join("\n", record.DnsNames) : null,
+                    record.SerialNumber,
+                    record.Sha256Fingerprint ?? record.ProviderCertificateId,
+                    issued,
+                    record.NotBeforeUtc,
+                    record.NotAfterUtc,
+                    record.TbsSha256);
+                if (record.EntryTimestampUtc.HasValue && record.EntryTimestampUtc != issued)
+                {
+                    // A later re-observation moves "last seen" only; it says nothing about when the domain was first seen.
+                    if (!LastSeenUtc.HasValue || record.EntryTimestampUtc.Value > LastSeenUtc.Value)
+                    {
+                        LastSeenUtc = record.EntryTimestampUtc.Value;
+                    }
+                }
+                if (!ProcessRow(row, certs))
+                {
+                    logger?.WriteVerbose("CT timeline from {0} capped for {1}", provider.ProviderId, Subject);
+                    return true;
+                }
+            }
+        }
+
+        // Stopping at the page limit with more pages left means the earliest entries may be missing.
+        if (morePages)
+        {
+            ResultsCapped = true;
+        }
+
+        logger?.WriteVerbose("CT timeline from {0} processed {1} row(s), {2} unique certificate(s) for {3}", provider.ProviderId, CertificateObservationCount, certs.Count, Subject);
+        return true;
+    }
+
+    private static string? CommonNameFrom(string? subject)
+    {
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            return null;
+        }
+
+        foreach (var part in subject!.Split(','))
+        {
+            var trimmed = part.Trim();
+            if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed.Substring(3).Trim();
+            }
+        }
+
+        return subject;
     }
 
     private bool RowLimitReached => MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess;
@@ -520,6 +684,10 @@ public sealed partial class CertificateTransparencyTimelineAnalysis : IHasAssess
             if (cert.EntryTimestampUtc.HasValue)
             {
                 UpdateIssuedCountersAndTimeline(nowUtc, cert.EntryTimestampUtc.Value, cert.IssuerName, bucketAgg);
+            }
+            else
+            {
+                UndatedCertificateCount++;
             }
         }
 

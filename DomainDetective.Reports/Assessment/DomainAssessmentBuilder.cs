@@ -45,7 +45,34 @@ public static class DomainAssessmentBuilder {
 
         var domains = new Dictionary<string, DomainAssessment>(StringComparer.OrdinalIgnoreCase);
         var firstSeen = new List<string>();
+        var leftovers = new List<(string Domain, AssessmentEvidenceInfo Info)>();
         foreach (object item in CompositionUtilities.Flatten(items ?? Array.Empty<object>())) {
+            // Findings no check view carried belong to the check they name; they are placed once every check exists.
+            if (item is AssessmentEvidenceInfo evidenceInfo) {
+                string? owner = NormalizeDomain(evidenceInfo.Subject);
+                if (owner == null) continue;
+                if (!domains.ContainsKey(owner)) {
+                    domains[owner] = new DomainAssessment { Domain = owner };
+                    firstSeen.Add(owner);
+                }
+                leftovers.Add((owner, evidenceInfo));
+                continue;
+            }
+            if (item is DomainDetective.Views.DomainRiskProfileInfo riskProfile) {
+                string? profileDomain = NormalizeDomain(riskProfile.Subject);
+                if (profileDomain == null) continue;
+                if (!domains.TryGetValue(profileDomain, out DomainAssessment? owner)) {
+                    owner = new DomainAssessment { Domain = profileDomain };
+                    domains[profileDomain] = owner;
+                    firstSeen.Add(profileDomain);
+                }
+                // Several runs for one domain (one check at a time, say) each bring a profile; keep the one that saw the
+                // most evidence rather than whichever came last.
+                if (owner.RiskProfile == null || riskProfile.Profile.EvidenceScore >= owner.RiskProfile.EvidenceScore) {
+                    owner.RiskProfile = riskProfile.Profile;
+                }
+                continue;
+            }
             DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(item.GetType());
             string? domain = reader.IsView ? NormalizeDomain(reader.Subject(item)) : null;
             if (domain == null) {
@@ -63,6 +90,10 @@ public static class DomainAssessmentBuilder {
         IEnumerable<string> order = options.DomainOrder == DomainOrder.Alphabetical
             ? firstSeen.OrderBy(static d => d, StringComparer.OrdinalIgnoreCase)
             : firstSeen;
+        foreach (var (owner, info) in leftovers) {
+            if (!domains.TryGetValue(owner, out DomainAssessment? target)) continue;
+            PlaceLeftovers(target, info);
+        }
         foreach (string name in order) {
             DomainAssessment domain = domains[name];
             foreach (CheckAssessment check in domain.Checks) Finish(check, maxRows);
@@ -71,8 +102,8 @@ public static class DomainAssessmentBuilder {
         }
 
         int[] scores = report.Domains.Where(static d => d.Score.HasValue).Select(static d => d.Score!.Value).ToArray();
-        bool incomplete = report.Domains.SelectMany(static d => d.Checks).Any(static c => c.Scored && !c.EvidenceComplete);
-        report.Score = scores.Length == 0 || incomplete ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        report.Score = scores.Length == 0 ? null : (int)Math.Round(scores.Average(), MidpointRounding.AwayFromZero);
+        report.Coverage = DomainAssessmentCatalog.ScoreCoverage(report.Domains.SelectMany(static d => d.Checks));
         report.Grade = DomainAssessmentCatalog.GradeFor(report.Score);
         return report;
     }
@@ -234,22 +265,66 @@ public static class DomainAssessmentBuilder {
             })
             .OrderByDescending(static f => f.Severity)
             .ToList();
+        // Checks that only gather data (inventory, enrichment, discovery) never fail the domain: a lookup error in them is
+        // missing evidence, not a finding about the domain.
+        // A probe or lookup that did not finish says nothing about the domain: it is a check that couldn't run, shown in
+        // grey, counted against confidence and kept out of the warnings and the things to fix.
+        // SPF and DMARC decide this from the record itself: a failed include lookup behind a published record is a defect.
+        bool ownGapRule = check.Check is HealthCheckType.SPF or HealthCheckType.DMARC;
+        foreach (CheckFinding finding in check.Findings.Where(f => !ownGapRule && !f.IsEvidenceGap && f.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(f))) {
+            finding.IsEvidenceGap = true;
+            check.EvidenceComplete = false;
+        }
         check.ErrorCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Error);
         check.WarningCount = check.Findings.Count(static f => !f.IsEvidenceGap && f.Severity == AssessmentSeverity.Warning);
-        // Some views report counts without the individual assessments; the outcome must still reflect them.
+        // Some views report counts without the individual assessments; the outcome must still reflect them. A gap finding on
+        // the same check does not hide them: only the counts that became gaps (either way above) are taken off.
         if (check.ErrorCount == 0 && check.WarningCount == 0) {
+            bool BecameGap(object view, Assessment a) => DomainAssessmentViewReader.IsEvidenceGap(view, a)
+                || !ownGapRule && a.Severity >= AssessmentSeverity.Warning && DescribesFailedLookup(a.Code, a.Message);
             foreach (object view in check.Sources) {
                 DomainAssessmentViewReader reader = DomainAssessmentViewReader.For(view.GetType());
-                check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
-                check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && DomainAssessmentViewReader.IsEvidenceGap(view, a)));
+                if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)) continue;
+                check.ErrorCount += Math.Max(0, reader.ErrorCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Error && BecameGap(view, a)));
+                check.WarningCount += Math.Max(0, reader.WarningCount(view) - reader.Assessments(view).Count(a => a.Severity == AssessmentSeverity.Warning && BecameGap(view, a)));
             }
+        }
+        // No CAA record at all means any certificate authority may issue: report that plainly, neither as a pass that
+        // implies an issuer restriction nor as a failure.
+        if (check.Check == HealthCheckType.CAA && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().All(static v => v.ValidRecords == 0 && v.InvalidRecords == 0)) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.NoCaaPolicy;
+        }
+        // Records that only set reporting (iodef, contact) restrict no issuer: say so instead of claiming a restriction.
+        else if (check.Check == HealthCheckType.CAA && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.CaaInfo>().All(static v => v.Records.Count > 0 && v.Records.All(CaaRecordOnlyReports))) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.CaaReportingOnly;
+        }
+        // The same for TLS-RPT: an optional record that is not published is not a passing one.
+        if (check.Check == HealthCheckType.TLSRPT && check.ErrorCount == 0 && check.WarningCount == 0 && check.EvidenceComplete
+            && check.Sources.OfType<DomainDetective.Views.TlsRptInfo>().Any()
+            && check.Sources.OfType<DomainDetective.Views.TlsRptInfo>().All(static v => !v.TlsRptRecordExists)) {
+            check.Scored = false;
+            check.Summary = AssessmentReportWording.NoTlsRptRecord;
+        }
+        // What a data-gathering check notices (a missing PTR, a short CT history) is context for the profile, not a fix
+        // for the domain. Lookalike domains and exposed subdomains are the exceptions: they are something to act on.
+        if (check.Check.HasValue && DomainAssessmentCatalog.GathersData(check.Check.Value)
+            && check.Check is not (HealthCheckType.TYPOSQUATTING or HealthCheckType.SUBDOMAINS)) {
+            check.WarningCount = 0;
         }
         check.Outcome = check.ErrorCount > 0 ? CheckOutcome.Error
             : check.WarningCount > 0 ? CheckOutcome.Warning
             : !check.EvidenceComplete ? CheckOutcome.Incomplete
             : check.Scored ? CheckOutcome.Pass
             : CheckOutcome.Info;
-        check.Score = check.EvidenceComplete ? DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount) : null;
+        // Missing evidence lowers coverage, never the score: a check that already shows errors or warnings keeps them.
+        check.Score = check.EvidenceComplete || check.ErrorCount + check.WarningCount > 0
+            ? DomainAssessmentCatalog.ScoreFor(check.ErrorCount, check.WarningCount) : null;
     }
 
     /// <summary>
@@ -270,6 +345,7 @@ public static class DomainAssessmentBuilder {
             .ThenBy(static c => c.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
         domain.Score = WeightedScore(domain.Checks);
+        domain.Coverage = DomainAssessmentCatalog.ScoreCoverage(domain.Checks);
         domain.Grade = DomainAssessmentCatalog.GradeFor(domain.Score);
         domain.ErrorChecks = domain.Checks.Count(static c => c.Outcome == CheckOutcome.Error);
         domain.WarningChecks = domain.Checks.Count(static c => c.Outcome == CheckOutcome.Warning);
@@ -280,6 +356,8 @@ public static class DomainAssessmentBuilder {
             .Select(static g => new AreaScore {
                 Area = g.Key,
                 Score = WeightedScore(g),
+                Coverage = DomainAssessmentCatalog.ScoreCoverage(g),
+                Incomplete = g.Where(static c => c.Scored && !c.EvidenceComplete).Select(static c => c.Title).ToList(),
                 Checks = g.Count(),
                 Attention = g.Count(static c => c.Outcome is CheckOutcome.Error or CheckOutcome.Warning)
             })
@@ -287,6 +365,82 @@ public static class DomainAssessmentBuilder {
     }
 
     private static int? WeightedScore(IEnumerable<CheckAssessment> checks) => DomainAssessmentCatalog.CombinedScore(checks);
+
+    private static HealthCheckType? CategoryCheck(string category) {
+        if (category.Length == 0) return null;
+        if (string.Equals(category, "Certificate", StringComparison.OrdinalIgnoreCase)) return HealthCheckType.CERT;
+        return Enum.TryParse(category.Replace(" ", string.Empty).Replace("-", string.Empty), true, out HealthCheckType kind) && Enum.IsDefined(typeof(HealthCheckType), kind)
+            ? kind : null;
+    }
+
+    // "0 iodef \"mailto:…\"": the tag is the second field. Only reporting tags are known not to restrict issuance; any
+    // other tag (issue, issuewild, an unknown critical tag) may.
+    private static bool CaaRecordOnlyReports(string record) {
+        string[] fields = record.Split((char[]?)null, 3, StringSplitOptions.RemoveEmptyEntries);
+        string tag = fields.Length > 1 ? fields[1] : string.Empty;
+        return tag.Equals("iodef", StringComparison.OrdinalIgnoreCase) || tag.Equals("contactemail", StringComparison.OrdinalIgnoreCase)
+            || tag.Equals("contactphone", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Markers of a lookup or probe that did not finish. They name the acquisition, not the record, so an observed defect
+    // ("missing glue", "key could not be validated") never matches.
+    private static readonly string[] FailedLookupCodes = { "QueryFailed", "Query.Failed", "ProbeFailed", "Probe.Failed", "LookupFailed", "Lookup.Failed", "Timeout", "Unreachable", "NotChecked" };
+
+    private static readonly string[] FailedLookupPhrases = {
+        "query failed", "probe failed", "lookup failed", "request failed", "timed out", "query did not complete",
+        "did not complete; ", "was not checked", "error response", "query budget exhausted", "check failed for"
+    };
+
+    // A finding that reports a lookup or probe that did not finish, rather than something found about the domain.
+    private static readonly string[] ObservedFailureCodes = { "TlsFailed", "DownloadFailed", "Download.Failed", "HttpStatus", "StatusCode" };
+
+    private static bool DescribesFailedLookup(CheckFinding finding) => DescribesFailedLookup(finding.Code, finding.Message);
+
+    private static bool DescribesFailedLookup(string? findingCode, string? findingMessage) {
+        string code = findingCode ?? string.Empty;
+        string message = findingMessage ?? string.Empty;
+        // A failed TLS handshake or a logo that will not download is what the domain publishes, not a lookup we lost.
+        foreach (string observed in ObservedFailureCodes) {
+            if (code.IndexOf(observed, StringComparison.OrdinalIgnoreCase) >= 0) return false;
+        }
+        foreach (string marker in FailedLookupCodes) {
+            if (code.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        foreach (string marker in FailedLookupPhrases) {
+            if (message.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Adds findings no check view carried to the check their category names. When that check has no view of its own,
+    /// it is created under its real name and area (unscored, since only part of its evidence arrived); findings whose
+    /// category names no check go to "Additional findings".
+    /// </summary>
+    private static void PlaceLeftovers(DomainAssessment domain, AssessmentEvidenceInfo info) {
+        foreach (Assessment assessment in info.Assessments) {
+            if (string.IsNullOrWhiteSpace(assessment.Message)) continue;
+            string category = (assessment.Category ?? string.Empty).Trim();
+            HealthCheckType? kind = CategoryCheck(category);
+            string key = kind?.ToString().ToLowerInvariant() ?? "additional-findings";
+            CheckAssessment? check = domain.Checks.FirstOrDefault(c => c.Key == key);
+            // An informational note on its own is not worth a check of its own.
+            if (check == null && assessment.Severity == AssessmentSeverity.Info) continue;
+            if (check == null) {
+                (string title, string? longTitle) = kind.HasValue ? DomainAssessmentCatalog.TitleFor(kind.Value) : ("Additional findings", null);
+                check = new CheckAssessment {
+                    Key = key, Check = kind, Title = title, LongTitle = longTitle,
+                    Area = kind.HasValue ? DomainDetective.Views.Converters.AreaFor(kind.Value) : AnalysisArea.General,
+                    Scored = false
+                };
+                domain.Checks.Add(check);
+            }
+            if (check.Findings.Any(f => f.Code == assessment.Code && f.Message == assessment.Message.Trim())) continue;
+            check.Findings.Add(new CheckFinding {
+                Severity = assessment.Severity, Code = assessment.Code, Message = assessment.Message.Trim(), Target = assessment.Target
+            });
+        }
+    }
 
     private static int AreaIndex(AnalysisArea area) {
         int index = -1;
