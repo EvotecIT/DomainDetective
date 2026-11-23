@@ -149,7 +149,14 @@ public static partial class AssessmentReportWording {
             : IsCaaReportingOnly(check) ? "No issuer restriction; incident reporting set."
             : "Only the listed CAs may issue certificates.",
         "tlsrpt" => IsNoTlsRptRecord(check) ? "Mail TLS failures are not reported." : "Mail TLS failures are reported.",
-        "mtasts" => "Senders must deliver over TLS.",
+        // Only an enforced policy makes TLS mandatory; testing and DNS-only evidence say so instead of claiming it.
+        "mtasts" => (Metric(check, "Mode") ?? string.Empty).ToLowerInvariant() switch {
+            "enforce" => "Senders must deliver over TLS.",
+            "testing" => "TLS failures are reported; mail is still delivered.",
+            "none" => "The policy is switched off.",
+            "not checked" => "Only the DNS record was checked; the policy was not fetched.",
+            _ => null
+        },
         _ => null
     };
 

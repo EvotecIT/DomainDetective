@@ -473,6 +473,24 @@ public class TestDomainRiskProfile {
         Assert.Equal(incomplete, analysis.DiscoveryIncomplete);
     }
 
+    [Theory]
+    [InlineData(DnsClientX.DnsResponseCode.NXDomain, true)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, false)]
+    public async System.Threading.Tasks.Task APtrNameThatDoesNotResolveIsASettledMismatch(DnsClientX.DnsResponseCode forwardStatus, bool settled) {
+        var analysis = new FCrDnsAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => System.Threading.Tasks.Task.FromResult(new DnsClientX.DnsResponse {
+            Status = forwardStatus, Answers = Array.Empty<DnsClientX.DnsAnswer>()
+        });
+        var reverse = new ReverseDnsAnalysis.ReverseDnsResult { IpAddress = "192.0.2.10" };
+        reverse.PtrRecords.Add("gone.example.test");
+
+        await analysis.Analyze(new[] { reverse });
+
+        FCrDnsAnalysis.FCrDnsResult result = Assert.Single(analysis.Results);
+        Assert.False(result.ForwardConfirmed);
+        Assert.Equal(settled, result.ForwardAnswered);
+    }
+
     [Fact]
     public async System.Threading.Tasks.Task AnIpv6AddressWrittenInFullIsConfirmedByTheShortenedAnswer() {
         var analysis = new FCrDnsAnalysis();

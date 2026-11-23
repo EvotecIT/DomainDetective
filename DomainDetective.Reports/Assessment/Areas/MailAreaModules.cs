@@ -302,8 +302,12 @@ internal sealed class MtaStsAreaModule : IAssessmentAreaModule {
         }
 
         string mode = (sts.Mode ?? string.Empty).Trim().ToLowerInvariant();
-        MetricState modeState = !sts.PolicyValid ? MetricState.Error : mode == "enforce" ? MetricState.Good : MetricState.Warning;
-        check.Metrics.Add(Metric("Mode", sts.PolicyValid && mode.Length > 0 ? mode : "invalid policy", modeState));
+        // A DNS-only run never fetched the policy, so its mode is unknown rather than invalid.
+        if (sts.PolicyFetchSkipped) check.Metrics.Add(Metric("Mode", "not checked", MetricState.Neutral, "policy file not fetched"));
+        else {
+            MetricState modeState = !sts.PolicyValid ? MetricState.Error : mode == "enforce" ? MetricState.Good : MetricState.Warning;
+            check.Metrics.Add(Metric("Mode", sts.PolicyValid && mode.Length > 0 ? mode : "invalid policy", modeState));
+        }
         if (sts.MaxAge > 0) {
             double days = sts.MaxAge / 86400d;
             check.Metrics.Add(Metric("Cached for", days >= 1 ? N((int)Math.Round(days)) + " days" : N(sts.MaxAge) + " s", days >= 7 ? MetricState.Good : MetricState.Warning, "max_age"));

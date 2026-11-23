@@ -105,7 +105,8 @@ public class FCrDnsAnalysis
                 var (aaaa, aaaaConclusive) = await QueryForward(normalizedPtr, DnsRecordType.AAAA);
                 // Only the lookup for the address's own family can confirm it: when that lookup failed, an answer of the
                 // other family does not settle a mismatch.
-                answered &= (isIpv6 ? aaaaConclusive : aConclusive) && (a.Length > 0 || aaaa.Length > 0);
+                // NXDOMAIN or no data for the family is a conclusive "does not point back"; SERVFAIL and timeouts are not.
+                answered &= isIpv6 ? aaaaConclusive : aConclusive;
                 logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
                 if (a.Concat(aaaa).Any(r => SameAddress(r.Data, address, item.IpAddress)))
                 {

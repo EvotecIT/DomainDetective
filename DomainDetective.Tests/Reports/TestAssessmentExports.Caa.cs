@@ -115,6 +115,18 @@ public class TestAssessmentAbsentAndObserved {
         Assert.Equal("Mail TLS failures are not reported.", Wording.ControlReason(check));
     }
 
+    [Theory]
+    [InlineData(false, "enforce", "Senders must deliver over TLS.")]
+    [InlineData(false, "testing", "TLS failures are reported; mail is still delivered.")]
+    [InlineData(true, "", "Only the DNS record was checked; the policy was not fetched.")]
+    public void TheMtaStsTileClaimsMandatoryTlsOnlyForAnEnforcedPolicy(bool dnsOnly, string mode, string reason) {
+        var view = new MtastsInfo { Check = HealthCheckType.MTASTS, Subject = "example.test", DnsRecordPresent = true, DnsRecordValid = true,
+            PolicyFetchSkipped = dnsOnly, PolicyPresent = !dnsOnly, PolicyValid = !dnsOnly, Mode = mode, Assessments = System.Array.Empty<Assessment>() };
+        CheckAssessment check = Assert.Single(Assert.Single(DomainAssessmentBuilder.Build(new object[] { view }).Domains).Checks);
+
+        Assert.Equal(reason, Wording.ControlReason(check));
+    }
+
     [Fact]
     public void AnObservedTlsFailureIsADefectNotACheckThatCouldNotRun() {
         var view = new MxInfo { Check = HealthCheckType.MX, Subject = "example.test", Assessments = new[] {
