@@ -149,6 +149,12 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
     /// </summary>
     public bool HostsCapped { get; private set; }
 
+    /// <summary>
+    /// True when an apex, MX, NS or host address lookup did not answer conclusively (for example SERVFAIL or a timeout),
+    /// so some addresses may be missing.
+    /// </summary>
+    public bool DiscoveryIncomplete { get; private set; }
+
     /// <summary>True when enrichment completed successfully (even if partial data was returned).</summary>
     public bool QuerySucceeded { get; private set; }
 
@@ -401,6 +407,7 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
         Subject = null;
         ResultsCapped = false;
         HostsCapped = false;
+        DiscoveryIncomplete = false;
         QuerySucceeded = false;
         FailureReason = null;
         UniqueIpCount = 0;
@@ -423,10 +430,27 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
         return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct).ConfigureAwait(false);
     }
 
+    // Lookups that find the addresses: a failed one means the address set may be incomplete, which an empty answer
+    // alone cannot tell apart from a host that has no addresses.
+    private async Task<DnsAnswer[]> QueryDiscoveryAsync(string name, DnsRecordType type, CancellationToken ct)
+    {
+        if (QueryOverride != null)
+        {
+            return await QueryOverride(name, type, ct).ConfigureAwait(false);
+        }
+
+        DnsResponse response = await DnsConfiguration.QueryDNSResponse(name, type, cancellationToken: ct).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(response.Error) || response.Status != DnsResponseCode.NoError && response.Status != DnsResponseCode.NXDomain)
+        {
+            DiscoveryIncomplete = true;
+        }
+        return response.Answers ?? Array.Empty<DnsAnswer>();
+    }
+
     private async Task AddApexSourcesAsync(string domain, List<IpEnrichmentSource> sources, CancellationToken ct)
     {
-        var a = await QueryDnsAsync(domain, DnsRecordType.A, ct).ConfigureAwait(false);
-        var aaaa = await QueryDnsAsync(domain, DnsRecordType.AAAA, ct).ConfigureAwait(false);
+        var a = await QueryDiscoveryAsync(domain, DnsRecordType.A, ct).ConfigureAwait(false);
+        var aaaa = await QueryDiscoveryAsync(domain, DnsRecordType.AAAA, ct).ConfigureAwait(false);
 
         foreach (var ans in a.Concat(aaaa))
         {
@@ -443,7 +467,7 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
 
     private async Task AddHostSourcesAsync(string domain, DnsRecordType type, IpEnrichmentSourceKind kind, List<IpEnrichmentSource> sources, CancellationToken ct)
     {
-        var answers = await QueryDnsAsync(domain, type, ct).ConfigureAwait(false);
+        var answers = await QueryDiscoveryAsync(domain, type, ct).ConfigureAwait(false);
         var hosts = new List<string>();
         foreach (var a in answers)
         {
@@ -464,8 +488,8 @@ public sealed class IpEnrichmentAnalysis : IHasAssessments
 
         foreach (var host in hosts)
         {
-            var a = await QueryDnsAsync(host, DnsRecordType.A, ct).ConfigureAwait(false);
-            var aaaa = await QueryDnsAsync(host, DnsRecordType.AAAA, ct).ConfigureAwait(false);
+            var a = await QueryDiscoveryAsync(host, DnsRecordType.A, ct).ConfigureAwait(false);
+            var aaaa = await QueryDiscoveryAsync(host, DnsRecordType.AAAA, ct).ConfigureAwait(false);
             foreach (var ans in a.Concat(aaaa))
             {
                 var ip = (ans.Data ?? ans.DataRaw ?? string.Empty).Trim();

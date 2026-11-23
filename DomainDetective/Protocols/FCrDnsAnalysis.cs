@@ -94,7 +94,9 @@ public class FCrDnsAnalysis
             }
 
             bool match = false;
-            bool answered = false;
+            // A mismatch is settled only when every PTR name's forward lookup answered: an unanswered one could still
+            // point back to the address.
+            bool answered = ptrs.Count > 0;
             bool isIpv6 = IPAddress.TryParse(item.IpAddress, out var address) && address.AddressFamily == AddressFamily.InterNetworkV6;
             foreach (var ptr in ptrs)
             {
@@ -103,7 +105,7 @@ public class FCrDnsAnalysis
                 var (aaaa, aaaaConclusive) = await QueryForward(normalizedPtr, DnsRecordType.AAAA);
                 // Only the lookup for the address's own family can confirm it: when that lookup failed, an answer of the
                 // other family does not settle a mismatch.
-                answered |= (isIpv6 ? aaaaConclusive : aConclusive) && (a.Length > 0 || aaaa.Length > 0);
+                answered &= (isIpv6 ? aaaaConclusive : aConclusive) && (a.Length > 0 || aaaa.Length > 0);
                 logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
                 if (a.Concat(aaaa).Any(r => SameAddress(r.Data, address, item.IpAddress)))
                 {

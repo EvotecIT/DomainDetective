@@ -276,7 +276,7 @@ public static class DomainRiskProfileBuilder {
             return;
         }
         // When enrichment stopped at its address or host limit, the addresses it dropped were never looked at.
-        evidence.NetworkState = NetworkState(enrichment.QuerySucceeded, enrichment.ResultsCapped || enrichment.HostsCapped);
+        evidence.NetworkState = NetworkState(enrichment.QuerySucceeded, enrichment.ResultsCapped || enrichment.HostsCapped || enrichment.DiscoveryIncomplete);
         foreach (IpEnrichmentRow row in enrichment.Rows ?? Array.Empty<IpEnrichmentRow>()) {
             if (evidence.Addresses.Any(a => string.Equals(a.IpAddress, row.IpAddress, StringComparison.OrdinalIgnoreCase))) continue;
             evidence.Addresses.Add(new ProfileAddress {

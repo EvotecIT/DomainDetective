@@ -420,6 +420,59 @@ public class TestDomainRiskProfile {
         Assert.Equal(settled, result.ForwardAnswered);
     }
 
+    [Theory]
+    [InlineData(DnsClientX.DnsResponseCode.NoError, true)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, false)]
+    public async System.Threading.Tasks.Task AMismatchIsSettledOnlyWhenEveryPtrNameAnswered(DnsClientX.DnsResponseCode secondStatus, bool settled) {
+        var analysis = new FCrDnsAnalysis();
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            bool second = name.TrimEnd('.') == "mail2.example.test";
+            return System.Threading.Tasks.Task.FromResult(new DnsClientX.DnsResponse {
+                Status = second ? secondStatus : DnsClientX.DnsResponseCode.NoError,
+                // Both names answer with another address when they answer at all.
+                Answers = type == DnsClientX.DnsRecordType.A && (!second || secondStatus == DnsClientX.DnsResponseCode.NoError)
+                    ? new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.99" } }
+                    : Array.Empty<DnsClientX.DnsAnswer>()
+            });
+        };
+        var reverse = new ReverseDnsAnalysis.ReverseDnsResult { IpAddress = "192.0.2.10" };
+        reverse.PtrRecords.Add("mail1.example.test");
+        reverse.PtrRecords.Add("mail2.example.test");
+
+        await analysis.Analyze(new[] { reverse });
+
+        FCrDnsAnalysis.FCrDnsResult result = Assert.Single(analysis.Results);
+        Assert.False(result.ForwardConfirmed);
+        Assert.Equal(settled, result.ForwardAnswered);
+    }
+
+    [Theory]
+    [InlineData(DnsClientX.DnsResponseCode.NoError, false)]
+    [InlineData(DnsClientX.DnsResponseCode.ServerFailure, true)]
+    public async System.Threading.Tasks.Task AFailedMailHostAddressLookupLeavesTheNetworkPartial(DnsClientX.DnsResponseCode hostStatus, bool incomplete) {
+        var analysis = new IpEnrichmentAnalysis {
+            IncludeMxHostAddresses = true,
+            IncludeNsHostAddresses = false,
+            RdapQueryOverride = (_, _) => System.Threading.Tasks.Task.FromResult<DomainDetective.RdapIpNetwork?>(null)
+        };
+        analysis.DnsConfiguration.QueryDnsResponseOverride = (name, type, _) => {
+            name = name.TrimEnd('.');
+            var response = new DnsClientX.DnsResponse { Status = DnsClientX.DnsResponseCode.NoError, Answers = Array.Empty<DnsClientX.DnsAnswer>() };
+            if (name == "example.test" && type == DnsClientX.DnsRecordType.A) {
+                response.Answers = new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "192.0.2.10" } };
+            } else if (name == "example.test" && type == DnsClientX.DnsRecordType.MX) {
+                response.Answers = new[] { new DnsClientX.DnsAnswer { Name = name, Type = type, DataRaw = "10 mx.example.test." } };
+            } else if (name == "mx.example.test" && type == DnsClientX.DnsRecordType.A) {
+                response.Status = hostStatus;
+            }
+            return System.Threading.Tasks.Task.FromResult(response);
+        };
+
+        await analysis.AnalyzeAsync("example.test", Array.Empty<string>(), new InternalLogger());
+
+        Assert.Equal(incomplete, analysis.DiscoveryIncomplete);
+    }
+
     [Fact]
     public async System.Threading.Tasks.Task AnIpv6AddressWrittenInFullIsConfirmedByTheShortenedAnswer() {
         var analysis = new FCrDnsAnalysis();
