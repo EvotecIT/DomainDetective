@@ -13,9 +13,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="OfficeIMO.Word" Version="3.6.1" />
-        <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.6.1" />
-        <PackageReference Include="OfficeIMO.Excel" Version="3.6.1" />
+        <PackageReference Include="OfficeIMO.Word" Version="3.6.2" />
+        <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.6.2" />
+        <PackageReference Include="OfficeIMO.Excel" Version="3.6.2" />
     </ItemGroup>
 
   <ItemGroup>
