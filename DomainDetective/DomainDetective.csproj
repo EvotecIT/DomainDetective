@@ -21,9 +21,9 @@
         <PackageReference Include="MailKit" Version="5.0.0" />
         <PackageReference Include="MimeKit.Cryptography" Version="5.0.0" />
         <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
-        <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.15" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="11.0.0" />
         <!-- Keep the security floor when ASP.NET consumers prune the in-box XML package. -->
-        <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" Condition="'$(TargetFramework)' != 'net472'" />
+        <PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" Condition="'$(TargetFramework)' != 'net472'" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
